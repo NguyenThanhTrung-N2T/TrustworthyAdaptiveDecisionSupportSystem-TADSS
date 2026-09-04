@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Shared.DecisionContractSDK/Shared.DecisionContractSDK.csproj" />
+    <Project Path="src/TADSS.Runtime.Api/TADSS.Runtime.Api.csproj" />
+    <Project Path="src/TADSS.Strategies.Default/TADSS.Strategies.Default.csproj" />
+    <Project Path="src/TADSS.Strategies.MockAlternative/TADSS.Strategies.MockAlternative.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TADSS.IntegrationTests/TADSS.IntegrationTests.csproj" />
+    <Project Path="tests/TADSS.UnitTests/TADSS.UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,6 @@
+@TADSS.Runtime.Api_HostAddress = http://localhost:5296
+
+GET {{TADSS.Runtime.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
