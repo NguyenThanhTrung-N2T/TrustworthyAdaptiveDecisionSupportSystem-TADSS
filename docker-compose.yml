@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  tadss-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tadss-runtime
+    ports:
+      - "8081:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${TADSS_DB_CONNECTION_STRING}
+      - Redis__ConnectionString=${TADSS_REDIS_CONNECTION_STRING:-tadss-redis:6379}
+    networks:
+      - smashcourt-network
+    depends_on:
+      - tadss-redis
+    restart: unless-stopped
+
+  tadss-redis:
+    image: redis:7.2-alpine
+    container_name: tadss-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - tadss-redis-data:/data
+    networks:
+      - smashcourt-network
+    restart: unless-stopped
+
+networks:
+  smashcourt-network:
+    name: smashcourt-network
+    external: true
+
+volumes:
+  tadss-redis-data:

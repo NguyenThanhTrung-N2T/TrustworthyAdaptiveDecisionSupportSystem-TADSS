@@ -1,0 +1,14 @@
+**/.git
+**/.github
+**/.vs
+**/.vscode
+**/.idea
+**/bin
+**/obj
+**/TestResults
+tests/
+docs/
+docker/
+*.md
+*.user
+src/TADSS.Runtime.Api/appsettings.Development.json

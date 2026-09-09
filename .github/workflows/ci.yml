@@ -1,0 +1,80 @@
+name: TADSS Runtime CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  build-and-test:
+    name: Build, Run Tests & Verify Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Lấy mã nguồn
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Cài đặt .NET SDK 8.0
+      - name: Setup .NET SDK 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # 3. Khôi phục dependencies
+      - name: Restore Dependencies
+        run: dotnet restore
+
+      # 4. Build toàn bộ Solution (Release mode)
+      - name: Build Solution
+        run: dotnet build --no-restore --configuration Release
+
+      # 5. Chạy toàn bộ Tests với song song 2 loggers:
+      # - GitHubActions: Highlight đỏ trực tiếp lỗi trên dòng code trong PR
+      # - trx: Xuất file báo cáo chuẩn VSTest cho test-reporter
+      - name: Run Automated Tests
+        run: >
+          dotnet test 
+          --no-build 
+          --configuration Release 
+          --verbosity normal 
+          --logger "GitHubActions" 
+          --logger "trx;LogFileName=test_results.trx" 
+          --collect:"XPlat Code Coverage" 
+          --results-directory ./TestResults
+
+      # 6. Tạo bảng tổng hợp kết quả Test hiển thị trực tiếp lên GitHub Action Summary
+      - name: Publish Test Results Summary
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit & Integration Tests Report
+          path: "TestResults/**/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: true
+
+      # 7. Lưu trữ file Artifacts phục vụ xem xét sau này
+      - name: Upload Test Results Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-and-coverage
+          path: ./TestResults
+
+      # 8. Chỉ đóng gói thử Docker Image NẾU VÀ CHỈ NẾU tất cả Tests đều PASS
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify Docker Image Packaging
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: tadss-runtime:ci-test
