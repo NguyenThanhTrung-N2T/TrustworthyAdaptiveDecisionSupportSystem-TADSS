@@ -1,0 +1,721 @@
+openapi: 3.0.3
+info:
+  title: TADSS Decision Runtime API
+  description: |
+    Trustworthy Adaptive Decision Support System (TADSS) — Decision Runtime Engine.
+    Provides automated decision evaluation, audit inspection, pending approval queue, and manager override capabilities.
+  version: 1.0.0
+  contact:
+    name: TADSS Engineering Team
+    url: https://github.com/smashcourt/tadss
+
+servers:
+  - url: https://tadss.smashcourt.vn
+    description: Production Environment
+  - url: http://localhost:5000
+    description: Local Development Environment
+
+paths:
+  /api/v1/decisions:
+    post:
+      summary: Evaluate Reservation Decision
+      description: |
+        Processes an incoming reservation request, checks domain invariants, evaluates decision strategies within a 500ms deadline, persists an immutable audit record, and returns an automated decision result.
+      operationId: EvaluateDecision
+      parameters:
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          description: Unique client-generated operation key (UUID or string 1..128 chars) for idempotency and safe retry.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: "req-booking-20260912-001"
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          description: Distributed tracing correlation ID. If omitted, TADSS generates a new UUID.
+          schema:
+            type: string
+            format: uuid
+            example: "018e3a2b-8a71-7000-8c24-998877665544"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      responses:
+        '200':
+          description: Decision successfully evaluated or replayed from idempotency cache.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+            X-Decision-ID:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionResult'
+        '400':
+          description: Bad Request — JSON parse error, missing required headers, or domain invariant violation.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Idempotency Key Conflict — X-Idempotency-Key reused with a different request payload.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '504':
+          description: Gateway Timeout — Strategy execution exceeded hard 500ms timeout budget.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Internal Server Error — Unexpected masked error details.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/decisions/{decisionId}:
+    get:
+      summary: Get Decision Audit Detail
+      description: |
+        Retrieves the complete audit record, telemetry, and governance state for a specific decision. Note that only the request_hash and response_payload are persisted.
+      operationId: GetDecisionDetail
+      parameters:
+        - name: decisionId
+          in: path
+          required: true
+          description: Unique logical decision ID.
+          schema:
+            type: string
+            format: uuid
+            example: "018e3a2b-9f88-7111-a1b2-001122334455"
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detailed decision record retrieved.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionDetailResponse'
+        '404':
+          description: Decision record not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Internal Server Error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/decisions/pending-approvals:
+    get:
+      summary: Get Pending Approvals Queue
+      description: |
+        Retrieves a paginated list of decisions requiring human manager approval (need_approval = true AND is_overridden = false).
+      operationId: GetPendingApprovals
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (1-indexed).
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of items per page.
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated pending approvals list.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingApprovalsResponse'
+        '500':
+          description: Internal Server Error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/decisions/{decisionId}/override:
+    post:
+      summary: Override Decision (Human-in-the-Loop)
+      description: |
+        Allows a manager to approve or reject a decision that required review, preserving the machine decision immutable and updating audit governance fields.
+      operationId: OverrideDecision
+      parameters:
+        - name: decisionId
+          in: path
+          required: true
+          description: Unique logical decision ID to override.
+          schema:
+            type: string
+            format: uuid
+            example: "018e3a2b-9f88-7111-a1b2-001122334455"
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverrideDecisionRequest'
+      responses:
+        '200':
+          description: Decision override successfully applied.
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverrideDecisionResponse'
+        '400':
+          description: Bad Request — Decision is not eligible for override or invalid status.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Decision not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict — Decision has already been overridden.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Internal Server Error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  schemas:
+    DecisionRequest:
+      type: object
+      required:
+        - reservationId
+        - courtId
+        - branchId
+        - customerId
+        - startTime
+        - endTime
+        - bookingType
+        - totalPrice
+        - depositAmount
+        - paymentStatus
+        - requestedAt
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+          example: "018e3a2b-8a71-7000-8c24-112233445566"
+        courtId:
+          type: string
+          format: uuid
+          example: "018e3a2b-8a71-7000-8c24-aabbccddeeff"
+        courtTypeId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "018e3a2b-8a71-7000-8c24-001122334455"
+        branchId:
+          type: string
+          format: uuid
+          example: "018e3a2b-8a71-7000-8c24-998877665544"
+        customerId:
+          type: string
+          format: uuid
+          example: "018e3a2b-8a71-7000-8c24-123456789abc"
+        customerTier:
+          type: string
+          default: STANDARD
+          description: "Customer loyalty membership tier rank name from dynamic LoyaltyTier database table (e.g. STANDARD, GOLD, VIP)."
+          example: "GOLD"
+        startTime:
+          type: string
+          format: date-time
+          example: "2026-09-15T18:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          example: "2026-09-15T20:00:00Z"
+        bookingType:
+          type: string
+          default: SINGLE
+          description: "Type of booking session (e.g. SINGLE, RECURRING, TOURNAMENT, EVENT)."
+          example: "SINGLE"
+        totalPrice:
+          type: number
+          format: decimal
+          minimum: 0.00
+          example: 300000.00
+        depositAmount:
+          type: number
+          format: decimal
+          minimum: 0.00
+          example: 150000.00
+        paymentStatus:
+          type: string
+          enum: [UNPAID, PARTIALLY_PAID, PAID, REFUNDED, EXPIRED, Unpaid, PartiallyPaid, Paid, Refunded, Expired]
+          description: "Current payment settlement status matching SmashCourt-BE InvoicePaymentStatus."
+          example: "PARTIALLY_PAID"
+        priority:
+          type: string
+          default: NORMAL
+          description: "Decision evaluation priority level (e.g. LOW, NORMAL, HIGH, CRITICAL)."
+          example: "NORMAL"
+        requestedAt:
+          type: string
+          format: date-time
+          example: "2026-09-12T15:00:00Z"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            source: "MobileApp"
+            voucherCode: "SUMMER2026"
+
+    DecisionResult:
+      type: object
+      required:
+        - decisionId
+        - reservationId
+        - status
+        - strategyName
+        - strategyVersion
+        - executionTimeMs
+        - fallbackUsed
+        - primaryReason
+        - reasons
+        - recommendations
+        - evaluatedAt
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+          example: "018e3a2b-9f88-7111-a1b2-001122334455"
+        reservationId:
+          type: string
+          format: uuid
+          example: "018e3a2b-8a71-7000-8c24-112233445566"
+        status:
+          type: string
+          enum: [APPROVED, REJECTED, NEED_APPROVAL, Approved, Rejected, NeedApproval]
+          example: "APPROVED"
+        strategyName:
+          type: string
+          example: "DefaultDecisionStrategy"
+        strategyVersion:
+          type: string
+          example: "1.0.0"
+        executionTimeMs:
+          type: integer
+          minimum: 0
+          example: 14
+        fallbackUsed:
+          type: boolean
+          example: false
+        primaryReason:
+          type: string
+          example: "AUTO_APPROVED_TIER_ELIGIBLE"
+        reasons:
+          type: array
+          items:
+            type: string
+          example:
+            - "Khách hàng hạng Gold đáp ứng chính sách thanh toán cọc 50%"
+            - "Khung giờ khả dụng, không có xung đột lịch bảo trì"
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionRecommendation'
+        evaluatedAt:
+          type: string
+          format: date-time
+          example: "2026-09-12T15:00:00.014Z"
+
+    DecisionRecommendation:
+      type: object
+      required:
+        - type
+        - description
+      properties:
+        type:
+          type: string
+          enum: [ALTERNATIVE_SLOT, ALTERNATIVE_COURT, PRICE_ADJUSTMENT, REQUIRE_DEPOSIT, REQUIRE_APPROVAL, PRIORITY_ESCALATION, AlternativeSlot, AlternativeCourt, PriceAdjustment, RequireDeposit, RequireApproval, PriorityEscalation]
+          example: "ALTERNATIVE_SLOT"
+        description:
+          type: string
+          example: "Khung giờ 18:00 - 20:00 đã kín. Gợi ý chuyển sang khung giờ 20:00 - 22:00 cùng ngày trên Sân 2."
+        suggestedCourtId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "018e3a2b-8a71-7000-8c24-aabbccddeeff"
+        suggestedStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-09-15T20:00:00Z"
+        suggestedEndTime:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-09-15T22:00:00Z"
+        suggestedPrice:
+          type: number
+          format: decimal
+          nullable: true
+          example: 280000.00
+        confidenceScore:
+          type: number
+          format: double
+          minimum: 0.0
+          maximum: 1.0
+          nullable: true
+          example: 0.95
+
+    DecisionDetailResponse:
+      type: object
+      required:
+        - decisionId
+        - reservationId
+        - requestHash
+        - decision
+        - execution
+        - governance
+        - timestamps
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        reservationId:
+          type: string
+          format: uuid
+        requestHash:
+          type: string
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        decision:
+          type: object
+          required:
+            - status
+            - primaryReason
+            - reasons
+            - recommendations
+          properties:
+            status:
+              type: string
+              enum: [APPROVED, REJECTED, NEED_APPROVAL, Approved, Rejected, NeedApproval]
+            primaryReason:
+              type: string
+            reasons:
+              type: array
+              items:
+                type: string
+            recommendations:
+              type: array
+              items:
+                $ref: '#/components/schemas/DecisionRecommendation'
+        execution:
+          type: object
+          required:
+            - strategyName
+            - strategyVersion
+            - executionType
+            - executionTimeMs
+            - fallbackUsed
+            - cacheHit
+          properties:
+            strategyName:
+              type: string
+            strategyVersion:
+              type: string
+            executionType:
+              type: string
+            executionTimeMs:
+              type: integer
+            fallbackUsed:
+              type: boolean
+            failureReason:
+              type: string
+              nullable: true
+            cacheHit:
+              type: boolean
+        governance:
+          type: object
+          required:
+            - needApproval
+            - isOverridden
+          properties:
+            needApproval:
+              type: boolean
+            isOverridden:
+              type: boolean
+            overriddenBy:
+              type: string
+              nullable: true
+            overrideReason:
+              type: string
+              nullable: true
+            overriddenAt:
+              type: string
+              format: date-time
+              nullable: true
+        timestamps:
+          type: object
+          required:
+            - createdAt
+            - updatedAt
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    PendingApprovalsResponse:
+      type: object
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+        - items
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 20
+        totalItems:
+          type: integer
+          example: 3
+        totalPages:
+          type: integer
+          example: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingApprovalItem'
+
+    PendingApprovalItem:
+      type: object
+      required:
+        - decisionId
+        - reservationId
+        - status
+        - primaryReason
+        - strategyName
+        - strategyVersion
+        - executionTimeMs
+        - fallbackUsed
+        - createdAt
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        reservationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [NEED_APPROVAL, NeedApproval]
+          example: "NEED_APPROVAL"
+        primaryReason:
+          type: string
+          example: "DEPOSIT_BELOW_THRESHOLD"
+        strategyName:
+          type: string
+          example: "DefaultDecisionStrategy"
+        strategyVersion:
+          type: string
+          example: "1.0.0"
+        executionTimeMs:
+          type: integer
+          example: 14
+        fallbackUsed:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-09-12T15:00:00.014Z"
+
+    OverrideDecisionRequest:
+      type: object
+      required:
+        - decision
+        - overrideReason
+        - overriddenBy
+      properties:
+        decision:
+          type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum: [APPROVED, REJECTED, Approved, Rejected]
+              example: "APPROVED"
+        overrideReason:
+          type: string
+          minLength: 5
+          maxLength: 500
+          example: "Khách quen lâu năm, chi nhánh bảo lãnh miễn cọc"
+        overriddenBy:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: "Temporary explicit actor identifier for Phase 1. In production, actor identity MUST be derived from authenticated principal context."
+          example: "manager-usr-001"
+
+    OverrideDecisionResponse:
+      type: object
+      required:
+        - decisionId
+        - reservationId
+        - originalStatus
+        - overriddenStatus
+        - isOverridden
+        - overriddenBy
+        - overrideReason
+        - overriddenAt
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        reservationId:
+          type: string
+          format: uuid
+        originalStatus:
+          type: string
+          enum: [NEED_APPROVAL, NeedApproval]
+          example: "NEED_APPROVAL"
+        overriddenStatus:
+          type: string
+          enum: [APPROVED, REJECTED, Approved, Rejected]
+          example: "APPROVED"
+        isOverridden:
+          type: boolean
+          example: true
+        overriddenBy:
+          type: string
+          example: "manager-usr-001"
+        overrideReason:
+          type: string
+          example: "Khách quen lâu năm, chi nhánh bảo lãnh miễn cọc"
+        overriddenAt:
+          type: string
+          format: date-time
+          example: "2026-09-12T15:30:00.000Z"
+
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+        - code
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "https://tadss.smashcourt.vn/errors/domain-invariant-violation"
+        title:
+          type: string
+          example: "Domain Invariant Violation"
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: "Reservation EndTime must be after StartTime."
+        instance:
+          type: string
+          example: "/api/v1/decisions"
+        code:
+          type: string
+          example: "DOMAIN_INVARIANT_VIOLATION"
+        retryAfterSeconds:
+          type: integer
+          nullable: true
+          example: 5
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          nullable: true

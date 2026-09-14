@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tadss.smashcourt.vn/schemas/v1/decision-detail-response.schema.json",
+  "title": "DecisionDetailResponse",
+  "description": "Comprehensive audit and governance detail response for a specific decision.",
+  "type": "object",
+  "required": [
+    "decisionId",
+    "reservationId",
+    "requestHash",
+    "decision",
+    "execution",
+    "governance",
+    "timestamps"
+  ],
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reservationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "requestHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 canonical hash of the request."
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "status",
+        "primaryReason",
+        "reasons",
+        "recommendations"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["APPROVED", "REJECTED", "NEED_APPROVAL", "Approved", "Rejected", "NeedApproval"]
+        },
+        "primaryReason": {
+          "type": "string"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "$ref": "decision-recommendation.schema.json"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "strategyName",
+        "strategyVersion",
+        "executionType",
+        "executionTimeMs",
+        "fallbackUsed",
+        "cacheHit"
+      ],
+      "properties": {
+        "strategyName": { "type": "string" },
+        "strategyVersion": { "type": "string" },
+        "executionType": { "type": "string" },
+        "executionTimeMs": { "type": "integer", "minimum": 0 },
+        "fallbackUsed": { "type": "boolean" },
+        "failureReason": { "type": ["string", "null"] },
+        "cacheHit": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "needApproval",
+        "isOverridden"
+      ],
+      "properties": {
+        "needApproval": { "type": "boolean" },
+        "isOverridden": { "type": "boolean" },
+        "overriddenBy": { "type": ["string", "null"] },
+        "overrideReason": { "type": ["string", "null"] },
+        "overriddenAt": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "timestamps": {
+      "type": "object",
+      "required": [
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

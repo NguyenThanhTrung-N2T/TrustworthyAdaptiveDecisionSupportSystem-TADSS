@@ -44,3 +44,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapHealthChecks("/health");
 
 app.Run();
+
+public partial class Program { }
+

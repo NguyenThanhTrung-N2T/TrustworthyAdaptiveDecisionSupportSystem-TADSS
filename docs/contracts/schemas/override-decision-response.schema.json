@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tadss.smashcourt.vn/schemas/v1/override-decision-response.schema.json",
+  "title": "OverrideDecisionResponse",
+  "description": "Response confirming the successful override of a decision.",
+  "type": "object",
+  "required": [
+    "decisionId",
+    "reservationId",
+    "originalStatus",
+    "overriddenStatus",
+    "isOverridden",
+    "overriddenBy",
+    "overrideReason",
+    "overriddenAt"
+  ],
+  "properties": {
+    "decisionId": { "type": "string", "format": "uuid" },
+    "reservationId": { "type": "string", "format": "uuid" },
+    "originalStatus": { "type": "string", "enum": ["NEED_APPROVAL", "NeedApproval"] },
+    "overriddenStatus": { "type": "string", "enum": ["APPROVED", "REJECTED", "Approved", "Rejected"] },
+    "isOverridden": { "type": "boolean" },
+    "overriddenBy": { "type": "string" },
+    "overrideReason": { "type": "string" },
+    "overriddenAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tadss.smashcourt.vn/schemas/v1/decision-request.schema.json",
+  "title": "DecisionRequest",
+  "description": "Payload sent by SmashCourt-BE to request a reservation decision evaluation from TADSS.",
+  "type": "object",
+  "required": [
+    "reservationId",
+    "courtId",
+    "branchId",
+    "customerId",
+    "startTime",
+    "endTime",
+    "bookingType",
+    "totalPrice",
+    "depositAmount",
+    "paymentStatus",
+    "requestedAt"
+  ],
+  "properties": {
+    "reservationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier of the reservation from SmashCourt."
+    },
+    "courtId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target sports court identifier."
+    },
+    "courtTypeId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Optional court category identifier (e.g., VIP, Standard)."
+    },
+    "branchId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Facility branch identifier."
+    },
+    "customerId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Customer identifier."
+    },
+    "customerTier": {
+      "type": "string",
+      "default": "STANDARD",
+      "description": "Customer loyalty membership tier rank name from database (LoyaltyTier table, e.g. STANDARD, GOLD, VIP)."
+    },
+    "startTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Reservation start time in UTC (ISO 8601)."
+    },
+    "endTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Reservation end time in UTC (ISO 8601). Must be after startTime."
+    },
+    "bookingType": {
+      "type": "string",
+      "default": "SINGLE",
+      "description": "Type of booking session (e.g. SINGLE, RECURRING, TOURNAMENT, EVENT)."
+    },
+    "totalPrice": {
+      "type": "number",
+      "minimum": 0.0,
+      "description": "Total calculated price for the booking in VND."
+    },
+    "depositAmount": {
+      "type": "number",
+      "minimum": 0.0,
+      "description": "Amount already deposited or paid upfront in VND."
+    },
+    "paymentStatus": {
+      "type": "string",
+      "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED", "Unpaid", "PartiallyPaid", "Paid", "Refunded", "Expired"],
+      "description": "Current payment settlement status matching SmashCourt-BE InvoicePaymentStatus."
+    },
+    "priority": {
+      "type": "string",
+      "default": "NORMAL",
+      "description": "Decision evaluation priority level (e.g. LOW, NORMAL, HIGH, CRITICAL)."
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Client-side request dispatch timestamp in UTC."
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 20,
+      "description": "Optional extensible key-value attributes."
+    }
+  },
+  "additionalProperties": false
+}

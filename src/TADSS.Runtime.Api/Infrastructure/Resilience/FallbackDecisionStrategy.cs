@@ -1,0 +1,49 @@
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Enums;
+using Shared.DecisionContractSDK.Interfaces;
+
+namespace TADSS.Runtime.Api.Infrastructure.Resilience;
+
+/// <summary>
+/// Chiến lược an toàn dự phòng (Fallback Decision Strategy).
+/// Tự động kích hoạt khi chiến lược chính bị timeout (>500ms) hoặc gặp ngoại lệ bất ngờ.
+/// </summary>
+public class FallbackDecisionStrategy : IReservationDecisionStrategy
+{
+    public string StrategyName => "FallbackDecisionStrategy";
+    public string StrategyVersion => "1.0.0";
+
+    public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
+    {
+        var result = new DecisionResultDto
+        {
+            DecisionId = Guid.NewGuid(),
+            ReservationId = reservation.ReservationId,
+            Status = DecisionStatus.NEED_APPROVAL.ToString(),
+            StrategyName = StrategyName,
+            StrategyVersion = StrategyVersion,
+            ExecutionTimeMs = 0,
+            FallbackUsed = true,
+            PrimaryReason = ErrorCodes.FallbackSafetyMode,
+            Reasons =
+            [
+                "Chế độ an toàn tự động kích hoạt do chiến lược chính gặp sự cố hoặc quá thời hạn xử lý.",
+                "Đơn đặt sân được chuyển sang trạng thái Cần duyệt thủ công để đảm bảo an toàn."
+            ],
+            Recommendations =
+            [
+                new DecisionRecommendationDto
+                {
+                    Type = RecommendationType.REQUIRE_APPROVAL.ToString(),
+                    Description = "Yêu cầu Quản lý chi nhánh kiểm tra và duyệt đơn thủ công.",
+                    ConfidenceScore = 1.0
+                }
+            ],
+            EvaluatedAt = DateTime.UtcNow
+        };
+
+        return Task.FromResult(result);
+    }
+}

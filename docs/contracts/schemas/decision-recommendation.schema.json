@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tadss.smashcourt.vn/schemas/v1/decision-recommendation.schema.json",
+  "title": "DecisionRecommendation",
+  "description": "Structure of an alternative or adjustment recommendation proposed by TADSS.",
+  "type": "object",
+  "required": [
+    "type",
+    "description"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "ALTERNATIVE_SLOT",
+        "ALTERNATIVE_COURT",
+        "PRICE_ADJUSTMENT",
+        "REQUIRE_DEPOSIT",
+        "REQUIRE_APPROVAL",
+        "PRIORITY_ESCALATION",
+        "AlternativeSlot",
+        "AlternativeCourt",
+        "PriceAdjustment",
+        "RequireDeposit",
+        "RequireApproval",
+        "PriorityEscalation"
+      ],
+      "description": "Category of the recommendation."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable explanation of the recommendation."
+    },
+    "suggestedCourtId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Suggested alternative court ID."
+    },
+    "suggestedStartTime": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Suggested alternative start time in UTC."
+    },
+    "suggestedEndTime": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Suggested alternative end time in UTC."
+    },
+    "suggestedPrice": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "description": "Suggested alternative price in VND."
+    },
+    "confidenceScore": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence score of the recommendation (0.0 to 1.0)."
+    }
+  },
+  "additionalProperties": false
+}
