@@ -306,9 +306,18 @@ Error Payload cho 409 Conflict:
 
 ## 11. Resilience & Timeout Semantics
 
+Hệ thống thiết lập chuỗi chịu lỗi 2 tầng (Two-Tier Resilience Pipeline):
+
 1. **Target Latency**: `< 100 ms` cho luồng đánh giá thông thường.
-2. **Hard Strategy Deadline**: `500 ms`. Nếu strategy engine không hoàn tất trong 500ms, hệ thống tự động ngắt và chuyển sang **Fallback Strategy** (`fallbackUsed = true`, `status = NeedApproval`).
-3. **504 Gateway Timeout Response Example**:
+2. **Inner Strategy Timeout (150 ms per attempt)**:
+   - Giới hạn thời gian thực thi của mỗi lượt gọi Strategy.
+   - Khi Strategy bị timeout (>150ms) hoặc ném ngoại lệ: Polly kích hoạt Retry (tối đa 2 lần, tổng 3 attempts với base delay 30ms) $\rightarrow$ Circuit Breaker $\rightarrow$ Chuyển sang **Fallback Strategy** (`DefaultDecisionStrategy` cọc 100%).
+   - Kết quả trả về: **HTTP 200 OK** kèm metadata `fallbackUsed: true`, `status: "NEED_APPROVAL"`.
+3. **Outer Global Deadline (500 ms Hard Ceiling)**:
+   - Giới hạn thời gian tối đa cho toàn bộ chu trình xử lý request.
+   - Nếu tổng thời gian thực thi (bao gồm mọi retries, DB access, logic) vượt quá 500ms: Hệ thống ngắt toàn bộ pipeline (`TimeoutRejectedException`) và trả về **HTTP 504 Gateway Timeout** (không qua Fallback).
+
+### 504 Gateway Timeout Response Example:
 ```http
 HTTP/1.1 504 Gateway Timeout
 Content-Type: application/problem+json; charset=utf-8
@@ -318,7 +327,7 @@ X-Correlation-ID: cor-9988-7766-5544
   "type": "https://tadss.smashcourt.vn/errors/gateway-timeout",
   "title": "Gateway Timeout",
   "status": 504,
-  "detail": "The decision evaluation exceeded the maximum allowed time (500ms). Please retry with exponential backoff.",
+  "detail": "The decision evaluation exceeded the global request deadline (500ms). Please retry with exponential backoff.",
   "instance": "/api/v1/decisions",
   "code": "GATEWAY_TIMEOUT",
   "retryAfterSeconds": 5

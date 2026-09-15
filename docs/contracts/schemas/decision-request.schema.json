@@ -75,7 +75,7 @@
     },
     "paymentStatus": {
       "type": "string",
-      "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED", "Unpaid", "PartiallyPaid", "Paid", "Refunded", "Expired"],
+      "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED"],
       "description": "Current payment settlement status matching SmashCourt-BE InvoicePaymentStatus."
     },
     "priority": {

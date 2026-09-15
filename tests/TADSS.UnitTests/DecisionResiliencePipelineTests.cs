@@ -337,7 +337,7 @@ public class DecisionResiliencePipelineTests
             RetryBaseDelayMs = 50
         };
         var pipeline = CreatePipeline(options);
-        var slowStrategy = new SlowStrategy(delayMs: 300);
+        var slowStrategy = new SlowStrategy(delayMs: 2000);
         var reservation = CreateTestReservation();
 
         var stopwatch = Stopwatch.StartNew();

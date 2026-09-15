@@ -137,15 +137,20 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasDatabaseName("idx_decision_executions_pending_approval")
                         .HasFilter("need_approval = true AND is_overridden = false");
 
+                    b.HasIndex("DecisionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_decision_id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_decision_idempotency_key")
+                        .HasFilter("idempotency_key IS NOT NULL");
+
                     b.HasIndex("RequestHash")
                         .HasDatabaseName("idx_decision_executions_request_hash");
 
                     b.HasIndex("ReservationId")
                         .HasDatabaseName("idx_decision_executions_reservation_id");
-
-                    b.HasIndex("DecisionId", "IdempotencyKey")
-                        .IsUnique()
-                        .HasDatabaseName("uq_decision_idempotency");
 
                     b.ToTable("decision_executions", "tadss");
                 });
