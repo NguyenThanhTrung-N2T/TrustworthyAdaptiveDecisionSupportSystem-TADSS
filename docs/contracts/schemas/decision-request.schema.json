@@ -80,8 +80,9 @@
     },
     "priority": {
       "type": "string",
+      "enum": ["NORMAL", "HIGH", "VIP", "URGENT"],
       "default": "NORMAL",
-      "description": "Decision evaluation priority level (e.g. LOW, NORMAL, HIGH, CRITICAL)."
+      "description": "Decision evaluation priority level in TADSS request context (NORMAL, HIGH, VIP, URGENT)."
     },
     "requestedAt": {
       "type": "string",

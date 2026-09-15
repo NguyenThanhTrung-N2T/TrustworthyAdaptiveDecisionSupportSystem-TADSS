@@ -30,7 +30,7 @@ public class DecisionResiliencePipelineTests
             depositAmount: 200000m,
             paymentStatus: PaymentStatus.PAID,
             bookingType: "Single",
-            priority: "Normal",
+            priority: BookingPriority.NORMAL,
             requestedAt: DateTime.UtcNow
         );
     }
