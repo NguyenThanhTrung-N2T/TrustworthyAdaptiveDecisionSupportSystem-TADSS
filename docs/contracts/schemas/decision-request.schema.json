@@ -75,13 +75,14 @@
     },
     "paymentStatus": {
       "type": "string",
-      "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED", "Unpaid", "PartiallyPaid", "Paid", "Refunded", "Expired"],
+      "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED"],
       "description": "Current payment settlement status matching SmashCourt-BE InvoicePaymentStatus."
     },
     "priority": {
       "type": "string",
+      "enum": ["NORMAL", "HIGH", "VIP", "URGENT"],
       "default": "NORMAL",
-      "description": "Decision evaluation priority level (e.g. LOW, NORMAL, HIGH, CRITICAL)."
+      "description": "Decision evaluation priority level in TADSS request context (NORMAL, HIGH, VIP, URGENT)."
     },
     "requestedAt": {
       "type": "string",

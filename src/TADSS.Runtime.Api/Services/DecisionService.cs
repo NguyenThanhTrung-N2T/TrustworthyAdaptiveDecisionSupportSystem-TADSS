@@ -205,7 +205,8 @@ public class DecisionService : IDecisionService
         if (ex.InnerException is Npgsql.PostgresException pgEx)
         {
             return pgEx.SqlState == "23505" &&
-                   (pgEx.ConstraintName == "uq_decision_idempotency" ||
+                   (pgEx.ConstraintName == "uq_decision_idempotency_key" ||
+                    pgEx.ConstraintName == "uq_decision_idempotency" ||
                     pgEx.ConstraintName == "uq_decision_executions_idempotency_key" ||
                     pgEx.Message.Contains("idempotency_key", StringComparison.OrdinalIgnoreCase));
         }

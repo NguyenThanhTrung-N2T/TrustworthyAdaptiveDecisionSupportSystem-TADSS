@@ -17,8 +17,8 @@
   "properties": {
     "decisionId": { "type": "string", "format": "uuid" },
     "reservationId": { "type": "string", "format": "uuid" },
-    "originalStatus": { "type": "string", "enum": ["NEED_APPROVAL", "NeedApproval"] },
-    "overriddenStatus": { "type": "string", "enum": ["APPROVED", "REJECTED", "Approved", "Rejected"] },
+    "originalStatus": { "type": "string", "enum": ["NEED_APPROVAL"] },
+    "overriddenStatus": { "type": "string", "enum": ["APPROVED", "REJECTED"] },
     "isOverridden": { "type": "boolean" },
     "overriddenBy": { "type": "string" },
     "overrideReason": { "type": "string" },

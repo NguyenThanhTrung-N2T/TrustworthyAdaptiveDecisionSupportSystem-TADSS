@@ -40,8 +40,8 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 300000m,
-            PaymentStatus = "Paid",
-            Priority = "High",
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -91,8 +91,8 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 300000m,
-            PaymentStatus = "Paid",
-            Priority = "High",
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -157,8 +157,8 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             BookingType = "Single",
             TotalPrice = 400000m,
             DepositAmount = 40000m, // NEED_APPROVAL (< 30%)
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 

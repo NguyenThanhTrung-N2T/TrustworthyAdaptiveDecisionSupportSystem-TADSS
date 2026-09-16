@@ -1,16 +1,17 @@
 # 📜 TADSS Decision Persistence & Data Invariants Specification
 
 > **Tài liệu đặc tả các Invariants cốt lõi của tầng lưu trữ quyết định (Decision Persistence Layer)**  
-> **Schema:** `tadss` | **Bảng chính:** `tadss.decision_executions`  
+> **Database:** `tadssdb` | **Schema:** `tadss` | **Bảng chính:** `tadss.decision_executions`  
+> **Phân loại kiến trúc:** *Decision Execution Audit Ledger with Immutable Machine Snapshot and Mutable Governance Metadata*  
 > **Áp dụng cho:** Đồ án 2 & Khóa luận tốt nghiệp (Research & Production-grade Baseline)
 
 ---
 
-## 1. INVARIANT 1: `decision_id` Lifecycle & Retry Semantics
+## 1. INVARIANT 1: `decision_id` Lifecycle & Idempotency Semantics
 
 ### 1.1. Định nghĩa Định danh
 * **`id` (UUIDv4):** Khóa chính vật lý (*Physical Primary Key*) của bản ghi kiểm toán trong bảng `tadss.decision_executions`.
-* **`decision_id` (UUIDv4):** Mã định danh logic (*Logical Decision Run ID*) của một phiên thực thi đánh giá do engine TADSS sinh ra.
+* **`decision_id` (UUIDv4):** Mã định danh logic duy nhất (*Globally Unique Logical Decision Evaluation ID*) của một phiên thực thi đánh giá do engine TADSS sinh ra.
 * **`reservation_id` (UUIDv4):** Mã định danh đơn đặt sân (*Booking Entity Reference*) từ hệ thống SmashCourt.
 
 ### 1.2. Mối quan hệ Cardinality ($1:N$)
@@ -21,56 +22,54 @@ Một đơn đặt sân (`reservation_id`) có thể trải qua nhiều chu kỳ
 3. Đánh giá lại khi khách yêu cầu đổi lịch (*Rescheduling*).
 4. Đánh giá hậu can thiệp của Quản lý (*Post-override Evaluation*).
 
-Mỗi chu kỳ đánh giá độc lập sẽ được cấp phát một **`decision_id`** duy nhất.
+Mỗi chu kỳ đánh giá độc lập sẽ được cấp phát một **`decision_id`** duy nhất (`CONSTRAINT uq_decision_id UNIQUE (decision_id)`). Tra cứu `GET /api/v1/decisions/{decisionId}` luôn trả về chính xác 1 bản ghi execution duy nhất.
 
-### 1.3. Cơ chế Idempotency & Retry
-* Ràng buộc duy nhất: `CONSTRAINT uq_decision_idempotency UNIQUE (decision_id, idempotency_key)`.
-* **Quy tắc thực thi:** Khi mạng bị chập chờn hoặc Client gửi lại (retry) cùng một request chứa cặp `(decision_id, idempotency_key)`:
-  * Database sẽ chặn việc ghi đúp thông qua Unique Constraint.
-  * Tầng Application bắt được lỗi hoặc đọc từ Cache/DB và trả về đúng bản ghi `response_payload` đã thực thi trước đó mà **không chạy lại thuật toán Strategy**.
+### 1.3. Cơ chế Global Idempotency & Replay
+* Ràng buộc duy nhất toàn cục: `CREATE UNIQUE INDEX uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key) WHERE idempotency_key IS NOT NULL`.
+* **Quy tắc thực thi:**
+  * **Key mới:** Thực thi Strategy, lưu bản ghi mới vào DB, trả về HTTP 200 OK.
+  * **Key đã tồn tại + Payload trùng khớp (`request_hash` giống nhau):** Database chặn ghi đúp, Application trả về bản ghi `response_payload` đã thực thi trước đó mà **không chạy lại thuật toán Strategy** (Replay HTTP 200 OK).
+  * **Key đã tồn tại + Payload khác biệt:** Database chặn ghi đúp, Application từ chối và trả về **HTTP 409 Conflict (`IDEMPOTENCY_KEY_REUSE`)**.
 
 ---
 
 ## 2. INVARIANT 2: `request_hash` Canonicalization & Hashing Rules
 
 ### 2.1. Mục đích
-`request_hash` đóng vai trò là "dấu vân tay ngữ nghĩa" (*Deterministic Semantic Fingerprint*) của dữ liệu đầu vào, dùng cho cơ chế **Redis Decision Cache** (tra cứu nhanh $O(1)$) và phục vụ thống kê phân tích mẫu quyết định.
+`request_hash` đóng vai trò là "dấu vân tay ngữ nghĩa" (*Deterministic Semantic Fingerprint*) của dữ liệu đầu vào, dùng cho cơ chế **Exact-Match Request-Hash Cache (Redis SHA-256)** (tra cứu nhanh $O(1)$) và phục vụ thống kê phân tích mẫu quyết định.
 
 ### 2.2. Thuật toán Chuẩn hóa (Canonicalization - RFC 8785 / JCS)
 Để đảm bảo hai payload có cùng ý nghĩa nghiệp vụ luôn sinh ra cùng một mã băm SHA-256:
-1. **Trích xuất thuộc tính:** Chỉ trích xuất các trường tác động trực tiếp đến quyết định:
-   * `ReservationSchedule`: `Date`, `StartTime`, `EndTime`, `DayType`
-   * `CustomerInfo`: `UserId`, `LoyaltyTier`, `NoShowRate`, `BookingHistoryCount`
-   * `ResourceInfo`: `CourtId`, `BranchId`, `CourtTypeId`
-   * `PricingPolicy`: `TotalPrice`, `UnitPrices`
+1. **Trích xuất thuộc tính:** Chỉ trích xuất các trường tác động trực tiếp đến quyết định (Schedule, CustomerInfo, ResourceInfo, PaymentPolicy).
 2. **Sắp xếp khóa (Key Sorting):** Sắp xếp thứ tự các khóa theo bảng mã ASCII (Lexicographical order).
-3. **Chuẩn hóa giá trị:** Trim khoảng trắng thừa, chuẩn hóa chữ hoa cho Enum, chuẩn hóa định dạng số thập phân.
+3. **Chuẩn hóa giá trị:** Trim khoảng trắng thừa, chuẩn hóa chữ hoa cho Enum, chuẩn hóa timestamp sang ISO 8601 UTC string (giữ nguyên semantic values).
 4. **Băm SHA-256:** Tính toán chuỗi băm SHA-256 từ mảng byte UTF-8 của JSON chuẩn hóa $\rightarrow$ Xuất ra đúng **64 ký tự Hexadecimal in thường (`[0-9a-f]{64}`)**.
 
 ### 2.3. Quy tắc Bất biến về Index
 * **Index Non-Unique:** `CREATE INDEX idx_decision_executions_request_hash ON tadss.decision_executions(request_hash);`
-* **Lý do:** Cùng một `request_hash = ABC` có thể được thực thi bởi các `strategy_version` khác nhau (v1.0.0 vs v1.1.0) hoặc tại các thời điểm khác nhau. Cả hai lần chạy đều phải được lưu trữ để phục vụ **Ablation Study** (Nghiên cứu triệt tiêu) trong Khóa luận.
+* **Lý do:** Cùng một `request_hash = ABC` có thể được thực thi bởi các `strategy_version` khác nhau (v1.0.0 vs v1.1.0) hoặc tại các thời điểm khác nhau. Cả hai lần chạy đều được lưu trữ để phục vụ **Ablation Study** (Nghiên cứu triệt tiêu) trong Khóa luận.
 
 ---
 
-## 3. INVARIANT 3: Human Override Invariant (Human-in-the-loop Consistency)
+## 3. INVARIANT 3: Human Override Invariant & Ledger Semantics
 
-### 3.1. Ràng buộc Logic Trạng thái
-Một bản ghi quyết định chỉ được coi là đã ghi đè khi và chỉ khi thỏa mãn đồng thời các điều kiện:
+### 3.1. Phân định Cấu trúc Bản ghi
+Bản ghi kiểm toán gồm 2 phần tách bạch:
+1. **Immutable Machine Decision Snapshot:** `decision_id`, `reservation_id`, `strategy_name`, `strategy_version`, `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `need_approval`, `request_hash`, `response_payload`, `created_at` — **Không bao giờ bị sửa đổi**.
+2. **Mutable Governance Metadata:** `is_overridden`, `overridden_by`, `override_reason`, `version`, `updated_at` — **Được phép cập nhật khi Manager can thiệp ghi đè**.
+
+### 3.2. Ràng buộc Logic Trạng thái Override
+Một bản ghi quyết định chỉ được coi là đã ghi đè khi và chỉ khi thỏa mãn đồng thời:
 $$\forall e \in \text{DecisionExecutions}, \quad e.\text{is\_overridden} = \text{TRUE} \iff \begin{cases} e.\text{overridden\_by} \neq \text{NULL} \land \text{LEN}(e.\text{overridden\_by}) > 0 \\ e.\text{override\_reason} \neq \text{NULL} \land \text{LEN}(e.\text{override\_reason}) > 0 \\ e.\text{updated\_at} \ge e.\text{created\_at} \end{cases}$$
 
-### 3.2. Tính Bất biến của Nhật ký Máy (Audit Immutability)
-* Khi Quản lý can thiệp ghi đè (ví dụ: Chấp nhận miễn cọc cho khách VIP quen dù máy yêu cầu cọc 100%):
-  * Cột `response_payload` (chứa kết quả tính toán gốc của Strategy) **giữ nguyên 100% không bị sửa đổi**.
-  * Cập nhật các trường: `is_overridden = TRUE`, `overridden_by = 'Manager_ID'`, `override_reason = 'Khách quen chi nhánh'`, `updated_at = UtcNow`.
-* **Mục đích:** Bảo tồn nguyên vẹn dữ liệu so sánh giữa quyết định của máy và quyết định của con người phục vụ báo cáo khoa học.
+Khi Quản lý can thiệp ghi đè, `response_payload` gốc **giữ nguyên 100%**, đảm bảo bảo tồn nguyên vẹn dữ liệu máy phục vụ đối chứng khoa học và huấn luyện mô hình thích ứng.
 
 ---
 
 ## 4. INVARIANT 4: Audit Timestamp Ownership (Application Interceptor)
 
 ### 4.1. Quyền sở hữu duy nhất (Single Source of Truth)
-Toàn bộ thời gian kiểm toán (`created_at`, `updated_at`) thuộc quyền sở hữu tuyệt đối của **`AuditTimestampInterceptor`** tại tầng Application (thực thi trước khi ghi vào Database), không phụ thuộc vào SQL trigger hay server timestamp của PostgreSQL.
+Toàn bộ thời gian kiểm toán (`created_at`, `updated_at`) thuộc quyền sở hữu tuyệt đối của **`AuditTimestampInterceptor`** tại tầng Application, không phụ thuộc vào SQL trigger hay server timestamp của PostgreSQL.
 
 ### 4.2. Quy tắc Vòng đời Timestamp
 | Hành động EF Core | `created_at` | `updated_at` |
@@ -88,11 +87,16 @@ Toàn bộ thời gian kiểm toán (`created_at`, `updated_at`) thuộc quyền
 -- 1. Primary Key
 CONSTRAINT PK_decision_executions PRIMARY KEY (id);
 
--- 2. Idempotency Protection
-CREATE UNIQUE INDEX uq_decision_idempotency 
-ON tadss.decision_executions (decision_id, idempotency_key);
+-- 2. Logical Decision Evaluation Uniqueness (1:1 per evaluation lifecycle)
+CREATE UNIQUE INDEX uq_decision_id 
+ON tadss.decision_executions (decision_id);
 
--- 3. Telemetry & Entity Lookup
+-- 3. Global Request Idempotency Key
+CREATE UNIQUE INDEX uq_decision_idempotency_key 
+ON tadss.decision_executions (idempotency_key) 
+WHERE idempotency_key IS NOT NULL;
+
+-- 4. Telemetry & Entity Lookup
 CREATE INDEX idx_decision_executions_request_hash 
 ON tadss.decision_executions (request_hash);
 
@@ -102,8 +106,8 @@ ON tadss.decision_executions (reservation_id);
 CREATE INDEX idx_decision_executions_created_at 
 ON tadss.decision_executions (created_at);
 
--- 4. Manager Dashboard Partial Index (Hot Queue)
+-- 5. Manager Dashboard Partial Index (Hot Queue)
 CREATE INDEX idx_decision_executions_pending_approval 
-ON tadss.decision_executions (created_at) 
+ON tadss.decision_executions (created_at DESC) 
 WHERE (need_approval = TRUE AND is_overridden = FALSE);
 ```

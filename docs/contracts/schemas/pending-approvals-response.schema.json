@@ -47,7 +47,7 @@
         "properties": {
           "decisionId": { "type": "string", "format": "uuid" },
           "reservationId": { "type": "string", "format": "uuid" },
-          "status": { "type": "string", "enum": ["NEED_APPROVAL", "NeedApproval"] },
+          "status": { "type": "string", "enum": ["NEED_APPROVAL"] },
           "primaryReason": { "type": "string" },
           "strategyName": { "type": "string" },
           "strategyVersion": { "type": "string" },

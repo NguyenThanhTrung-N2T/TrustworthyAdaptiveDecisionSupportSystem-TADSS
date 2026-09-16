@@ -3,5 +3,17 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- NuGet Packaging Metadata -->
+    <PackageId>TADSS.Shared.DecisionContractSDK</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>TADSS Core Team</Authors>
+    <Company>SmashCourt - TADSS Research</Company>
+    <Description>Canonical Contract and Rich Domain Model SDK for TADSS (Trustworthy Adaptive Decision Support System)</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/smashcourt/tadss-runtime</RepositoryUrl>
+    <PackageTags>TADSS;DecisionEngine;Contract;SDK;DomainModel</PackageTags>
   </PropertyGroup>
 </Project>

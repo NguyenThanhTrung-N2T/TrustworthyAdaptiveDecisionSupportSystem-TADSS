@@ -39,8 +39,8 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 300000m,
-            PaymentStatus = "Paid",
-            Priority = "High",
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -82,8 +82,8 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 200000m,
             DepositAmount = 100000m,
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -119,8 +119,8 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 30000m, // 10% -> NeedApproval
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -162,8 +162,8 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 10000m,
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 

@@ -47,10 +47,16 @@ public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionE
         builder.HasIndex(e => e.ReservationId).HasDatabaseName("idx_decision_executions_reservation_id");
         builder.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_decision_executions_created_at");
 
-        // Unique Constraint: Idempotency (decision_id, idempotency_key)
-        builder.HasIndex(e => new { e.DecisionId, e.IdempotencyKey })
-            .HasDatabaseName("uq_decision_idempotency")
+        // Unique Constraint: Decision ID (1:1 logical evaluation instance)
+        builder.HasIndex(e => e.DecisionId)
+            .HasDatabaseName("uq_decision_id")
             .IsUnique();
+
+        // Unique Constraint: Global Idempotency Key (Filtered for non-null keys)
+        builder.HasIndex(e => e.IdempotencyKey)
+            .HasDatabaseName("uq_decision_idempotency_key")
+            .IsUnique()
+            .HasFilter("idempotency_key IS NOT NULL");
 
         // Partial Index: Tối ưu riêng cho Manager Dashboard (Pending Approvals)
         builder.HasIndex(e => e.CreatedAt)

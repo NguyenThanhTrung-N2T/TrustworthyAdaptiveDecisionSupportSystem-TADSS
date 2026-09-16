@@ -17,13 +17,7 @@
         "PRICE_ADJUSTMENT",
         "REQUIRE_DEPOSIT",
         "REQUIRE_APPROVAL",
-        "PRIORITY_ESCALATION",
-        "AlternativeSlot",
-        "AlternativeCourt",
-        "PriceAdjustment",
-        "RequireDeposit",
-        "RequireApproval",
-        "PriorityEscalation"
+        "PRIORITY_ESCALATION"
       ],
       "description": "Category of the recommendation."
     },
