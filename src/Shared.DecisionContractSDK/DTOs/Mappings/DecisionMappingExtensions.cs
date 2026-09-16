@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
@@ -8,8 +9,14 @@ namespace Shared.DecisionContractSDK.DTOs.Mappings;
 /// <summary>
 /// Cung cấp các phương thức mở rộng chuyển đổi 2 chiều (Bidirectional Mapping) giữa Wire DTOs và Canonical Domain Models.
 /// </summary>
-public static class DecisionMappingExtensions
+public static partial class DecisionMappingExtensions
 {
+    /// <summary>
+    /// Source-generated Regex phục vụ chuyển đổi PascalCase sang snake_case với hiệu năng tối ưu (Zero-allocation runtime).
+    /// </summary>
+    [GeneratedRegex("([a-z0-9])([A-Z])", RegexOptions.None)]
+    private static partial Regex CamelCaseRegex();
+
     /// <summary>
     /// Chuyển đổi từ DecisionRequestDto (Contract DTO) sang Reservation (Domain Aggregate Root).
     /// </summary>
@@ -77,7 +84,7 @@ public static class DecisionMappingExtensions
     /// <summary>
     /// Parse chuỗi PaymentStatus an toàn có phân biệt: Rỗng/Null -> UNPAID, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
     /// </summary>
-    private static PaymentStatus ParsePaymentStatus(string? value)
+    public static PaymentStatus ParsePaymentStatus(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -85,7 +92,7 @@ public static class DecisionMappingExtensions
         }
 
         var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<PaymentStatus>(normalized, true, out var parsedStatus))
+        if (Enum.TryParse<PaymentStatus>(normalized, true, out var parsedStatus) && Enum.IsDefined(parsedStatus))
         {
             return parsedStatus;
         }
@@ -99,7 +106,7 @@ public static class DecisionMappingExtensions
     /// <summary>
     /// Parse chuỗi BookingPriority an toàn có phân biệt: Rỗng/Null -> NORMAL, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
     /// </summary>
-    private static BookingPriority ParseBookingPriority(string? value)
+    public static BookingPriority ParseBookingPriority(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -107,7 +114,7 @@ public static class DecisionMappingExtensions
         }
 
         var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<BookingPriority>(normalized, true, out var parsedPriority))
+        if (Enum.TryParse<BookingPriority>(normalized, true, out var parsedPriority) && Enum.IsDefined(parsedPriority))
         {
             return parsedPriority;
         }
@@ -118,18 +125,64 @@ public static class DecisionMappingExtensions
             nameof(DecisionRequestDto.Priority));
     }
 
-    private static string NormalizeEnumString(string value)
+    /// <summary>
+    /// Parse chuỗi DecisionStatus an toàn: Rỗng/Null -> NEED_APPROVAL, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// </summary>
+    public static DecisionStatus ParseDecisionStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return DecisionStatus.NEED_APPROVAL;
+        }
+
+        var normalized = NormalizeEnumString(value);
+        if (Enum.TryParse<DecisionStatus>(normalized, true, out var parsedStatus) && Enum.IsDefined(parsedStatus))
+        {
+            return parsedStatus;
+        }
+
+        throw new ContractValidationException(
+            "INVALID_DECISION_STATUS",
+            $"Giá trị DecisionStatus '{value}' không hợp lệ. Các giá trị hợp lệ: APPROVED, REJECTED, NEED_APPROVAL.",
+            nameof(DecisionResultDto.Status));
+    }
+
+    /// <summary>
+    /// Parse chuỗi RecommendationType an toàn: Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// </summary>
+    public static RecommendationType ParseRecommendationType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ContractValidationException(
+                "INVALID_RECOMMENDATION_TYPE",
+                "Giá trị RecommendationType không được để trống.",
+                nameof(DecisionRecommendationDto.Type));
+        }
+
+        var normalized = NormalizeEnumString(value);
+        if (Enum.TryParse<RecommendationType>(normalized, true, out var parsedType) && Enum.IsDefined(parsedType))
+        {
+            return parsedType;
+        }
+
+        throw new ContractValidationException(
+            "INVALID_RECOMMENDATION_TYPE",
+            $"Giá trị RecommendationType '{value}' không hợp lệ.",
+            nameof(DecisionRecommendationDto.Type));
+    }
+
+    /// <summary>
+    /// Chuẩn hóa chuỗi enum sang định dạng SCREAMING_SNAKE_CASE (hỗ trợ camelCase, PascalCase, kebab-case).
+    /// </summary>
+    public static string NormalizeEnumString(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             return string.Empty;
         }
 
-        var withUnderscores = System.Text.RegularExpressions.Regex.Replace(
-            value.Trim(),
-            "([a-z0-9])([A-Z])",
-            "$1_$2");
-
+        var withUnderscores = CamelCaseRegex().Replace(value.Trim(), "$1_$2");
         return withUnderscores.Replace("-", "_").ToUpperInvariant();
     }
 }

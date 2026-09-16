@@ -7,7 +7,7 @@ namespace TADSS.UnitTests;
 
 /// <summary>
 /// Bộ kiểm thử đơn vị toàn diện cho Rich Domain Models và Invariant Rules của TADSS.
-/// Đảm bảo tất cả các nhánh điều kiện, giá trị biên và bất biến nghiệp vụ được bảo vệ chặt chẽ.
+/// Đảm bảo tất cả các nhánh điều kiện, giá trị biên, bảo mật DoS và bất biến đồng thời (Thread-Safety) được bảo vệ chặt chẽ.
 /// </summary>
 public class DomainInvariantsTests
 {
@@ -43,6 +43,26 @@ public class DomainInvariantsTests
 
         act.Should().Throw<DomainInvariantException>()
             .Where(e => e.InvariantCode == "INVALID_CUSTOMER_ID");
+    }
+
+    [Fact]
+    public void CustomerInfo_TierExceedingMaxLength_ThrowsDomainInvariantException()
+    {
+        var longTier = new string('B', 51);
+        var act = () => new CustomerInfo(Guid.NewGuid(), longTier);
+
+        act.Should().Throw<DomainInvariantException>()
+            .Where(e => e.InvariantCode == "INVALID_CUSTOMER_TIER_LENGTH");
+    }
+
+    [Fact]
+    public void Reservation_BookingTypeExceedingMaxLength_ThrowsDomainInvariantException()
+    {
+        var longBookingType = new string('A', 51);
+        var act = () => CreateValidReservation(bookingType: longBookingType);
+
+        act.Should().Throw<DomainInvariantException>()
+            .Where(e => e.InvariantCode == "INVALID_BOOKING_TYPE_LENGTH");
     }
 
     [Fact]
@@ -250,7 +270,7 @@ public class DomainInvariantsTests
 
     #endregion
 
-    #region 5. Immutability & Fail-Fast Verification
+    #region 5. Immutability & Concurrency Verification
 
     [Fact]
     public void Reservation_InstantiatesAndVerifiesAllInvariantsFailFast()
@@ -286,6 +306,30 @@ public class DomainInvariantsTests
         reservation.Schedule.Duration.Should().Be(TimeSpan.FromHours(2));
     }
 
+    [Fact]
+    public async Task Reservation_ConcurrentAccess_IsThreadSafeAndDeterministic()
+    {
+        // Arrange
+        var startTime = DateTime.UtcNow.AddDays(2);
+        var reservation = Reservation.Create(
+            Guid.NewGuid(), Guid.NewGuid(), "GOLD", Guid.NewGuid(), Guid.NewGuid(), null,
+            startTime, startTime.AddHours(2), 200000m, 100000m,
+            PaymentStatus.PARTIALLY_PAID, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+
+        // Act: 100 luồng đồng thời gọi các hàm tính toán trên cùng 1 instance Reservation bất biến
+        var tasks = Enumerable.Range(0, 100).Select(_ => Task.Run(() =>
+        {
+            var ratio = reservation.CalculateDepositRatio();
+            var canCancel = reservation.CanBeCancelledWithoutPenalty(DateTime.UtcNow);
+
+            ratio.Should().Be(0.5m);
+            canCancel.Should().BeTrue();
+        }));
+
+        // Assert: Không xảy ra Race Condition hay Exception
+        await Task.WhenAll(tasks);
+    }
+
     #endregion
 
     #region Helper Methods
@@ -293,7 +337,8 @@ public class DomainInvariantsTests
     private static Reservation CreateValidReservation(
         DateTime? startTime = null,
         decimal totalPrice = 200000m,
-        decimal depositAmount = 100000m)
+        decimal depositAmount = 100000m,
+        string? bookingType = "SINGLE")
     {
         var start = startTime ?? DateTime.UtcNow.AddDays(2);
         var end = start.AddHours(2);
@@ -310,7 +355,7 @@ public class DomainInvariantsTests
             totalPrice: totalPrice,
             depositAmount: depositAmount,
             paymentStatus: PaymentStatus.PARTIALLY_PAID,
-            bookingType: "SINGLE",
+            bookingType: bookingType,
             priority: BookingPriority.NORMAL,
             requestedAt: DateTime.UtcNow);
     }

@@ -68,12 +68,21 @@ public class Reservation
         DateTime requestedAt,
         ReservationMetadata? metadata = null)
     {
+        var sanitizedBookingType = string.IsNullOrWhiteSpace(bookingType) ? "SINGLE" : bookingType.Trim();
+        if (sanitizedBookingType.Length > 50)
+        {
+            throw new DomainInvariantException(
+                "INVALID_BOOKING_TYPE_LENGTH",
+                "BookingType must not exceed 50 characters.",
+                nameof(BookingType));
+        }
+
         ReservationId = reservationId;
         Customer = customer ?? throw new ArgumentNullException(nameof(customer));
         Resource = resource ?? throw new ArgumentNullException(nameof(resource));
         Schedule = schedule ?? throw new ArgumentNullException(nameof(schedule));
         Payment = payment ?? throw new ArgumentNullException(nameof(payment));
-        BookingType = string.IsNullOrWhiteSpace(bookingType) ? "SINGLE" : bookingType.Trim();
+        BookingType = sanitizedBookingType;
         Priority = priority;
         RequestedAt = requestedAt;
         Metadata = metadata ?? new ReservationMetadata();
