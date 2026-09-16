@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
@@ -8,22 +7,17 @@ namespace Shared.DecisionContractSDK.DTOs.Mappings;
 
 /// <summary>
 /// Cung cấp các phương thức mở rộng chuyển đổi 2 chiều (Bidirectional Mapping) giữa Wire DTOs và Canonical Domain Models.
+/// Áp dụng cơ chế kiểm tra nghiêm ngặt (Strict Canonical SCREAMING_SNAKE_CASE - Option A) cho toàn bộ Enums trên Wire Contract.
 /// </summary>
-public static partial class DecisionMappingExtensions
+public static class DecisionMappingExtensions
 {
-    /// <summary>
-    /// Source-generated Regex phục vụ chuyển đổi PascalCase sang snake_case với hiệu năng tối ưu (Zero-allocation runtime).
-    /// </summary>
-    [GeneratedRegex("([a-z0-9])([A-Z])", RegexOptions.None)]
-    private static partial Regex CamelCaseRegex();
-
     /// <summary>
     /// Chuyển đổi từ DecisionRequestDto (Contract DTO) sang Reservation (Domain Aggregate Root).
     /// </summary>
     /// <param name="request">DTO nhận từ Wire JSON payload.</param>
     /// <returns>Đối tượng Reservation hợp lệ trong Domain.</returns>
     /// <exception cref="ArgumentNullException">Ném ra khi request null.</exception>
-    /// <exception cref="ContractValidationException">Ném ra khi dữ liệu enum trên wire không hợp lệ.</exception>
+    /// <exception cref="ContractValidationException">Ném ra khi dữ liệu enum trên wire không đúng định dạng canonical SCREAMING_SNAKE_CASE hoặc không hợp lệ.</exception>
     public static Reservation ToDomain(this DecisionRequestDto request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -82,8 +76,12 @@ public static partial class DecisionMappingExtensions
     }
 
     /// <summary>
-    /// Parse chuỗi PaymentStatus an toàn có phân biệt: Rỗng/Null -> UNPAID, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// Parse chuỗi PaymentStatus nghiêm ngặt theo định dạng Canonical SCREAMING_SNAKE_CASE:
+    /// Rỗng/Null -> UNPAID, Chuỗi khác định dạng chuẩn hoặc không hợp lệ -> Ném ContractValidationException.
     /// </summary>
+    /// <param name="value">Chuỗi enum đại diện PaymentStatus.</param>
+    /// <returns>Enum PaymentStatus tương ứng.</returns>
+    /// <exception cref="ContractValidationException">Ném ra khi giá trị không đúng chuẩn SCREAMING_SNAKE_CASE hoặc không tồn tại.</exception>
     public static PaymentStatus ParsePaymentStatus(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -91,21 +89,27 @@ public static partial class DecisionMappingExtensions
             return PaymentStatus.UNPAID;
         }
 
-        var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<PaymentStatus>(normalized, true, out var parsedStatus) && Enum.IsDefined(parsedStatus))
+        var trimmed = value.Trim();
+        if (Enum.TryParse<PaymentStatus>(trimmed, ignoreCase: false, out var parsedStatus)
+            && Enum.IsDefined(parsedStatus)
+            && trimmed == parsedStatus.ToString())
         {
             return parsedStatus;
         }
 
         throw new ContractValidationException(
             "INVALID_PAYMENT_STATUS",
-            $"Giá trị PaymentStatus '{value}' không hợp lệ. Các giá trị hợp lệ: UNPAID, PARTIALLY_PAID, PAID, REFUNDED, EXPIRED.",
+            $"Giá trị PaymentStatus '{value}' không hợp lệ. Phải tuân theo định dạng chuẩn SCREAMING_SNAKE_CASE: UNPAID, PARTIALLY_PAID, PAID, REFUNDED, EXPIRED.",
             nameof(DecisionRequestDto.PaymentStatus));
     }
 
     /// <summary>
-    /// Parse chuỗi BookingPriority an toàn có phân biệt: Rỗng/Null -> NORMAL, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// Parse chuỗi BookingPriority nghiêm ngặt theo định dạng Canonical SCREAMING_SNAKE_CASE:
+    /// Rỗng/Null -> NORMAL, Chuỗi khác định dạng chuẩn hoặc không hợp lệ -> Ném ContractValidationException.
     /// </summary>
+    /// <param name="value">Chuỗi enum đại diện BookingPriority.</param>
+    /// <returns>Enum BookingPriority tương ứng.</returns>
+    /// <exception cref="ContractValidationException">Ném ra khi giá trị không đúng chuẩn SCREAMING_SNAKE_CASE hoặc không tồn tại.</exception>
     public static BookingPriority ParseBookingPriority(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -113,21 +117,27 @@ public static partial class DecisionMappingExtensions
             return BookingPriority.NORMAL;
         }
 
-        var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<BookingPriority>(normalized, true, out var parsedPriority) && Enum.IsDefined(parsedPriority))
+        var trimmed = value.Trim();
+        if (Enum.TryParse<BookingPriority>(trimmed, ignoreCase: false, out var parsedPriority)
+            && Enum.IsDefined(parsedPriority)
+            && trimmed == parsedPriority.ToString())
         {
             return parsedPriority;
         }
 
         throw new ContractValidationException(
             "INVALID_BOOKING_PRIORITY",
-            $"Giá trị BookingPriority '{value}' không hợp lệ trong ngữ cảnh TADSS. Các giá trị hợp lệ: NORMAL, HIGH, VIP, URGENT.",
+            $"Giá trị BookingPriority '{value}' không hợp lệ. Phải tuân theo định dạng chuẩn SCREAMING_SNAKE_CASE: NORMAL, HIGH, VIP, URGENT.",
             nameof(DecisionRequestDto.Priority));
     }
 
     /// <summary>
-    /// Parse chuỗi DecisionStatus an toàn: Rỗng/Null -> NEED_APPROVAL, Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// Parse chuỗi DecisionStatus nghiêm ngặt theo định dạng Canonical SCREAMING_SNAKE_CASE:
+    /// Rỗng/Null -> NEED_APPROVAL, Chuỗi khác định dạng chuẩn hoặc không hợp lệ -> Ném ContractValidationException.
     /// </summary>
+    /// <param name="value">Chuỗi enum đại diện DecisionStatus.</param>
+    /// <returns>Enum DecisionStatus tương ứng.</returns>
+    /// <exception cref="ContractValidationException">Ném ra khi giá trị không đúng chuẩn SCREAMING_SNAKE_CASE hoặc không tồn tại.</exception>
     public static DecisionStatus ParseDecisionStatus(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -135,21 +145,27 @@ public static partial class DecisionMappingExtensions
             return DecisionStatus.NEED_APPROVAL;
         }
 
-        var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<DecisionStatus>(normalized, true, out var parsedStatus) && Enum.IsDefined(parsedStatus))
+        var trimmed = value.Trim();
+        if (Enum.TryParse<DecisionStatus>(trimmed, ignoreCase: false, out var parsedStatus)
+            && Enum.IsDefined(parsedStatus)
+            && trimmed == parsedStatus.ToString())
         {
             return parsedStatus;
         }
 
         throw new ContractValidationException(
             "INVALID_DECISION_STATUS",
-            $"Giá trị DecisionStatus '{value}' không hợp lệ. Các giá trị hợp lệ: APPROVED, REJECTED, NEED_APPROVAL.",
+            $"Giá trị DecisionStatus '{value}' không hợp lệ. Phải tuân theo định dạng chuẩn SCREAMING_SNAKE_CASE: APPROVED, REJECTED, NEED_APPROVAL.",
             nameof(DecisionResultDto.Status));
     }
 
     /// <summary>
-    /// Parse chuỗi RecommendationType an toàn: Chuỗi lạ không hợp lệ -> Ném ContractValidationException.
+    /// Parse chuỗi RecommendationType nghiêm ngặt theo định dạng Canonical SCREAMING_SNAKE_CASE:
+    /// Chuỗi rỗng, không đúng định dạng chuẩn hoặc không hợp lệ -> Ném ContractValidationException.
     /// </summary>
+    /// <param name="value">Chuỗi enum đại diện RecommendationType.</param>
+    /// <returns>Enum RecommendationType tương ứng.</returns>
+    /// <exception cref="ContractValidationException">Ném ra khi giá trị để trống, không đúng chuẩn SCREAMING_SNAKE_CASE hoặc không tồn tại.</exception>
     public static RecommendationType ParseRecommendationType(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -160,29 +176,17 @@ public static partial class DecisionMappingExtensions
                 nameof(DecisionRecommendationDto.Type));
         }
 
-        var normalized = NormalizeEnumString(value);
-        if (Enum.TryParse<RecommendationType>(normalized, true, out var parsedType) && Enum.IsDefined(parsedType))
+        var trimmed = value.Trim();
+        if (Enum.TryParse<RecommendationType>(trimmed, ignoreCase: false, out var parsedType)
+            && Enum.IsDefined(parsedType)
+            && trimmed == parsedType.ToString())
         {
             return parsedType;
         }
 
         throw new ContractValidationException(
             "INVALID_RECOMMENDATION_TYPE",
-            $"Giá trị RecommendationType '{value}' không hợp lệ.",
+            $"Giá trị RecommendationType '{value}' không hợp lệ. Phải tuân theo định dạng chuẩn SCREAMING_SNAKE_CASE: ALTERNATIVE_COURT, ALTERNATIVE_SLOT, REQUIRE_DEPOSIT, PRICE_ADJUSTMENT, REQUIRE_APPROVAL, PRIORITY_ESCALATION.",
             nameof(DecisionRecommendationDto.Type));
-    }
-
-    /// <summary>
-    /// Chuẩn hóa chuỗi enum sang định dạng SCREAMING_SNAKE_CASE (hỗ trợ camelCase, PascalCase, kebab-case).
-    /// </summary>
-    public static string NormalizeEnumString(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var withUnderscores = CamelCaseRegex().Replace(value.Trim(), "$1_$2");
-        return withUnderscores.Replace("-", "_").ToUpperInvariant();
     }
 }

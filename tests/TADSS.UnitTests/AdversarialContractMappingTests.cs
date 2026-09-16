@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
@@ -11,15 +10,14 @@ using Xunit;
 namespace TADSS.UnitTests;
 
 /// <summary>
-/// Bộ kiểm thử tương thích Hợp đồng và ánh xạ nâng cao đối kháng (Adversarial Contract Mapping & Casing Fuzzing Tests).
+/// Bộ kiểm thử tương thích Hợp đồng và ánh xạ nâng cao đối kháng (Adversarial Contract Mapping Tests).
 /// 
-/// NGUYÊN TẮC KIẾN TRÚC:
+/// NGUYÊN TẮC KIẾN TRÚC (OPTION A - STRICT CANONICAL ONLY):
 /// 1. Wire Canonical Specification: Chuẩn hóa 100% là SCREAMING_SNAKE_CASE (như đã định nghĩa trong docs/contracts/schemas/).
-/// 2. Ingestion Boundary Normalization (Option B): Áp dụng Định luật Postel (Robustness Principle) tại cổng tiếp nhận
-///    (cho phép chuẩn hóa các alias casing như camelCase, PascalCase, kebab-case sang SCREAMING_SNAKE_CASE),
-///    đồng thời bắt buộc kiểm tra Enum.IsDefined để chặn đứng lỗ hổng ép kiểu số nguyên ("12345").
-/// 3. Closed-World Schema vs Ingestion Resilience: Schema JSON Gateway áp dụng "additionalProperties: false" để bảo vệ ranh giới mạng,
-///    trong khi DTO Serializer được cấu hình linh hoạt phục vụ tiến hóa mã nguồn.
+/// 2. Strict Ingestion Boundary: Bắt buộc giá trị enum trên wire phải khớp chính xác SCREAMING_SNAKE_CASE (case-sensitive).
+///    Mọi biến thể casing (camelCase, PascalCase, kebab-case, snake_case), chuỗi số nguyên ("0", "12345") hoặc giá trị lạ
+///    đều bị từ chối dứt khoát bằng ContractValidationException.
+/// 3. Roundtrip Fidelity: Đảm bảo dữ liệu chuyển đổi 2 chiều DTO <-> Domain không bao giờ bị biến dạng hoặc suy hao thông tin.
 /// </summary>
 public class AdversarialContractMappingTests
 {
@@ -29,85 +27,62 @@ public class AdversarialContractMappingTests
         WriteIndented = false
     };
 
-    #region 1. Enum Ingestion Normalization & Resilient Casing Aliases
+    #region 1. Strict Canonical SCREAMING_SNAKE_CASE Parsing
 
     [Theory]
-    [InlineData("normal", BookingPriority.NORMAL)]
-    [InlineData("Normal", BookingPriority.NORMAL)]
     [InlineData("NORMAL", BookingPriority.NORMAL)]
-    [InlineData("high", BookingPriority.HIGH)]
-    [InlineData("High", BookingPriority.HIGH)]
     [InlineData("HIGH", BookingPriority.HIGH)]
-    [InlineData("vip", BookingPriority.VIP)]
-    [InlineData("Vip", BookingPriority.VIP)]
     [InlineData("VIP", BookingPriority.VIP)]
-    [InlineData("urgent", BookingPriority.URGENT)]
-    [InlineData("Urgent", BookingPriority.URGENT)]
     [InlineData("URGENT", BookingPriority.URGENT)]
-    [InlineData("  urgent  ", BookingPriority.URGENT)]
-    public void DecisionMappingExtensions_ParseBookingPriority_ParsesAllCasingVariations(string rawInput, BookingPriority expected)
+    [InlineData("  URGENT  ", BookingPriority.URGENT)]
+    [InlineData("", BookingPriority.NORMAL)]
+    [InlineData("   ", BookingPriority.NORMAL)]
+    [InlineData(null, BookingPriority.NORMAL)]
+    public void DecisionMappingExtensions_ParseBookingPriority_ParsesCanonicalAndDefaults(string? rawInput, BookingPriority expected)
     {
         var result = DecisionMappingExtensions.ParseBookingPriority(rawInput);
         result.Should().Be(expected);
     }
 
     [Theory]
-    [InlineData("unpaid", PaymentStatus.UNPAID)]
-    [InlineData("Unpaid", PaymentStatus.UNPAID)]
     [InlineData("UNPAID", PaymentStatus.UNPAID)]
-    [InlineData("partiallyPaid", PaymentStatus.PARTIALLY_PAID)]
-    [InlineData("PartiallyPaid", PaymentStatus.PARTIALLY_PAID)]
-    [InlineData("partially_paid", PaymentStatus.PARTIALLY_PAID)]
-    [InlineData("partially-paid", PaymentStatus.PARTIALLY_PAID)]
     [InlineData("PARTIALLY_PAID", PaymentStatus.PARTIALLY_PAID)]
-    [InlineData("paid", PaymentStatus.PAID)]
-    [InlineData("Paid", PaymentStatus.PAID)]
     [InlineData("PAID", PaymentStatus.PAID)]
-    [InlineData("refunded", PaymentStatus.REFUNDED)]
-    [InlineData("Refunded", PaymentStatus.REFUNDED)]
     [InlineData("REFUNDED", PaymentStatus.REFUNDED)]
-    public void DecisionMappingExtensions_ParsePaymentStatus_ParsesAllCasingAndDelimiters(string rawInput, PaymentStatus expected)
+    [InlineData("EXPIRED", PaymentStatus.EXPIRED)]
+    [InlineData("  PARTIALLY_PAID  ", PaymentStatus.PARTIALLY_PAID)]
+    [InlineData("", PaymentStatus.UNPAID)]
+    [InlineData("   ", PaymentStatus.UNPAID)]
+    [InlineData(null, PaymentStatus.UNPAID)]
+    public void DecisionMappingExtensions_ParsePaymentStatus_ParsesCanonicalAndDefaults(string? rawInput, PaymentStatus expected)
     {
         var result = DecisionMappingExtensions.ParsePaymentStatus(rawInput);
         result.Should().Be(expected);
     }
 
     [Theory]
-    [InlineData("approved", DecisionStatus.APPROVED)]
-    [InlineData("Approved", DecisionStatus.APPROVED)]
     [InlineData("APPROVED", DecisionStatus.APPROVED)]
-    [InlineData("needApproval", DecisionStatus.NEED_APPROVAL)]
-    [InlineData("NeedApproval", DecisionStatus.NEED_APPROVAL)]
-    [InlineData("need_approval", DecisionStatus.NEED_APPROVAL)]
-    [InlineData("need-approval", DecisionStatus.NEED_APPROVAL)]
-    [InlineData("NEED_APPROVAL", DecisionStatus.NEED_APPROVAL)]
-    [InlineData("rejected", DecisionStatus.REJECTED)]
-    [InlineData("Rejected", DecisionStatus.REJECTED)]
     [InlineData("REJECTED", DecisionStatus.REJECTED)]
-    public void DecisionMappingExtensions_ParseDecisionStatus_ParsesAllCasingAndDelimiters(string rawInput, DecisionStatus expected)
+    [InlineData("NEED_APPROVAL", DecisionStatus.NEED_APPROVAL)]
+    [InlineData("  APPROVED  ", DecisionStatus.APPROVED)]
+    [InlineData("", DecisionStatus.NEED_APPROVAL)]
+    [InlineData("   ", DecisionStatus.NEED_APPROVAL)]
+    [InlineData(null, DecisionStatus.NEED_APPROVAL)]
+    public void DecisionMappingExtensions_ParseDecisionStatus_ParsesCanonicalAndDefaults(string? rawInput, DecisionStatus expected)
     {
         var result = DecisionMappingExtensions.ParseDecisionStatus(rawInput);
         result.Should().Be(expected);
     }
 
     [Theory]
-    [InlineData("alternativeSlot", RecommendationType.ALTERNATIVE_SLOT)]
-    [InlineData("AlternativeSlot", RecommendationType.ALTERNATIVE_SLOT)]
-    [InlineData("alternative_slot", RecommendationType.ALTERNATIVE_SLOT)]
-    [InlineData("alternative-slot", RecommendationType.ALTERNATIVE_SLOT)]
     [InlineData("ALTERNATIVE_SLOT", RecommendationType.ALTERNATIVE_SLOT)]
-    [InlineData("alternativeCourt", RecommendationType.ALTERNATIVE_COURT)]
-    [InlineData("AlternativeCourt", RecommendationType.ALTERNATIVE_COURT)]
-    [InlineData("alternative_court", RecommendationType.ALTERNATIVE_COURT)]
-    [InlineData("requireDeposit", RecommendationType.REQUIRE_DEPOSIT)]
-    [InlineData("RequireDeposit", RecommendationType.REQUIRE_DEPOSIT)]
-    [InlineData("require_deposit", RecommendationType.REQUIRE_DEPOSIT)]
-    [InlineData("priceAdjustment", RecommendationType.PRICE_ADJUSTMENT)]
-    [InlineData("PriceAdjustment", RecommendationType.PRICE_ADJUSTMENT)]
-    [InlineData("price_adjustment", RecommendationType.PRICE_ADJUSTMENT)]
-    [InlineData("requireApproval", RecommendationType.REQUIRE_APPROVAL)]
-    [InlineData("priorityEscalation", RecommendationType.PRIORITY_ESCALATION)]
-    public void DecisionMappingExtensions_ParseRecommendationType_ParsesAllCasingAndDelimiters(string rawInput, RecommendationType expected)
+    [InlineData("ALTERNATIVE_COURT", RecommendationType.ALTERNATIVE_COURT)]
+    [InlineData("REQUIRE_DEPOSIT", RecommendationType.REQUIRE_DEPOSIT)]
+    [InlineData("PRICE_ADJUSTMENT", RecommendationType.PRICE_ADJUSTMENT)]
+    [InlineData("REQUIRE_APPROVAL", RecommendationType.REQUIRE_APPROVAL)]
+    [InlineData("PRIORITY_ESCALATION", RecommendationType.PRIORITY_ESCALATION)]
+    [InlineData("  ALTERNATIVE_SLOT  ", RecommendationType.ALTERNATIVE_SLOT)]
+    public void DecisionMappingExtensions_ParseRecommendationType_ParsesCanonical(string rawInput, RecommendationType expected)
     {
         var result = DecisionMappingExtensions.ParseRecommendationType(rawInput);
         result.Should().Be(expected);
@@ -115,13 +90,24 @@ public class AdversarialContractMappingTests
 
     #endregion
 
-    #region 2. Negative Tests for Invalid Enum Payloads
+    #region 2. Negative Tests for Non-Canonical Casing, Numeric Strings, and Invalid Enums
 
     [Theory]
+    [InlineData("normal")]
+    [InlineData("Normal")]
+    [InlineData("high")]
+    [InlineData("High")]
+    [InlineData("vip")]
+    [InlineData("Vip")]
+    [InlineData("urgent")]
+    [InlineData("Urgent")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("12345")]
+    [InlineData("-1")]
     [InlineData("SUPER_VIP")]
     [InlineData("INVALID_PRIORITY")]
-    [InlineData("12345")]
-    public void DecisionMappingExtensions_InvalidBookingPriority_ThrowsContractValidationException(string invalidPriority)
+    public void DecisionMappingExtensions_NonCanonicalBookingPriority_ThrowsContractValidationException(string invalidPriority)
     {
         var act = () => DecisionMappingExtensions.ParseBookingPriority(invalidPriority);
 
@@ -130,10 +116,24 @@ public class AdversarialContractMappingTests
     }
 
     [Theory]
+    [InlineData("unpaid")]
+    [InlineData("Unpaid")]
+    [InlineData("partiallyPaid")]
+    [InlineData("PartiallyPaid")]
+    [InlineData("partially_paid")]
+    [InlineData("partially-paid")]
+    [InlineData("paid")]
+    [InlineData("Paid")]
+    [InlineData("refunded")]
+    [InlineData("Refunded")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("12345")]
+    [InlineData("-1")]
     [InlineData("PENDING_PAYMENT")]
     [InlineData("UNKNOWN_STATUS")]
     [InlineData("VOIDED")]
-    public void DecisionMappingExtensions_InvalidPaymentStatus_ThrowsContractValidationException(string invalidStatus)
+    public void DecisionMappingExtensions_NonCanonicalPaymentStatus_ThrowsContractValidationException(string invalidStatus)
     {
         var act = () => DecisionMappingExtensions.ParsePaymentStatus(invalidStatus);
 
@@ -142,10 +142,21 @@ public class AdversarialContractMappingTests
     }
 
     [Theory]
+    [InlineData("approved")]
+    [InlineData("Approved")]
+    [InlineData("needApproval")]
+    [InlineData("NeedApproval")]
+    [InlineData("need_approval")]
+    [InlineData("need-approval")]
+    [InlineData("rejected")]
+    [InlineData("Rejected")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("99")]
     [InlineData("MAYBE")]
     [InlineData("PENDING")]
     [InlineData("HOLD")]
-    public void DecisionMappingExtensions_InvalidDecisionStatus_ThrowsContractValidationException(string invalidStatus)
+    public void DecisionMappingExtensions_NonCanonicalDecisionStatus_ThrowsContractValidationException(string invalidStatus)
     {
         var act = () => DecisionMappingExtensions.ParseDecisionStatus(invalidStatus);
 
@@ -154,9 +165,22 @@ public class AdversarialContractMappingTests
     }
 
     [Theory]
+    [InlineData("alternativeSlot")]
+    [InlineData("AlternativeSlot")]
+    [InlineData("alternative_slot")]
+    [InlineData("alternative-slot")]
+    [InlineData("alternativeCourt")]
+    [InlineData("requireDeposit")]
+    [InlineData("priceAdjustment")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("999")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
     [InlineData("NON_EXISTENT_RECOMMENDATION")]
     [InlineData("UNKNOWN_REC")]
-    public void DecisionMappingExtensions_InvalidRecommendationType_ThrowsContractValidationException(string invalidType)
+    public void DecisionMappingExtensions_NonCanonicalRecommendationType_ThrowsContractValidationException(string? invalidType)
     {
         var act = () => DecisionMappingExtensions.ParseRecommendationType(invalidType);
 

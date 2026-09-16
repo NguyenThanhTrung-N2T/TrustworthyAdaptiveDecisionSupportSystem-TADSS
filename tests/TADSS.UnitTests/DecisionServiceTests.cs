@@ -63,8 +63,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 200000m,
             DepositAmount = 200000m, // 100% paid
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -104,8 +104,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 30000m, // 10% paid (< 30%)
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -143,8 +143,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 500000m,
             DepositAmount = 0m,
-            PaymentStatus = "Unpaid",
-            Priority = "High",
+            PaymentStatus = "UNPAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -184,8 +184,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 500000m,
             DepositAmount = 0m,
-            PaymentStatus = "Unpaid",
-            Priority = "High",
+            PaymentStatus = "UNPAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -242,8 +242,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 30000m, // NEED_APPROVAL
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -296,8 +296,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 50000m,
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -336,8 +336,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 20000m,
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
         var res1 = await service.EvaluateDecisionAsync(req1, "pending-1");
@@ -355,8 +355,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 300000m,
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
         await service.EvaluateDecisionAsync(req2, "pending-2");
@@ -389,8 +389,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 300000m,
             DepositAmount = 30000m,
-            PaymentStatus = "PartiallyPaid",
-            Priority = "Normal",
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
         var evalResult = await service.EvaluateDecisionAsync(req, "override-001");
@@ -445,8 +445,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 200000m,
             DepositAmount = 200000m,
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -495,8 +495,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 200000m,
             DepositAmount = 200000m,
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -543,8 +543,8 @@ public class DecisionServiceTests
             BookingType = "Single",
             TotalPrice = 200000m,
             DepositAmount = 200000m,
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
 

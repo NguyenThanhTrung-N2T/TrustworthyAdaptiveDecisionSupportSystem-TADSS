@@ -37,8 +37,8 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 500000m,
             DepositAmount = 500000m,
-            PaymentStatus = "Paid",
-            Priority = "High",
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 
@@ -102,8 +102,8 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             BookingType = "Single",
             TotalPrice = 600000m,
             DepositAmount = 600000m,
-            PaymentStatus = "Paid",
-            Priority = "High",
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
             RequestedAt = DateTime.UtcNow
         };
 

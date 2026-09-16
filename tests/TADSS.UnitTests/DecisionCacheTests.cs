@@ -64,8 +64,8 @@ public class DecisionCacheTests
             BookingType = "Single",
             TotalPrice = totalPrice,
             DepositAmount = deposit,
-            PaymentStatus = "Paid",
-            Priority = "Normal",
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
             RequestedAt = DateTime.UtcNow
         };
     }
