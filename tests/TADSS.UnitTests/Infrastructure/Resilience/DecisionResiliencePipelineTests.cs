@@ -11,7 +11,7 @@ using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Infrastructure.Resilience;
 
 public class DecisionResiliencePipelineTests
 {

@@ -10,7 +10,7 @@ using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Infrastructure.Resilience;
 
 /// <summary>
 /// Bộ kiểm thử chịu lỗi và sức bền nâng cao (Resilience & Fault Tolerance Stress Tests).

@@ -3,7 +3,7 @@ using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Domain;
 
 /// <summary>
 /// Bộ kiểm thử đơn vị toàn diện cho Rich Domain Models và Invariant Rules của TADSS.

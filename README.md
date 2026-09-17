@@ -49,6 +49,11 @@ TADSS Runtime
 │
 └── Tests
     ├── TADSS.UnitTests
+    │   ├── Contracts
+    │   ├── Domain
+    │   ├── Services
+    │   ├── Infrastructure
+    │   └── TestData
     └── TADSS.IntegrationTests
 ```
 
