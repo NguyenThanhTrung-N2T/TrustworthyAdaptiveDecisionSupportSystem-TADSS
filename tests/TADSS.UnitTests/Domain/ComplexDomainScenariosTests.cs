@@ -4,7 +4,7 @@ using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Domain;
 
 /// <summary>
 /// Bộ kiểm thử chuyên sâu cho các kịch bản miền phức tạp (Complex Domain Scenarios & Difficult Edge Cases).

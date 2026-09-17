@@ -6,7 +6,7 @@ using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Contracts;
 
 /// <summary>
 /// Bộ kiểm thử đối soát tương thích Hợp đồng (Contract Compatibility Tests)

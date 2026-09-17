@@ -4,13 +4,13 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Contracts;
 
 /// <summary>
 /// Bộ kiểm thử xác thực dữ liệu đầu vào DTOs (Data Annotation & Contract Validation Tests).
 /// Đảm bảo tất cả các ràng buộc [Required], [Range] và quy tắc định dạng được áp dụng chính xác.
 /// </summary>
-public class DTOValidationTests
+public class DtoValidationContractTests
 {
     private static IList<ValidationResult> ValidateModel(object model)
     {

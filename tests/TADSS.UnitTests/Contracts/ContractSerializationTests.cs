@@ -7,7 +7,7 @@ using Shared.DecisionContractSDK.DTOs.Mappings;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Contracts;
 
 /// <summary>
 /// Bộ kiểm thử tương thích Hợp đồng (Contract Compatibility Tests), chuyển đổi 2 chiều và tính ổn định của Serializer.

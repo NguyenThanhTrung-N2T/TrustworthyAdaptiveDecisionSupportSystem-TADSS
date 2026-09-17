@@ -1,9 +1,10 @@
 using FluentAssertions;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using TADSS.Runtime.Api.Services;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Services;
 
 public class RequestHasherTests
 {
@@ -59,6 +60,7 @@ public class RequestHasherTests
         hash1.Should().HaveLength(64);
         hash2.Should().HaveLength(64);
         hash1.Should().Be(hash2);
+        hash1.Should().MatchRegex("^[0-9a-f]{64}$");
     }
 
     [Fact]
@@ -105,5 +107,35 @@ public class RequestHasherTests
 
         // Assert
         hash1.Should().NotBe(hash2);
+    }
+
+    [Fact]
+    public void ComputeHash_MetadataInsertionOrderDoesNotChangeCanonicalHash()
+    {
+        var first = DecisionRequestFactory.ValidDecisionRequest();
+        first.Metadata = new Dictionary<string, string>
+        {
+            ["z-last"] = "value-2",
+            ["a-first"] = "value-1"
+        };
+
+        var second = DecisionRequestFactory.ValidDecisionRequest();
+        second.Metadata = new Dictionary<string, string>
+        {
+            ["a-first"] = "value-1",
+            ["z-last"] = "value-2"
+        };
+
+        RequestHasher.ComputeHash(first).Should().Be(RequestHasher.ComputeHash(second));
+    }
+
+    [Fact]
+    public void ComputeHash_MetadataValueChangeProducesDifferentHash()
+    {
+        var original = DecisionRequestFactory.ValidDecisionRequest();
+        var changed = DecisionRequestFactory.ValidDecisionRequest();
+        changed.Metadata!["tenant"] = "another-tenant";
+
+        RequestHasher.ComputeHash(original).Should().NotBe(RequestHasher.ComputeHash(changed));
     }
 }

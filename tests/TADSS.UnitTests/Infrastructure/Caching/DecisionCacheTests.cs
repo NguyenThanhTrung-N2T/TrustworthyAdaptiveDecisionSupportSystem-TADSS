@@ -15,7 +15,7 @@ using TADSS.Runtime.Api.Services;
 using TADSS.Strategies.Default;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Infrastructure.Caching;
 
 public class DecisionCacheTests
 {

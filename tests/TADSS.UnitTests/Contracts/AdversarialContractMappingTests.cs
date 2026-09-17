@@ -7,7 +7,7 @@ using Shared.DecisionContractSDK.DTOs.Mappings;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests;
+namespace TADSS.UnitTests.Contracts;
 
 /// <summary>
 /// Bộ kiểm thử tương thích Hợp đồng và ánh xạ nâng cao đối kháng (Adversarial Contract Mapping Tests).
