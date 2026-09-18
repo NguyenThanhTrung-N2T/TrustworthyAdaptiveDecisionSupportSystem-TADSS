@@ -338,4 +338,58 @@ public class AdversarialContractMappingTests
     }
 
     #endregion
+
+    #region 5. Negative Cross-Field Invariant Fail-Fast Tests During ToDomain Mapping
+
+    [Fact]
+    public void DecisionMappingExtensions_ToDomain_WhenDepositExceedsTotalPrice_ThrowsDomainInvariantException()
+    {
+        var dto = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "GOLD",
+            StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
+            BookingType = "SINGLE",
+            TotalPrice = 200000m,
+            DepositAmount = 300000m, // Deposit > TotalPrice
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        var act = () => dto.ToDomain();
+        act.Should().Throw<DomainInvariantException>()
+            .Where(e => e.InvariantCode == "DEPOSIT_EXCEEDS_TOTAL_PRICE");
+    }
+
+    [Fact]
+    public void DecisionMappingExtensions_ToDomain_WhenStartTimeAfterEndTime_ThrowsDomainInvariantException()
+    {
+        var dto = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "GOLD",
+            StartTime = DateTime.UtcNow.AddDays(1).AddHours(2),
+            EndTime = DateTime.UtcNow.AddDays(1), // EndTime < StartTime
+            BookingType = "SINGLE",
+            TotalPrice = 200000m,
+            DepositAmount = 100000m,
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        var act = () => dto.ToDomain();
+        act.Should().Throw<DomainInvariantException>()
+            .Where(e => e.InvariantCode == "INVALID_SCHEDULE_RANGE");
+    }
+
+    #endregion
 }

@@ -330,6 +330,47 @@ public class DomainInvariantsTests
         await Task.WhenAll(tasks);
     }
 
+    [Fact]
+    public void Reservation_EnsureValid_DetectsInvariantViolationsOnMutatedState()
+    {
+        // Arrange valid records
+        var validCustomer = new CustomerInfo(Guid.NewGuid(), "GOLD");
+        var validResource = new ResourceInfo(Guid.NewGuid(), Guid.NewGuid());
+        var validSchedule = new ReservationSchedule(DateTime.UtcNow.AddDays(1), DateTime.UtcNow.AddDays(1).AddHours(2));
+        var validPayment = new PaymentPolicy(200000m, 100000m, PaymentStatus.PARTIALLY_PAID);
+
+        // 1. Customer identity empty
+        var act1 = () => new Reservation(Guid.NewGuid(), validCustomer with { CustomerId = Guid.Empty }, validResource, validSchedule, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act1.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_CUSTOMER_ID");
+
+        // 2. Resource court/branch empty
+        var act2 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource with { CourtId = Guid.Empty }, validSchedule, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act2.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_RESOURCE_ID");
+
+        var act3 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource with { BranchId = Guid.Empty }, validSchedule, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act3.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_RESOURCE_ID");
+
+        // 3. Schedule range & duration
+        var act4 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule with { EndTime = validSchedule.StartTime.AddHours(-1) }, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act4.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_SCHEDULE_RANGE");
+
+        var act5 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule with { EndTime = validSchedule.StartTime.AddMinutes(20) }, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act5.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_SCHEDULE_DURATION");
+
+        var act6 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule with { EndTime = validSchedule.StartTime.AddHours(13) }, validPayment, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act6.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_SCHEDULE_DURATION");
+
+        // 4. Payment total price and deposit
+        var act7 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule, validPayment with { TotalPrice = -50000m }, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act7.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "INVALID_TOTAL_PRICE");
+
+        var act8 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule, validPayment with { DepositAmount = 300000m }, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act8.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "DEPOSIT_EXCEEDS_TOTAL_PRICE");
+
+        var act9 = () => new Reservation(Guid.NewGuid(), validCustomer, validResource, validSchedule, validPayment with { DepositAmount = -1000m }, "SINGLE", BookingPriority.NORMAL, DateTime.UtcNow);
+        act9.Should().Throw<DomainInvariantException>().Where(e => e.InvariantCode == "DEPOSIT_EXCEEDS_TOTAL_PRICE");
+    }
+
     #endregion
 
     #region Helper Methods
