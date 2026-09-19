@@ -5,7 +5,7 @@
 > **Frozen Package Version:** `1.0.0`  
 > **API Contract Version:** `v1.0.0`  
 > **Effective Freeze Date:** 2026-09-19  
-> **Git Target Commit SHA:** `4b8b1124a2a0d492a868a5f85b0c798bc7a8d3d5` (Branch: `feat/phase-2-contract-sdk`)  
+> **Git Target Commit SHA:** `2e867f4cf222d22ddb65175cbb31224e688349e5` (Branch: `feat/phase-2-contract-sdk`)  
 > **Target Runtime:** .NET 8.0 (SDK `10.0.401`)  
 > **Authors & Sign-off:** TADSS Core Engineering Team & SmashCourt Architecture Board  
 
@@ -210,8 +210,8 @@ Hội đồng kỹ thuật và nhóm phát triển xác nhận toàn bộ 9 Qual
 
 | Vai trò | Đại diện | Quyết định | Chữ ký điện tử |
 | :--- | :--- | :---: | :--- |
-| **TADSS Core Lead** | Sinh viên thực hiện 1 | ✅ **APPROVED** | `SHA: 4b8b1124...` |
-| **SmashCourt Integration Lead** | Sinh viên thực hiện 2 | ✅ **APPROVED** | `SHA: 4b8b1124...` |
+| **TADSS Core Lead** | Sinh viên thực hiện 1 | ✅ **APPROVED** | `SHA: 2e867f4c...` |
+| **SmashCourt Integration Lead** | Sinh viên thực hiện 2 | ✅ **APPROVED** | `SHA: 2e867f4c...` |
 | **System Architecture** | TADSS Engine Board | ✅ **FROZEN** | `v1.0.0-RELEASE` |
 
 > **Chuyển giao (Handoff):** Toàn bộ nền tảng Contract SDK v1.0.0 đã sẵn sàng làm nền móng vững chắc để bước sang **Phase 3: Core Decision Strategies & Rule Engine Implementation** (bắt đầu từ Deterministic Baseline Rule Strategy trước khi mở rộng sang Adaptive Trust).
