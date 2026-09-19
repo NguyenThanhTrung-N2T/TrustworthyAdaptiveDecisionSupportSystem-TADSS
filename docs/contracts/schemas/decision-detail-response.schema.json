@@ -71,7 +71,10 @@
       "properties": {
         "strategyName": { "type": "string" },
         "strategyVersion": { "type": "string" },
-        "executionType": { "type": "string" },
+        "executionType": {
+          "type": "string",
+          "enum": ["AUTOMATED", "FALLBACK", "CACHE_HIT"]
+        },
         "executionTimeMs": { "type": "integer", "minimum": 0 },
         "fallbackUsed": { "type": "boolean" },
         "failureReason": { "type": ["string", "null"] },

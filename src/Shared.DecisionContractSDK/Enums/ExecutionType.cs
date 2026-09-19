@@ -18,10 +18,5 @@ public enum ExecutionType
     /// <summary>
     /// Quyết định được trích xuất từ bộ nhớ đệm Idempotency Cache.
     /// </summary>
-    CACHE_HIT = 2,
-
-    /// <summary>
-    /// Quyết định đã có sự can thiệp ghi đè của Quản lý sân.
-    /// </summary>
-    MANUAL_OVERRIDE = 3
+    CACHE_HIT = 2
 }

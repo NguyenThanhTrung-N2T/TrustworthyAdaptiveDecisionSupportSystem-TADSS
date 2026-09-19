@@ -98,7 +98,7 @@ public class ExecutionSummaryDto
     public string StrategyVersion { get; set; } = "1.0.0";
 
     /// <summary>
-    /// Loại hình thực thi (AUTOMATED hoặc OVERRIDDEN).
+    /// Hình thức thực thi kỹ thuật của Engine (AUTOMATED, FALLBACK, CACHE_HIT).
     /// </summary>
     [JsonPropertyName("executionType")]
     public string ExecutionType { get; set; } = "AUTOMATED";

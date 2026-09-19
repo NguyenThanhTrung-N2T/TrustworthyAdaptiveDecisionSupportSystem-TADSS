@@ -15,5 +15,10 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/smashcourt/tadss-runtime</RepositoryUrl>
     <PackageTags>TADSS;DecisionEngine;Contract;SDK;DomainModel</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>
