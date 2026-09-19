@@ -27,8 +27,12 @@ The architecture is designed to separate the **decision strategy** from the **ru
 TADSS Runtime
 │
 ├── Shared.DecisionContractSDK
+│   ├── Common
 │   ├── Domain
-│   ├── Contracts
+│   ├── DTOs
+│   │   ├── Decisions
+│   │   ├── Governance
+│   │   └── Mappings
 │   ├── Enums
 │   └── Interfaces
 │
@@ -335,28 +339,25 @@ Evaluation will focus on:
 ## 🗺️ Development Roadmap
 
 ### Phase 1 — Runtime Foundation
-
 * [x] Solution structure
-* [x] Project references
-* [x] Dependency setup
-* [x] Build pipeline
-* [ ] Decision contracts
-* [ ] Strategy interface
-* [ ] Default strategy
-* [ ] Decision API
-* [ ] Initial tests
+* [x] Project references & CI pipeline
+* [x] Core Decision API endpoints (`POST /decisions`, `GET /decisions/{id}`, `GET /pending-approvals`, `POST /override`)
+* [x] Strategy interface (`IReservationDecisionStrategy`) & Default strategy
+* [x] Initial unit & integration test suites
 
-### Phase 2 — Decision Runtime
+### Phase 2 — Decision Contract SDK Stabilization & Contract Freeze (v1.0.0)
+* [x] Package purity (pure .NET 8 BCL, 0 external NuGet dependencies)
+* [x] Strict DAG architecture enforcement (`SdkDependencyPurityTests`)
+* [x] 100% XML Documentation & Mechanical Compilation (`--warnaserror`, 0 CS1591)
+* [x] Public API baseline snapshot (`baseline_public_api.txt`) & breaking change detection gate
+* [x] 7 Frozen JSON Schemas conformance (Draft 2020-12, `additionalProperties: false`)
+* [x] Strict Canonical `SCREAMING_SNAKE_CASE` parser (Option A) & adversarial mapping tests
+* [x] Fail-fast Domain Invariants & boundary precision tests (99.49% SDK coverage)
+* [x] Cross-culture (`vi-VN`, `fr-FR`) & Concurrency hardening (100 parallel tasks)
+* [x] NuGet Packaging (`TADSS.Shared.DecisionContractSDK.1.0.0.nupkg`) & SmashCourt-BE consumer reference tests
+* [x] Contract Freeze governance manifest (`CONTRACT_V1_FREEZE.md`)
 
-* [ ] Decision execution logging
-* [ ] Decision Trace
-* [ ] Persistence
-* [ ] Strategy registry
-* [ ] Resilience policies
-* [ ] Fallback mechanism
-* [ ] Redis caching
-
-### Phase 3 — Adaptive Trust
+### Phase 3 — Decision Runtime Engine & Strategy Resolution
 
 * [ ] Trust model
 * [ ] Time decay

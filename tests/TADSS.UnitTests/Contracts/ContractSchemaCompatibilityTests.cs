@@ -361,7 +361,7 @@ public class ContractSchemaCompatibilityTests
     public void ExecutionType_MatchesAllowedEnumInSchema()
     {
         var sdkEnumNames = Enum.GetNames<ExecutionType>();
-        sdkEnumNames.Should().Contain(["AUTOMATED", "FALLBACK", "CACHE_HIT", "MANUAL_OVERRIDE"]);
+        sdkEnumNames.Should().BeEquivalentTo(["AUTOMATED", "FALLBACK", "CACHE_HIT"]);
     }
 
     #endregion

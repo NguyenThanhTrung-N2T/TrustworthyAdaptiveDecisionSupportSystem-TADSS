@@ -249,7 +249,6 @@
     AUTOMATED = 0
     FALLBACK = 1
     CACHE_HIT = 2
-    MANUAL_OVERRIDE = 3
 
 [enum] Shared.DecisionContractSDK.Enums.PaymentStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
     UNPAID = 0

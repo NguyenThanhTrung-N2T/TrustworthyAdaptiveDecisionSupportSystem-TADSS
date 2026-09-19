@@ -53,7 +53,7 @@ TADSS API v1 cung cấp 4 endpoints đại diện cho 3 nhóm năng lực:
 
 $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \quad \neq \quad \text{Database Model (Audit Ledger)}$$
 
-- **API Contract DTOs (`Shared.DecisionContractSDK.Contracts`)**: Cấu trúc dữ liệu thuần túy phục vụ truyền tải qua HTTP JSON.
+- **API Contract DTOs (`Shared.DecisionContractSDK.DTOs.Decisions` / `DTOs.Governance`)**: Cấu trúc dữ liệu thuần túy phục vụ truyền tải qua HTTP JSON.
 - **Domain Models (`Shared.DecisionContractSDK.Domain`)**: Thực thể nghiệp vụ chứa business invariants, logic tính toán thời lượng và tính hợp lệ.
 - **Persistence Entity (`TADSS.Runtime.Api.Infrastructure.Data.Entities`)**: Bảng `tadss.decision_executions` lưu trữ nhật ký audit, snapshot JSONB và telemetry phục vụ truy vết.
 
@@ -63,7 +63,7 @@ $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \qu
 
 ### 3.1 Cơ chế Versioning
 - **URL Path Versioning**: Toàn bộ routes có tiền tố `/api/v1/`.
-- Không gắn cờ `contractVersion` vào payload ở v1. Thay đổi tương thích (additive) được giữ trên v1; thay đổi phá vỡ (breaking change) sẽ chuyển sang `/api/v2/`.
+- Không gắn cờ `contractVersion` vào payload ở v1. Do các schema v1 áp dụng `additionalProperties: false`, toàn bộ cấu trúc wire JSON v1 là bất biến; mọi thay đổi cấu trúc wire payload đều yêu cầu nâng cấp phiên bản `/api/v2/`.
 
 ### 3.2 Khái niệm Định danh (Identity Semantics)
 - **`decision_id` (UUID)**: Định danh một **phiên ra quyết định logic** (Logical Decision Lifecycle).
@@ -103,14 +103,14 @@ $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \qu
   "courtTypeId": "018e3a2b-8a71-7000-8c24-001122334455",
   "branchId": "018e3a2b-8a71-7000-8c24-998877665544",
   "customerId": "018e3a2b-8a71-7000-8c24-123456789abc",
-  "customerTier": "Gold",
+  "customerTier": "GOLD",
   "startTime": "2026-09-15T18:00:00Z",
   "endTime": "2026-09-15T20:00:00Z",
-  "bookingType": "Single",
+  "bookingType": "SINGLE",
   "totalPrice": 300000.00,
   "depositAmount": 150000.00,
-  "paymentStatus": "PartiallyPaid",
-  "priority": "Normal",
+  "paymentStatus": "PARTIALLY_PAID",
+  "priority": "NORMAL",
   "requestedAt": "2026-09-12T15:00:00Z",
   "metadata": {
     "source": "MobileApp",
@@ -270,7 +270,7 @@ $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \qu
 
 ```json
 {
-  "type": "AlternativeSlot",
+  "type": "ALTERNATIVE_SLOT",
   "description": "Khung giờ 18:00 - 20:00 đã kín. Gợi ý chuyển sang khung giờ 20:00 - 22:00 cùng ngày trên Sân 2.",
   "suggestedCourtId": "018e3a2b-8a71-7000-8c24-aabbccddeeff",
   "suggestedStartTime": "2026-09-15T20:00:00Z",
@@ -340,7 +340,7 @@ X-Correlation-ID: cor-9988-7766-5544
 
 | HTTP Status | Ý nghĩa trong TADSS |
 | :---: | :--- |
-| `200 OK` | Xử lý thành công (kể cả kết quả business là `Approved`, `Rejected`, `NeedApproval`, `FallbackUsed`). |
+| `200 OK` | Xử lý thành công (kể cả kết quả business là `APPROVED`, `REJECTED`, `NEED_APPROVAL`, `fallbackUsed: true`). |
 | `400 Bad Request` | Sai định dạng JSON, thiếu header bắt buộc, hoặc vi phạm Domain Invariants (`DOMAIN_INVARIANT_VIOLATION`). |
 | `404 Not Found` | Không tìm thấy `decisionId` tương ứng khi gọi GET hoặc Override. |
 | `409 Conflict` | Xung đột `X-Idempotency-Key` (`IDEMPOTENCY_KEY_REUSE`) hoặc can thiệp override trên đơn đã bị override. |

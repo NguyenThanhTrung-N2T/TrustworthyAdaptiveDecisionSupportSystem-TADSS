@@ -337,6 +337,54 @@ public class AdversarialContractMappingTests
         json.Should().Contain("\"APPROVED\"");
     }
 
+    [Fact]
+    public void DecisionResultDto_WithFutureOrCustomReasonCode_SerializesAndDeserializesSuccessfully()
+    {
+        // Arrange: Mô phỏng Decision Engine sinh ra mã lý do tương lai (Future/Custom Reason Code)
+        const string futureReasonCode = "ML_TRUST_SCORE_DECAY_EVALUATED";
+        const string customReasonMessage = "Điểm tin cậy thích ứng giảm 15% do tần suất hủy giờ chót.";
+
+        var result = new DecisionResultDto
+        {
+            DecisionId = Guid.NewGuid(),
+            ReservationId = Guid.NewGuid(),
+            Status = DecisionStatus.NEED_APPROVAL.ToString(),
+            StrategyName = "AdaptiveTrustMLStrategy",
+            StrategyVersion = "2.0.0",
+            ExecutionTimeMs = 42,
+            FallbackUsed = false,
+            PrimaryReason = futureReasonCode,
+            Reasons = [customReasonMessage],
+            Recommendations = [],
+            EvaluatedAt = DateTime.UtcNow
+        };
+
+        // Act: Serialize -> Wire JSON -> Deserialize
+        var json = JsonSerializer.Serialize(result, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<DecisionResultDto>(json, JsonOptions);
+
+        // Assert: Consumer nhận chuỗi lý do linh hoạt không bị crash
+        deserialized.Should().NotBeNull();
+        deserialized!.PrimaryReason.Should().Be(futureReasonCode);
+        deserialized.Reasons.Should().ContainSingle().Which.Should().Be(customReasonMessage);
+        deserialized.Status.Should().Be("NEED_APPROVAL");
+    }
+
+    [Fact]
+    public void DecisionResultDto_WithFutureOrCustomReasonCode_ConformsToStringTypeInSchema()
+    {
+        // Arrange: Kiểm tra schema decision-result định nghĩa primaryReason là kiểu string mở (không bị lock bằng closed enum)
+        var schemasDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../docs/contracts/schemas"));
+        var schemaPath = Path.Combine(schemasDir, "decision-result.schema.json");
+        var schemaJson = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(schemaPath))!.AsObject();
+
+        // Assert: primaryReason là kiểu string, không có enum restriction
+        var primaryReasonProp = schemaJson["properties"]!["primaryReason"]!.AsObject();
+        primaryReasonProp["type"]!.ToString().Should().Be("string");
+        primaryReasonProp.ContainsKey("enum").Should().BeFalse(
+            "primaryReason must remain an open string type to allow future reason codes without breaking wire compatibility");
+    }
+
     #endregion
 
     #region 5. Negative Cross-Field Invariant Fail-Fast Tests During ToDomain Mapping

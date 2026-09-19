@@ -2,7 +2,7 @@
 
 > **Thời điểm thực hiện (Timestamp):** 2026-09-18 03:16:00 UTC (10:16:00 GMT+7)  
 > **Git Commit SHA:** `c490171915eada475f5f8716d0bef7f8dd3a422d`  
-> **Git Branch:** `develop`  
+> **Git Branch:** `feat/phase-2-contract-sdk`  
 > **.NET SDK Version:** `10.0.401` (Targeting `net8.0` Runtime)  
 > **Operating System:** Microsoft Windows 11 Home Single Language 64-bit  
 > **Test Frameworks & Tooling:** xUnit 2.9.2, FluentAssertions 7.0.0, coverlet.collector 6.0.0, Microsoft.NET.Test.Sdk 17.11.1  
@@ -31,7 +31,7 @@
 - **Cơ chế kiểm định:** `PublicApiSurfaceTests.cs`
   - **Quy tắc Gate:** Test chạy ở chế độ **Strict Verification**, đọc trực tiếp từ `baseline_public_api.txt` và so sánh với reflection metadata sinh từ assembly `Shared.DecisionContractSDK.dll`. Test **KHÔNG** tự động ghi đè file baseline trong quá trình CI/CD.
   - **Mô phỏng Breaking Change:** Đã tích hợp `SharedDecisionContractSdk_BreakingChangeSimulation_DetectsMismatch()` chứng minh bất kỳ thay đổi nào ngoài ý muốn trên Public API sẽ lập tức làm FAIL test suite.
-- **Tổng số Public Types được bảo toàn:** 24 types (Classes, Records, Interfaces, Enums).
+- **Tổng số Public Types được bảo toàn:** 32 types (24 primary architectural types + 8 auxiliary types: `DecisionSummaryDto`, `ExecutionSummaryDto`, `GovernanceSummaryDto`, `TimestampSummaryDto`, `OverrideTargetPayloadDto`, `DecisionMappingExtensions`, `ApiResponse` (non-generic), `ReasonCode` (static class)).
 
 ---
 
@@ -40,9 +40,9 @@
 | Phân tầng SDK | Covered / Total Lines | Tỷ lệ Coverage thực tế | Ngưỡng cam kết (Target) | Kết quả nghiệm thu |
 | :--- | :---: | :---: | :---: | :---: |
 | **Domain Layer** (`Reservation`, `ValueObjects`) | 181 / 183 | **98.91%** | $\ge 95\%$ | 🟢 **PASS** |
-| **DTOs & Mappings** (`DecisionMappingExtensions`) | 165 / 166 | **99.40%** | $\ge 85\%$ | 🟢 **PASS** |
+| **DTOs & Mappings** (`DecisionMappingExtensions`) | 166 / 166 | **100.00%** | $\ge 85\%$ | 🟢 **PASS** |
 | **Common & Enums** (`ApiResponse`, `PagedResult`) | 46 / 46 | **100.00%** | $\ge 60\%$ | 🟢 **PASS** |
-| **TOÀN BỘ SDK (`Shared.DecisionContractSDK`)** | 392 / 395 | **99.24%** | $\ge 80\%$ | 🟢 **PASS** |
+| **TOÀN BỘ SDK (`Shared.DecisionContractSDK`)** | 393 / 395 | **99.49%** | $\ge 80\%$ | 🟢 **PASS** |
 
 ---
 
@@ -58,15 +58,14 @@
 
 ## 5. Test Count Evolution & Suite Summary
 
-### 📈 Quá trình tiến hóa Test Suite (Day 0 $\rightarrow$ Day 2):
+### 📈 Quá trình tiến hóa Test Suite (Day 0 $\rightarrow$ Day 6 Freeze):
 - **Day 0 Baseline:** **331 tests** (322 Unit + 9 Integration)
-- **Day 1 – 2 Bổ sung:** **+17 tests**
-  - `PublicApiSurfaceTests.cs`: +2 tests (Strict Baseline Verification Gate & Breaking Change Simulation)
-  - `DtoValidationContractTests.cs`: +9 tests (Generic/Non-generic ApiResponse, Null Data contract, PagedResult edge cases, DTO boundary values, Override DTO MaxLength, Cross-field boundary comparison)
-  - `DomainInvariantsTests.cs`: +1 test (`EnsureValid` defense-in-depth on Aggregate Root)
-  - `ReservationContractBoundaryTests.cs`: +3 tests (Constructor null guards, Value Object record cloning/immutability, Exception properties)
-  - `AdversarialContractMappingTests.cs`: +2 tests (Cross-field invariant fail-fast during ToDomain mapping)
-- **Tổng cộng hiện tại:** **348 tests GREEN (100% PASS)** (339 Unit Tests + 9 Integration Tests).
+- **Day 1 – 2 Bổ sung:** **+17 tests** (`PublicApiSurfaceTests`, `DtoValidationContractTests`, `ReservationContractBoundaryTests`, `CrossCultureInvariantTests`, `ConcurrentReadSafetyTests`)
+- **Day 3 – 4 Bổ sung:** **+7 tests** (`SdkDependencyPurityTests`, `ContractSchemaCompatibilityTests`, `AdversarialContractMappingTests`, `DomainInvariantsTests` boundary precision)
+- **Day 5 – 6 Bổ sung:** **+4 tests**
+  - `SmashCourtConsumerReferenceTests.cs` (+2 tests): Kiểm chứng tính tương thích khi Consumer thực tế (`SmashCourt-BE`) sử dụng SDK DTOs, Rich Domain Model, Enums và bọc `ApiResponse<T>`, `PagedResult<T>`.
+  - `AdversarialContractMappingTests.cs` (+2 tests): Kiểm chứng tính mở rộng của `ReasonCode` (Consumer deserialize an toàn chuỗi mã lý do tương lai/custom mà không bị crash) và đối soát schema type mở `primaryReason`.
+- **Tổng cộng nghiệm thu đóng băng:** **359 tests GREEN (100% PASS)** (350 Unit Tests + 9 Integration Tests).
 
 ---
 

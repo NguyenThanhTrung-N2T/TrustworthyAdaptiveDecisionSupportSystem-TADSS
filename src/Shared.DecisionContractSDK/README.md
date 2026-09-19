@@ -11,8 +11,9 @@
 
 - **Zero External Dependencies:** Built strictly on the .NET 8 Base Class Library (BCL).
 - **Strict Directed Acyclic Graph (DAG):**
-  - `Common & Enums` $\rightarrow$ `Domain` $\longleftarrow$ `Mappings` $\longleftarrow$ `DTOs`
-  - The `Domain` layer contains 0 references to wire `DTOs`.
+  - `Common & Enums` $\rightarrow$ `Domain` / `DTOs` $\rightarrow$ `Mappings`
+  - `Mappings` depends on both `Domain` and `DTOs`.
+  - The `Domain` layer strictly contains 0 references to `DTOs` or `Mappings`.
 - **Strict Canonical Wire Format (Option A):** All wire enum strings are strictly validated against `SCREAMING_SNAKE_CASE` (rejecting non-canonical casing and numeric strings).
 - **Rich Domain Invariants:** Value Objects and Aggregate Roots (`Reservation`) fail-fast upon instantiation to guarantee business invariants.
 

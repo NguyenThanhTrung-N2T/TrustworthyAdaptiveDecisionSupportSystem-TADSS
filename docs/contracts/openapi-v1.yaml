@@ -323,13 +323,14 @@ components:
           example: 150000.00
         paymentStatus:
           type: string
-          enum: [UNPAID, PARTIALLY_PAID, PAID, REFUNDED, EXPIRED, Unpaid, PartiallyPaid, Paid, Refunded, Expired]
+          enum: [UNPAID, PARTIALLY_PAID, PAID, REFUNDED, EXPIRED]
           description: "Current payment settlement status matching SmashCourt-BE InvoicePaymentStatus."
           example: "PARTIALLY_PAID"
         priority:
           type: string
           default: NORMAL
-          description: "Decision evaluation priority level (e.g. LOW, NORMAL, HIGH, CRITICAL)."
+          description: "Decision evaluation priority level (NORMAL, HIGH, VIP, URGENT)."
+          enum: [NORMAL, HIGH, VIP, URGENT]
           example: "NORMAL"
         requestedAt:
           type: string
@@ -368,7 +369,7 @@ components:
           example: "018e3a2b-8a71-7000-8c24-112233445566"
         status:
           type: string
-          enum: [APPROVED, REJECTED, NEED_APPROVAL, Approved, Rejected, NeedApproval]
+          enum: [APPROVED, REJECTED, NEED_APPROVAL]
           example: "APPROVED"
         strategyName:
           type: string
@@ -410,7 +411,7 @@ components:
       properties:
         type:
           type: string
-          enum: [ALTERNATIVE_SLOT, ALTERNATIVE_COURT, PRICE_ADJUSTMENT, REQUIRE_DEPOSIT, REQUIRE_APPROVAL, PRIORITY_ESCALATION, AlternativeSlot, AlternativeCourt, PriceAdjustment, RequireDeposit, RequireApproval, PriorityEscalation]
+          enum: [ALTERNATIVE_SLOT, ALTERNATIVE_COURT, PRICE_ADJUSTMENT, REQUIRE_DEPOSIT, REQUIRE_APPROVAL, PRIORITY_ESCALATION]
           example: "ALTERNATIVE_SLOT"
         description:
           type: string
@@ -473,7 +474,7 @@ components:
           properties:
             status:
               type: string
-              enum: [APPROVED, REJECTED, NEED_APPROVAL, Approved, Rejected, NeedApproval]
+              enum: [APPROVED, REJECTED, NEED_APPROVAL]
             primaryReason:
               type: string
             reasons:
@@ -500,6 +501,8 @@ components:
               type: string
             executionType:
               type: string
+              enum: [AUTOMATED, FALLBACK, CACHE_HIT]
+              example: "AUTOMATED"
             executionTimeMs:
               type: integer
             fallbackUsed:
@@ -589,7 +592,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [NEED_APPROVAL, NeedApproval]
+          enum: [NEED_APPROVAL]
           example: "NEED_APPROVAL"
         primaryReason:
           type: string
@@ -625,7 +628,7 @@ components:
           properties:
             status:
               type: string
-              enum: [APPROVED, REJECTED, Approved, Rejected]
+              enum: [APPROVED, REJECTED]
               example: "APPROVED"
         overrideReason:
           type: string
@@ -659,11 +662,11 @@ components:
           format: uuid
         originalStatus:
           type: string
-          enum: [NEED_APPROVAL, NeedApproval]
+          enum: [NEED_APPROVAL]
           example: "NEED_APPROVAL"
         overriddenStatus:
           type: string
-          enum: [APPROVED, REJECTED, Approved, Rejected]
+          enum: [APPROVED, REJECTED]
           example: "APPROVED"
         isOverridden:
           type: boolean
