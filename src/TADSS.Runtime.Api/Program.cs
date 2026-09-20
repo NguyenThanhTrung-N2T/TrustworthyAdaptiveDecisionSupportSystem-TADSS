@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,9 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApiServices();
 
 var app = builder.Build();
+
+// Eager startup validation for StrategyResolver (fail-fast on startup if strategy config is invalid)
+app.Services.GetRequiredService<IStrategyResolver>();
 
 // Pipeline xử lý lỗi
 app.UseExceptionHandler();

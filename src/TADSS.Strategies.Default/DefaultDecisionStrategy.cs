@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
@@ -9,15 +10,31 @@ namespace TADSS.Strategies.Default;
 
 /// <summary>
 /// Chiến lược thẩm định đặt sân mặc định (Default Decision Strategy).
-/// Đánh giá dựa trên tỷ lệ thanh toán cọc và hạng thành viên khách hàng.
+/// Đại diện cho chính sách bảo thủ tĩnh (Conservative Deterministic Baseline Policy),
+/// đánh giá dựa trên tỷ lệ thanh toán cọc và hạng thành viên khách hàng.
 /// </summary>
 public class DefaultDecisionStrategy : IReservationDecisionStrategy
 {
+    /// <summary>
+    /// Tên định danh duy nhất của chiến lược trong registry.
+    /// </summary>
     public string StrategyName => "DefaultDecisionStrategy";
+
+    /// <summary>
+    /// Phiên bản của chiến lược thẩm định (SemVer).
+    /// </summary>
     public string StrategyVersion => "1.0.0";
 
+    /// <summary>
+    /// Đánh giá yêu cầu đặt sân và đưa ra kết quả quyết định cùng khuyến nghị.
+    /// </summary>
+    /// <param name="reservation">Thực thể đặt sân (Rich Domain Model) đã qua xác thực bất biến.</param>
+    /// <param name="cancellationToken">Token hủy thao tác bất đồng bộ.</param>
+    /// <returns>Đối tượng kết quả thẩm định quyết định <see cref="DecisionResultDto"/>.</returns>
     public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(reservation);
+
         var stopwatch = Stopwatch.StartNew();
 
         var reasons = new List<string>();
@@ -44,14 +61,14 @@ public class DefaultDecisionStrategy : IReservationDecisionStrategy
         {
             status = DecisionStatus.APPROVED.ToString();
             primaryReason = ErrorCodes.AutoApprovedTierEligible;
-            reasons.Add($"Khách hàng hạng Gold đáp ứng chính sách cọc tối thiểu 30% (hiện tại: {reservation.Payment.DepositPercentage:F1}%).");
+            reasons.Add($"Khách hàng hạng Gold đáp ứng chính sách cọc tối thiểu 30% (hiện tại: {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%).");
         }
         // 3. Đơn giá trị cao cần xem xét
         else if (reservation.Payment.TotalPrice >= 2_000_000m && reservation.Payment.DepositPercentage < 50m)
         {
             status = DecisionStatus.NEED_APPROVAL.ToString();
             primaryReason = ErrorCodes.ManualReviewHighValue;
-            reasons.Add($"Đơn đặt sân giá trị cao ({reservation.Payment.TotalPrice:N0} VND) có mức cọc dưới 50%. Cần quản lý phê duyệt.");
+            reasons.Add($"Đơn đặt sân giá trị cao ({reservation.Payment.TotalPrice.ToString("N0", CultureInfo.InvariantCulture)} VND) có mức cọc dưới 50%. Cần quản lý phê duyệt.");
             recommendations.Add(new DecisionRecommendationDto
             {
                 Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
@@ -65,7 +82,7 @@ public class DefaultDecisionStrategy : IReservationDecisionStrategy
         {
             status = DecisionStatus.APPROVED.ToString();
             primaryReason = ErrorCodes.ApprovedStandard;
-            reasons.Add($"Mức cọc tiêu chuẩn {reservation.Payment.DepositPercentage:F1}% hợp lệ.");
+            reasons.Add($"Mức cọc tiêu chuẩn {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}% hợp lệ.");
         }
         // 5. Cọc dưới 30% -> NeedApproval
         else
@@ -75,11 +92,11 @@ public class DefaultDecisionStrategy : IReservationDecisionStrategy
             var requiredDeposit = reservation.Payment.TotalPrice * 0.3m;
             var shortage = requiredDeposit - reservation.Payment.DepositAmount;
 
-            reasons.Add($"Mức cọc hiện tại ({reservation.Payment.DepositPercentage:F1}%) thấp hơn mức tối thiểu 30%. Cần xem xét.");
+            reasons.Add($"Mức cọc hiện tại ({reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%) thấp hơn mức tối thiểu 30%. Cần xem xét.");
             recommendations.Add(new DecisionRecommendationDto
             {
                 Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage:N0} VND tiền cọc để đạt mức tối thiểu 30%.",
+                Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND tiền cọc để đạt mức tối thiểu 30%.",
                 SuggestedPrice = reservation.Payment.TotalPrice,
                 ConfidenceScore = 1.0
             });

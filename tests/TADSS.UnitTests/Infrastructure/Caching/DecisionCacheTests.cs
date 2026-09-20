@@ -8,6 +8,7 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
 using StackExchange.Redis;
+using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
@@ -36,18 +37,25 @@ public class DecisionCacheTests
         return new MemoryDecisionCacheService(memoryCache, options, logger);
     }
 
+    private static IStrategyResolver CreateResolver(IReservationDecisionStrategy strategy)
+    {
+        var options = Options.Create(new StrategyOptions { ActiveStrategyName = strategy.StrategyName });
+        return new StrategyResolver(new[] { strategy }, options, NullLogger<StrategyResolver>.Instance);
+    }
+
     private static DecisionService CreateService(
         TadssDbContext dbContext,
         IDecisionCacheService cacheService,
         IReservationDecisionStrategy? strategy = null)
     {
         var activeStrategy = strategy ?? new DefaultDecisionStrategy();
+        var resolver = CreateResolver(activeStrategy);
         var fallbackStrategy = new FallbackDecisionStrategy();
         var resilienceLogger = NullLogger<DecisionResiliencePipeline>.Instance;
         var resiliencePipeline = new DecisionResiliencePipeline(new ResilienceOptions(), fallbackStrategy, resilienceLogger);
         var logger = NullLogger<DecisionService>.Instance;
 
-        return new DecisionService(dbContext, activeStrategy, resiliencePipeline, cacheService, logger);
+        return new DecisionService(dbContext, resolver, resiliencePipeline, cacheService, logger);
     }
 
     private static DecisionRequestDto CreateSampleRequest(decimal totalPrice = 200000m, decimal deposit = 200000m)
@@ -119,7 +127,7 @@ public class DecisionCacheTests
 
         var request = CreateSampleRequest();
         var hash = RequestHasher.ComputeHash(request);
-        var expectedCacheKey = $"decision:hash:{hash}:v1.0.0";
+        var expectedCacheKey = $"decision:hash:{hash}:DefaultDecisionStrategy:v1.0.0";
 
         // Pre-check: Cache is empty
         var preCache = await cacheService.GetAsync(expectedCacheKey);
@@ -148,7 +156,7 @@ public class DecisionCacheTests
 
         var request = CreateSampleRequest();
         var hash = RequestHasher.ComputeHash(request);
-        var expectedCacheKey = $"decision:hash:{hash}:v1.0.0";
+        var expectedCacheKey = $"decision:hash:{hash}:AlwaysFailingStrategy:v1.0.0";
 
         // Act: Run evaluation -> Triggers Fallback
         var result = await service.EvaluateDecisionAsync(request, "fallback-key");

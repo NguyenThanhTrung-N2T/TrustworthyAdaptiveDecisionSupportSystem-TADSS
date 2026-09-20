@@ -8,6 +8,7 @@ using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Services;
 using TADSS.Strategies.Default;
+using TADSS.Strategies.MockAlternative;
 
 namespace TADSS.Runtime.Api.Configuration;
 
@@ -38,9 +39,14 @@ public static class DependencyInjection
                 name: "Neon-PostgreSQL",
                 tags: new[] { "ready", "db" });
 
-        // 4. Decision Strategies & Resilience Pipeline
+        // 4. Decision Strategies & Strategy Resolver (Singleton, Stateless)
+        services.Configure<StrategyOptions>(configuration.GetSection(StrategyOptions.SectionName));
+        services.AddSingleton<IReservationDecisionStrategy, DefaultDecisionStrategy>();
+        services.AddSingleton<IReservationDecisionStrategy, MockAlternativeDecisionStrategy>();
+        services.AddSingleton<IStrategyResolver, StrategyResolver>();
+
+        // 5. Resilience Pipeline & Fallback Strategy
         services.Configure<ResilienceOptions>(configuration.GetSection(ResilienceOptions.SectionName));
-        services.AddScoped<IReservationDecisionStrategy, DefaultDecisionStrategy>();
         services.AddSingleton<FallbackDecisionStrategy>();
         services.AddSingleton<IDecisionResiliencePipeline, DecisionResiliencePipeline>();
 

@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
+using Shared.DecisionContractSDK.Interfaces;
+using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
@@ -32,16 +34,23 @@ public class DecisionServiceTests
         return new TADSS.Runtime.Api.Infrastructure.Caching.MemoryDecisionCacheService(memoryCache, options, logger);
     }
 
-    private static DecisionService CreateService(TadssDbContext dbContext, IDecisionCacheService? cacheService = null)
+    private static IStrategyResolver CreateResolver(IReservationDecisionStrategy? strategy = null)
     {
-        var activeStrategy = new DefaultDecisionStrategy();
+        var activeStrategy = strategy ?? new DefaultDecisionStrategy();
+        var options = Microsoft.Extensions.Options.Options.Create(new StrategyOptions { ActiveStrategyName = activeStrategy.StrategyName });
+        return new StrategyResolver(new[] { activeStrategy }, options, NullLogger<StrategyResolver>.Instance);
+    }
+
+    private static DecisionService CreateService(TadssDbContext dbContext, IDecisionCacheService? cacheService = null, IReservationDecisionStrategy? strategy = null)
+    {
+        var resolver = CreateResolver(strategy);
         var fallbackStrategy = new FallbackDecisionStrategy();
         var resilienceLogger = NullLogger<DecisionResiliencePipeline>.Instance;
         var resiliencePipeline = new DecisionResiliencePipeline(new ResilienceOptions(), fallbackStrategy, resilienceLogger);
         var logger = NullLogger<DecisionService>.Instance;
         var effectiveCacheService = cacheService ?? CreateMemoryCacheService();
 
-        return new DecisionService(dbContext, activeStrategy, resiliencePipeline, effectiveCacheService, logger);
+        return new DecisionService(dbContext, resolver, resiliencePipeline, effectiveCacheService, logger);
     }
 
     [Fact]
@@ -431,7 +440,7 @@ public class DecisionServiceTests
         var resiliencePipeline = new DecisionResiliencePipeline(new ResilienceOptions(), fallbackStrategy, resilienceLogger);
         var logger = NullLogger<DecisionService>.Instance;
         var cacheService = CreateMemoryCacheService();
-        var service = new DecisionService(dbContext, slowStrategy, resiliencePipeline, cacheService, logger);
+        var service = new DecisionService(dbContext, CreateResolver(slowStrategy), resiliencePipeline, cacheService, logger);
 
         var request = new DecisionRequestDto
         {
@@ -481,7 +490,7 @@ public class DecisionServiceTests
         var resiliencePipeline = new DecisionResiliencePipeline(options, fallbackStrategy, resilienceLogger);
         var logger = NullLogger<DecisionService>.Instance;
         var cacheService = CreateMemoryCacheService();
-        var service = new DecisionService(dbContext, slowStrategy, resiliencePipeline, cacheService, logger);
+        var service = new DecisionService(dbContext, CreateResolver(slowStrategy), resiliencePipeline, cacheService, logger);
 
         var request = new DecisionRequestDto
         {
@@ -529,7 +538,7 @@ public class DecisionServiceTests
         var resiliencePipeline = new DecisionResiliencePipeline(options, fallbackStrategy, resilienceLogger);
         var logger = NullLogger<DecisionService>.Instance;
         var cacheService = CreateMemoryCacheService();
-        var service = new DecisionService(dbContext, slowStrategy, resiliencePipeline, cacheService, logger);
+        var service = new DecisionService(dbContext, CreateResolver(slowStrategy), resiliencePipeline, cacheService, logger);
 
         var request = new DecisionRequestDto
         {
