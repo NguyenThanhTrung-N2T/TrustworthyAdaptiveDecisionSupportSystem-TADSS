@@ -94,6 +94,25 @@ public static class DependencyInjection
                 Version = "v1",
                 Description = "Decision Runtime Engine for SmashCourt reservation requests"
             });
+
+            // Load API XML documentation if present
+            var apiXmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var apiXmlPath = Path.Combine(AppContext.BaseDirectory, apiXmlFile);
+            if (File.Exists(apiXmlPath))
+            {
+                c.IncludeXmlComments(apiXmlPath);
+            }
+
+            // Load Shared SDK XML documentation if present
+            var sdkXmlFile = "Shared.DecisionContractSDK.xml";
+            var sdkXmlPath = Path.Combine(AppContext.BaseDirectory, sdkXmlFile);
+            if (File.Exists(sdkXmlPath))
+            {
+                c.IncludeXmlComments(sdkXmlPath);
+            }
+
+            // Register operation filter for contract-defined headers
+            c.OperationFilter<RequiredHeaderOperationFilter>();
         });
 
         return services;
