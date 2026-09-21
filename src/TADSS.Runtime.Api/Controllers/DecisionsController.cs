@@ -34,7 +34,6 @@ public class DecisionsController : ControllerBase
     public async Task<IActionResult> EvaluateDecision(
         [FromBody] DecisionRequestDto request,
         [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
-        [FromHeader(Name = "X-Correlation-ID")] string? correlationId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
@@ -48,15 +47,9 @@ public class DecisionsController : ControllerBase
                 Type = "https://tadss.smashcourt.vn/errors/missing-header"
             };
             problemDetails.Extensions["code"] = "MISSING_IDEMPOTENCY_KEY";
+            problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return BadRequest(problemDetails);
         }
-
-        // Set correlation ID header
-        var effectiveCorrelationId = string.IsNullOrWhiteSpace(correlationId)
-            ? Guid.NewGuid().ToString()
-            : correlationId;
-
-        Response.Headers["X-Correlation-ID"] = effectiveCorrelationId;
 
         var result = await _decisionService.EvaluateDecisionAsync(request, idempotencyKey, cancellationToken);
 
@@ -74,14 +67,8 @@ public class DecisionsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetDecisionDetail(
         [FromRoute] Guid decisionId,
-        [FromHeader(Name = "X-Correlation-ID")] string? correlationId,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            Response.Headers["X-Correlation-ID"] = correlationId;
-        }
-
         var detail = await _decisionService.GetDecisionDetailAsync(decisionId, cancellationToken);
         if (detail == null)
         {
@@ -94,6 +81,7 @@ public class DecisionsController : ControllerBase
                 Type = "https://tadss.smashcourt.vn/errors/resource-not-found"
             };
             problemDetails.Extensions["code"] = "DECISION_NOT_FOUND";
+            problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return NotFound(problemDetails);
         }
 
@@ -109,14 +97,8 @@ public class DecisionsController : ControllerBase
     public async Task<IActionResult> GetPendingApprovals(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
-        [FromHeader(Name = "X-Correlation-ID")] string? correlationId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            Response.Headers["X-Correlation-ID"] = correlationId;
-        }
-
         var pendingList = await _decisionService.GetPendingApprovalsAsync(page, pageSize, cancellationToken);
         return Ok(pendingList);
     }
@@ -132,14 +114,8 @@ public class DecisionsController : ControllerBase
     public async Task<IActionResult> OverrideDecision(
         [FromRoute] Guid decisionId,
         [FromBody] OverrideDecisionRequestDto request,
-        [FromHeader(Name = "X-Correlation-ID")] string? correlationId,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            Response.Headers["X-Correlation-ID"] = correlationId;
-        }
-
         var response = await _decisionService.OverrideDecisionAsync(decisionId, request, cancellationToken);
         if (response == null)
         {
@@ -152,6 +128,7 @@ public class DecisionsController : ControllerBase
                 Type = "https://tadss.smashcourt.vn/errors/resource-not-found"
             };
             problemDetails.Extensions["code"] = "DECISION_NOT_FOUND";
+            problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return NotFound(problemDetails);
         }
 

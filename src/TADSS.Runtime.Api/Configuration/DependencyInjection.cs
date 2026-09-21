@@ -8,6 +8,7 @@ using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Services;
 using TADSS.Strategies.Default;
+using TADSS.Strategies.MockAlternative;
 
 namespace TADSS.Runtime.Api.Configuration;
 
@@ -38,9 +39,14 @@ public static class DependencyInjection
                 name: "Neon-PostgreSQL",
                 tags: new[] { "ready", "db" });
 
-        // 4. Decision Strategies & Resilience Pipeline
+        // 4. Decision Strategies & Strategy Resolver (Singleton, Stateless)
+        services.Configure<StrategyOptions>(configuration.GetSection(StrategyOptions.SectionName));
+        services.AddSingleton<IReservationDecisionStrategy, DefaultDecisionStrategy>();
+        services.AddSingleton<IReservationDecisionStrategy, MockAlternativeDecisionStrategy>();
+        services.AddSingleton<IStrategyResolver, StrategyResolver>();
+
+        // 5. Resilience Pipeline & Fallback Strategy
         services.Configure<ResilienceOptions>(configuration.GetSection(ResilienceOptions.SectionName));
-        services.AddScoped<IReservationDecisionStrategy, DefaultDecisionStrategy>();
         services.AddSingleton<FallbackDecisionStrategy>();
         services.AddSingleton<IDecisionResiliencePipeline, DecisionResiliencePipeline>();
 
@@ -88,6 +94,25 @@ public static class DependencyInjection
                 Version = "v1",
                 Description = "Decision Runtime Engine for SmashCourt reservation requests"
             });
+
+            // Load API XML documentation if present
+            var apiXmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var apiXmlPath = Path.Combine(AppContext.BaseDirectory, apiXmlFile);
+            if (File.Exists(apiXmlPath))
+            {
+                c.IncludeXmlComments(apiXmlPath);
+            }
+
+            // Load Shared SDK XML documentation if present
+            var sdkXmlFile = "Shared.DecisionContractSDK.xml";
+            var sdkXmlPath = Path.Combine(AppContext.BaseDirectory, sdkXmlFile);
+            if (File.Exists(sdkXmlPath))
+            {
+                c.IncludeXmlComments(sdkXmlPath);
+            }
+
+            // Register operation filter for contract-defined headers
+            c.OperationFilter<RequiredHeaderOperationFilter>();
         });
 
         return services;

@@ -17,7 +17,7 @@ namespace TADSS.Runtime.Api.Services;
 public class DecisionService : IDecisionService
 {
     private readonly TadssDbContext _dbContext;
-    private readonly IReservationDecisionStrategy _activeStrategy;
+    private readonly IStrategyResolver _strategyResolver;
     private readonly IDecisionResiliencePipeline _resiliencePipeline;
     private readonly IDecisionCacheService _cacheService;
     private readonly ILogger<DecisionService> _logger;
@@ -30,13 +30,13 @@ public class DecisionService : IDecisionService
 
     public DecisionService(
         TadssDbContext dbContext,
-        IReservationDecisionStrategy activeStrategy,
+        IStrategyResolver strategyResolver,
         IDecisionResiliencePipeline resiliencePipeline,
         IDecisionCacheService cacheService,
         ILogger<DecisionService> logger)
     {
         _dbContext = dbContext;
-        _activeStrategy = activeStrategy;
+        _strategyResolver = strategyResolver;
         _resiliencePipeline = resiliencePipeline;
         _cacheService = cacheService;
         _logger = logger;
@@ -50,6 +50,7 @@ public class DecisionService : IDecisionService
         var requestHash = RequestHasher.ComputeHash(request);
 
         // 1. Kiểm tra Idempotency (Task 4.2 - Same transaction replay, 0 new audit records)
+        // Invariant: Idempotency MUST trump configuration changes — runs before strategy resolution
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
             var existingExecution = await _dbContext.DecisionExecutions
@@ -75,13 +76,16 @@ public class DecisionService : IDecisionService
             }
         }
 
-        // 2. Kiểm tra Distributed Caching Layer (Task 4.3 - Same payload, different key -> CACHE_HIT audit record)
-        var cacheKey = $"decision:hash:{requestHash}:v{_activeStrategy.StrategyVersion}";
+        // 2. Phân giải Strategy đang hoạt động theo chính sách triển khai (Task 3.2 - O(1) Lookup)
+        var activeStrategy = _strategyResolver.ResolveActive();
+
+        // 3. Kiểm tra Distributed Caching Layer (scoped theo StrategyName và StrategyVersion)
+        var cacheKey = $"decision:hash:{requestHash}:{activeStrategy.StrategyName}:v{activeStrategy.StrategyVersion}";
         var cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
         if (cachedResult != null)
         {
-            _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy version {StrategyVersion}.",
-                requestHash, _activeStrategy.StrategyVersion);
+            _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy {StrategyName} v{StrategyVersion}.",
+                requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion);
 
             var newDecisionId = Guid.NewGuid();
             var cacheHitResult = new DecisionResultDto
@@ -122,20 +126,20 @@ public class DecisionService : IDecisionService
             return await PersistDecisionAsync(cacheHitExecution, idempotencyKey, cacheHitResult, cancellationToken);
         }
 
-        // 3. Map DTO sang Domain Model (Tự động kích hoạt Domain Invariant validation)
+        // 4. Map DTO sang Domain Model (Tự động kích hoạt Domain Invariant validation)
         var reservation = request.ToDomain();
 
-        // 4. Thực thi Strategy thông qua chuỗi Resilience Pipeline (Outer Timeout -> Fallback -> Retry -> Circuit Breaker -> Inner Timeout)
-        var outcome = await _resiliencePipeline.ExecuteStrategyAsync(_activeStrategy, reservation, cancellationToken);
+        // 5. Thực thi Strategy thông qua chuỗi Resilience Pipeline (Outer Timeout -> Fallback -> Retry -> Circuit Breaker -> Inner Timeout)
+        var outcome = await _resiliencePipeline.ExecuteStrategyAsync(activeStrategy, reservation, cancellationToken);
         var result = outcome.Result;
 
-        // 5. Lưu kết quả vào Cache (CHỈ cache khi kết quả là AUTOMATED và KHÔNG dùng Fallback)
+        // 6. Lưu kết quả vào Cache (CHỈ cache khi kết quả là AUTOMATED và KHÔNG dùng Fallback)
         if (outcome.ExecutionType == ExecutionType.AUTOMATED && !outcome.FallbackUsed)
         {
             await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
         }
 
-        // 6. Lưu vết Audit vào bảng tadss.decision_executions (với cơ chế bắt race condition)
+        // 7. Lưu vết Audit vào bảng tadss.decision_executions (với cơ chế bắt race condition)
         var jsonPayload = JsonSerializer.Serialize(result, JsonOptions);
 
         var executionEntity = new DecisionExecution
