@@ -81,7 +81,16 @@ public class DecisionService : IDecisionService
 
         // 3. Kiểm tra Distributed Caching Layer (scoped theo StrategyName và StrategyVersion)
         var cacheKey = $"decision:hash:{requestHash}:{activeStrategy.StrategyName}:v{activeStrategy.StrategyVersion}";
-        var cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
+        DecisionResultDto? cachedResult = null;
+        try
+        {
+            cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected cache read error for key {CacheKey}. Treating as cache miss.", cacheKey);
+        }
+
         if (cachedResult != null)
         {
             _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy {StrategyName} v{StrategyVersion}.",
@@ -136,7 +145,14 @@ public class DecisionService : IDecisionService
         // 6. Lưu kết quả vào Cache (CHỈ cache khi kết quả là AUTOMATED và KHÔNG dùng Fallback)
         if (outcome.ExecutionType == ExecutionType.AUTOMATED && !outcome.FallbackUsed)
         {
-            await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
+            try
+            {
+                await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected cache write error for key {CacheKey}. Proceeding without caching.", cacheKey);
+            }
         }
 
         // 7. Lưu vết Audit vào bảng tadss.decision_executions (với cơ chế bắt race condition)

@@ -81,17 +81,17 @@ public class DecisionResiliencePipeline : IDecisionResiliencePipeline
                 if (exception is TimeoutRejectedException)
                 {
                     fallbackResult.PrimaryReason = ErrorCodes.FallbackServiceTimeout;
-                    failureReason = $"Strategy execution timed out (> {_options.InnerTimeoutMs}ms per attempt).";
+                    failureReason = $"STRATEGY_TIMEOUT: Strategy execution timed out (> {_options.InnerTimeoutMs}ms per attempt).";
                 }
                 else if (exception is BrokenCircuitException)
                 {
                     fallbackResult.PrimaryReason = ErrorCodes.FallbackSafetyMode;
-                    failureReason = "Circuit breaker is open due to high failure rate. Strategy execution isolated.";
+                    failureReason = "CIRCUIT_BREAKER_OPEN: Circuit breaker is open due to high failure rate. Strategy execution isolated.";
                 }
                 else
                 {
                     fallbackResult.PrimaryReason = ErrorCodes.FallbackExecutionError;
-                    failureReason = exception?.Message ?? "Strategy execution failed with an unexpected error.";
+                    failureReason = $"STRATEGY_EXCEPTION: {exception?.Message ?? "Strategy execution failed with an unexpected error."}";
                 }
 
                 _logger.LogWarning("Resilience Fallback activated for Reservation {ReservationId}. PrimaryReason: {PrimaryReason}, FailureReason: {FailureReason}",

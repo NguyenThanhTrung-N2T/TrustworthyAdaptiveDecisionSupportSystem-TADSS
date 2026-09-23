@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Polly.Timeout;
 using Shared.DecisionContractSDK.Domain;
 
 namespace TADSS.Runtime.Api.Middlewares;
@@ -14,6 +15,13 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
     {
         var traceId = httpContext.TraceIdentifier;
 
+        // Caller Cancellation (Client aborted/closed connection)
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Request was canceled by caller. TraceId: {TraceId}, Path: {Path}", traceId, httpContext.Request.Path);
+            return true;
+        }
+
         logger.LogError(exception, "Unhandled exception occurred. TraceId: {TraceId}, Message: {Message}", 
             traceId, exception.Message);
 
@@ -24,7 +32,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Invalid Operation", "INVALID_OPERATION"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid Request Argument", "INVALID_ARGUMENT"),
             KeyNotFoundException => (StatusCodes.Status404NotFound, "Resource Not Found", "RESOURCE_NOT_FOUND"),
-            TimeoutException or OperationCanceledException => (StatusCodes.Status504GatewayTimeout, "Gateway Timeout", "GATEWAY_TIMEOUT"),
+            TimeoutRejectedException or TimeoutException or OperationCanceledException => (StatusCodes.Status504GatewayTimeout, "Gateway Timeout", "GATEWAY_TIMEOUT"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
         };
 
@@ -59,7 +67,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
 
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/problem+json";
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(problemDetails, options: (System.Text.Json.JsonSerializerOptions?)null, contentType: "application/problem+json", cancellationToken: cancellationToken);
 
         return true;
     }
