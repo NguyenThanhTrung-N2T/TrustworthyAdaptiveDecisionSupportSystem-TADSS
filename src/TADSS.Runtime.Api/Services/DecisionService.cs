@@ -6,6 +6,7 @@ using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.DTOs.Mappings;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
+using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
@@ -72,7 +73,7 @@ public class DecisionService : IDecisionService
 
                 _logger.LogWarning("Idempotency conflict: Key {IdempotencyKey} reused with different payload hash.", idempotencyKey);
                 throw new IdempotencyConflictException(idempotencyKey,
-                    $"The provided X-Idempotency-Key '{idempotencyKey}' has already been used with a different request payload.");
+                    $"The provided {HttpHeaderNames.IdempotencyKey} '{idempotencyKey}' has already been used with a different request payload.");
             }
         }
 
@@ -80,7 +81,7 @@ public class DecisionService : IDecisionService
         var activeStrategy = _strategyResolver.ResolveActive();
 
         // 3. Kiểm tra Distributed Caching Layer (scoped theo StrategyName và StrategyVersion)
-        var cacheKey = $"decision:hash:{requestHash}:{activeStrategy.StrategyName}:v{activeStrategy.StrategyVersion}";
+        var cacheKey = CacheKeyBuilder.BuildDecisionHashKey(requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion);
         DecisionResultDto? cachedResult = null;
         try
         {

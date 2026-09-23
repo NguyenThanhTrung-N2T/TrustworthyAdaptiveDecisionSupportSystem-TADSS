@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
+using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Services;
 
 namespace TADSS.Runtime.Api.Controllers;
@@ -33,7 +34,7 @@ public class DecisionsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> EvaluateDecision(
         [FromBody] DecisionRequestDto request,
-        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
+        [FromHeader(Name = HttpHeaderNames.IdempotencyKey)] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
@@ -42,7 +43,7 @@ public class DecisionsController : ControllerBase
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "Missing Required Header",
-                Detail = "The 'X-Idempotency-Key' request header is required.",
+                Detail = $"The '{HttpHeaderNames.IdempotencyKey}' request header is required.",
                 Instance = HttpContext.Request.Path,
                 Type = "https://tadss.smashcourt.vn/errors/missing-header"
             };
@@ -53,7 +54,7 @@ public class DecisionsController : ControllerBase
 
         var result = await _decisionService.EvaluateDecisionAsync(request, idempotencyKey, cancellationToken);
 
-        Response.Headers["X-Decision-ID"] = result.DecisionId.ToString();
+        Response.Headers[HttpHeaderNames.DecisionId] = result.DecisionId.ToString();
 
         return Ok(result);
     }
