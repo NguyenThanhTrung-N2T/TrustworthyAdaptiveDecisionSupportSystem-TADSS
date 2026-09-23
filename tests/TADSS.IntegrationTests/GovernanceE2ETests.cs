@@ -126,7 +126,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         problem.Should().NotBeNull();
         problem!.Title.Should().Be("Missing Required Header");
         problem.Extensions.Should().ContainKey("code");
-        problem.Extensions["code"]!.ToString().Should().Be("MISSING_IDEMPOTENCY_KEY");
+        problem.Extensions["code"]!.ToString().Should().Be(ErrorCodes.MissingIdempotencyKey);
     }
 
     #endregion
@@ -191,7 +191,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         problem.Should().NotBeNull();
         problem!.Title.Should().Be("Decision Not Found");
         problem.Extensions.Should().ContainKey("code");
-        problem.Extensions["code"]!.ToString().Should().Be("DECISION_NOT_FOUND");
+        problem.Extensions["code"]!.ToString().Should().Be(ErrorCodes.DecisionNotFound);
     }
 
     #endregion

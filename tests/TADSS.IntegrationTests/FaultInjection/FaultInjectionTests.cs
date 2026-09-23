@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
@@ -257,7 +258,7 @@ public class FaultInjectionTests
         audit.Should().NotBeNull();
         audit!.ExecutionType.Should().Be("FALLBACK");
         audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain("STRATEGY_TIMEOUT");
+        audit.FailureReason.Should().Contain(FailureReasonPrefixes.StrategyTimeout);
     }
 
     [Fact]
@@ -300,7 +301,7 @@ public class FaultInjectionTests
         audit.Should().NotBeNull();
         audit!.ExecutionType.Should().Be("FALLBACK");
         audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain("STRATEGY_EXCEPTION");
+        audit.FailureReason.Should().Contain(FailureReasonPrefixes.StrategyException);
     }
 
     [Fact]
@@ -362,7 +363,7 @@ public class FaultInjectionTests
         audit.Should().NotBeNull();
         audit!.ExecutionType.Should().Be("FALLBACK");
         audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain("CIRCUIT_BREAKER_OPEN");
+        audit.FailureReason.Should().Contain(FailureReasonPrefixes.CircuitBreakerOpen);
     }
 
     [Fact]
@@ -439,7 +440,7 @@ public class FaultInjectionTests
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(500);
         problem.Extensions.Should().ContainKey("code");
-        problem.Extensions["code"]?.ToString().Should().Be("INTERNAL_SERVER_ERROR");
+        problem.Extensions["code"]?.ToString().Should().Be(ErrorCodes.InternalError);
     }
 
     [Fact]

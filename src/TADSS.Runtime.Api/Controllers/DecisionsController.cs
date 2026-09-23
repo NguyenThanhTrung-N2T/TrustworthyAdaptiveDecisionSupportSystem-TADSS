@@ -46,7 +46,7 @@ public class DecisionsController : ControllerBase
                 Instance = HttpContext.Request.Path,
                 Type = "https://tadss.smashcourt.vn/errors/missing-header"
             };
-            problemDetails.Extensions["code"] = "MISSING_IDEMPOTENCY_KEY";
+            problemDetails.Extensions["code"] = ErrorCodes.MissingIdempotencyKey;
             problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return BadRequest(problemDetails);
         }
@@ -80,7 +80,7 @@ public class DecisionsController : ControllerBase
                 Instance = HttpContext.Request.Path,
                 Type = "https://tadss.smashcourt.vn/errors/resource-not-found"
             };
-            problemDetails.Extensions["code"] = "DECISION_NOT_FOUND";
+            problemDetails.Extensions["code"] = ErrorCodes.DecisionNotFound;
             problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return NotFound(problemDetails);
         }
@@ -127,7 +127,7 @@ public class DecisionsController : ControllerBase
                 Instance = HttpContext.Request.Path,
                 Type = "https://tadss.smashcourt.vn/errors/resource-not-found"
             };
-            problemDetails.Extensions["code"] = "DECISION_NOT_FOUND";
+            problemDetails.Extensions["code"] = ErrorCodes.DecisionNotFound;
             problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
             return NotFound(problemDetails);
         }
