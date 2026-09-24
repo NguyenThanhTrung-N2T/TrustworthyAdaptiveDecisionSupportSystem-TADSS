@@ -50,12 +50,14 @@ public class DefaultDecisionStrategy : IReservationDecisionStrategy
             reasons.Add("Khách hàng đã thanh toán 100% chi phí đặt sân.");
             reasons.Add("Khung giờ và sân đáp ứng đầy đủ điều kiện vận hành.");
         }
-        // 2. Khách VIP hoặc Gold với mức cọc hợp lệ (VIP miễn cọc hoặc Gold cọc >= 30%)
-        else if (IsTierMatch(reservation.Customer.Tier, "VIP"))
+        // 2. Khách VIP, Diamond, Platinum hoặc Gold với mức cọc hợp lệ
+        else if (IsTierMatch(reservation.Customer.Tier, "VIP") ||
+                 IsTierMatch(reservation.Customer.Tier, "DIAMOND") ||
+                 IsTierMatch(reservation.Customer.Tier, "PLATINUM"))
         {
             status = DecisionStatus.APPROVED.ToString();
             primaryReason = ErrorCodes.AutoApprovedTierEligible;
-            reasons.Add("Khách hàng hạng VIP được hưởng chính sách phê duyệt ưu tiên.");
+            reasons.Add("Khách hàng hạng cao cấp (Diamond / Platinum / VIP) được hưởng chính sách phê duyệt ưu tiên.");
         }
         else if ((IsTierMatch(reservation.Customer.Tier, "GOLD") || IsTierMatch(reservation.Customer.Tier, "VÀNG")) && reservation.Payment.DepositPercentage >= 30m)
         {

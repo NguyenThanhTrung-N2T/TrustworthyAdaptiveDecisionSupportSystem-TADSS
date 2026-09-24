@@ -35,14 +35,14 @@ public static class RequestHasher
             request.BranchId,
             CourtTypeId = request.CourtTypeId?.ToString() ?? string.Empty,
             request.CustomerId,
-            CustomerTier = request.CustomerTier?.Trim().ToUpperInvariant() ?? "STANDARD",
+            CustomerTier = request.CustomerTier?.Trim().ToUpperInvariant() ?? TADSS.Runtime.Api.Common.CustomerTierConstants.Standard,
             StartTime = request.StartTime.ToUniversalTime().ToString("O"),
             EndTime = request.EndTime.ToUniversalTime().ToString("O"),
             BookingType = request.BookingType.Trim().ToUpperInvariant(),
             TotalPrice = request.TotalPrice.ToString("F2", CultureInfo.InvariantCulture),
             DepositAmount = request.DepositAmount.ToString("F2", CultureInfo.InvariantCulture),
             PaymentStatus = request.PaymentStatus.Trim().ToUpperInvariant(),
-            Priority = request.Priority?.Trim().ToUpperInvariant() ?? "NORMAL",
+            Priority = request.Priority?.Trim().ToUpperInvariant() ?? Shared.DecisionContractSDK.Enums.BookingPriority.NORMAL.ToString(),
             Metadata = sortedMetadata
         };
 

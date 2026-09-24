@@ -1,4 +1,5 @@
 using Serilog.Context;
+using TADSS.Runtime.Api.Common;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
@@ -8,7 +9,7 @@ namespace TADSS.Runtime.Api.Middlewares;
 /// </summary>
 public class CorrelationIdMiddleware
 {
-    public const string HeaderName = "X-Correlation-ID";
+    public const string HeaderName = HttpHeaderNames.CorrelationId;
     private readonly RequestDelegate _next;
 
     public CorrelationIdMiddleware(RequestDelegate next)

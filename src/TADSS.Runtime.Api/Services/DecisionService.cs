@@ -6,6 +6,7 @@ using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.DTOs.Mappings;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
+using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
@@ -72,7 +73,7 @@ public class DecisionService : IDecisionService
 
                 _logger.LogWarning("Idempotency conflict: Key {IdempotencyKey} reused with different payload hash.", idempotencyKey);
                 throw new IdempotencyConflictException(idempotencyKey,
-                    $"The provided X-Idempotency-Key '{idempotencyKey}' has already been used with a different request payload.");
+                    $"The provided {HttpHeaderNames.IdempotencyKey} '{idempotencyKey}' has already been used with a different request payload.");
             }
         }
 
@@ -80,8 +81,21 @@ public class DecisionService : IDecisionService
         var activeStrategy = _strategyResolver.ResolveActive();
 
         // 3. Kiểm tra Distributed Caching Layer (scoped theo StrategyName và StrategyVersion)
-        var cacheKey = $"decision:hash:{requestHash}:{activeStrategy.StrategyName}:v{activeStrategy.StrategyVersion}";
-        var cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
+        var cacheKey = CacheKeyBuilder.BuildDecisionHashKey(requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion);
+        DecisionResultDto? cachedResult = null;
+        try
+        {
+            cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected cache read error for key {CacheKey}. Treating as cache miss.", cacheKey);
+        }
+
         if (cachedResult != null)
         {
             _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy {StrategyName} v{StrategyVersion}.",
@@ -136,7 +150,18 @@ public class DecisionService : IDecisionService
         // 6. Lưu kết quả vào Cache (CHỈ cache khi kết quả là AUTOMATED và KHÔNG dùng Fallback)
         if (outcome.ExecutionType == ExecutionType.AUTOMATED && !outcome.FallbackUsed)
         {
-            await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
+            try
+            {
+                await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected cache write error for key {CacheKey}. Proceeding without caching.", cacheKey);
+            }
         }
 
         // 7. Lưu vết Audit vào bảng tadss.decision_executions (với cơ chế bắt race condition)

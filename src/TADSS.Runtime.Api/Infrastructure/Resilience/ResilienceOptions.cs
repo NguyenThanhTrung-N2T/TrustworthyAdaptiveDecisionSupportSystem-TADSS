@@ -13,9 +13,9 @@ public class ResilienceOptions
     public int OuterTimeoutMs { get; set; } = 500;
 
     /// <summary>
-    /// Timeout tối đa cho 1 lượt gọi Strategy đơn lẻ (mặc định 150ms).
+    /// Timeout tối đa cho 1 lượt gọi Strategy đơn lẻ (mặc định 120ms để 3 attempts + 2 retries = 420ms nằm trong SLA 500ms).
     /// </summary>
-    public int InnerTimeoutMs { get; set; } = 150;
+    public int InnerTimeoutMs { get; set; } = 120;
 
     /// <summary>
     /// Số lần retry tối đa khi gặp lỗi nhất thời (mặc định 2 lần -> tối đa 3 attempts).
