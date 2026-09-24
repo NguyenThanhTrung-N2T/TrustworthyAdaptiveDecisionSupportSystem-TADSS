@@ -41,7 +41,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
                     return result;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Redis cache read failure for key '{CacheKey}'. Falling back to In-Memory Cache.", key);
 
@@ -57,7 +57,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
         {
             return await _memoryCache.GetAsync(key, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "In-Memory cache read failure for key '{CacheKey}'. Proceeding as cache miss.", key);
             return null;
@@ -74,7 +74,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
             {
                 await _redisCache!.SetAsync(key, result, effectiveTtl, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Redis cache write failure for key '{CacheKey}'. Falling back to In-Memory Cache.", key);
             }
@@ -87,7 +87,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
             {
                 await _memoryCache.SetAsync(key, result, effectiveTtl, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "In-Memory cache write failure for key '{CacheKey}'.", key);
             }
@@ -102,7 +102,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
             {
                 await _redisCache!.RemoveAsync(key, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Redis cache remove failure for key '{CacheKey}'.", key);
             }
@@ -112,7 +112,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
         {
             await _memoryCache.RemoveAsync(key, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "In-Memory cache remove failure for key '{CacheKey}'.", key);
         }

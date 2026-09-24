@@ -17,8 +17,11 @@ Mục tiêu của tầng Resilience trong TADSS không phải là chứng minh "
 1. **Resilience Budget Invariant:**
    $$\text{Total Resilience Execution Budget} < \text{Outer Decision Timeout Budget (500ms)}$$
    *Tổng thời gian thực thi của mọi lần thử (Inner Attempt Timeouts) cộng với độ trễ Retry Backoff Delays bắt buộc phải nằm trong giới hạn của Hard Deadline toàn cục (500ms).*
-2. **Failure Domain Isolation Invariant:**
-   *Sự cố hạ tầng Cache (Redis Unavailable) **TUYỆT ĐỐI KHÔNG ĐƯỢC** kích hoạt Fallback của Strategy, không làm thay đổi kết quả nghiệp vụ, không gây bão Retry (Retry Storm), và không được ghi nhận là lỗi của Strategy.* Sự cố Cache chỉ kích hoạt ngữ nghĩa **Cache Miss Semantics** (Strategy tính toán bình thường).
+2. **Failure Domain Isolation & Cache Degradation Invariant:**
+   *Sự cố hạ tầng Cache (Redis Unavailable) **TUYỆT ĐỐI KHÔNG ĐƯỢC** kích hoạt Fallback của Strategy, không làm thay đổi kết quả nghiệp vụ, không gây bão Retry (Retry Storm), và không được ghi nhận là lỗi của Strategy.* Khi Redis gặp sự cố:
+   - Nếu `EnableFallbackToMemory = true` (mặc định): Hệ thống suy thoái êm sang L1 In-Memory Cache (nếu L1 Miss $\rightarrow$ tính toán bình thường và ghi tạm vào L1; nếu L1 Hit $\rightarrow$ trả kết quả cache tương đương ngữ nghĩa).
+   - Nếu không có L1 Cache hoặc L1 Miss: Kích hoạt ngữ nghĩa **Cache Bypass / Miss Semantics** (Strategy tính toán bình thường).
+   - **Business-Decision Equivalence:** Dù đọc từ L1 Memory Cache hay tính toán trực tiếp từ Strategy, kết quả nghiệp vụ của quyết định hoàn toàn tương đương.
 3. **Mandatory Audit Policy Invariant (Policy A):**
    *Trong Phase 4 baseline, việc lưu trữ bản ghi kiểm toán (`decision_executions`) được coi là một phần không thể tách rời của một phiên ra quyết định thành công. Nếu cơ sở dữ liệu PostgreSQL không thể ghi bản ghi audit $\rightarrow$ Hệ thống từ chối trả quyết định cho client và báo lỗi HTTP 500/503. (Chính sách B - Outbox Queue bất đồng bộ là mở rộng tương lai, không thuộc phạm vi Phase 4).*
 4. **Caller Cancellation Invariant:**
@@ -65,7 +68,7 @@ Bảng ma trận chi tiết 7 kịch bản lỗi cốt lõi (F1 ➔ F7) dùng l�
 | **F2** | Strategy Timeout cạn kiệt ngân sách Retry | Decision | Retry attempts exhausted / Outer timeout | Fallback Execution | Quyết định từ `Deterministic Fallback` | **Có** (đã cạn) | **Có** | `ExecutionType = FALLBACK`, `FallbackUsed = true` | `STRATEGY_TIMEOUT` |
 | **F3** | Strategy ném ngoại lệ nội bộ không phục hồi | Decision | Exception Catch Filter | Fallback Execution | Quyết định từ `Deterministic Fallback` | Tùy Exception | **Có** | `ExecutionType = FALLBACK`, `FallbackUsed = true` | `STRATEGY_EXCEPTION` |
 | **F4** | Circuit Breaker đang ở trạng thái `OPEN` | Decision | Polly Circuit State Check | Fast-fail Bypass | Quyết định từ `Deterministic Fallback` | **Không** | **Có** | `ExecutionType = FALLBACK` ($T \approx 0\text{ms}$) | `CIRCUIT_BREAKER_OPEN` |
-| **F5** | Redis không khả dụng / Connection drop | Infra Cache | `RedisConnectionException` | Silent Cache Fall-through (Cache Miss Semantics) | Quyết định Strategy bình thường | **Không** | **Không** | `cache_hit = false`, log Warning, tính toán bình thường | `null` (hoặc `CACHE_BYPASS`) |
+| **F5** | Redis không khả dụng / Connection drop | Infra Cache | `RedisConnectionException` | L1 In-Memory Fallback / Cache Miss Semantics | Quyết định tương đương nghiệp vụ (từ L1 hoặc Strategy) | **Không** | **Không** | `cache_hit = true/false`, `fallback_used = false`, ghi log Warning | `null` |
 | **F6** | PostgreSQL Down / Write Timeout | Infra DB | `NpgsqlException` / `DbUpdateException` | Policy A (Mandatory Audit Consistency) | Lỗi hệ thống (HTTP 500 / 503 Service Unavailable) | **Không** | **Không** | Không thể ghi DB (Log Error cấp hệ thống) | `PERSISTENCE_FAILURE` |
 | **F7** | Caller chủ động Cancel Request | Caller | `CancellationToken.IsCancellationRequested` | Immediate Abort | Hủy xử lý (HTTP Aborted) | **Không** | **Không** | **KHÔNG** tạo bản ghi quyết định, chỉ ghi App Log | N/A |
 

@@ -87,6 +87,10 @@ public class DecisionService : IDecisionService
         {
             cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Unexpected cache read error for key {CacheKey}. Treating as cache miss.", cacheKey);
@@ -149,6 +153,10 @@ public class DecisionService : IDecisionService
             try
             {
                 await _cacheService.SetAsync(cacheKey, result, cancellationToken: cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

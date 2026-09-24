@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
@@ -227,9 +228,9 @@ public class FaultInjectionTests
                 services.Configure<ResilienceOptions>(opts =>
                 {
                     opts.InnerTimeoutMs = 50;
-                    opts.OuterTimeoutMs = 2000;
-                    opts.MaxRetryAttempts = 1;
-                    opts.RetryBaseDelayMs = 10;
+                    opts.OuterTimeoutMs = 500; // Enforces hard 500ms SLA budget
+                    opts.MaxRetryAttempts = 2; // Total 3 attempts (3 x 50ms + 2 x 15ms = 180ms < 500ms)
+                    opts.RetryBaseDelayMs = 15;
                 });
             });
         });
@@ -249,7 +250,7 @@ public class FaultInjectionTests
         result!.Status.Should().Be("NEED_APPROVAL");
         result.FallbackUsed.Should().BeTrue();
 
-        timeoutStrategy.InvocationCount.Should().Be(2); // Initial attempt + 1 retry
+        timeoutStrategy.InvocationCount.Should().Be(3); // Initial attempt + 2 retries
 
         // Verify Database Record
         using var scope = factory.Services.CreateScope();
@@ -369,39 +370,73 @@ public class FaultInjectionTests
     [Fact]
     public async Task F5_RedisUnavailable_DegradesGracefullyWithCacheMissSemantics()
     {
-        // Arrange: Inject failing cache service
+        // Arrange: Inject ResilientDecisionCacheService with Failing Redis and Working Memory cache
         var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                // Replace IDecisionCacheService with a failing one
                 var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDecisionCacheService));
                 if (descriptor != null) services.Remove(descriptor);
 
-                services.AddSingleton<IDecisionCacheService>(new FailingCacheService());
+                // Configure ResilientDecisionCacheService with failing Redis decorator
+                services.AddSingleton<IDecisionCacheService>(sp =>
+                {
+                    var memCache = sp.GetRequiredService<MemoryDecisionCacheService>();
+                    var logger = sp.GetRequiredService<ILogger<ResilientDecisionCacheService>>();
+                    var opts = Microsoft.Extensions.Options.Options.Create(new TadssCacheOptions
+                    {
+                        Provider = "Redis",
+                        EnableFallbackToMemory = true
+                    });
+                    return new ResilientDecisionCacheService(memCache, opts, logger, redisCache: null);
+                });
             });
         });
 
         var client = factory.CreateClient();
         var request = CreateSampleRequest();
-        var idempotencyKey = "F5-KEY-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey);
+        var idempotencyKey1 = "F5-KEY-1-" + Guid.NewGuid();
+        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey1);
 
-        // Act: Request arrives while cache is down
-        var response = await client.PostAsJsonAsync("/api/v1/decisions", request);
+        // Act 1: First request arrives while Redis is down (Cache miss -> Strategy evaluates -> Writes to In-Memory fallback)
+        var response1 = await client.PostAsJsonAsync("/api/v1/decisions", request);
 
-        // Assert: System must NOT crash, must NOT fallback strategy, must execute strategy normally
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result.Should().NotBeNull();
-        result!.FallbackUsed.Should().BeFalse(); // Normal strategy executed!
+        // Assert 1: System must NOT crash, must NOT fallback strategy, must execute strategy normally
+        response1.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result1 = await response1.Content.ReadFromJsonAsync<DecisionResultDto>();
+        result1.Should().NotBeNull();
+        result1!.FallbackUsed.Should().BeFalse();
 
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().NotBeNull();
-        audit!.CacheHit.Should().BeFalse();
-        audit.FallbackUsed.Should().BeFalse();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
+            var audit1 = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey1);
+            audit1.Should().NotBeNull();
+            audit1!.CacheHit.Should().BeFalse();
+            audit1.FallbackUsed.Should().BeFalse();
+        }
+
+        // Act 2: Second request with identical payload but different idempotency key (Reads In-Memory fallback -> Cache hit!)
+        var idempotencyKey2 = "F5-KEY-2-" + Guid.NewGuid();
+        client.DefaultRequestHeaders.Remove("X-Idempotency-Key");
+        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey2);
+
+        var response2 = await client.PostAsJsonAsync("/api/v1/decisions", request);
+
+        // Assert 2: Second request gets CACHE_HIT from In-Memory fallback!
+        response2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result2 = await response2.Content.ReadFromJsonAsync<DecisionResultDto>();
+        result2.Should().NotBeNull();
+        result2!.FallbackUsed.Should().BeFalse();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
+            var audit2 = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey2);
+            audit2.Should().NotBeNull();
+            audit2!.CacheHit.Should().BeTrue();
+            audit2.ExecutionType.Should().Be("CACHE_HIT");
+        }
     }
 
     [Fact]
