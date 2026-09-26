@@ -26,9 +26,9 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
  ├── TADSS (Runtime Platform — Đồ án 2)
  │    ├── Decision Contract SDK (Canonical Reservation Model, Value Objects, Enums)
  │    ├── Strategy Factory (DI-based Resolution, O(1) Lookup)
- │    │    ├── DefaultDecisionStrategy (Thanh toán tĩnh 100% - Fallback)
+ │    │    ├── DefaultDecisionStrategy (Chính sách nghiệp vụ cơ sở thông thường)
  │    │    └── MockAlternativeDecisionStrategy (Cọc động 30% giờ thường / 50% giờ cao điểm)
- │    ├── Polly v8 Resilience Pipeline (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 150ms, CB, Fallback)
+ │    ├── Polly v8 Resilience Pipeline (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, CB, FallbackDecisionStrategy)
  │    ├── Append-only Audit Trail (Synchronous MediatR events trong DB Transaction)
  │    ├── Human-in-the-loop Override API (IdempotencyKey, ExpectedVersion, No Auto-Approve)
  │    ├── Request-Hash Cache (Redis / IMemoryCache fallback, Sort key JSON, SHA256)
@@ -54,7 +54,7 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
 | MediatR đảm bảo transaction | **In-process events trong PostgreSQL transaction boundary** | MediatR chỉ là in-memory mediator, transaction do EF Core DbContext quản lý. |
 | Hot-swap strategy lúc runtime | **Thay thế Strategy ở mức Cấu hình / DI Registration** | Đăng ký Strategy qua DI Container $O(1)$, không nạp DLL động lúc đang chạy. |
 | Circuit Breaker đếm 5 lỗi | **Circuit Breaker mở khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ mẫu** | Polly v8 sử dụng `FailureRatio` (ví dụ 0.5) trong `SamplingDuration` (30s), min 10 requests. |
-| Retry 3 lần (4 attempts) | **Retry 2 lần (3 attempts tổng cộng)** | $(3 \times 150\text{ms}) + (2 \times 30\text{ms}) = 510\text{ms} \approx 500\text{ms}$ SLA Budget. |
+| Retry 3 lần (4 attempts) | **Retry 2 lần (3 attempts tổng cộng)** | $(3 \times 120\text{ms}) + (2 \times 30\text{ms}) = 420\text{ms} < 500\text{ms}$ SLA Budget. |
 | Schema `tadss_*` | **Schema `tadss`** | PostgreSQL không dùng ký tự đại diện `*` làm tên schema. |
 
 ---
@@ -243,13 +243,13 @@ DecisionResult.Status:
 │                                                                │
 │  Retry Policy (Tối đa 2 retries = 3 attempts, base delay 30ms) │
 │   │                                                            │
-│   └── Inner Timeout: 150ms per attempt                        │
+│   └── Inner Timeout: 120ms per attempt                        │
 │        └── Strategy.EvaluateAsync()                           │
 │                                                                │
 │  Circuit Breaker (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong    │
 │   cửa sổ sampling 30 giây, tối thiểu 10 requests)              │
 │                                                                │
-│  Fallback: DefaultDecisionStrategy (thanh toán tĩnh 100%)      │
+│  Fallback: FallbackDecisionStrategy (Status = NEED_APPROVAL)   │
 │   └── Overhead < 10ms sau khi failure được xác định           │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘

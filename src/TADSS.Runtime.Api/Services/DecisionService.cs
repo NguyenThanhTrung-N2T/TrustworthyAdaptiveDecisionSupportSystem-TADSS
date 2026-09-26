@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Shared.DecisionContractSDK.Common;
@@ -83,6 +84,7 @@ public class DecisionService : IDecisionService
         // 3. Kiểm tra Distributed Caching Layer (scoped theo StrategyName và StrategyVersion)
         var cacheKey = CacheKeyBuilder.BuildDecisionHashKey(requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion);
         DecisionResultDto? cachedResult = null;
+        var cacheStopwatch = Stopwatch.StartNew();
         try
         {
             cachedResult = await _cacheService.GetAsync(cacheKey, cancellationToken);
@@ -95,11 +97,17 @@ public class DecisionService : IDecisionService
         {
             _logger.LogWarning(ex, "Unexpected cache read error for key {CacheKey}. Treating as cache miss.", cacheKey);
         }
+        finally
+        {
+            cacheStopwatch.Stop();
+        }
 
         if (cachedResult != null)
         {
-            _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy {StrategyName} v{StrategyVersion}.",
-                requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion);
+            var cacheElapsedMs = (int)cacheStopwatch.ElapsedMilliseconds;
+
+            _logger.LogInformation("Cache hit for request hash {RequestHash} with strategy {StrategyName} v{StrategyVersion} in {ElapsedMs}ms.",
+                requestHash, activeStrategy.StrategyName, activeStrategy.StrategyVersion, cacheElapsedMs);
 
             var newDecisionId = Guid.NewGuid();
             var cacheHitResult = new DecisionResultDto
@@ -109,7 +117,7 @@ public class DecisionService : IDecisionService
                 Status = cachedResult.Status,
                 StrategyName = cachedResult.StrategyName,
                 StrategyVersion = cachedResult.StrategyVersion,
-                ExecutionTimeMs = 2,
+                ExecutionTimeMs = cacheElapsedMs,
                 FallbackUsed = false,
                 PrimaryReason = cachedResult.PrimaryReason,
                 Reasons = cachedResult.Reasons,

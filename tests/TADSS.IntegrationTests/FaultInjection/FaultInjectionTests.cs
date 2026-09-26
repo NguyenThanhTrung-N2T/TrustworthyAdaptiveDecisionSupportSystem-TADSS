@@ -87,10 +87,13 @@ public class FaultInjectionTests
         public string StrategyName => "ExhaustiveTimeoutStrategy";
         public string StrategyVersion => "1.0.0";
         public int InvocationCount { get; private set; }
+        public TaskCompletionSource<bool> ExecutionStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
         {
             InvocationCount++;
+            ExecutionStarted.TrySetResult(true);
             await Task.Delay(500, cancellationToken);
 
             return new DecisionResultDto
@@ -481,13 +484,18 @@ public class FaultInjectionTests
     [Fact]
     public async Task F7_CallerCancellation_AbortsPromptlyWithoutCreatingAuditRecord()
     {
-        // Arrange: Strategy that takes 500ms
+        // Arrange: Deterministic synchronization — cancel only after strategy has entered execution on server
         var slowStrategy = new ExhaustiveTimeoutStrategy();
         var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(slowStrategy));
+                services.Configure<ResilienceOptions>(opts =>
+                {
+                    opts.InnerTimeoutMs = 2000;
+                    opts.OuterTimeoutMs = 5000;
+                });
             });
         });
 
@@ -496,19 +504,24 @@ public class FaultInjectionTests
         var idempotencyKey = "F7-KEY-" + Guid.NewGuid();
 
         using var cts = new CancellationTokenSource();
-        cts.CancelAfter(50); // Cancel client request after 50ms
 
-        // Act: Client aborts
+        // Act: Start HTTP request, wait until strategy signals it has entered execution, then trigger cancellation
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
         {
             Content = JsonContent.Create(request)
         };
         httpRequest.Headers.Add("X-Idempotency-Key", idempotencyKey);
 
-        var act = () => client.SendAsync(httpRequest, cts.Token);
+        var responseTask = client.SendAsync(httpRequest, cts.Token);
 
-        // Assert: Client catches cancellation
+        await slowStrategy.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cts.Cancel();
+
+        var act = async () => await responseTask;
+
+        // Assert: Client catches cancellation and no retry occurs
         await act.Should().ThrowAsync<OperationCanceledException>();
+        slowStrategy.InvocationCount.Should().Be(1);
 
         // Verify Invariant: NO completed decision record must exist in DB
         using var scope = factory.Services.CreateScope();

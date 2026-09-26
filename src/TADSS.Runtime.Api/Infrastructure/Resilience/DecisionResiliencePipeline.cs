@@ -16,7 +16,7 @@ namespace TADSS.Runtime.Api.Infrastructure.Resilience;
 
 /// <summary>
 /// Triển khai chuỗi chịu lỗi đa tầng (Nested Resilience Pipeline) sử dụng Polly v8 (Polly.Core).
-/// Thứ tự bao bọc: Outer Timeout (500ms - Hard Runtime Execution Boundary) -> Fallback -> Retry -> Circuit Breaker -> Inner Timeout (150ms).
+/// Thứ tự bao bọc: Outer Timeout (500ms - Hard Runtime Execution Boundary) -> Fallback -> Retry -> Circuit Breaker -> Inner Timeout (120ms).
 /// </summary>
 public class DecisionResiliencePipeline : IDecisionResiliencePipeline
 {
@@ -72,10 +72,10 @@ public class DecisionResiliencePipeline : IDecisionResiliencePipeline
                 .Handle<Exception>(ex => ex is not OperationCanceledException),
             FallbackAction = async args =>
             {
-                var reservation = args.Context.Properties.GetValue(ReservationPropertyKey, null!);
+                args.Context.Properties.TryGetValue(ReservationPropertyKey, out var reservation);
                 var exception = args.Outcome.Exception;
 
-                var fallbackResult = await _fallbackStrategy.EvaluateAsync(reservation, args.Context.CancellationToken);
+                var fallbackResult = await _fallbackStrategy.EvaluateFailSafeAsync(reservation, args.Context.CancellationToken);
 
                 string failureReason;
                 if (exception is TimeoutRejectedException)
@@ -156,7 +156,7 @@ public class DecisionResiliencePipeline : IDecisionResiliencePipeline
             }
         });
 
-        // 5. INNER TIMEOUT (Timeout cho từng lần thực thi đơn lẻ, mặc định 150ms)
+        // 5. INNER TIMEOUT (Timeout cho từng lần thực thi đơn lẻ, mặc định 120ms)
         builder.AddTimeout(new TimeoutStrategyOptions
         {
             Timeout = TimeSpan.FromMilliseconds(_options.InnerTimeoutMs),

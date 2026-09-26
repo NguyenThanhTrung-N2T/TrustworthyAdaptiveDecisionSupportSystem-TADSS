@@ -18,8 +18,8 @@ Thay vì phân chia cô lập theo kiểu "code của ai người nấy làm", d
 | **Solution & DB Architecture** | SV1 | SV2 | Solution .NET 8, PostgreSQL Schema `tadss`, bảng `tadss.decision_executions` |
 | **Decision Contract SDK** | SV2 | SV1 | DLL `Shared.DecisionContractSDK`, Rich Domain Model `Reservation`, Unit Tests |
 | **Decision Runtime Core API** | SV1 | SV2 | Web API, DI-based Strategy Resolution $O(1)$, Routing Controller |
-| **Executable Strategies** | SV2 | SV1 | `DefaultDecisionStrategy` (100% Fallback), `MockAlternativeDecisionStrategy` (30%/50%) |
-| **Polly v8 Resilience Pipeline** | SV1 | SV2 | Nested Pipeline (Outer 500ms, Retry 2, Inner 150ms, CB, Fallback) |
+| **Executable Strategies** | SV2 | SV1 | `DefaultDecisionStrategy` (Baseline Business Policy), `MockAlternativeDecisionStrategy` (30%/50%) |
+| **Polly v8 Resilience Pipeline** | SV1 | SV2 | Nested Pipeline (Outer 500ms, Retry 2, Inner 120ms, CB, `FallbackDecisionStrategy`) |
 | **Append-only Audit Trail** | SV1 | SV2 | MediatR in-process events trong DbContext Transaction boundary |
 | **Request-Hash Cache** | SV2 | SV1 | Canonicalization (Representation-only), SHA256 Key, Redis & IMemoryCache fallback |
 | **Override & Concurrency API** | SV1 | SV2 | `POST /decisions/{id}/override`, `IdempotencyKey`, `ExpectedVersion` |
@@ -181,14 +181,15 @@ flowchart TD
     *   *Day 3-5 (Ghép nối vào Runtime):*
         *   Outer Timeout: 500ms (SLA Budget toàn cục).
         *   Retry Policy: Tối đa 2 lần retry (tổng 3 attempts, base delay 30ms).
-        *   Inner Timeout: 150ms per attempt.
+        *   Inner Timeout: 120ms per attempt (ngân sách $3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$ SLA).
         *   Circuit Breaker: Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong sampling window 30s (min 10 requests).
-        *   Fallback Policy: Tự động chuyển về `DefaultDecisionStrategy` (thanh toán 100%) với mục tiêu đo lường fallback overhead < 10ms trong kịch bản benchmark.
+        *   Fallback Policy: Tự động chuyển về `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`) với mục tiêu đo lường fallback overhead < 10ms trong kịch bản benchmark.
+            > **[ADR-W7-01 — Separation of Business Policy vs Safety Fallback]:** `FallbackDecisionStrategy` tách biệt hoàn toàn với `DefaultDecisionStrategy` (chính sách nghiệp vụ thông thường). TADSS fallback chỉ chịu trách nhiệm duy trì decision-path continuity và chuyển sang trạng thái `NEED_APPROVAL`. Transactional/business fallback policy, nếu có, thuộc trách nhiệm của reservation platform và nằm ngoài decision authority của TADSS.
 *   **Sinh viên 2 (Supporting):**
-    *   Chuẩn bị kịch bản tiêm lỗi (Failure Scenarios): Strategy Timeout (delay 200ms), Strategy Exception (Throw 500), Mất kết nối.
+    *   Chuẩn bị kịch bản tiêm lỗi (Failure Scenarios): Strategy Timeout (delay > 120ms), Strategy Exception (Throw 500), Mất kết nối.
     *   Xây dựng mock test harness phục vụ kiểm thử chuỗi chịu lỗi.
 *   **Hai thành viên (Cuối tuần 7):**
-    *   Chứng minh bằng test: Normal Success, Strategy Timeout, Strategy Exception, Circuit Open, Fallback 100%.
+    *   Chứng minh bằng test: Normal Success, Strategy Timeout, Strategy Exception, Circuit Open, Fallback (`NEED_APPROVAL`), kèm ma trận tiêm lỗi F1–F7.
 
 #### **Tuần 8: Ghi vết Quyết định Đồng bộ (Append-Only Audit Trail với MediatR)**
 *   **Sinh viên 1 (Owner):**
@@ -262,8 +263,8 @@ flowchart TD
 |:---|:---|:---|
 | **1. Normal Decision** | Gửi request hợp lệ giờ thường | Trả về `Approved` (cọc 30%), latency p95 < 150ms trong môi trường test chuẩn, ghi log `StrategyExecution`. |
 | **2. Peak Hour Decision** | Gửi request rơi vào khung giờ cao điểm | Trả về `NeedApproval` (cọc 50%), tạm dừng thanh toán VNPay. |
-| **3. Strategy Timeout** | Giả lập Strategy xử lý chậm > 150ms | Inner Timeout ngắt attempt, Retry 2 lần, kích hoạt Fallback cọc 100%. |
-| **4. Strategy Exception** | Giả lập Strategy ném lỗi 500 | Retry 2 lần, kích hoạt Fallback cọc 100%, ghi log `FallbackExecution`. |
+| **3. Strategy Timeout** | Giả lập Strategy xử lý chậm > 120ms | Inner Timeout ngắt attempt, Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`). |
+| **4. Strategy Exception** | Giả lập Strategy ném lỗi 500 | Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`), ghi log `FALLBACK`. |
 | **5. Cascading Failures** | Bắn liên tiếp 10 requests lỗi | Circuit Breaker mở mạch, chuyển thẳng sang Fallback trong < 10ms trong kịch bản benchmark. |
 | **6. Cache Hit** | Gửi lại 2 request giống hệt nhau | Lần 2 trả về ngay trong < 15ms, không gọi strategy, ghi log `CacheHit`. |
 | **7. Key Sorting Cache** | Đảo thứ tự các thuộc tính JSON trong request | Vẫn Hit Cache bình thường (chứng minh hàm chuẩn hóa representation hoạt động). |

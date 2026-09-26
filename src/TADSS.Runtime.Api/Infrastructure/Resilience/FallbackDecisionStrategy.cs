@@ -9,6 +9,7 @@ namespace TADSS.Runtime.Api.Infrastructure.Resilience;
 /// <summary>
 /// Chiến lược an toàn dự phòng (Fallback Decision Strategy).
 /// Tự động kích hoạt khi chiến lược chính bị timeout (>500ms) hoặc gặp ngoại lệ bất ngờ.
+/// Invariant: Không thực hiện external I/O và không bao giờ ném ngoại lệ kể cả khi thiếu ngữ cảnh Reservation.
 /// </summary>
 public class FallbackDecisionStrategy : IReservationDecisionStrategy
 {
@@ -16,11 +17,14 @@ public class FallbackDecisionStrategy : IReservationDecisionStrategy
     public string StrategyVersion => "1.0.0";
 
     public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
+        => EvaluateFailSafeAsync(reservation, cancellationToken);
+
+    public Task<DecisionResultDto> EvaluateFailSafeAsync(Reservation? reservation, CancellationToken cancellationToken = default)
     {
         var result = new DecisionResultDto
         {
             DecisionId = Guid.NewGuid(),
-            ReservationId = reservation.ReservationId,
+            ReservationId = reservation?.ReservationId ?? Guid.Empty,
             Status = DecisionStatus.NEED_APPROVAL.ToString(),
             StrategyName = StrategyName,
             StrategyVersion = StrategyVersion,

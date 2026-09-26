@@ -5,7 +5,7 @@
 > **Hệ thống đối chứng (Host App):** SmashCourt — Hệ thống Đặt Sân Cầu Lông Trực Tuyến  
 > **Loại hình:** Hệ thống lai (Decoupled Decision Engine Subsystem + Web Application)  
 > **Thời điểm cập nhật:** Hết Tuần 7 (Phase 4 — Milestone Resilience Complete)  
-> **Trạng thái kiểm thử:** 🟢 **417/417 Automated Tests Passed (100% PASS)**
+> **Trạng thái kiểm thử:** 🟢 **418/418 Automated Tests Passed**
 
 ---
 
@@ -79,7 +79,7 @@ flowchart TD
     end
 
     subgraph Layer3 ["🎯 LỚP 3: PLUGGABLE STRATEGIES (Các Chiến Lược Thẩm Định)"]
-        S1["🔒 Default Strategy<br/>Cọc tĩnh 100%"]
+        S1["🔒 Default Strategy<br/>Chính sách nghiệp vụ cơ sở"]
         S2["⚡ Mock Strategy<br/>Cọc động 30% / 50%"]
         S3["🧠 AI / ML Models<br/>Dự đoán rủi ro hủy"]
     end
@@ -139,7 +139,7 @@ flowchart TD
             StratResult -- Thành công --> StratOK["Tính cọc động thành công (30% / 50%)"]
             StratResult -- Lỗi / Treo --> RetryCheck{Còn lượt Retry?}
             RetryCheck -- Còn (tối đa 2 lần) --> RunStrategy
-            RetryCheck -- Hết lượt / Circuit OPEN --> RunFallback["Kích hoạt Fallback 0ms<br/>Chuyển sang cọc an toàn 100%"]
+            RetryCheck -- Hết lượt / Circuit OPEN --> RunFallback["Kích hoạt FallbackDecisionStrategy (0ms)<br/>Chuyển sang NEED_APPROVAL (Chờ duyệt an toàn)"]
         end
         
         StratOK --> LogAudit
@@ -182,7 +182,7 @@ sequenceDiagram
     participant SC as SmashCourt Backend
     participant TADSS as TADSS Decision Engine
     participant Strat as AI/Dynamic Strategy
-    participant Fallback as Fallback Decision Strategy
+    participant Fallback as FallbackDecisionStrategy
     participant DB as PostgreSQL (tadss schema)
     actor Manager as Quản lý (Dashboard)
 
@@ -192,12 +192,12 @@ sequenceDiagram
     activate TADSS
     TADSS->>Strat: EvaluateAsync() (Hạn 120ms)
     Note over Strat: Strategy bị treo / Exception 500!
-    TADSS->>TADSS: Retry 2 lần (Tổng 420ms < 500ms SLA)
-    TADSS->>Fallback: Kích hoạt Fallback an toàn (0ms)
-    Fallback-->>TADSS: Trả về: NEED_APPROVAL (Cọc an toàn 100%)
+    TADSS->>TADSS: Retry 2 lần (Ngân sách cấu hình 420ms < 500ms SLA)
+    TADSS->>Fallback: Kích hoạt FallbackDecisionStrategy an toàn (0ms)
+    Fallback-->>TADSS: Trả về: NEED_APPROVAL (REQUIRE_APPROVAL)
     
     TADSS->>DB: Ghi nhật ký (Type: FALLBACK, Reason: STRATEGY_TIMEOUT)
-    TADSS-->>SC: 200 OK (Status: NEED_APPROVAL, Deposit: 100%)
+    TADSS-->>SC: 200 OK (Status: NEED_APPROVAL, FallbackUsed: true)
     deactivate TADSS
     
     SC-->>User: Thông báo: "Đơn đặt sân đang chờ Quản lý duyệt"
@@ -267,7 +267,7 @@ flowchart TD
 |:---|:---|:---|:---|:---:|
 | **1. Đề xuất & Phạm vi** *(Why & Scope)* | Tại sao cần làm? Ranh giới hệ thống ở đâu? | `PROPOSAL_DO_AN_2.md` | Phân định ranh giới 3 lớp: SmashCourt (Host) $\leftrightarrow$ TADSS (Engine) $\leftrightarrow$ Strategies. | 🟢 **100% DONE** |
 | **2. Giao diện & Hợp đồng** *(What & Contract)* | Hai bên gửi nhận dữ liệu gì? Làm sao không vỡ code nhau? | `API_CONTRACT_V1.md`<br/>`CONTRACT_V1_FREEZE.md` | DLL Class Library `Shared.DecisionContractSDK` v1.0.0 độc lập, đóng băng bất biến. | 🟢 **100% DONE** |
-| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **417/417 tests passed**. | 🟢 **100% DONE (W7)** |
+| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **418/418 automated tests passed**. | 🟢 **100% DONE (W7)** |
 | **4. Kế hoạch Tác chiến** *(When & Execution)* | Chia việc thế nào? Kế hoạch ứng phó rủi ro là gì? | `MASTER_EXECUTION_PLAN.md`<br/>`PROJECT_WBS_MAPPING.md` | Kế hoạch 16 tuần chi tiết cho SV1 (Backend/Resilience) & SV2 (Cache/UI/Report) kèm 6 Milestones. | 🟡 **Đang chạy (W7 ➔ W8)** |
 | **5. Đánh giá & Thực nghiệm** *(Metrics & Evidence)* | Lấy số liệu gì để viết báo cáo tốt nghiệp? | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | Kịch bản đo Cache ($G_0, G_1, G_2$), đo Chịu lỗi ($R_0 \rightarrow R_3$), Dataset Normalizer xuất CSV/JSONL. | 🔵 **Chuẩn bị (W8)** |
 
@@ -349,7 +349,7 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 
 | STT | Tên File Tài Liệu | Nội dung cốt lõi (File này nói cái gì?) | Mối quan hệ liên kết với các file khác |
 |:---:|:---|:---|:---|
-| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 417+ automated tests. | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
+| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 418+ automated tests. | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
 | **2** | `PROPOSAL_DO_AN_2.md` | Tuyên ngôn đề tài: Xác lập bối cảnh, 3 thách thức kỹ thuật (Coupling, SPOF, Lack of Audit), ranh giới 3 lớp kiến trúc và mục tiêu đồ án. | **Gốc rễ của toàn dự án.** Sinh ra các yêu cầu cho Contract (`API_CONTRACT_V1.md`) và Kiến trúc (`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`). |
 | **3** | `THESIS_DEVELOPMENT_PLAYBOOK.md` | Sổ tay định hướng phát triển Khóa luận tốt nghiệp: Quy định cách tái sử dụng kết quả kỹ thuật của Đồ án 2 vào cấu trúc các chương luận văn. | Kết nối trực tiếp giữa phần mềm thực tế (`TADSS-Runtime`) và các câu hỏi nghiên cứu (`RESEARCH_PROBLEM_BACKLOG.md`). |
 | **4** | `MASTER_EXECUTION_PLAN.md` | Kế hoạch tác chiến 16 tuần: Phân rã chi tiết công việc từng ngày cho Sinh viên 1 (Backend/Resilience) và Sinh viên 2 (Strategy/Cache/UI/Report). | Định hướng lịch trình thực thi dựa trên các yêu cầu từ `PROPOSAL_DO_AN_2.md` và `API_CONTRACT_V1.md`. |
@@ -358,8 +358,8 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 | **7** | `API_CONTRACT_V1.md` | Đặc tả chi tiết chuẩn giao tiếp HTTP REST v1.0.0: Định nghĩa URLs, HTTP Headers (`X-Idempotency-Key`), JSON DTOs, Error Codes và Reason Codes. | Hiện thực hóa yêu cầu từ `PROPOSAL_DO_AN_2.md` thành chuẩn kỹ thuật bắt buộc cho cả SmashCourt và TADSS. |
 | **8** | `CONTRACT_V1_FREEZE.md` | Tuyên bố đóng băng DLL SDK `Shared.DecisionContractSDK` v1.0.0 theo nguyên tắc Zero-Mutation (khóa cứng checksum, không bên nào được tự ý sửa). | Bảo vệ tính ổn định của `API_CONTRACT_V1.md` để 2 bên phát triển song song mà không sợ bị vỡ code nhau. |
 | **9** | `INTEGRATION_SPEC.md` | Hướng dẫn kỹ thuật tích hợp đầu-cuối: Mô tả chi tiết cách SmashCourt Backend gửi đơn sang TADSS (`POST /api/v1/decisions`) và duyệt cọc (`POST /override`). | Cầu nối thực hành giữa `SmashCourt-BE` và `API_CONTRACT_V1.md`. |
-| **10** | `baseline_metrics.md` | Báo cáo đo lường độ ổn định của hợp đồng SDK: Ghi nhận 0 breaking changes, độ bao phủ kiểm thử 96.8% và tính thuần khiết kiến trúc. | Minh chứng kiểm chứng chất lượng cho cam kết đóng băng trong `CONTRACT_V1_FREEZE.md`. |
-| **11** | `baseline_public_api.txt` | Danh sách chữ ký kỹ thuật của toàn bộ 24 Public Types xuất bản từ `Shared.DecisionContractSDK.dll`. | File tham chiếu cho unit test `PublicApiSurfaceTests.cs` để tự động báo lỗi nếu có ai vô tình sửa interface SDK. |
+| **10** | `baseline_metrics.md` | Báo cáo đo lường độ ổn định của hợp đồng SDK: Ghi nhận 0 breaking changes, độ bao phủ kiểm thử 99.49% và tính thuần khiết kiến trúc. | Minh chứng kiểm chứng chất lượng cho cam kết đóng băng trong `CONTRACT_V1_FREEZE.md`. |
+| **11** | `baseline_public_api.txt` | Danh sách chữ ký kỹ thuật của toàn bộ 32 Public Types (24 primary contract types + 8 auxiliary/supporting types) xuất bản từ `Shared.DecisionContractSDK.dll`. | File tham chiếu cho unit test `PublicApiSurfaceTests.cs` để tự động báo lỗi nếu có ai vô tình sửa interface SDK. |
 | **12** | `openapi-v1.yaml` & `schemas/` | Đặc tả máy đọc chuẩn OpenAPI 3.0 và 7 file JSON Schema chi tiết (`decision-request`, `decision-result`, `override...`). | Tương thích 100% với `API_CONTRACT_V1.md`, dùng tạo Swagger UI và chạy kiểm thử Serialization tự động. |
 | **13** | `src/Shared.DecisionContractSDK/README.md` | Hướng dẫn lập trình và cài đặt thư viện SDK: Dành cho lập trình viên SmashCourt (phía gọi) và lập trình viên Strategy (phía viết thuật toán). | Tài liệu hướng dẫn sử dụng trực tiếp cho mã nguồn `Shared.DecisionContractSDK`. |
 | **14** | `SOFTWARE_ARCHITECTURE_SPECIFICATION.md` | Bản thiết kế kiến trúc chi tiết: Cấu trúc Clean/Hexagonal, cơ chế Dependency Injection Strategy Resolver $O(1)$ và luồng Middleware. | Hiện thực hóa các quyết định từ nhóm ADR thành kiến trúc mã nguồn C# thực tế. |
