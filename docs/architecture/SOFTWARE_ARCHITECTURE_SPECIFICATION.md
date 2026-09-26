@@ -19,8 +19,8 @@ SmashCourt.sln (Solution)
 │   ├── 2.Platform/
 │   │   └── DecisionRuntime.TADSS/           # Decision Runtime Platform
 │   │       ├── Controllers/                 # DecisionController, OverrideController
-│   │       ├── Infrastructure/              # StrategyFactory (DI Lookup), PollyGateway, MediatRHandlers, FeatureFlags
-│   │       ├── Options/                     # DecisionRuntimeOptions
+│   │       ├── Infrastructure/              # StrategyResolver (DI Lookup), DecisionResiliencePipeline, FallbackDecisionStrategy, ResilientDecisionCacheService
+│   │       ├── Options/                     # ResilienceOptions, TadssCacheOptions
 │   │       └── DecisionRuntime.TADSS.csproj # Nhúng DecisionContractSDK (Không phụ thuộc trực tiếp vào CaseStudy)
 │   │
 │   ├── 3.SDK/
@@ -32,7 +32,7 @@ SmashCourt.sln (Solution)
 │   │       └── Shared.DecisionContractSDK.csproj
 │   │
 │   └── 4.Strategies/
-│       ├── Strategy.Default/                # Cài đặt DefaultDecisionStrategy (Conservative Static Fallback 100%)
+│       ├── Strategy.Default/                # Cài đặt DefaultDecisionStrategy (Conservative Baseline Business Policy)
 │       │   └── DefaultDecisionStrategy.cs
 │       │
 │       ├── Strategy.MockAlternative/        # Cài đặt MockAlternativeDecisionStrategy (Demonstration Policy: 30% / 50%)
@@ -155,8 +155,8 @@ Hệ thống **Decision Runtime Platform (TADSS)** triển khai các module hạ
 └───────────┘            └──────────┘└───┘└──────────┘             └───────────┘
 ```
 
-1.  **Strategy Registry (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyFactory` với độ phức tạp $O(1)$.
-2.  **Policy Engine:** Thực thi các chính sách tĩnh mặc định khi Polly kích hoạt chế độ Fallback (`DefaultDecisionStrategy` - cọc 100%).
+1.  **Strategy Registry (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyResolver` với độ phức tạp $O(1)$.
+2.  **Safety Fallback Continuity (`FallbackDecisionStrategy`):** Khi Polly kích hoạt chế độ Fallback do strategy timeout hoặc lỗi nội bộ, hệ thống trả về quyết định an toàn xác định `Status = NEED_APPROVAL` (`FallbackUsed = true`, `ExecutionTimeMs = 0`), tách biệt hoàn toàn với chính sách nghiệp vụ thông thường (`DefaultDecisionStrategy`).
 3.  **Observability (Serilog + OpenTelemetry):** Đo lường và lưu vết thời gian xử lý (`execution_time_ms`), cache hit/miss và failure reasons.
 4.  **Feature Flags (`IFeatureFlagProvider`):** Bật/tắt nóng tính năng qua `IOptionsMonitor` dưới 2 giây.
 5.  **Versioning & Migration:** Tự động đối chiếu `ContractVersion` để từ chối hoặc fallback khi có breaking changes trong payload.
@@ -216,15 +216,16 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
     is_overridden BOOLEAN NOT NULL DEFAULT FALSE,
     overridden_by VARCHAR(100) NULL,
     override_reason TEXT NULL,
-    idempotency_key VARCHAR(100) NULL,
+    idempotency_key VARCHAR(128) NULL,
     version INTEGER NOT NULL DEFAULT 1,
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT uq_decision_idempotency UNIQUE (decision_id, idempotency_key)
+    CONSTRAINT uq_decision_id UNIQUE (decision_id)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_decision_executions_request_hash ON tadss.decision_executions (request_hash);
 CREATE INDEX IF NOT EXISTS idx_decision_executions_reservation_id ON tadss.decision_executions (reservation_id);
 ```
@@ -250,7 +251,7 @@ sequenceDiagram
     
     alt Trường hợp HIT Cache
         Cache-->>TADSS: Trả về DecisionResult (Lưu trong Cache)
-        TADSS->>DB: Ghi log decision_executions (execution_type = 'CACHE_HIT', fallback_used = FALSE)
+        TADSS->>DB: Publish MediatR DecisionEvaluatedAuditNotification (đồng bộ: execution_type = 'CACHE_HIT', fallback_used = FALSE)
     else Trường hợp MISS Cache
         TADSS->>PollyPipeline: Gọi thực thi bọc bởi Resilience Pipeline (Overall budget: 500ms)
         Note over PollyPipeline: Configured Pipeline: Outer 500ms -> Fallback -> Retry 2 -> CB -> Inner 120ms
@@ -260,16 +261,16 @@ sequenceDiagram
             TADS-->>PollyPipeline: Trả về DecisionResult (30% hoặc 50% cọc)
             PollyPipeline-->>TADSS: Trả về kết quả thành công
             TADSS->>Cache: Lưu DecisionResult vào Cache
-            TADSS->>DB: Ghi log decision_executions (execution_type = 'AUTOMATED', fallback_used = FALSE)
+            TADSS->>DB: Publish MediatR DecisionEvaluatedAuditNotification (đồng bộ: execution_type = 'AUTOMATED', fallback_used = FALSE)
         else Trường hợp Strategy bị timeout (>120ms) hoặc lỗi 500
             PollyPipeline->>TADS: EvaluateAsync(request, ct)
             Note over TADS: Gặp sự cố timeout hoặc ném Exception...
             PollyPipeline->>PollyPipeline: Thực thi Retry (tối đa 2 lần) & Inner Timeout (120ms)
             PollyPipeline->>PollyPipeline: Mở mạch Circuit Breaker khi tỷ lệ lỗi vượt ngưỡng
             PollyPipeline->>FallbackStr: EvaluateFailSafeAsync(request, ct)
-            FallbackStr-->>PollyPipeline: Trả về DecisionResult (Status = NEED_APPROVAL)
+            FallbackStr-->>PollyPipeline: Trả về DecisionResult (Status = NEED_APPROVAL, mặc định 100%)
             PollyPipeline-->>TADSS: Trả về kết quả Fallback
-            TADSS->>DB: Ghi log decision_executions (execution_type = 'FALLBACK', fallback_used = TRUE)
+            TADSS->>DB: Publish MediatR DecisionEvaluatedAuditNotification (đồng bộ: execution_type = 'FALLBACK', fallback_used = TRUE)
         end
     end
     

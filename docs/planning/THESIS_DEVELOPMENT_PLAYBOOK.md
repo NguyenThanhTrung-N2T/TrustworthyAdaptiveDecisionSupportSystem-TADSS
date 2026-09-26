@@ -29,9 +29,9 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
  │    │    ├── DefaultDecisionStrategy (Chính sách nghiệp vụ cơ sở thông thường)
  │    │    └── MockAlternativeDecisionStrategy (Cọc động 30% giờ thường / 50% giờ cao điểm)
  │    ├── Polly v8 Resilience Pipeline (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, CB, FallbackDecisionStrategy)
- │    ├── Append-only Audit Trail (Synchronous MediatR events trong DB Transaction)
+ │    ├── Append-only Audit Trail (Mandatory Synchronous Audit trong EF Core DB Transaction)
  │    ├── Human-in-the-loop Override API (IdempotencyKey, ExpectedVersion, No Auto-Approve)
- │    ├── Request-Hash Cache (Redis / IMemoryCache fallback, Sort key JSON, SHA256)
+ │    ├── Request-Hash Cache (Redis L2 / IMemoryCache L1 fallback, RFC 8785 Canonical JSON, SHA256)
  │    └── Feature Flag động (EnableTadssDecision reload qua IOptionsMonitor < 2s)
  └── TADS (Chiến lược nghiên cứu thích ứng — Khóa luận)
       ├── Adaptive Trust Score + Time Decay (e^-λΔt)
@@ -51,7 +51,7 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
 |:---|:---|:---|
 | Semantic Cache | **Request-Hash Cache** | Cơ chế băm SHA256 payload là exact-match, không có khả năng hiểu ngữ nghĩa (semantic). |
 | Immutable event chain | **Append-only Audit Trail** | Không có cơ chế hash chaining/blockchain ở DB, chỉ là cơ chế insert-only log. |
-| MediatR đảm bảo transaction | **In-process events trong PostgreSQL transaction boundary** | MediatR chỉ là in-memory mediator, transaction do EF Core DbContext quản lý. |
+| Async Event / Outbox Audit | **Mandatory Synchronous Audit qua MediatR in-process events trong PostgreSQL transaction boundary** | TADSS phát sự kiện MediatR (`INotification`) đồng bộ ngay trong cùng transaction boundary của EF Core DbContext (fail-closed), không dùng Outbox bất đồng bộ. |
 | Hot-swap strategy lúc runtime | **Thay thế Strategy ở mức Cấu hình / DI Registration** | Đăng ký Strategy qua DI Container $O(1)$, không nạp DLL động lúc đang chạy. |
 | Circuit Breaker đếm 5 lỗi | **Circuit Breaker mở khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ mẫu** | Polly v8 sử dụng `FailureRatio` (ví dụ 0.5) trong `SamplingDuration` (30s), min 10 requests. |
 | Retry 3 lần (4 attempts) | **Retry 2 lần (3 attempts tổng cộng)** | $(3 \times 120\text{ms}) + (2 \times 30\text{ms}) = 420\text{ms} < 500\text{ms}$ SLA Budget. |
@@ -78,7 +78,7 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
 | **Thành phần AI** | Gemini Chatbot FAQ | Không phụ thuộc AI (Dùng Mock Strategy) | Adaptive Trust Score + CatBoost Classifier |
 | **Khả năng chịu lỗi** | Chưa có (Single Point of Failure) | **Trọng tâm số 1 (Polly v8 Nested Pipeline)** | Đánh giá độ ổn định của giải thuật |
 | **Thư viện SDK** | Không có | **Xây dựng `Shared.DecisionContractSDK`** | Tái sử dụng SDK và mở rộng Model |
-| **Chiến lược quyết định** | Cọc tĩnh 100% (Hardcoded) | `Default` (100%) & `Mock` (30%/50%) | `AdaptiveTrustDecisionStrategy` |
+| **Chiến lược quyết định** | Cọc tĩnh 100% (Hardcoded) | `Default` (Baseline), `Mock` (30%/50%) & `Fallback` (`NEED_APPROVAL`) | `AdaptiveTrustDecisionStrategy` |
 | **Phương pháp kiểm thử** | Manual & Postman Tests | Unit Tests, Integration Tests, Failure Injection | Ablation Studies & Multi-agent Simulation |
 
 ---
@@ -114,8 +114,8 @@ SmashCourt Workspace/
 | [BACKLOG_SPRINTS.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/BACKLOG_SPRINTS.md) | Thực thi | Chi tiết Epics ➔ User Stories ➔ Tasks kèm phân công cụ thể Sinh viên 1 & 2. | Sinh viên code hàng ngày |
 | [SOFTWARE_ARCHITECTURE_SPECIFICATION.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/SOFTWARE_ARCHITECTURE_SPECIFICATION.md) | Kỹ thuật | Bản vẽ chi tiết Class Diagram, Sequence Diagram, Component Design mở khi lập trình. | Sinh viên phát triển |
 | [INTEGRATION_SPEC.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/INTEGRATION_SPEC.md) | Tích hợp | Đặc tả JSON API Contracts, DDL Schema `tadss`, Migration, Rollback và Failure Injection. | Tích hợp hệ thống |
-| [ARCHITECTURE_DECISION_RECORDS.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/ARCHITECTURE_DECISION_RECORDS.md) | Kiến trúc | Lưu trữ 5 quyết định kiến trúc: Strategy Pattern, DI Lookup, Polly v8, MediatR, Cache. | Chương 2-3 Báo cáo |
-| [RESEARCH_PROBLEM_BACKLOG.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/RESEARCH_PROBLEM_BACKLOG.md) | Khóa luận | 12 bài toán Enterprise AI OS làm cơ sở phát triển nghiên cứu học thuật. | Chương 1 Luận văn |
+| [ARCHITECTURE_DECISION_RECORDS.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/ARCHITECTURE_DECISION_RECORDS.md) | Kiến trúc | Lưu trữ 5 quyết định kiến trúc: Strategy Pattern, DI Lookup, Polly v8, Synchronous Audit Trail, Cache. | Chương 2-3 Báo cáo |
+| [RESEARCH_PROBLEM_BACKLOG.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/RESEARCH_PROBLEM_BACKLOG.md) | Khóa luận | 12 bài toán Enterprise AI OS làm cơ sở phát triển nghiên cứu học thuật (Pre-scoping). | Chương 1 Luận văn |
 | [RESEARCH_THESIS_DEFENSE.md](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/RESEARCH_THESIS_DEFENSE.md) | Khóa luận | Tổng hợp Research Questions (RQs), Scientific Contributions, Kịch bản phản biện. | Bảo vệ tốt nghiệp |
 
 ---
@@ -128,10 +128,10 @@ SmashCourt Workspace/
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 🔴 CORE TIER (Bắt buộc 100% — Tuyệt đối không cắt)                     │
 │  - Shared Decision Contract SDK (Domain Model, DTOs, Invariants)       │
-│  - Decision Runtime Web API (POST /api/v1/decisions, StrategyFactory)  │
-│  - Executable Strategies (Default 100% Fallback, Mock 30%/50%)         │
-│  - Polly v8 Nested Resilience Pipeline (500ms Outer, 2 Retries, CB)    │
-│  - Append-only Audit Trail (MediatR Events trong DB Transaction)       │
+│  - Decision Runtime Web API (POST /api/v1/decisions, StrategyResolver) │
+│  - Executable Strategies (Default Baseline, Mock 30%/50%, Fallback)    │
+│  - Polly v8 Nested Resilience Pipeline (500ms Outer, 2 Retries, 120ms) │
+│  - Append-only Audit Trail (Mandatory Synchronous DB Transaction)      │
 │  - Human Override API (IdempotencyKey, ExpectedVersion Concurrency)    │
 │  - Feature Flag động (EnableTadssDecision reload qua IOptionsMonitor)  │
 │  - SmashCourt Integration & Integration Tests                          │
@@ -154,7 +154,7 @@ SmashCourt Workspace/
 *   **[Mốc 1: Cuối Tuần 2]** ───► **Foundation Ready:** Solution skeleton, Database Schema `tadss` và Contract v1 được phê duyệt.
 *   **[Mốc 2: Cuối Tuần 4]** ───► **Decision Contract Ready:** DLL `Shared.DecisionContractSDK` biên dịch thành công, Unit Tests > 80% coverage.
 *   **[Mốc 3: Cuối Tuần 6]** ───► **Runtime Engine Standalone:** Web API và DI-based Strategy Resolution chạy độc lập hoàn chỉnh.
-*   **[Mốc 4: Cuối Tuần 9]** ───► **Resilient & Auditable Core:** Polly v8 Pipeline, MediatR Audit Trail và Redis Request-Hash Cache hoàn tất.
+*   **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core:** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, Benchmark ($G_0..G_2, R_0..R_3$) và Dataset Normalizer hoàn tất.
 *   **[Mốc 5: Cuối Tuần 12]** ───► **End-to-End Integration Ready:** SmashCourt ↔ TADSS ↔ VNPay và Manager Dashboard UI tích hợp thành công.
 *   **[Mốc 6: Cuối Tuần 14]** ───► **Technical Evaluation Complete:** Vượt qua 11 kịch bản kiểm thử sự cố, đo lường đầy đủ SLA p95 < 150ms.
 *   **[Final Milestone: Cuối Tuần 16]** ───► **Defense Ready:** Hoàn thành cuốn Báo cáo 60 trang, Video Demo và Slide thuyết trình.
@@ -165,11 +165,11 @@ SmashCourt Workspace/
 *   🔴 **RED (Trễ $\ge 3$ ngày):** Kích hoạt chuyển tầng **Important/Supporting (Chuyển Redis $\rightarrow$ `IMemoryCache`, tối giản UI)**, tập trung 100% cho Core Features.
 
 ### 3.4. Lối thoát Khẩn cấp Phase 4 (Phase 4 Emergency Escape Hatch)
-> Nếu đến **cuối Tuần 8 (Day 5)** mà Polly v8 hoặc MediatR Events vẫn bị tắc nghẽn chưa chạy ổn định:
+> Nếu đến **cuối Tuần 8 (Day 5)** mà hạ tầng Cache/Benchmark gặp tắc nghẽn môi trường:
 > $\rightarrow$ **KÍCH HOẠT CHẾ ĐỘ MVP TOÀN DIỆN (Minimal Viable Product Mode):**
-> 1. **Polly:** Chỉ giữ `Outer Timeout (500ms)` + `Fallback` (Tạm ngắt Retry & Circuit Breaker).
-> 2. **Audit Trail:** Ghi trực tiếp log audit vào DB sau khi execute (bỏ qua in-transaction MediatR events).
-> 3. **Cache:** Sử dụng duy nhất `IMemoryCache` cục bộ, bỏ qua Redis.
+> 1. **Polly:** Duy trì `Outer Timeout (500ms)` + `FallbackDecisionStrategy (NEED_APPROVAL)`.
+> 2. **Audit Trail:** Ghi đồng bộ trực tiếp log audit vào DB trong EF Core Transaction boundary.
+> 3. **Cache:** Sử dụng `IMemoryCache` L1 cục bộ, bỏ qua phụ thuộc Redis L2.
 >
 > *Triết lý:* *"Tốt hơn là bàn giao 80% hệ thống chạy hoàn hảo đúng hạn thay vì bàn giao 0% do trễ deadline!"*
 
@@ -201,7 +201,7 @@ gantt
     Phase 1: Foundation & Architecture (W1-W2)       :p1, 2026-09-01, 14d
     Phase 2: Decision Contract SDK (W3-W4)           :p2, after p1, 14d
     Phase 3: Decision Runtime API (W5-W6)            :p3, after p2, 14d
-    Phase 4: Resilience, Cache & Audit (W7-W9)       :p4, after p3, 21d
+    Phase 4: Resilience, Benchmark & Dataset (W7-W9) :p4, after p3, 21d
     Phase 5: HITL & SmashCourt Integration (W10-W12) :p5, after p4, 21d
     Phase 6: Testing & Technical Evaluation (W13-W14):p6, after p5, 14d
     Phase 7: Stabilization, Documentation & Defense (W15-W16):p7, after p6, 14d
@@ -216,8 +216,8 @@ gantt
 |:---|:---:|:---|:---|:---|
 | **Phase 1** | **W1 — W2** | JSON API Spec, SQL Schema `tadss`, Solution Setup | Thiết kế DB Schema `tadss`, dựng Clean Architecture Solution .NET 8 | Đặc tả JSON Schema Request/Response, viết Integration Spec v1 |
 | **Phase 2** | **W3 — W4** | DLL `Shared.DecisionContractSDK`, Unit Tests >80% | Lập trình Rich Domain Model `Reservation`, Invariants, Behavior Rules | Định nghĩa DTOs, Value Objects, Enums, viết bộ Unit Tests SDK |
-| **Phase 3** | **W5 — W6** | Web API `DecisionRuntime.TADSS`, Swagger UI | Xây dựng Web API Core, Strategy Factory DI Lookup $O(1)$, Routing | Lập trình `DefaultStrategy` (100%) và `MockAlternativeStrategy` (30%/50%) |
-| **Phase 4** | **W7 — W9** | Polly v8 Pipeline, MediatR Audit Trail, Cache | POC Spike Polly v8 (2 ngày đầu), MediatR in-process events bọc DB Transaction | Tích hợp Redis, chuẩn hóa JSON payload & băm SHA256 Request-Hash |
+| **Phase 3** | **W5 — W6** | Web API `DecisionRuntime.TADSS`, Swagger UI | Xây dựng Web API Core, Strategy Resolver DI Lookup $O(1)$, Synchronous Audit & L1/L2 Cache | Lập trình `DefaultDecisionStrategy` (Baseline) và `MockAlternativeDecisionStrategy` (30%/50%) |
+| **Phase 4** | **W7 — W9** | Polly v8 (F1–F7), Benchmark ($G_0..G_2, R_0..R_3$), Dataset Normalizer | Tuần 7: Polly v8 Pipeline + Fault Matrix (F1–F7); Tuần 8: Resilience Benchmark ($R_0..R_3$) | Tuần 7: Resilient L1/L2 Cache Verification; Tuần 8: Cache Benchmark ($G_0..G_2$); Tuần 9: Dataset Normalizer |
 | **Phase 5** | **W10 — W12**| Override API, Dashboard UI, SmashCourt Integration | Override API (Idempotency, Concurrency), Feature Flag reload, SmashCourt Backend | Dựng Dashboard UI trên `smashcourt-fe`, cùng SV1 viết Chương 1 & 2 Báo cáo |
 | **Phase 6** | **W13 — W14**| Integration Test Matrix (11 test cases), SLA Benchmark | Kịch bản Failure Injection, đo lường KPI (p95<150ms), Portability Mock | Kiểm thử tích hợp VNPay, đối soát bảng Test Matrix |
 | **Phase 7** | **W15 — W16**| Báo cáo hoàn chỉnh (60 trang), Video Demo & Slide | Hoàn thiện Chương 3 & 4 Báo cáo, quay Video Demo, diễn tập thuyết trình | Hoàn thiện sơ đồ kiến trúc, làm Slide thuyết trình 20-25 slides |
@@ -256,23 +256,23 @@ DecisionResult.Status:
 ```
 
 ### 5.3. Chuẩn hóa Payload Băm SHA-256 (Request-Hash Caching)
-*   **Công thức băm:**
-    $$\text{CacheKey} = \text{SHA256}(\text{strategyName} + \text{strategyVersion} + \text{normalizedDecisionRequest})$$
-    Namespace Redis: `decision:{strategyName}:{strategyVersion}:{requestHash}`
-*   **Quy trình 4 bước chuẩn hóa (Payload Normalization):**
-    1. Sắp xếp các key trong JSON Payload theo thứ tự bảng chữ cái (Alphabetical sort).
-    2. Chuyển đổi toàn bộ chuỗi định danh (UUID, CustomerId, ResourceId) về dạng chữ thường (lowercase).
-    3. Làm tròn mốc thời gian đặt chỗ (`ReservationSchedule`) đến đơn vị giờ chẵn.
-    4. Xóa bỏ toàn bộ khoảng trắng thừa (whitespace) và các trường có giá trị `null`.
-*   **Chính sách TTL:**
-    *   `DefaultDecisionStrategy` (Tĩnh): TTL = 15 phút.
-    *   `AdaptiveDecisionStrategy` (Khóa luận): Vô hiệu hóa hoặc đặt TTL = 1 phút để tránh stale decisions.
+*   **Tách biệt Request Identity và Strategy Identity:**
+    $$\text{RequestHash} = \text{SHA256}(\text{Canonical}(\text{DecisionRequest}))$$
+    Namespace Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`
+*   **Quy trình 4 bước chuẩn hóa (Payload Canonicalization - RFC 8785 JCS):**
+    1. Sắp xếp các key trong JSON Payload / Metadata theo thứ tự bảng chữ cái (Alphabetical sort).
+    2. Chuẩn hóa chuỗi định danh (UUID) và in hoa (`ToUpperInvariant`) các trường phân loại (`CustomerTier`, `BookingType`, `PaymentStatus`, `Priority`).
+    3. Chuẩn hóa định dạng timestamp (`StartTime`, `EndTime`) về giây chuẩn UTC (`yyyy-MM-ddTHH:mm:ssZ`, cắt bỏ phần nhiễu sub-second ticks và **loại trừ `RequestedAt`** khỏi đối tượng băm; **TUYỆT ĐỐI giữ nguyên giá trị nghiệp vụ giờ/phút, không làm tròn đến giờ chẵn**).
+    4. Định dạng tiền tệ bất biến (`F2`, `InvariantCulture`), xóa bỏ khoảng trắng thừa (whitespace) và chuẩn hóa biểu diễn trường `null`.
+*   **Chính sách TTL (Operational / Experimental Configuration):**
+    *   Cấu hình mặc định cho baseline vận hành và thực nghiệm (`Default TTL for benchmark baseline`): `TtlHours = 24` (24 giờ, cấu hình qua `TadssCacheOptions`, không phải bất biến kiến trúc cứng).
+    *   `AdaptiveDecisionStrategy` (Khóa luận): Có thể cấu hình TTL ngắn hoặc vô hiệu hóa qua options để tránh stale decisions khi điểm Trust Score thay đổi.
 
 ### 5.4. Append-Only Audit Trail & Idempotency / Concurrency
-*   **Bảng dữ liệu:** `tadss.decision_executions` lưu toàn bộ thông số thực thi.
+*   **Bảng dữ liệu:** `tadss.decision_executions` lưu đồng bộ (fail-closed) toàn bộ thông số thực thi (`execution_type` thuộc `'AUTOMATED' | 'CACHE_HIT' | 'FALLBACK'`).
 *   **No Auto-Approve:** Quá hạn thời gian duyệt, booking giữ nguyên `PendingDecisionApproval` hoặc tự động hết hạn, tuyệt đối không tự động duyệt.
-*   **Idempotency Key:** `UNIQUE(decision_id, idempotency_key)` ngăn chặn click đúp hoặc gửi lệnh duyệt trùng lặp.
-*   **Optimistic Concurrency:** Cột `version` (kiểm tra `ExpectedVersion`) ngăn chặn xung đột khi 2 Manager cùng duyệt 1 đơn.
+*   **Idempotency Key & Decision Identity:** Ràng buộc `UNIQUE(decision_id)` kết hợp Partial Unique Index `uq_decision_idempotency_key ON (idempotency_key) WHERE idempotency_key IS NOT NULL` ngăn chặn tuyệt đối gửi lệnh thực thi/duyệt trùng lặp.
+*   **Single-Override Guard & Optimistic Concurrency:** Kiểm tra bất biến `IsOverridden` (chỉ cho phép ghi đè 1 lần duy nhất) kết hợp cột `version` (`IsConcurrencyToken()`, tự động tăng qua `AuditTimestampInterceptor`) ngăn chặn xung đột khi 2 Manager cùng duyệt 1 đơn.
 
 ### 5.5. Phân luồng Nghiệp vụ tại Client (SmashCourt Business Routing)
 *   **VIP/Loyal Fast-Track:** Khách hàng Gold/Platinum được SmashCourt chuyển thẳng sang VNPay, không gọi TADSS.

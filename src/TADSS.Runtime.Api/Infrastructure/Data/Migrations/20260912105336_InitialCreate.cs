@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -35,7 +35,7 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                     is_overridden = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     overridden_by = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     override_reason = table.Column<string>(type: "text", nullable: true),
-                    idempotency_key = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    idempotency_key = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     version = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)

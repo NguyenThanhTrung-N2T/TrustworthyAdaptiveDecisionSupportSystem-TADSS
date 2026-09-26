@@ -22,7 +22,7 @@
 
 *   **Đóng góp 1**: Đề xuất kiến trúc quyết định tin cậy thích ứng (ATDA) tích hợp cấu phần đánh giá độ tin cậy (Trust Modeling) và cấu phần đề xuất chính sách (Decision Policy) cho các nền tảng đặt chỗ.
 *   **Đóng góp 2**: Thiết lập mô hình điểm tin cậy thích ứng (Adaptive Trust Score) có tích hợp suy hao thời gian (Time Decay) kết hợp ràng buộc công bằng toán học (Equalized Odds).
-*   **Đóng góp 3**: Đề xuất cơ chế phục hồi hệ thống (Resilience Layer) có khả năng tự động phát hiện sự cố strategy và fallback tức thời sang chính sách tĩnh để đảm bảo tính liên tục của hệ thống.
+*   **Đóng góp 3**: Đề xuất cơ chế phục hồi hệ thống (Resilience Layer) có khả năng tự động phát hiện sự cố strategy và chuyển sang quyết định an toàn xác định (`FallbackDecisionStrategy` $\rightarrow$ `NEED_APPROVAL`) để đảm bảo tính liên tục của luồng ra quyết định.
 
 ---
 
@@ -45,8 +45,8 @@ Kiến trúc ATDA được thu hẹp tối đa vào 3 tầng cốt lõi:
                              ▼
                       Resilience Layer
                       - Circuit Breaker (Polly)
-                      - Fallback Policy Engine
-                      - Event Logging (Outbox Pattern)
+                      - Safety Fallback (NEED_APPROVAL)
+                      - Mandatory Synchronous Audit Trail
                       - Offline Drift Monitoring
 ```
 
@@ -61,8 +61,8 @@ Kiến trúc ATDA được thu hẹp tối đa vào 3 tầng cốt lõi:
 *   **Human-in-the-loop Feedback**: Cho phép Manager phê duyệt hoặc ghi đè (Override) quyết định của hệ thống. Quyết định ghi đè được lưu lại dưới dạng append-only event trail làm feedback loop cho tập dữ liệu.
 
 ### 3. Phân hệ Resilience Layer (Chống chịu lỗi & Bền vững hệ thống)
-*   **Circuit Breaker (thư viện Polly)**: Phát hiện sự cố strategy service (timeout, lỗi 5xx). Nếu strategy gặp sự cố hoặc phản hồi chậm quá 150ms, tự động chuyển luồng giao dịch sang Fallback Policy Engine (sử dụng chính sách thanh toán tĩnh 100% mặc định).
-*   **Append-only Audit Trail**: Đảm bảo ghi nhận an toàn các sự kiện giao dịch và phản hồi của con người xuống Database.
+*   **Circuit Breaker & Nested Timeout (thư viện Polly v8)**: Phát hiện sự cố strategy service (timeout, lỗi 5xx). Nếu một lần gọi strategy chậm quá `120ms` (Inner Timeout), hệ thống thực hiện retry tối đa 2 lần (base delay `30ms`) và tự động chuyển luồng ra quyết định sang `FallbackDecisionStrategy` (trả về trạng thái an toàn `NEED_APPROVAL` trong ngân sách SLA tổng thể `500ms`).
+*   **Mandatory Synchronous Append-only Audit Trail**: Đảm bảo ghi nhận đồng bộ an toàn (fail-closed) các sự kiện thực thi quyết định và phản hồi của con người thông qua MediatR in-process events (`INotificationHandler`) xuống Database trong cùng transaction boundary.
 *   **Offline Drift Monitoring**: Thay vì giám sát thời gian thực phức tạp, hệ thống chạy tiến trình kiểm tra ngoại tuyến (offline batch job) hàng tuần để so sánh phân phối dữ liệu thực tế với dữ liệu huấn luyện, đưa ra cảnh báo huấn luyện lại mô hình (retraining).
 
 ---

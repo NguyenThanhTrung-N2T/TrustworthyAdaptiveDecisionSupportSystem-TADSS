@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
@@ -10,6 +11,7 @@ using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Runtime.Api.Infrastructure.Data.Auditing;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
@@ -23,6 +25,7 @@ public class DecisionService : IDecisionService
     private readonly IDecisionResiliencePipeline _resiliencePipeline;
     private readonly IDecisionCacheService _cacheService;
     private readonly ILogger<DecisionService> _logger;
+    private readonly IPublisher? _publisher;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -35,13 +38,15 @@ public class DecisionService : IDecisionService
         IStrategyResolver strategyResolver,
         IDecisionResiliencePipeline resiliencePipeline,
         IDecisionCacheService cacheService,
-        ILogger<DecisionService> logger)
+        ILogger<DecisionService> logger,
+        IPublisher? publisher = null)
     {
         _dbContext = dbContext;
         _strategyResolver = strategyResolver;
         _resiliencePipeline = resiliencePipeline;
         _cacheService = cacheService;
         _logger = logger;
+        _publisher = publisher;
     }
 
     public async Task<DecisionResultDto> EvaluateDecisionAsync(
@@ -204,8 +209,16 @@ public class DecisionService : IDecisionService
     {
         try
         {
-            _dbContext.DecisionExecutions.Add(executionEntity);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            var auditNotification = new DecisionEvaluatedAuditNotification(executionEntity);
+            if (_publisher != null)
+            {
+                await _publisher.Publish(auditNotification, cancellationToken);
+            }
+            else
+            {
+                var handler = new DecisionEvaluatedAuditNotificationHandler(_dbContext);
+                await handler.Handle(auditNotification, cancellationToken);
+            }
 
             _logger.LogInformation("Decision {DecisionId} evaluated for Reservation {ReservationId} with Status {Status} in {ElapsedMs}ms (ExecutionType: {ExecutionType}, FallbackUsed: {FallbackUsed}).",
                 evaluatedResult.DecisionId, evaluatedResult.ReservationId, evaluatedResult.Status, evaluatedResult.ExecutionTimeMs, executionEntity.ExecutionType, executionEntity.FallbackUsed);
@@ -214,6 +227,7 @@ public class DecisionService : IDecisionService
         }
         catch (DbUpdateException ex) when (!string.IsNullOrWhiteSpace(idempotencyKey) && IsIdempotencyConstraintViolation(ex))
         {
+            _dbContext.Entry(executionEntity).State = EntityState.Detached;
             _logger.LogWarning("Idempotency race condition detected for key {IdempotencyKey}. Re-checking database for winning record.", idempotencyKey);
 
             var existingExecution = await _dbContext.DecisionExecutions
@@ -365,6 +379,14 @@ public class DecisionService : IDecisionService
         OverrideDecisionRequestDto request,
         CancellationToken cancellationToken = default)
     {
+        var targetStatus = request.Decision?.Status?.Trim().ToUpperInvariant();
+        if (targetStatus is not (nameof(DecisionStatus.APPROVED) or nameof(DecisionStatus.REJECTED)))
+        {
+            throw new ArgumentException(
+                $"Invalid override target status '{request.Decision?.Status}'. Only '{DecisionStatus.APPROVED}' or '{DecisionStatus.REJECTED}' is permitted.",
+                nameof(request));
+        }
+
         var execution = await _dbContext.DecisionExecutions
             .FirstOrDefaultAsync(e => e.DecisionId == decisionId, cancellationToken);
 
@@ -390,22 +412,31 @@ public class DecisionService : IDecisionService
 
         var originalStatus = resultDto?.Status ?? DecisionStatus.NEED_APPROVAL.ToString();
 
-        // Invariant 3: Không sửa response_payload gốc của máy, chỉ cập nhật audit governance flags
-        execution.IsOverridden = true;
-        execution.OverriddenBy = request.OverriddenBy;
-        execution.OverrideReason = request.OverrideReason;
+        // Invariant 3: Không sửa response_payload gốc của máy, chỉ cập nhật audit governance flags qua MediatR in-process event
+        var overrideNotification = new DecisionOverriddenAuditNotification(
+            execution,
+            request.OverriddenBy,
+            request.OverrideReason);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (_publisher != null)
+        {
+            await _publisher.Publish(overrideNotification, cancellationToken);
+        }
+        else
+        {
+            var handler = new DecisionOverriddenAuditNotificationHandler(_dbContext);
+            await handler.Handle(overrideNotification, cancellationToken);
+        }
 
         _logger.LogInformation("Decision {DecisionId} overridden by {OverriddenBy} from {OriginalStatus} to {NewStatus}.",
-            decisionId, request.OverriddenBy, originalStatus, request.Decision.Status);
+            decisionId, request.OverriddenBy, originalStatus, targetStatus);
 
         return new OverrideDecisionResponseDto
         {
             DecisionId = execution.DecisionId,
             ReservationId = execution.ReservationId,
             OriginalStatus = originalStatus,
-            OverriddenStatus = request.Decision.Status,
+            OverriddenStatus = targetStatus,
             IsOverridden = true,
             OverriddenBy = request.OverriddenBy,
             OverrideReason = request.OverrideReason,

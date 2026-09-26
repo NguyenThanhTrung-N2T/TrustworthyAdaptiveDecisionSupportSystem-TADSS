@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
     reservation_id UUID NOT NULL,
     strategy_name VARCHAR(100) NOT NULL,
     strategy_version VARCHAR(20) NOT NULL,
-    execution_type VARCHAR(50) NOT NULL, -- 'StrategyExecution', 'CacheHit', 'FallbackExecution'
+    execution_type VARCHAR(50) NOT NULL, -- 'AUTOMATED', 'CACHE_HIT', 'FALLBACK'
     execution_time_ms INTEGER NOT NULL,
     fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
     failure_reason TEXT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
     is_overridden BOOLEAN NOT NULL DEFAULT FALSE,
     overridden_by VARCHAR(100) NULL,
     override_reason TEXT NULL,
-    idempotency_key VARCHAR(100) NULL,
+    idempotency_key VARCHAR(128) NULL,
     version INTEGER NOT NULL DEFAULT 1,
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -175,38 +175,35 @@ Nếu bản Migration gây lỗi hoặc cần gỡ bỏ hoàn toàn:
 
 ## 3. CƠ CHẾ REQUEST-HASH CACHING & CHUẨN HÓA DỮ LIỆU
 
-Nhằm tối ưu hóa hiệu năng phản hồi và tránh tính toán lại không cần thiết, TADSS áp dụng cơ chế Request-Hash Cache (Redis 7.x, SHA-256 exact-match).
+Nhằm tối ưu hóa hiệu năng phản hồi và tránh tính toán lại không cần thiết, TADSS áp dụng cơ chế Request-Hash Cache (Redis 7.x L2 kết hợp `IMemoryCache` L1 fallback, SHA-256 exact-match).
 
 ### 3.1. Quy trình Chuẩn hóa Payload (Canonicalization - 4 bước)
 
-> **⚠️ NGUYÊN TẮC VÀNG:** Canonicalization chỉ chuẩn hóa hình thức biểu diễn (representation), **TUYỆT ĐỐI GIỮ NGUYÊN GIÁ TRỊ NGHIỆP VỤ** (`startTime`, `endTime`, `basePrice`, `depositAmount`). Không tự ý làm tròn timestamp nghiệp vụ.
+> **⚠️ NGUYÊN TẮC VÀNG (ARCHITECTURAL INVARIANT):** Canonicalization chỉ chuẩn hóa hình thức biểu diễn (representation), **TUYỆT ĐỐI GIỮ NGUYÊN GIÁ TRỊ NGHIỆP VỤ** (`startTime`, `endTime`, `totalPrice`, `depositAmount`). Các giá trị thời gian có ý nghĩa nghiệp vụ phải được bảo toàn chính xác; chỉ phần nhiễu hệ thống dưới mức giây (sub-second ticks) mới được cắt bỏ về giây chuẩn UTC.
 
-1.  **Sắp xếp Keys (Key Sorting):** Sắp xếp toàn bộ keys trong đối tượng JSON theo thứ tự alphabet.
-2.  **Lowercase Chuỗi Định danh:** Chuyển đổi toàn bộ chuỗi UUID (`id`, `customerId`, `resourceId`) về dạng chữ thường.
-3.  **Chuẩn hóa Định dạng Timestamp (Representation Format):** Chuyển đổi mốc thời gian sang định dạng ISO 8601 UTC string (`yyyy-MM-ddTHH:mm:ssZ`) mà không làm thay đổi giá trị thực tế của giờ/phút.
-4.  **Xóa Khoảng trắng & Chuẩn hóa Null:** Loại bỏ khoảng trắng thừa (insignificant whitespace) và chuẩn hóa biểu diễn trường `null`.
+1.  **Sắp xếp Keys (Key Sorting):** Sắp xếp toàn bộ keys trong đối tượng JSON/Metadata theo thứ tự alphabet (RFC 8785 JCS).
+2.  **Chuẩn hóa Chuỗi Định danh & Phân loại:** Chuẩn hóa chuỗi UUID (`reservationId`, `customerId`, `courtId`, `branchId`) và in hoa (`ToUpperInvariant`) các trường phân loại (`customerTier`, `bookingType`, `paymentStatus`, `priority`).
+3.  **Chuẩn hóa Định dạng Timestamp & Loại bỏ Nhiễu Thời gian Gửi:** Chuyển đổi `startTime` và `endTime` sang định dạng ISO 8601 UTC mức giây (`yyyy-MM-ddTHH:mm:ssZ`, cắt bỏ sub-second ticks nhưng giữ nguyên giờ/phút nghiệp vụ), đồng thời **loại trừ `requestedAt`** (thời điểm gửi HTTP request) khỏi đối tượng băm để các lần gọi đánh giá cùng một lịch đặt sân luôn khớp Cache Key.
+4.  **Định dạng Số Thập phân Bất biến & Xóa Khoảng trắng:** Định dạng `totalPrice`, `depositAmount` theo `F2` (`CultureInfo.InvariantCulture`), loại bỏ khoảng trắng thừa và chuẩn hóa trường `null`.
 
-### 3.2. Thuật toán tạo Cache Key
+### 3.2. Thuật toán tạo RequestHash & Cache Key (Tách biệt Request Identity và Strategy Identity)
 
 ```csharp
-// Chuẩn hóa representation và băm SHA-256
+// 1. Request Identity: Chuẩn hóa representation của DecisionRequestDto và băm SHA-256
 var normalizedPayload = CanonicalizeJson(decisionRequest);
-var rawKeyString = $"{strategyName}|{strategyVersion}|{normalizedPayload}";
-
 using var sha256 = System.Security.Cryptography.SHA256.Create();
-var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(rawKeyString));
-var requestHash = Convert.ToHexString(hashBytes).ToLower();
+var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(normalizedPayload));
+var requestHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
 
-// Cache key gắn liền với strategyName và strategyVersion
-var cacheKey = $"decision:{strategyName}:{strategyVersion}:{requestHash}";
+// 2. Cache Key: Kết hợp RequestHash với Strategy Identity (strategyName + strategyVersion)
+var cacheKey = $"decision:hash:{requestHash}:{strategyName}:v{strategyVersion}";
 ```
 
 ### 3.3. Chính sách TTL & Invalidation
 
-*   **TTL Policy:** Áp dụng TTL = 15 phút cho `DefaultDecisionStrategy` và các policy context cho phép cache.
-*   **Strategy Version Isolation:** Khi nâng cấp chiến lược (ví dụ `Default:v1` $
-ightarrow$ `Default:v2`), cache key tự động thay đổi, không bao giờ lấy lại kết quả cũ của phiên bản trước.
-*   **Memory Fallback:** Nếu Redis gặp sự cố kết nối, hệ thống tự động fallback sang `IMemoryCache` in-process mà không gây gián đoạn API.
+*   **TTL Configuration (Operational / Experimental Parameter):** Cấu hình mặc định cho baseline vận hành và thực nghiệm là `TtlHours = 24` (24 giờ, cấu hình qua `TadssCacheOptions` trong `appsettings.json`, có thể điều chỉnh linh hoạt theo từng kịch bản thực nghiệm mà không phải là bất biến kiến trúc cứng).
+*   **Strategy Version Isolation:** Khi nâng cấp chiến lược (ví dụ `Default:v1.0.0` $\rightarrow$ `Default:v2.0.0`), hậu tố `:v{strategyVersion}` trên cache key tự động thay đổi, không bao giờ lấy lại kết quả cũ của phiên bản trước.
+*   **Memory Fallback (F5):** Nếu Redis L2 gặp sự cố kết nối hoặc vượt quá `RedisTimeoutMs` (150ms), `ResilientDecisionCacheService` tự động giáng cấp sang `IMemoryCache` L1 in-process mà không gây gián đoạn API.
 
 ---
 

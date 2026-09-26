@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
@@ -30,6 +31,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         {
             DomainInvariantException die => (StatusCodes.Status400BadRequest, "Domain Invariant Violation", die.InvariantCode),
             IdempotencyConflictException => (StatusCodes.Status409Conflict, "Idempotency Key Reuse Conflict", ErrorCodes.IdempotencyKeyReuse),
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", ErrorCodes.Conflict),
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Invalid Operation", ErrorCodes.BadRequest),
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid Request Argument", ErrorCodes.ValidationError),
             KeyNotFoundException => (StatusCodes.Status404NotFound, "Resource Not Found", ErrorCodes.NotFound),
@@ -39,7 +41,9 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
 
         var detail = statusCode == StatusCodes.Status500InternalServerError
             ? "An unexpected internal server error occurred."
-            : exception.Message;
+            : exception is DbUpdateConcurrencyException
+                ? "The target decision record was modified concurrently by another request. Please refresh and retry."
+                : exception.Message;
 
         var problemDetails = new ProblemDetails
         {

@@ -18,7 +18,7 @@ Tài liệu này đặc tả chi tiết **Bản phân rã công việc (WBS)**, 
 ┌────────────────────────────────────────────────────────────────────────┐
 │             LỚP 2: HỆ THỐNG RUNTIME ENGINE (TADSS - Đồ án 2)           │
 │  - Gọi chiến lược IReservationDecision - Fallback & Polly Gateway       │
-│  - Manager Approval UI & Override API  - MediatR Events & DB Event Table│
+│  - Manager Approval UI & Override API  - Synchronous Audit Trail (DB)   │
 │  - Cost Guardrail & Request-Hash Cache - Tích hợp API đặt sân SmashCourt│
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ (Định tuyến & Giám sát vận hành)
@@ -76,31 +76,30 @@ Trước khi triển khai, nhóm thống nhất 3 nguyên tắc cô lập phạm
 * **Task 3.1 (Tạo Web API & Decision Controller):** Khởi tạo Web API `DecisionRuntime.TADSS`, endpoint `POST /api/v1/decisions`, xử lý validation và correlation ID.
 * **Task 3.2 (Lập trình Strategy Factory):** Viết `StrategyFactory` tự động đăng ký và phân giải Strategy qua cơ chế Dependency Injection (DI-based Strategy Resolution) với độ phức tạp $O(1)$.
 * **Task 3.3 (Cài đặt Executable Strategies):**
-  * Hiện thực hóa `DefaultDecisionStrategy` (mặc định yêu cầu thanh toán cọc tĩnh 100% làm fallback).
+  * Hiện thực hóa `DefaultDecisionStrategy` (chính sách nghiệp vụ cơ sở bảo thủ của nền tảng; tách biệt với cơ chế cứu cánh hạ tầng `FallbackDecisionStrategy`).
   * Hiện thực hóa `MockAlternativeDecisionStrategy` (tự động phân tích khung giờ cao điểm trong `ReservationSchedule` để nâng cọc lên 50%, giờ thường cọc 30%).
 * **Task 3.4 (Hoàn thiện Runtime Độc lập):** Xử lý Strategy Version Resolution, Error Handling Middleware, Swagger Documentation với đầy đủ ví dụ request/response.
 * **Sản phẩm bàn giao (Deliverables):** Dự án Web API chạy local mượt mà; Tài liệu Swagger API hiển thị luồng phân giải Strategy thành công; Test end-to-end độc lập đạt 100%.
 * **Phân chia công việc:**
-  * **Sinh viên 1:** Thiết lập lõi Web API, lập trình `StrategyFactory` dùng DI Lookup, routing controller.
+  * **Sinh viên 1:** Thiết lập lõi Web API, lập trình `StrategyResolver` dùng DI Lookup, routing controller, Synchronous Audit & L1/L2 Cache.
   * **Sinh viên 2:** Hiện thực hóa code cho hai chiến lược cụ thể (`Default` và `MockAlternative`), chuẩn hóa DTO response.
 
-### PHASE 4: RESILIENCE, CACHE & AUDIT TRAIL (Tuần 7 — Tuần 9)
-*Trọng tâm: Triển khai các cơ chế chịu lỗi cho Decision Runtime, lưu vết quyết định đồng bộ và tối ưu hiệu năng.*
-* **Task 4.1 (Cấu hình Polly v8 Resilience Pipeline - Tuần 7):** Lập trình đường ống chịu lỗi lồng nhau: Outer Timeout (500ms SLA) $
-ightarrow$ Retry (2 lần) $
-ightarrow$ Inner Timeout (150ms từng lần gọi) $
-ightarrow$ Circuit Breaker (tỷ lệ lỗi trong cửa sổ 30s) $
-ightarrow$ Fallback sang `DefaultDecisionStrategy` (100% thanh toán). *Dành 2 ngày đầu làm Spike POC để khóa cấu hình Polly v8.*
-* **Task 4.2 (Ghi Audit Trail bằng MediatR - Tuần 8):** Triển khai in-process events của MediatR (`DecisionExecutedEvent`, `OverrideExecutedEvent`) bọc trong PostgreSQL Transaction đồng bộ. Lưu nhật ký thực thi chi tiết xuống bảng `tadss.decision_executions` (phân loại rõ `StrategyExecution`, `CacheHit`, `FallbackExecution`, ghi nhận `failure_reason` nếu có).
-* **Task 4.3 (Triển khai Request-Hash Cache - Tuần 9):** Tích hợp Redis 7.x. Viết Middleware chuẩn hóa JSON (sắp xếp key alphabet, chuyển UUID về lowercase, chuẩn hóa định dạng ISO 8601 UTC, giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) và băm SHA256 dữ liệu request để tạo Cache Key dạng `decision:{strategyName}:{strategyVersion}:{requestHash}` với TTL = 15 phút. *(Tích hợp sẵn `IMemoryCache` fallback nếu Redis mất kết nối).*
-* **Sản phẩm bàn giao (Deliverables):** Hệ thống log và trace hoạt động ổn định; Cache hoạt động chính xác (với Unit Test kiểm tra 2 request cùng ngữ nghĩa nhưng khác thứ tự key vẫn ra cùng mã hash); Chạy thử nghiệm ngắt kết nối Strategy để chứng kiến Polly tự động Fallback.
+### PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
+*Trọng tâm: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu.*
+* **Task 4.1 (Polly v8 Resilience, Resilient L1/L2 Cache, Synchronous Audit & Fault Matrix F1–F7 - Tuần 7):**
+  * Lập trình đường ống chịu lỗi 5 tầng: Outer Timeout (`500ms` SLA) $\rightarrow$ Fallback sang `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`, `FallbackUsed = true`, `ExecutionTimeMs = 0`) $\rightarrow$ Retry (2 lần, base delay `30ms`) $\rightarrow$ Circuit Breaker (tỷ lệ lỗi $\ge 50\%$ trong cửa sổ `30s`, `BreakDuration = 15s`) $\rightarrow$ Inner Timeout (`120ms` từng lần gọi).
+  * Thiết lập hệ thống ghi vết Append-only Audit Trail đồng bộ (Fail-Closed) thông qua MediatR in-process events (`DecisionEvaluatedAuditNotification`) nằm trong transaction boundary của PostgreSQL (`tadss.decision_executions`), phân biệt rõ các loại thực thi (`AUTOMATED`, `CACHE_HIT`, `FALLBACK`) và `failure_reason` theo chuẩn `FailureReasonPrefixes`.
+  * Chuẩn hóa JSON theo RFC 8785 (sắp xếp key alphabet, lowercase UUID, chuẩn hóa timestamp về giây chuẩn UTC `yyyy-MM-ddTHH:mm:ssZ` giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) tạo `RequestHash = SHA256(Canonical(DecisionRequest))` và Cache Key `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline mặc định `TtlHours = 24` và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 (F5).
+* **Task 4.2 (Thực nghiệm Benchmark Cache $G_0..G_2$ & Resilience $R_0..R_3$ - Tuần 8):** Thực thi đo đạc 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải đồng thời $VUs \in \{1, 10, 50, 100\}$ cho 3 điều kiện Cache ($G_0, G_1, G_2$) và 4 kịch bản Resilience ($R_0..R_3$), định lượng Cache Benefit, Cache Miss Overhead và Decision Continuity Rate (DCR).
+* **Task 4.3 (Chuẩn hóa Tập dữ liệu Nghiên cứu với DatasetNormalizer - Tuần 9):** Xây dựng `DatasetNormalizer` kết hợp bảng `tadss.decision_executions` với Metadata thực nghiệm để trích xuất 3 bộ dữ liệu chuẩn hóa (*Resilience Evaluation Dataset*, *Latency & Caching Dataset*, *Ablation & Governance Dataset*) phục vụ Chương 4.
+* **Sản phẩm bàn giao (Deliverables):** Ma trận kiểm thử tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Công cụ `DatasetNormalizer` và 3 bộ dữ liệu thực nghiệm chuẩn hóa.
 * **Phân chia công việc:**
-  * **Sinh viên 1:** Cấu hình Polly v8 Resilience Spike & POC, viết MediatR Events bọc DB Transaction để ghi Audit Trail.
-  * **Sinh viên 2:** Tích hợp Redis (hoặc IMemoryCache fallback), lập trình chuẩn hóa JSON Payload & băm SHA256 Request-Hash Caching.
+  * **Sinh viên 1:** Cấu hình Polly v8 Resilience Pipeline, Synchronous Audit Persistence, và thực thi Resilience Benchmark ($R_0..R_3$).
+  * **Sinh viên 2:** Tích hợp Resilient L1/L2 Request-Hash Caching, thực thi Cache Benchmark ($G_0..G_2$), và xây dựng `DatasetNormalizer`.
 
 ### PHASE 5: HUMAN-IN-THE-LOOP & TÍCH HỢP SMASHCOURT (Tuần 10 — Tuần 12)
 *Trọng tâm: Cung cấp quyền kiểm duyệt tối cao cho Manager, khởi tạo báo cáo sớm và kết nối đầu-cuối với SmashCourt (3 tuần).*
-* **Task 5.1 (Lập trình Override API - Tuần 10):** Viết endpoint `POST /api/v1/decisions/{id}/override` tích hợp `IdempotencyKey` và `ExpectedVersion` (Optimistic Concurrency) ngăn ngừa race condition.
+* **Task 5.1 (Lập trình Override API - Tuần 10):** Hoàn thiện endpoint `POST /api/v1/decisions/{id}/override` tích hợp kiểm tra trạng thái `IsOverridden` (chặn ghi đè trùng lặp) và `Version` (`IsConcurrencyToken` - Optimistic Concurrency) ngăn ngừa race condition.
 * **Task 5.2 (Feature Flag động - Tuần 10):** Cấu hình Feature Flag `EnableTadssDecision` bọc ngoài luồng đặt sân của SmashCourt sử dụng `IOptionsMonitor` để reload cấu hình appsettings.json động dưới 2 giây.
 * **Task 5.3 (Khởi tạo Báo cáo Đồ án 2 sớm - Tuần 10):** Viết phác thảo khung Báo cáo Đồ án 2 ngay từ Tuần 10: Day 1-2 (SV1+SV2 pair-writing Chương 1 Giới thiệu: 10-12 trang), Day 3-4 (SV1 viết Chương 2.1-2.2 DB & API Design: 8-10 trang), Day 5-6 (SV2 viết Chương 2.3-2.4 Polly & Cache Design: 8-10 trang) đạt 26-32 trang (>40% khối lượng).
 * **Task 5.4 (Xây dựng Manager Dashboard trên `smashcourt-fe` - Tuần 11):** 
@@ -139,25 +138,22 @@ ightarrow$ Fallback sang `DefaultDecisionStrategy` (100% thanh toán). *Dành 2 
 * **[Mốc 1: Cuối Tuần 2]** ───► **Foundation Ready:** Solution skeleton, Database Schema `tadss` và Contract v1 được phê duyệt.
 * **[Mốc 2: Cuối Tuần 4]** ───► **Decision Contract Ready:** DLL `Shared.DecisionContractSDK` biên dịch thành công, Unit Tests > 80% coverage.
 * **[Mốc 3: Cuối Tuần 6]** ───► **Runtime Engine Standalone:** Web API và DI-based Strategy Resolution chạy độc lập hoàn chỉnh.
-* **[Mốc 4: Cuối Tuần 9]** ───► **Resilient & Auditable Core:** Polly v8 Pipeline, MediatR Audit Trail và Redis Request-Hash Cache hoàn tất.
+* **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core:** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, Benchmark ($G_0..G_2, R_0..R_3$) và Dataset Normalizer hoàn tất.
 * **[Mốc 5: Cuối Tuần 12]** ───► **End-to-End Integration Ready:** SmashCourt ↔ TADSS ↔ VNPay và Manager Dashboard UI tích hợp thành công.
 * **[Mốc 6: Cuối Tuần 14]** ───► **Technical Evaluation Complete:** Vượt qua 11 kịch bản kiểm thử sự cố, đo lường đầy đủ SLA p95 < 150ms.
 * **[Final Milestone: Cuối Tuần 16]** ───► **Defense Ready:** Hoàn thành cuốn Báo cáo 60 trang, Video Demo và Slide thuyết trình.
 
 ### 🚦 Hệ thống Đánh giá Tiến độ theo Màu (Traffic Light System):
-* 🟢 **GREEN (Đúng tiến độ):** Hoàn thành 100% các task theo kế hoạch tại mốc kiểm tra $
-ightarrow$ Tiếp tục triển khai toàn bộ scope.
+* 🟢 **GREEN (Đúng tiến độ):** Hoàn thành 100% các task theo kế hoạch tại mốc kiểm tra $\rightarrow$ Tiếp tục triển khai toàn bộ scope.
 * 🟡 **YELLOW (Trễ nhẹ 1-2 ngày):** Kích hoạt cắt giảm tầng **Optional (Cắt Cost Guardrail, k6 test)** để dồn sức cho Core.
-* 🔴 **RED (Trễ nghiêm trọng $\ge$ 3 ngày):** Kích hoạt cắt giảm tầng **Supporting (Chuyển Redis $
-ightarrow$ `IMemoryCache`, giảm độ phức tạp giao diện Dashboard)** và tập trung 100% tài nguyên cho các tính năng Core.
+* 🔴 **RED (Trễ nghiêm trọng $\ge$ 3 ngày):** Kích hoạt cắt giảm tầng **Supporting (Chuyển Redis $\rightarrow$ `IMemoryCache`, giảm độ phức tạp giao diện Dashboard)** và tập trung 100% tài nguyên cho các tính năng Core.
 
 ### 🆘 Chế độ Thoát khẩn cấp Phase 4 (Phase 4 Emergency Escape Hatch):
-Nếu đến **cuối Tuần 8 (Day 5)** mà Polly v8 hoặc MediatR Event vẫn bị tắc nghẽn chưa chạy ổn định:
-$
-ightarrow$ **KÍCH HOẠT CHẾ ĐỘ MVP TOÀN DIỆN (Minimal Viable Product Mode):**
-1. **Polly:** Chỉ giữ `Outer Timeout (500ms)` + `Fallback` (Tạm ngắt Retry và Circuit Breaker phức tạp).
-2. **Audit Trail:** Ghi trực tiếp log audit vào DB sau khi xử lý xong decision (bỏ qua in-transaction MediatR events).
-3. **Caching:** Sử dụng duy nhất `IMemoryCache` cục bộ, bỏ qua hoàn toàn Redis.
+Nếu đến **cuối Tuần 8 (Day 5)** mà hạ tầng Cache/Benchmark gặp tắc nghẽn môi trường:
+$\rightarrow$ **KÍCH HOẠT CHẾ ĐỘ MVP TOÀN DIỆN (Minimal Viable Product Mode):**
+1. **Polly:** Duy trì `Outer Timeout (500ms)` + `FallbackDecisionStrategy (NEED_APPROVAL)`.
+2. **Audit Trail:** Ghi trực tiếp đồng bộ log audit vào DB trong EF Core Transaction boundary.
+3. **Caching:** Sử dụng `IMemoryCache` L1 cục bộ, bỏ qua phụ thuộc Redis L2.
 
 *Triết lý bảo vệ:* *"Tốt hơn là bàn giao một hệ thống chạy hoàn hảo 80% tính năng lõi đúng hạn thay vì bàn giao một hệ thống lỗi 100% do trễ deadline!"*
 
@@ -169,7 +165,7 @@ ightarrow$ **KÍCH HOẠT CHẾ ĐỘ MVP TOÀN DIỆN (Minimal Viable Product M
 flowchart TD
     Phase1[Phase 1: Foundation & Architecture] --> Phase2[Phase 2: Decision Contract SDK]
     Phase2 --> Phase3[Phase 3: Decision Runtime API]
-    Phase3 --> Phase4[Phase 4: Resilience, Cache & Audit]
+    Phase3 --> Phase4[Phase 4: Resilience, Benchmark & Dataset]
     Phase4 --> Phase5[Phase 5: Human-in-the-loop & SmashCourt Integration]
     Phase5 --> Phase6[Phase 6: Testing & Technical Evaluation]
     Phase6 --> Phase7[Phase 7: Stabilization, Documentation & Defense]
@@ -181,10 +177,10 @@ flowchart TD
 
 *   **Lớp 1 (SmashCourt Product):**
     *   Tích hợp thành công API ra quyết định vào luồng đặt sân và thanh toán VNPay hiện tại.
-    *   Tỷ lệ giao dịch đặt sân bị gián đoạn do lỗi runtime bằng **0%** nhờ cơ chế fallback tĩnh 100%.
+    *   Tỷ lệ giao dịch đặt sân bị gián đoạn do lỗi runtime bằng **0%** nhờ cơ chế fallback an toàn (`FallbackDecisionStrategy` $\rightarrow$ `NEED_APPROVAL` tại TADSS và chính sách cọc tĩnh 100% tại SmashCourt khi bypass).
 *   **Lớp 2 (Đồ án 2 - TADSS Core Engine):**
-    *   **Latency SLA (SC1):** Thời gian phản hồi $p95 < 150	ext{ms}$ đối với các yêu cầu thẩm định thành công thông thường.
-    *   **Fault-Tolerance Budget (SC2):** SLA tổng thể giới hạn $\le 500	ext{ms}$ thông qua Outer Timeout khi xảy ra lỗi/retry/fallback.
+    *   **Latency SLA (SC1):** Thời gian phản hồi $p95 < 150\text{ms}$ đối với các yêu cầu thẩm định thành công thông thường.
+    *   **Fault-Tolerance Budget (SC2):** SLA tổng thể giới hạn $\le 500\text{ms}$ thông qua Outer Timeout khi xảy ra lỗi/retry/fallback.
     *   **Audit Completeness (SC3):** 100% các yêu cầu ra quyết định và ghi đè đều được lưu vết đầy đủ trong schema `tadss`.
     *   **Idempotency Protection (SC4):** Chặn 100% các yêu cầu duyệt trùng lặp qua `IdempotencyKey`.
     *   **Dynamic Reload (SC5):** Tự động nạp lại cấu hình Feature Flag dưới 2 giây qua `IOptionsMonitor`.
@@ -210,8 +206,8 @@ flowchart TD
 ## VIII. CHI TIẾT KIỂM THỬ (TESTING STRATEGY)
 
 *   **Unit Testing (Kiểm thử đơn vị):** Lõi Decision Contract SDK, Invariant Validation, JSON Serialization (Đạt coverage > 80%).
-*   **Integration Testing (Kiểm thử tích hợp):** Trao đổi dữ liệu JSON giữa SmashCourt và TADSS Core API; Lưu vết MediatR Audit Trail vào database.
-*   **Performance & Resilience Testing:** Bắn tải đo lường latency p95 < 150ms; Tiêm lỗi (Fault Injection) xác minh Circuit Breaker và Fallback cọc 100%.
+*   **Integration Testing (Kiểm thử tích hợp):** Trao đổi dữ liệu JSON giữa SmashCourt và TADSS Core API; Lưu vết đồng bộ Synchronous Audit Trail vào database.
+*   **Performance & Resilience Testing:** Bắn tải đo lường latency p95 < 150ms; Tiêm lỗi (Fault Injection F1–F7) xác minh Circuit Breaker và `FallbackDecisionStrategy` (`NEED_APPROVAL`).
 *   **User Acceptance Testing (UAT):** Kịch bản phê duyệt, ghi đè cọc và xử lý xung đột đồng thời của Manager trên Dashboard.
 
 ---

@@ -34,14 +34,15 @@ public class FallbackDecisionStrategy : IReservationDecisionStrategy
             Reasons =
             [
                 "Chế độ an toàn tự động kích hoạt do chiến lược chính gặp sự cố hoặc quá thời hạn xử lý.",
-                "Đơn đặt sân được chuyển sang trạng thái Cần duyệt thủ công để đảm bảo an toàn."
+                "Đơn đặt sân được chuyển sang trạng thái Cần duyệt thủ công và mặc định áp dụng mức thanh toán 100% chi phí để đảm bảo an toàn."
             ],
             Recommendations =
             [
                 new DecisionRecommendationDto
                 {
                     Type = RecommendationType.REQUIRE_APPROVAL.ToString(),
-                    Description = "Yêu cầu Quản lý chi nhánh kiểm tra và duyệt đơn thủ công.",
+                    Description = "Yêu cầu Quản lý chi nhánh kiểm tra, duyệt đơn thủ công hoặc áp dụng mức thanh toán mặc định 100%.",
+                    SuggestedPrice = reservation?.Payment.TotalPrice,
                     ConfidenceScore = 1.0
                 }
             ],

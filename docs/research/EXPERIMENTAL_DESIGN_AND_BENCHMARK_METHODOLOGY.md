@@ -70,7 +70,10 @@ Tuân thủ nghiêm ngặt nguyên tắc **"Measure First $\rightarrow$ Optimize
 ### 3.1. Các Yếu tố Kiểm soát Môi trường (Environmental Controls)
 Mọi lượt chạy benchmark phải ghi nhận và cố định các thông số:
 * **Hardware & Runtime:** CPU Core count, RAM, OS version, .NET 8 SDK / Runtime version.
-* **Infrastructure Dependencies:** PostgreSQL 16 version, Redis 7 version (cấu hình memory, connection limits).
+* **Infrastructure Dependencies:** PostgreSQL 16 version, Redis 7 version (cấu hình memory, connection limits, `RedisTimeoutMs = 150ms`).
+* **Cache Identity Invariant vs. TTL Configuration:**
+  * *Architectural Invariant:* `RequestHash = SHA256(Canonical(DecisionRequest))` (bảo toàn 100% giá trị thời gian nghiệp vụ, chỉ cắt bỏ sub-second ticks về giây UTC) và `CacheKey = decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`.
+  * *Experimental Configuration Parameter:* `Default TTL for benchmark baseline = 24h` (`TtlHours = 24` trong `appsettings.json` — tham số cấu hình thực nghiệm, không phải bất biến kiến trúc cứng).
 * **Workload Configuration:** So sánh đối chứng tại các mức Concurrency giống hệt nhau:
   $$\text{Workload Scenarios} = \left\{ \text{VUs} \in \{1, 10, 50, 100\}, \ N \approx 10.000 \text{ requests per condition/VU level} \right\}$$
 

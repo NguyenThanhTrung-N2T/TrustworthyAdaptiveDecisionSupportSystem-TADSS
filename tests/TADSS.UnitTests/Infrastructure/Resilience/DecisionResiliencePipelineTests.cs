@@ -131,7 +131,7 @@ public class DecisionResiliencePipelineTests
     private class SlowStrategy : IReservationDecisionStrategy
     {
         private readonly int _delayMs;
-        private readonly Stopwatch? _timeline;
+        private readonly Stopwatch _timeline = new();
         private readonly List<long> _attemptStartOffsetsMs = [];
 
         public string StrategyName => "SlowStrategy";
@@ -139,16 +139,20 @@ public class DecisionResiliencePipelineTests
         public int InvocationCount { get; private set; }
         public IReadOnlyList<long> AttemptStartOffsetsMs => _attemptStartOffsetsMs;
 
-        public SlowStrategy(int delayMs, Stopwatch? timeline = null)
+        public SlowStrategy(int delayMs)
         {
             _delayMs = delayMs;
-            _timeline = timeline;
         }
 
         public async Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
         {
             InvocationCount++;
-            if (_timeline != null)
+            if (InvocationCount == 1)
+            {
+                _timeline.Restart();
+                _attemptStartOffsetsMs.Add(0);
+            }
+            else
             {
                 _attemptStartOffsetsMs.Add(_timeline.ElapsedMilliseconds);
             }
@@ -357,11 +361,11 @@ public class DecisionResiliencePipelineTests
         var pipeline = CreatePipeline(options);
         var reservation = CreateTestReservation();
 
-        var stopwatch = Stopwatch.StartNew();
-        var slowStrategy = new SlowStrategy(delayMs: 2000, timeline: stopwatch);
+        var slowStrategy = new SlowStrategy(delayMs: 2000);
         DecisionExecutionOutcome? outcome = null;
         Exception? caughtException = null;
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             outcome = await pipeline.ExecuteStrategyAsync(slowStrategy, reservation);

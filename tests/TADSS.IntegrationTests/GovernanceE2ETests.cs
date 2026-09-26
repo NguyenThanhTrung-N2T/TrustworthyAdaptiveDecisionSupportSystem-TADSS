@@ -314,6 +314,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         dbSnapshotAfterFirst.IsOverridden.Should().BeTrue();
         dbSnapshotAfterFirst.OverriddenBy.Should().Be("manager@smashcourt.vn");
         dbSnapshotAfterFirst.OverrideReason.Should().Be("VIP Customer manual adjustment");
+        dbSnapshotAfterFirst.Version.Should().Be(dbSnapshotBefore.Version + 1);
         // Assert: Overridden decision MUST no longer appear in pending approvals list
         var pendingRes = await _client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=50");
         pendingRes.StatusCode.Should().Be(HttpStatusCode.OK);

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
@@ -572,6 +573,242 @@ public class DecisionServiceTests
         persisted!.ExecutionType.Should().Be("FALLBACK");
         persisted.FallbackUsed.Should().BeTrue();
         persisted.FailureReason.Should().Contain("timed out");
+    }
+
+    [Fact]
+    public async Task EvaluateAndOverride_WithMediatRInProcessPublisher_PersistsAppendOnlyAuditTrailSynchronously()
+    {
+        // Arrange: Wire MediatR IPublisher & INotificationHandlers with TadssDbContext
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var dbName = Guid.NewGuid().ToString();
+        services.AddDbContext<TadssDbContext>(opts => opts.UseInMemoryDatabase(dbName));
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DecisionService).Assembly));
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
+        var publisher = scope.ServiceProvider.GetRequiredService<MediatR.IPublisher>();
+
+        var resolver = CreateResolver();
+        var fallbackStrategy = new FallbackDecisionStrategy();
+        var resiliencePipeline = new DecisionResiliencePipeline(new ResilienceOptions(), fallbackStrategy, NullLogger<DecisionResiliencePipeline>.Instance);
+        var cacheService = CreateMemoryCacheService();
+        var service = new DecisionService(dbContext, resolver, resiliencePipeline, cacheService, NullLogger<DecisionService>.Instance, publisher);
+
+        var request = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "Standard",
+            StartTime = DateTime.UtcNow.AddHours(2),
+            EndTime = DateTime.UtcNow.AddHours(4),
+            BookingType = "Single",
+            TotalPrice = 400000m,
+            DepositAmount = 40000m, // 10% -> NEED_APPROVAL (defaults to 100% requirement)
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        // Act 1: Evaluate decision via MediatR in-process audit notification
+        var evalResult = await service.EvaluateDecisionAsync(request, "idemp-mediatr-audit-01");
+
+        // Assert 1: Persisted synchronously with AUTOMATED execution type
+        var persistedBeforeOverride = await dbContext.DecisionExecutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.DecisionId == evalResult.DecisionId);
+        persistedBeforeOverride.Should().NotBeNull();
+        persistedBeforeOverride!.ExecutionType.Should().Be("AUTOMATED");
+        persistedBeforeOverride.NeedApproval.Should().BeTrue();
+        persistedBeforeOverride.IsOverridden.Should().BeFalse();
+
+        // Act 2: Override decision via MediatR in-process override notification
+        var overrideReq = new OverrideDecisionRequestDto
+        {
+            Decision = new OverrideTargetPayloadDto { Status = "APPROVED" },
+            OverriddenBy = "manager-mediatr",
+            OverrideReason = "Approved via synchronous MediatR in-process handler"
+        };
+        var overrideResult = await service.OverrideDecisionAsync(evalResult.DecisionId, overrideReq);
+
+        // Assert 2: Governance metadata updated while machine ResponsePayload snapshot remains immutable
+        overrideResult.Should().NotBeNull();
+        overrideResult!.IsOverridden.Should().BeTrue();
+        var persistedAfterOverride = await dbContext.DecisionExecutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.DecisionId == evalResult.DecisionId);
+        persistedAfterOverride!.IsOverridden.Should().BeTrue();
+        persistedAfterOverride.OverriddenBy.Should().Be("manager-mediatr");
+        persistedAfterOverride.ResponsePayload.Should().Be(persistedBeforeOverride.ResponsePayload);
+    }
+
+    [Theory]
+    [InlineData("NEED_APPROVAL")]
+    [InlineData("PENDING")]
+    [InlineData("INVALID_STATUS")]
+    [InlineData("")]
+    public async Task OverrideDecisionAsync_InvalidTargetStatus_ThrowsArgumentException(string invalidStatus)
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var service = CreateService(dbContext);
+
+        var req = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "Standard",
+            StartTime = DateTime.UtcNow.AddHours(2),
+            EndTime = DateTime.UtcNow.AddHours(4),
+            BookingType = "Single",
+            TotalPrice = 300000m,
+            DepositAmount = 30000m,
+            PaymentStatus = "PARTIALLY_PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+        var evalResult = await service.EvaluateDecisionAsync(req, $"override-invalid-{Guid.NewGuid()}");
+
+        var overrideRequest = new OverrideDecisionRequestDto
+        {
+            Decision = new OverrideTargetPayloadDto { Status = invalidStatus },
+            OverriddenBy = "manager-alice",
+            OverrideReason = "Testing invalid target status"
+        };
+
+        // Act
+        var act = () => service.OverrideDecisionAsync(evalResult.DecisionId, overrideRequest);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*Only 'APPROVED' or 'REJECTED' is permitted*");
+    }
+
+    [Fact]
+    public async Task EvaluateDecisionAsync_IdempotencyRaceCondition_DetachesFailedEntityAndReplaysWinningRecord()
+    {
+        // Arrange: Simulate a concurrent winner inserting the same IdempotencyKey right as SaveChangesAsync is called
+        var dbName = Guid.NewGuid().ToString();
+        var raceKey = "race-idemp-key-001";
+        var request = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "VIP",
+            StartTime = DateTime.UtcNow.AddHours(2),
+            EndTime = DateTime.UtcNow.AddHours(4),
+            BookingType = "Single",
+            TotalPrice = 200000m,
+            DepositAmount = 200000m,
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        // Seed winning record via a separate context so first read sees nothing, or use a custom MediatR publisher
+        var options = new DbContextOptionsBuilder<TadssDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+
+        using var dbContext = new TadssDbContext(options);
+        var winningDecisionId = Guid.NewGuid();
+        var mockPublisher = new Moq.Mock<MediatR.IPublisher>();
+        mockPublisher
+            .Setup(p => p.Publish(Moq.It.IsAny<TADSS.Runtime.Api.Infrastructure.Data.Auditing.DecisionEvaluatedAuditNotification>(), Moq.It.IsAny<CancellationToken>()))
+            .Callback<TADSS.Runtime.Api.Infrastructure.Data.Auditing.DecisionEvaluatedAuditNotification, CancellationToken>((notif, _) =>
+            {
+                // Add the losing entity to ChangeTracker just like the real handler does before SaveChangesAsync fails
+                dbContext.DecisionExecutions.Add(notif.Execution);
+
+                // Simulate another concurrent transaction committing the winning record into the DB
+                using var concurrentContext = new TadssDbContext(options);
+                concurrentContext.DecisionExecutions.Add(new TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution
+                {
+                    Id = Guid.NewGuid(),
+                    DecisionId = winningDecisionId,
+                    ReservationId = request.ReservationId,
+                    StrategyName = "DefaultDecisionStrategy",
+                    StrategyVersion = "1.0.0",
+                    ExecutionType = "AUTOMATED",
+                    ExecutionTimeMs = 4,
+                    FallbackUsed = false,
+                    CacheHit = false,
+                    NeedApproval = false,
+                    IdempotencyKey = raceKey,
+                    RequestHash = notif.Execution.RequestHash,
+                    ResponsePayload = System.Text.Json.JsonSerializer.Serialize(new DecisionResultDto
+                    {
+                        DecisionId = winningDecisionId,
+                        ReservationId = request.ReservationId,
+                        Status = "APPROVED",
+                        StrategyName = "DefaultDecisionStrategy",
+                        StrategyVersion = "1.0.0",
+                        ExecutionTimeMs = 4,
+                        FallbackUsed = false,
+                        PrimaryReason = "AUTO_APPROVED_TIER_ELIGIBLE",
+                        Reasons = [],
+                        Recommendations = [],
+                        EvaluatedAt = DateTime.UtcNow
+                    }),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                concurrentContext.SaveChanges();
+
+                throw new DbUpdateException("Duplicate key value violates unique constraint uq_decision_idempotency_key");
+            });
+
+        var service = new DecisionService(
+            dbContext,
+            CreateResolver(),
+            new DecisionResiliencePipeline(new ResilienceOptions(), new FallbackDecisionStrategy(), NullLogger<DecisionResiliencePipeline>.Instance),
+            CreateMemoryCacheService(),
+            NullLogger<DecisionService>.Instance,
+            mockPublisher.Object);
+
+        // Act
+        var replayed = await service.EvaluateDecisionAsync(request, raceKey);
+
+        // Assert 1: Winning record is replayed
+        replayed.DecisionId.Should().Be(winningDecisionId);
+
+        // Assert 2: Losing entity was detached from ChangeTracker (no poisoned Added entity left behind)
+        dbContext.ChangeTracker.Entries<TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution>()
+            .Where(e => e.State == EntityState.Added)
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GlobalExceptionHandler_WhenDbUpdateConcurrencyExceptionThrown_Returns409ConflictProblemDetails()
+    {
+        // Arrange
+        var handler = new TADSS.Runtime.Api.Middlewares.GlobalExceptionHandler(
+            NullLogger<TADSS.Runtime.Api.Middlewares.GlobalExceptionHandler>.Instance);
+        var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        httpContext.Request.Path = "/api/v1/decisions/018e3a2b-8a71-7000-8c24-112233445566/override";
+        await using var responseBody = new MemoryStream();
+        httpContext.Response.Body = responseBody;
+
+        var concurrencyEx = new DbUpdateConcurrencyException("Database operation expected to affect 1 row(s), but actually affected 0 row(s).");
+
+        // Act
+        var handled = await handler.TryHandleAsync(httpContext, concurrencyEx, CancellationToken.None);
+
+        // Assert
+        handled.Should().BeTrue();
+        httpContext.Response.StatusCode.Should().Be(Microsoft.AspNetCore.Http.StatusCodes.Status409Conflict);
+
+        responseBody.Seek(0, SeekOrigin.Begin);
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(responseBody);
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(409);
+        doc.RootElement.GetProperty("title").GetString().Should().Be("Concurrency Conflict");
+        doc.RootElement.GetProperty("code").GetString().Should().Be(Shared.DecisionContractSDK.Common.ErrorCodes.Conflict);
     }
 
     private class SlowStrategyForService : Shared.DecisionContractSDK.Interfaces.IReservationDecisionStrategy

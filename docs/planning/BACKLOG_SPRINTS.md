@@ -39,28 +39,28 @@ Tài liệu này phân rã toàn bộ dự án từ **Epics ➔ Features ➔ Use
 
 *   **User Story 3: Lập trình API & Strategy Loader**
     *   *Task 3.1 (Sinh viên 1 - Owner):* Khởi tạo dự án Web API `DecisionRuntime.TADSS`, endpoint `POST /api/v1/decisions`, xử lý validation và correlation ID.
-    *   *Task 3.2 (Sinh viên 1 - Owner):* Lập trình lớp `StrategyFactory` tự động đăng ký và phân giải Strategy qua cơ chế Dependency Injection (DI-based Strategy Resolution) với độ phức tạp $O(1)$.
-    *   *Task 3.3 (Sinh viên 2 - Owner):* Hiện thực hóa mã nguồn cho 2 chiến lược cụ thể:
-        *   `DefaultDecisionStrategy`: Mặc định yêu cầu thanh toán cọc tĩnh 100% để làm fallback.
+    *   *Task 3.2 (Sinh viên 1 - Owner):* Lập trình lớp `StrategyResolver` tự động đăng ký và phân giải Strategy qua cơ chế Dependency Injection (DI-based Strategy Resolution) với độ phức tạp $O(1)$.
+    *   *Task 3.3 (Sinh viên 2 - Owner):* Hiện thực hóa mã nguồn cho 2 chiến lược nghiệp vụ cụ thể:
+        *   `DefaultDecisionStrategy`: Chính sách nghiệp vụ cơ sở bảo thủ của nền tảng (tách biệt với cơ chế cứu cánh hạ tầng `FallbackDecisionStrategy`).
         *   `MockAlternativeDecisionStrategy`: Tự động phân tích khung giờ cao điểm trong `ReservationSchedule` để nâng cọc lên 50%, giờ thường cọc 30%.
     *   *Task 3.4 (Sinh viên 1 & 2):* Hoàn thiện error handling middleware, correlation ID và Swagger UI với đầy đủ mock payloads.
     *   *Deliverables (Mốc 3 - Cuối Tuần 6):* Dự án Web API chạy local mượt mà; Tài liệu Swagger API hiển thị luồng phân giải Strategy thành công; Test end-to-end độc lập đạt 100%.
 
 ---
 
-### PHASE 4: RESILIENCE, CACHE & AUDIT TRAIL (Tuần 7 — Tuần 9)
-*Mục tiêu: Triển khai các cơ chế chịu lỗi cho Decision Runtime, lưu vết quyết định đồng bộ và tối ưu hiệu năng.*
+### PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
+*Mục tiêu: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu.*
 
-*   **User Story 4: Resilience, Cache & Audit**
-    *   *Task 4.1 (Sinh viên 1 - Owner):* Cấu hình Polly v8 Resilience Pipeline: Outer Timeout (500ms SLA) $
-ightarrow$ Retry (tối đa 2 lần, base delay 30ms) $
-ightarrow$ Inner Timeout (150ms/attempt) $
-ightarrow$ Circuit Breaker (tỷ lệ lỗi trong cửa sổ 30s) $
-ightarrow$ Fallback sang `DefaultDecisionStrategy` (thanh toán tĩnh 100%). *(Dành 2 ngày đầu Tuần 7 làm Spike POC độc lập).*
-    *   *Task 4.2 (Sinh viên 1 - Owner):* Triển khai MediatR in-process events (`DecisionExecutedEvent`, `OverrideExecutedEvent`) bọc trong PostgreSQL Transaction đồng bộ để lưu nhật ký chi tiết xuống bảng `tadss.decision_executions`.
-    *   *Task 4.3 (Sinh viên 2 - Owner):* Tích hợp Redis 7.x, viết Middleware chuẩn hóa JSON (sắp xếp key alphabet, chuyển UUID về lowercase, chuẩn hóa format ISO 8601 UTC (giữ nguyên semantic value), xóa whitespace và null) và băm SHA256 dữ liệu định danh request để tạo Cache Key dạng `decision:{strategyName}:{strategyVersion}:{requestHash}` với TTL = 15 phút. *(Nếu Redis gặp sự cố, tự động fallback sang `IMemoryCache` cục bộ).*
-    *   *Emergency Escape Hatch:* Nếu cuối Tuần 8 Day 5 mà Polly/MediatR/Redis gặp nghẽn ➔ Tự động bật MVP Mode: Giữ Timeout + Fallback, dùng `IMemoryCache`, ghi audit sau transaction.
-    *   *Deliverables (Mốc 4 - Cuối Tuần 9):* Hệ thống log và trace hoạt động ổn định; Redis Cache/MemoryCache hoạt động chính xác (đạt Unit test kiểm tra key sorting); Chạy thử nghiệm ngắt kết nối Strategy để chứng kiến Polly tự động Fallback.
+*   **User Story 4: Resilience, Benchmark & Dataset Normalization**
+    *   *Task 4.1 (Sinh viên 1 & 2 - Tuần 7):*
+        *   Cấu hình Polly v8 5-Layer Resilience Pipeline: Outer Timeout (`500ms` SLA) $\rightarrow$ Fallback sang `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`, `FallbackUsed = true`, `ExecutionTimeMs = 0`) $\rightarrow$ Retry (tối đa 2 lần, base delay `30ms`) $\rightarrow$ Circuit Breaker (tỷ lệ lỗi $\ge 50\%$ trong cửa sổ `30s`, `BreakDuration = 15s`) $\rightarrow$ Inner Timeout (`120ms`/attempt).
+        *   Triển khai Mandatory Synchronous Fail-Closed Append-only Audit Trail thông qua MediatR in-process events (`DecisionEvaluatedAuditNotification`) nằm trong PostgreSQL EF Core Transaction boundary để lưu nhật ký chi tiết (`execution_type` thuộc `'AUTOMATED' | 'CACHE_HIT' | 'FALLBACK'`) xuống bảng `tadss.decision_executions`.
+        *   Tích hợp Redis 7.x L2 + `IMemoryCache` L1 fallback (F5), chuẩn hóa JSON theo RFC 8785 (sắp xếp key alphabet, chuyển UUID về lowercase, chuẩn hóa format ISO 8601 UTC `yyyy-MM-ddTHH:mm:ssZ` giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) tạo `RequestHash = SHA256(Canonical(DecisionRequest))` và Cache Key `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline mặc định `TtlHours = 24`.
+        *   Kiểm chứng tự động toàn bộ 7 kịch bản lỗi trong Fault Injection Matrix (`F1–F7`).
+    *   *Task 4.2 (Sinh viên 1 & 2 - Tuần 8):* Thực thi đo đạc Performance Benchmark theo quy trình 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải $VUs \in \{1, 10, 50, 100\}$ cho 3 điều kiện Cache ($G_0, G_1, G_2$) và 4 kịch bản Resilience ($R_0..R_3$).
+    *   *Task 4.3 (Sinh viên 2 - Owner, Tuần 9):* Xây dựng `DatasetNormalizer` trích xuất 3 bộ dữ liệu chuẩn hóa (*Resilience Evaluation Dataset*, *Latency & Caching Dataset*, *Ablation & Governance Dataset*) từ bảng `tadss.decision_executions` kết hợp Metadata thực nghiệm.
+    *   *Emergency Escape Hatch:* Nếu cuối Tuần 8 Day 5 hạ tầng Cache/Benchmark gặp nghẽn môi trường $\rightarrow$ Bật MVP Mode: Duy trì Outer Timeout + `FallbackDecisionStrategy`, dùng `IMemoryCache` L1, ghi audit đồng bộ.
+    *   *Deliverables (Mốc 4 - Cuối Tuần 9):* Ma trận tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Công cụ `DatasetNormalizer` và 3 bộ dữ liệu thực nghiệm chuẩn hóa.
 
 ---
 
@@ -68,7 +68,7 @@ ightarrow$ Fallback sang `DefaultDecisionStrategy` (thanh toán tĩnh 100%). *(D
 *Mục tiêu: Cung cấp quyền kiểm duyệt tối cao cho Manager, khởi tạo báo cáo sớm và kết nối đầu-cuối với hệ thống SmashCourt (3 tuần).*
 
 *   **User Story 5: Override & Tích hợp SmashCourt**
-    *   *Task 5.1 (Sinh viên 1 - Owner, Tuần 10):* Viết endpoint `POST /api/v1/decisions/{id}/override` tích hợp `IdempotencyKey` và `ExpectedVersion` (Optimistic Concurrency) ngăn ngừa race condition.
+    *   *Task 5.1 (Sinh viên 1 - Owner, Tuần 10):* Hoàn thiện endpoint `POST /api/v1/decisions/{id}/override` tích hợp kiểm tra `IsOverridden` và Optimistic Concurrency (`Version` token) kèm ghi vết qua MediatR in-process event (`DecisionOverriddenAuditNotification`).
     *   *Task 5.2 (Sinh viên 1 - Owner, Tuần 10):* Cấu hình Feature Flag `EnableTadssDecision` bọc ngoài luồng đặt sân của SmashCourt sử dụng `IOptionsMonitor` để reload cấu hình appsettings.json động dưới 2 giây.
     *   *Task 5.3 (Cả hai, Tuần 10):* Viết phác thảo khung Báo cáo Đồ án 2 từ Tuần 10: Day 1-2 (Viết chung Chương 1: 10-12 trang), Day 3-4 (SV1 viết Chương 2.1-2.2: 8-10 trang), Day 5-6 (SV2 viết Chương 2.3-2.4: 8-10 trang) đạt 26-32 trang (>40% khối lượng).
     *   *Task 5.4 (Sinh viên 2 - Owner, Tuần 11):* Dựng giao diện Manager Dashboard hoàn chỉnh tích hợp trực tiếp vào thư mục `smashcourt-fe` (Next.js) hiện có. Hiển thị danh sách các booking ở trạng thái `PendingDecisionApproval` để Manager duyệt hoặc sửa đổi mức cọc kèm lý do. *(Quy tắc 2 ngày: Nếu sau Tuần 10 Day 2 chưa render được danh sách ➔ Chuyển ngay sang C# Razor Page / HTML Table).*
