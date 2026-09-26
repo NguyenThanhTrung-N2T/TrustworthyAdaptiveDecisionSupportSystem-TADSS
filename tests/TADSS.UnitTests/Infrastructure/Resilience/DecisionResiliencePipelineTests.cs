@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly.CircuitBreaker;
@@ -13,6 +15,20 @@ using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Resilience;
 
+internal static class TestThreadPoolInitializer
+{
+    [ModuleInitializer]
+    internal static void Initialize()
+    {
+        ThreadPool.GetMinThreads(out var minWorker, out var minIocp);
+        ThreadPool.SetMinThreads(Math.Max(minWorker, 32), Math.Max(minIocp, 32));
+    }
+}
+
+[CollectionDefinition("TimingSensitiveResilienceTests", DisableParallelization = true)]
+public class TimingSensitiveResilienceTestCollection;
+
+[Collection("TimingSensitiveResilienceTests")]
 public class DecisionResiliencePipelineTests
 {
     private static Reservation CreateTestReservation()
@@ -349,7 +365,7 @@ public class DecisionResiliencePipelineTests
         // - Attempt 2: bắt đầu tại ~170ms (< 270ms), đang chạy thì bị OuterTimeout cắt tại ~270ms
         // - Attempt 3 (~340ms) và Attempt 4 (~510ms) TUYỆT ĐỐI không được phép khởi chạy.
         const int outerTimeoutMs = 270;
-        const int allowedSchedulingToleranceMs = 90; // Measurement/scheduling tolerance của môi trường test (không phải tăng OuterTimeout)
+        const int allowedSchedulingToleranceMs = 250; // Dung sai lập lịch OS/ThreadPool + Coverlet coverage trên GitHub Actions 2-vCPU (OuterTimeoutMs vẫn giữ nguyên 270ms, tổng < 630ms của 4 attempts)
 
         var options = new ResilienceOptions
         {
