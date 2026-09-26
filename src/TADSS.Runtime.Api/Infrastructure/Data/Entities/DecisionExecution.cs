@@ -16,7 +16,7 @@ public class DecisionExecution
     public string StrategyVersion { get; set; } = "1.0.0";
 
     // ── 3. Thông số Telemetry & Thực thi ───────────────────────────
-    public string ExecutionType { get; set; } = string.Empty; // StrategyExecution | CacheHit | FallbackExecution
+    public string ExecutionType { get; set; } = string.Empty; // AUTOMATED | CACHE_HIT | FALLBACK
     public int ExecutionTimeMs { get; set; }
     public bool FallbackUsed { get; set; }
     public string? FailureReason { get; set; }

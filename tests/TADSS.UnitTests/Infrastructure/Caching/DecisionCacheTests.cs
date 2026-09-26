@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -255,6 +257,59 @@ public class DecisionCacheTests
         // Act & Assert 2: SetAsync does not throw even when Redis is offline
         var actSet = () => resilientCacheWithMock.SetAsync("key-2", cachedItem);
         await actSet.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task DependencyInjection_WhenProviderIsMemory_DoesNotResolveConnectionMultiplexer()
+    {
+        // Arrange: Configure Provider = "Memory" and register a trap IConnectionMultiplexer that throws if resolved
+        var configDict = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=tadss_test;Username=postgres;Password=postgres",
+            ["Tadss:Cache:Provider"] = "Memory",
+            ["Tadss:Cache:TtlHours"] = "24"
+        };
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(configDict)
+            .Build();
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddLogging();
+        services.AddInfrastructureServices(configuration);
+
+        var redisResolved = false;
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+        {
+            redisResolved = true;
+            throw new InvalidOperationException("IConnectionMultiplexer must not be resolved when Provider is Memory.");
+        });
+
+        using var sp = services.BuildServiceProvider();
+
+        // Act: Resolve IDecisionCacheService and perform Set/Get operations
+        var cacheService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IDecisionCacheService>(sp);
+        var sampleResult = new DecisionResultDto
+        {
+            DecisionId = Guid.NewGuid(),
+            ReservationId = Guid.NewGuid(),
+            Status = "APPROVED",
+            StrategyName = "DefaultDecisionStrategy",
+            StrategyVersion = "1.0.0",
+            ExecutionTimeMs = 1,
+            FallbackUsed = false,
+            PrimaryReason = "APPROVED_PAID_IN_FULL",
+            Reasons = [],
+            Recommendations = [],
+            EvaluatedAt = DateTime.UtcNow
+        };
+
+        await cacheService.SetAsync("mem-only-key", sampleResult);
+        var cached = await cacheService.GetAsync("mem-only-key");
+
+        // Assert
+        redisResolved.Should().BeFalse();
+        cached.Should().NotBeNull();
+        cached!.DecisionId.Should().Be(sampleResult.DecisionId);
     }
 
     #region Helper Mock Classes

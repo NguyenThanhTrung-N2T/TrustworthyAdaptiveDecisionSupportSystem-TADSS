@@ -30,10 +30,10 @@ Tài liệu này ghi nhận các quyết định kiến trúc cốt lõi của h
 
 - **Trạng thái:** ĐÃ DUYỆT (APPROVED)
 - **Bối cảnh:** Mô hình AI (CatBoost/Gemini) chạy trên FastAPI service độc lập có khả năng bị quá tải hoặc sập mạng, gây trễ luồng đặt sân trực tuyến của khách hàng.
-- **Quyết định:** Triển khai **Polly v8 Resilience Pipeline** liên kết chặt chẽ các chiến lược: `Outer Timeout` (Giới hạn tổng SLA tối đa 500ms) ➔ `Retry` (Thử lại tối đa 2 lần = 3 attempts tổng cộng) ➔ `Inner Timeout` (Khống chế thời gian xử lý từng lượt tối đa 150ms) ➔ `Circuit Breaker` (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ đánh giá 30 giây, tối thiểu 10 requests) ➔ `Fallback` (Chuyển sang dùng chiến lược cọc tĩnh mặc định với tỷ lệ cọc 100%).
+- **Quyết định:** Triển khai **Polly v8 Resilience Pipeline** liên kết chặt chẽ các chiến lược: `Outer Timeout` (Giới hạn tổng SLA tối đa 500ms) ➔ `Fallback` (Chuyển sang `FallbackDecisionStrategy` trả về trạng thái an toàn `NEED_APPROVAL` để duy trì decision-path continuity) ➔ `Retry` (Thử lại tối đa 2 lần = 3 attempts tổng cộng, base delay 30ms) ➔ `Circuit Breaker` (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ đánh giá 30 giây, tối thiểu 10 requests) ➔ `Inner Timeout` (Khống chế thời gian xử lý từng lượt tối đa 120ms; ngân sách $3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$).
 - **Hệ quả:**
   - _Ưu điểm:_ Bảo vệ tối đa tính sẵn sàng của luồng đặt chỗ. Hệ thống tự động phục hồi khi dịch vụ AI ổn định trở lại.
-  - _Nhược điểm:_ Khách hàng có thể nhận kết quả cọc mặc định (Fallback) trong thời gian AI bị cô lập.
+  - _Nhược điểm:_ Các yêu cầu rơi vào trạng thái sự cố sẽ chuyển sang `NEED_APPROVAL` chờ Quản lý duyệt trong thời gian AI bị cô lập.
 
 ---
 

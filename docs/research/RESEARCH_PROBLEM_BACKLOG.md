@@ -1,4 +1,6 @@
-﻿# KHUNG NGHIÊN CỨU & KHẢO SÁT VẤN ĐỀ (ENTERPRISE AI OS RESEARCH BACKLOG)
+# KHUNG NGHIÊN CỨU & KHẢO SÁT VẤN ĐỀ (ENTERPRISE AI OS RESEARCH BACKLOG)
+
+> **📌 Ghi chú Quản trị Lịch sử (Historical Pre-Scoping Exploration Document):** Tài liệu này lưu trữ kết quả khảo sát diện rộng (Brainstorming & Problem Exploration) ở giai đoạn tiền đề trước khi khóa phạm vi đề tài. Sau bước lọc phạm vi, đề tài chính thức đã được thu hẹp tập trung vào kiến trúc **ATDA (Adaptive Trust Decision Architecture)** và nền tảng **TADSS Runtime** — xem tài liệu chính thức tại [`RESEARCH_THESIS_DEFENSE.md`](./RESEARCH_THESIS_DEFENSE.md) và [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](./EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md). Các cấu phần ngoài phạm vi như MCP, GraphRAG, ClickHouse CDC trong tài liệu này chỉ đóng vai trò bối cảnh khảo sát ban đầu.
 
 Tài liệu này được tái cấu trúc nhằm định hình hướng nghiên cứu khoa học cho **Đồ án 2** và **Khóa luận tốt nghiệp**, lấy **Enterprise AI OS (Hệ điều hành trí tuệ nhân tạo doanh nghiệp)** làm trục kiến trúc cốt lõi. 
 

@@ -66,9 +66,18 @@ public static class DependencyInjection
 
         services.AddSingleton<MemoryDecisionCacheService>();
         services.AddSingleton<RedisDecisionCacheService>();
-        services.AddSingleton<IDecisionCacheService, ResilientDecisionCacheService>();
+        services.AddSingleton<IDecisionCacheService>(sp =>
+        {
+            var memoryCache = sp.GetRequiredService<MemoryDecisionCacheService>();
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TadssCacheOptions>>();
+            var logger = sp.GetRequiredService<ILogger<ResilientDecisionCacheService>>();
+            var useRedis = string.Equals(options.Value.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
+            var redisCache = useRedis ? sp.GetService<RedisDecisionCacheService>() : null;
+            return new ResilientDecisionCacheService(memoryCache, options, logger, redisCache);
+        });
 
-        // 6. Decision Application Services
+        // 6. In-Process Synchronous Event Dispatcher (MediatR Append-Only Audit Trail) & Decision Application Services
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
         services.AddScoped<IDecisionService, DecisionService>();
 
         return services;

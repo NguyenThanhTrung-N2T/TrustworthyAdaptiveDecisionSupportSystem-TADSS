@@ -309,9 +309,9 @@ Error Payload cho 409 Conflict:
 Hệ thống thiết lập chuỗi chịu lỗi 2 tầng (Two-Tier Resilience Pipeline):
 
 1. **Target Latency**: `< 100 ms` cho luồng đánh giá thông thường.
-2. **Inner Strategy Timeout (150 ms per attempt)**:
-   - Giới hạn thời gian thực thi của mỗi lượt gọi Strategy.
-   - Khi Strategy bị timeout (>150ms) hoặc ném ngoại lệ: Polly kích hoạt Retry (tối đa 2 lần, tổng 3 attempts với base delay 30ms) $\rightarrow$ Circuit Breaker $\rightarrow$ Chuyển sang **Fallback Strategy** (`DefaultDecisionStrategy` cọc 100%).
+2. **Inner Strategy Timeout (120 ms per attempt)**:
+   - Giới hạn thời gian thực thi của mỗi lượt gọi Strategy (3 attempts × 120ms + 2 delays × 30ms = 420ms < 500ms SLA).
+   - Khi Strategy bị timeout (>120ms) hoặc ném ngoại lệ: Polly kích hoạt Retry (tối đa 2 lần, tổng 3 attempts với base delay 30ms) $\rightarrow$ Circuit Breaker $\rightarrow$ Chuyển sang **Fallback Strategy** (`FallbackDecisionStrategy` — chế độ dự phòng an toàn).
    - Kết quả trả về: **HTTP 200 OK** kèm metadata `fallbackUsed: true`, `status: "NEED_APPROVAL"`.
 3. **Outer Global Deadline (500 ms Hard Ceiling)**:
    - Giới hạn thời gian tối đa cho toàn bộ chu trình xử lý request.

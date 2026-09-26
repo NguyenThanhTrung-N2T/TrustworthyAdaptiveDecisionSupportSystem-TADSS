@@ -86,19 +86,19 @@ public class DefaultDecisionStrategy : IReservationDecisionStrategy
             primaryReason = ErrorCodes.ApprovedStandard;
             reasons.Add($"Mức cọc tiêu chuẩn {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}% hợp lệ.");
         }
-        // 5. Cọc dưới 30% -> NeedApproval
+        // 5. Không thỏa mãn bất kỳ tiêu chí giảm cọc nào -> Mặc định yêu cầu thanh toán 100% (NeedApproval)
         else
         {
             status = DecisionStatus.NEED_APPROVAL.ToString();
             primaryReason = ErrorCodes.DepositBelowThreshold;
-            var requiredDeposit = reservation.Payment.TotalPrice * 0.3m;
+            var requiredDeposit = reservation.Payment.TotalPrice;
             var shortage = requiredDeposit - reservation.Payment.DepositAmount;
 
-            reasons.Add($"Mức cọc hiện tại ({reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%) thấp hơn mức tối thiểu 30%. Cần xem xét.");
+            reasons.Add($"Mức cọc hiện tại ({reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%) không thỏa mãn các tiêu chí giảm cọc tự động theo hạng thành viên ({reservation.Customer.Tier}). Mặc định đưa về mức yêu cầu thanh toán 100% hoặc cần Quản lý xét duyệt.");
             recommendations.Add(new DecisionRecommendationDto
             {
                 Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND tiền cọc để đạt mức tối thiểu 30%.",
+                Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND để đạt mức mặc định 100% chi phí đặt sân.",
                 SuggestedPrice = reservation.Payment.TotalPrice,
                 ConfidenceScore = 1.0
             });

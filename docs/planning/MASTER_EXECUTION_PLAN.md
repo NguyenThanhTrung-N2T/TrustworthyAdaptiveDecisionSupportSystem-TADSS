@@ -18,11 +18,11 @@ Thay vì phân chia cô lập theo kiểu "code của ai người nấy làm", d
 | **Solution & DB Architecture** | SV1 | SV2 | Solution .NET 8, PostgreSQL Schema `tadss`, bảng `tadss.decision_executions` |
 | **Decision Contract SDK** | SV2 | SV1 | DLL `Shared.DecisionContractSDK`, Rich Domain Model `Reservation`, Unit Tests |
 | **Decision Runtime Core API** | SV1 | SV2 | Web API, DI-based Strategy Resolution $O(1)$, Routing Controller |
-| **Executable Strategies** | SV2 | SV1 | `DefaultDecisionStrategy` (100% Fallback), `MockAlternativeDecisionStrategy` (30%/50%) |
-| **Polly v8 Resilience Pipeline** | SV1 | SV2 | Nested Pipeline (Outer 500ms, Retry 2, Inner 150ms, CB, Fallback) |
-| **Append-only Audit Trail** | SV1 | SV2 | MediatR in-process events trong DbContext Transaction boundary |
-| **Request-Hash Cache** | SV2 | SV1 | Canonicalization (Representation-only), SHA256 Key, Redis & IMemoryCache fallback |
-| **Override & Concurrency API** | SV1 | SV2 | `POST /decisions/{id}/override`, `IdempotencyKey`, `ExpectedVersion` |
+| **Executable Strategies** | SV2 | SV1 | `DefaultDecisionStrategy` (Baseline Business Policy), `MockAlternativeDecisionStrategy` (30%/50%) |
+| **Polly v8 Resilience Pipeline** | SV1 | SV2 | Nested Pipeline (Outer 500ms, Retry 2, Inner 120ms, CB, `FallbackDecisionStrategy`) |
+| **Append-only Audit Trail** | SV1 | SV2 | Mandatory Synchronous Audit qua MediatR in-process events trong EF Core DbContext Transaction boundary |
+| **Request-Hash Cache** | SV2 | SV1 | Canonicalization (Representation-only), SHA256 Key, Redis L2 & IMemoryCache L1 fallback |
+| **Override & Concurrency API** | SV1 | SV2 | `POST /decisions/{id}/override`, `IsOverridden` guard & Optimistic Concurrency (`Version`) |
 | **Manager Dashboard UI** | SV2 | SV1 | Tích hợp trực tiếp vào `smashcourt-fe` (Next.js) hiện có |
 | **SmashCourt Integration** | SV1 | SV2 | Sửa backend SmashCourt, Feature Flag `EnableTadssDecision` (<2s reload) |
 | **Testing & Evaluation** | Cả hai | Cả hai | 11 kịch bản Failure Injection, Đo lường p95 < 150ms, Portability Mock |
@@ -50,13 +50,11 @@ flowchart TD
         ST --> M2
     end
 
-    subgraph P4 [Phase 4: Resilience, Audit & Cache]
-        M2 --> POL[Polly v8 Resilience Pipeline]
-        M2 --> AUD[MediatR Sync Audit Trail]
-        M2 --> CAC[Request-Hash SHA256 Cache]
-        POL --> M3[Milestone 3: Engine Chịu Lỗi Hoàn Chỉnh]
-        AUD --> M3
-        CAC --> M3
+    subgraph P4 [Phase 4: Resilience, Benchmark & Dataset]
+        M2 --> POL[Week 7: Polly v8, Sync Audit, L1/L2 Cache & F1-F7 Matrix]
+        POL --> BMK[Week 8: Cache G0-G2 & Resilience R0-R3 Benchmark]
+        BMK --> DSN[Week 9: Audit Telemetry & Dataset Normalizer]
+        DSN --> M3[Milestone 3: Engine Chịu Lỗi & Thực Nghiệm Chuẩn Hóa]
     end
 
     subgraph P5 [Phase 5: HITL & SmashCourt Integration]
@@ -154,7 +152,7 @@ flowchart TD
     *   Xây dựng `DecisionService` và `StrategyResolver`.
     *   Lập trình pipeline: `Validate Request ➔ Resolve Strategy (DI Lookup O(1)) ➔ Execute EvaluateAsync ➔ Return Recommendation`.
 *   **Sinh viên 2:**
-    *   Implement `DefaultDecisionStrategy` (**Conservative Static Fallback Policy**): Áp dụng chính sách thanh toán cọc tĩnh 100% làm cơ chế an toàn cuối cùng (last-resort safety mechanism) bảo vệ dòng tiền.
+    *   Implement `DefaultDecisionStrategy` (**Conservative Baseline Business Policy**): Áp dụng chính sách nghiệp vụ cơ sở bảo thủ của nền tảng (tách biệt với cơ chế cứu cánh hạ tầng `FallbackDecisionStrategy`).
     *   Implement `MockAlternativeDecisionStrategy` (**Demonstration Policy**): Phân tích `ReservationSchedule` để áp dụng mức cọc 30% cho giờ thường (Approved) và cọc 50% cho giờ cao điểm (NeedApproval) nhằm kiểm chứng khả năng phân giải chiến lược động của hệ thống.
 *   **Hai thành viên:**
     *   Viết Unit/Integration Tests cho các kịch bản: Default Selected, MockAlternative Selected, Unknown Strategy Exception, Invalid Request.
@@ -172,48 +170,44 @@ flowchart TD
 
 ---
 
-### 🟢 PHASE 4: RESILIENCE, CACHE & AUDIT TRAIL (Tuần 7 — Tuần 9)
-*Mục tiêu:* Triển khai các cơ chế chịu lỗi cho Decision Runtime, lưu vết giao dịch đồng bộ và tối ưu hiệu năng bộ nhớ đệm.
+### 🟢 PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
+*Mục tiêu:* Hoàn thiện chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu (`DatasetNormalizer`).
 
-#### **Tuần 7: Triển khai Chuỗi Chịu lỗi Polly v8 (Polly Resilience Pipeline)**
-*   **Sinh viên 1 (Owner):**
-    *   *Day 1-2 (Spike POC):* Thử nghiệm độc lập Polly v8 lồng nhau: Outer Timeout, Retry, Inner Timeout, Circuit Breaker, Fallback.
-    *   *Day 3-5 (Ghép nối vào Runtime):*
-        *   Outer Timeout: 500ms (SLA Budget toàn cục).
-        *   Retry Policy: Tối đa 2 lần retry (tổng 3 attempts, base delay 30ms).
-        *   Inner Timeout: 150ms per attempt.
-        *   Circuit Breaker: Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong sampling window 30s (min 10 requests).
-        *   Fallback Policy: Tự động chuyển về `DefaultDecisionStrategy` (thanh toán 100%) với mục tiêu đo lường fallback overhead < 10ms trong kịch bản benchmark.
-*   **Sinh viên 2 (Supporting):**
-    *   Chuẩn bị kịch bản tiêm lỗi (Failure Scenarios): Strategy Timeout (delay 200ms), Strategy Exception (Throw 500), Mất kết nối.
-    *   Xây dựng mock test harness phục vụ kiểm thử chuỗi chịu lỗi.
-*   **Hai thành viên (Cuối tuần 7):**
-    *   Chứng minh bằng test: Normal Success, Strategy Timeout, Strategy Exception, Circuit Open, Fallback 100%.
-
-#### **Tuần 8: Ghi vết Quyết định Đồng bộ (Append-Only Audit Trail với MediatR)**
-*   **Sinh viên 1 (Owner):**
-    *   Định nghĩa MediatR Events: `DecisionExecutedEvent`, `OverrideExecutedEvent`.
-    *   Lập trình Notification Handler bọc trong cùng một PostgreSQL DbContext Transaction boundary.
-    *   Ghi toàn bộ thông số thực thi xuống bảng `tadss.decision_executions` (`execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `execution_type`).
-*   **Sinh viên 2 (Supporting):**
-    *   Viết test kiểm tra tính toàn vẹn của Audit Log trong các trường hợp: Normal Decision, Cache Hit, Fallback Execution, Strategy Failure.
-    *   Kiểm tra tính nhất quán dữ liệu trong cơ sở dữ liệu PostgreSQL.
-
-#### **Tuần 9: Tối ưu Bộ nhớ đệm (Request-Hash Caching với SHA-256 & Redis)**
-*   **Sinh viên 2 (Owner):**
-    *   Cài đặt pipeline chuẩn hóa JSON Payload (Canonicalization - Representation only):
+#### **Tuần 7: Chuỗi Chịu lỗi Polly v8, Resilient L1/L2 Cache, Synchronous Audit & Fault Matrix (F1–F7)**
+*   **Sinh viên 1 (Owner — Resilience & Synchronous Audit):**
+    *   *Polly v8 5-Layer Pipeline:*
+        *   Outer Timeout: `500ms` (SLA Budget toàn cục).
+        *   Fallback Policy: Tự động chuyển về `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`, `FallbackUsed = true`, `ExecutionTimeMs = 0`) với mục tiêu đo lường fallback overhead < 10ms trong kịch bản benchmark.
+            > **[ADR-W7-01 — Separation of Business Policy vs Safety Fallback]:** `FallbackDecisionStrategy` tách biệt hoàn toàn với `DefaultDecisionStrategy` (chính sách nghiệp vụ thông thường). TADSS fallback chỉ chịu trách nhiệm duy trì decision-path continuity và chuyển sang trạng thái `NEED_APPROVAL`. Transactional/business fallback policy, nếu có, thuộc trách nhiệm của reservation platform và nằm ngoài decision authority của TADSS.
+        *   Retry Policy: Tối đa 2 lần retry (tổng 3 attempts, base delay `30ms`).
+        *   Circuit Breaker: Mở mạch khi tỷ lệ lỗi $\ge 50\%$ trong sampling window `30s` (min 10 requests, `BreakDuration = 15s`).
+        *   Inner Timeout: `120ms` per attempt (ngân sách $3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$ SLA).
+    *   *Mandatory Synchronous Audit Persistence qua MediatR In-Process Events (F6/F7):* Thiết lập hệ thống ghi vết quyết định đồng bộ (fail-closed) thông qua MediatR in-process events (`DecisionEvaluatedAuditNotification` / `DecisionOverriddenAuditNotification`) nằm trong transaction boundary của PostgreSQL (`TadssDbContext`), phân biệt rõ các loại thực thi (`'AUTOMATED' | 'CACHE_HIT' | 'FALLBACK'`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`); bảo đảm hủy sớm không tạo rác kiểm toán khi Caller Cancellation (F7).
+*   **Sinh viên 2 (Owner — Request-Hash Caching & Fault Injection Suite):**
+    *   *RFC 8785 Canonicalization & Request-Hash L1/L2 Cache (F5):*
         1. Sắp xếp keys trong JSON Payload theo thứ tự alphabet (Key Sorting).
         2. Lowercase chuỗi định danh UUID.
-        3. Chuẩn hóa format biểu diễn timestamp sang ISO 8601 UTC string (giữ nguyên semantic value).
+        3. Chuẩn hóa format biểu diễn timestamp sang ISO 8601 UTC string (`yyyy-MM-ddTHH:mm:ssZ`, chỉ cắt bỏ sub-second ticks hệ thống; **TUYỆT ĐỐI giữ nguyên giá trị nghiệp vụ giờ/phút, không làm tròn timestamp nghiệp vụ**).
         4. Xóa khoảng trắng thừa (whitespace) và chuẩn hóa null fields.
-        *⚠️ Lưu ý: Tuyệt đối giữ nguyên giá trị nghiệp vụ (startTime, endTime, depositAmount), không làm tròn timestamp nghiệp vụ.*
-    *   Băm SHA-256 tạo Cache Key: `decision:{strategyName}:{strategyVersion}:{requestHash}`.
-    *   Tích hợp Redis 7.x với chính sách TTL = 15 phút cho Default Strategy (áp dụng cho request cho phép cache).
-    *   *Unit Test bắt buộc:* Kiểm tra 2 JSON payload có thứ tự key đảo nhau (`{a:1, b:2}` và `{b:2, a:1}`) **bắt buộc sinh cùng 1 mã hash**.
-*   **Sinh viên 1 (Supporting):**
-    *   Tích hợp Cache Middleware vào Decision Pipeline.
-    *   Cài đặt **IMemoryCache Fallback:** Nếu Redis bị sập kết nối, tự động chuyển về bộ nhớ trong in-memory mà không làm gián đoạn API.
-*   🎯 **Milestone 4 (Cuối Tuần 9):** *Resilient & Auditable Core Engine — Động cơ chịu lỗi, lưu vết và cache vận hành hoàn mỹ.*
+        *   Tách biệt Request Identity (`RequestHash = SHA256(Canonical(DecisionRequest))`) và Strategy Identity trong Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` (kèm cấu hình baseline mặc định `TtlHours = 24` và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 khi vượt quá `RedisTimeoutMs = 150ms`).
+    *   *Fault Injection Matrix (F1–F7):* Kiểm chứng tự động toàn bộ 7 kịch bản lỗi (`F1` Recoverable Timeout, `F2` Retry Exhaustion, `F3` Strategy Exception, `F4` Circuit Breaker Open, `F5` Redis Unavailable L2 $\rightarrow$ L1, `F6` Persistence Fail-Closed, `F7` Caller Cancellation).
+
+#### **Tuần 8: Thực nghiệm Đo đạc Hiệu năng Cache ($G_0..G_2$) & Độ chịu lỗi ($R_0..R_3$) (Performance Benchmark)**
+*   **Sinh viên 1 (Owner — Resilience Benchmark $R_0..R_3$):**
+    *   Thiết lập môi trường kiểm soát thực nghiệm (Benchmark Environment Lock) và thực thi quy trình đo 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải đồng thời $VUs \in \{1, 10, 50, 100\}$.
+    *   Đo đạc đối chứng 4 kịch bản chịu lỗi: $R_0$ (*Normal Strategy*), $R_1$ (*Recoverable Timeout*), $R_2$ (*Circuit Breaker OPEN Fast-Fail*), $R_3$ (*Retry Exhaustion $\rightarrow$ Fallback*).
+    *   Tính toán chỉ số **Decision Continuity Rate (DCR)** và kiểm chứng phong bì độ trễ $P_{50}, P_{90}, P_{95}, P_{99} \le 500\text{ms}$.
+*   **Sinh viên 2 (Owner — Caching Benchmark $G_0..G_2$):**
+    *   Thực thi thí nghiệm trực giao đo đạc 3 điều kiện bộ nhớ đệm: $G_0$ (*Direct Execution — No Cache*), $G_1$ (*Cache Miss Path*), $G_2$ (*Cache Hit Path*) với cấu hình baseline `Default TTL = 24h`.
+    *   Định lượng **Cache Miss Overhead** ($\text{Latency}(G_1) - \text{Latency}(G_0)$) và **Cache Benefit** ($\text{Latency}(G_0) - \text{Latency}(G_2)$).
+
+#### **Tuần 9: Truy xuất Telemetry Kiểm toán & Chuẩn hóa Tập dữ liệu Nghiên cứu (Dataset Normalizer)**
+*   **Sinh viên 2 (Owner — Dataset Normalizer):**
+    *   Xây dựng công cụ `DatasetNormalizer` kết hợp dữ liệu từ bảng `tadss.decision_executions` (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) với Metadata thực nghiệm (`experiment_id`, `scenario_id`, `concurrency_level`, `injected_fault_type`, `cache_condition`) mà không làm ô nhiễm schema production.
+    *   Trích xuất 3 tập dữ liệu chuẩn hóa (CSV / JSONL): (1) *Resilience Evaluation Dataset*, (2) *Latency & Caching Dataset*, (3) *Ablation & Governance Dataset*.
+*   **Sinh viên 1 (Supporting — Telemetry Verification & Analysis):**
+    *   Kiểm증 tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo / Khóa luận.
+*   🎯 **Milestone 4 (Cuối Tuần 9):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2 và bộ dữ liệu benchmark chuẩn hóa hoàn tất.*
 
 ---
 
@@ -222,7 +216,7 @@ flowchart TD
 
 #### **Tuần 10: Override API & Feature Flag Bật/Tắt Nóng**
 *   **Sinh viên 1:**
-    *   Lập trình API `POST /api/v1/decisions/{id}/override` có `IdempotencyKey` và `ExpectedVersion` (Optimistic Concurrency Control).
+    *   Hoàn thiện & kiểm thử bảo vệ API `POST /api/v1/decisions/{id}/override` với cơ chế chặn ghi đè trùng lặp (`IsOverridden` guard) và EF Core Optimistic Concurrency Control (`Version` token).
     *   Cấu hình Feature Flag `EnableTadssDecision` bên trong SmashCourt Backend sử dụng `IOptionsMonitor` để reload nóng cấu hình dưới 2 giây.
     *   **Khóa nguyên tắc No Auto-Approve:** Đơn ở trạng thái `NeedApproval` nếu quá hạn duyệt sẽ chuyển sang `Expired` hoặc `Cancelled`, tuyệt đối không bao giờ tự động chuyển thành `Approved`.
 *   **Sinh viên 2:**
@@ -260,12 +254,12 @@ flowchart TD
 
 | Kịch bản Kiểm thử | Thao tác / Giả lập sự cố | Tiêu chí Chấp nhận (Acceptance Criteria) |
 |:---|:---|:---|
-| **1. Normal Decision** | Gửi request hợp lệ giờ thường | Trả về `Approved` (cọc 30%), latency p95 < 150ms trong môi trường test chuẩn, ghi log `StrategyExecution`. |
+| **1. Normal Decision** | Gửi request hợp lệ giờ thường | Trả về `Approved` (cọc 30%), latency p95 < 150ms trong môi trường test chuẩn, ghi log `AUTOMATED`. |
 | **2. Peak Hour Decision** | Gửi request rơi vào khung giờ cao điểm | Trả về `NeedApproval` (cọc 50%), tạm dừng thanh toán VNPay. |
-| **3. Strategy Timeout** | Giả lập Strategy xử lý chậm > 150ms | Inner Timeout ngắt attempt, Retry 2 lần, kích hoạt Fallback cọc 100%. |
-| **4. Strategy Exception** | Giả lập Strategy ném lỗi 500 | Retry 2 lần, kích hoạt Fallback cọc 100%, ghi log `FallbackExecution`. |
+| **3. Strategy Timeout** | Giả lập Strategy xử lý chậm > 120ms | Inner Timeout ngắt attempt, Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`). |
+| **4. Strategy Exception** | Giả lập Strategy ném lỗi 500 | Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`), ghi log `FALLBACK`. |
 | **5. Cascading Failures** | Bắn liên tiếp 10 requests lỗi | Circuit Breaker mở mạch, chuyển thẳng sang Fallback trong < 10ms trong kịch bản benchmark. |
-| **6. Cache Hit** | Gửi lại 2 request giống hệt nhau | Lần 2 trả về ngay trong < 15ms, không gọi strategy, ghi log `CacheHit`. |
+| **6. Cache Hit** | Gửi lại 2 request giống hệt nhau | Lần 2 trả về ngay trong < 15ms, không gọi strategy, ghi log `CACHE_HIT`. |
 | **7. Key Sorting Cache** | Đảo thứ tự các thuộc tính JSON trong request | Vẫn Hit Cache bình thường (chứng minh hàm chuẩn hóa representation hoạt động). |
 | **8. Redis Unavailable** | Tắt Docker / Service Redis | Tự động chuyển sang `IMemoryCache`, hệ thống không sập. |
 | **9. Duplicate Override** | Gửi liên tiếp 2 lệnh Override cùng `IdempotencyKey` | Lệnh thứ 2 bị chặn, database không bị ghi đè trùng lặp. |
@@ -274,8 +268,8 @@ flowchart TD
 
 #### **Tuần 14: Đo lường Chỉ số SLA & Proof of Portability**
 *   **Đo lường Performance SLA (SC1 & SC2):**
-    *   *Design Target:* Normal Latency $p95 < 150	ext{ms}$ được kiểm chứng trong môi trường test chuẩn (local dev/staging).
-    *   *Design Target:* Overall Failure SLA Budget $\le 500	ext{ms}$ khi xảy ra timeout/retry/fallback trong kịch bản benchmark.
+    *   *Design Target:* Normal Latency $p95 < 150\text{ms}$ được kiểm chứng trong môi trường test chuẩn (local dev/staging).
+    *   *Design Target:* Overall Failure SLA Budget $\le 500\text{ms}$ khi xảy ra timeout/retry/fallback trong kịch bản benchmark.
 *   **Chứng minh Tính Độc lập Tên miền (Portability Mock - SC6):**
     *   Xây dựng một mock client đại diện cho **Coworking Space (Đặt phòng họp)** gửi request về TADSS Core thông qua `Reservation` SDK.
     *   Chứng minh TADSS xử lý và ra quyết định chính xác mà **không cần sửa đổi bất kỳ dòng code nào trong TADSS Core**.
@@ -308,29 +302,29 @@ Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vư
 
 ```
 [ ] Polly Resilience Pipeline:
-    ├── Strategy timeout được phát hiện chính xác
-    ├── Retry 2 lần với đúng base delay
+    ├── Strategy timeout (InnerTimeout 120ms) được phát hiện chính xác
+    ├── Retry 2 lần với đúng base delay (30ms)
     ├── Circuit Breaker mở mạch khi vượt ngưỡng tỷ lệ lỗi
-    ├── Fallback cọc tĩnh 100% hoạt động với overhead < 10ms trong kịch bản benchmark
+    ├── FallbackDecisionStrategy (NEED_APPROVAL) hoạt động với overhead < 10ms trong kịch bản benchmark
     ├── Outer SLA Budget 500ms được cưỡng chế tuyệt đối
-    └── 100% critical test scenarios pass không còn bug Blocker/High
+    └── 100% critical test scenarios (F1-F7) pass không còn bug Blocker/High
 
 [ ] Request-Hash Cache:
-    ├── Key normalization sắp xếp alphabet và lowercase đúng chuẩn
-    ├── Giữ nguyên 100% semantic values của business timestamps
+    ├── Key normalization sắp xếp alphabet và lowercase đúng chuẩn (RFC 8785)
+    ├── Giữ nguyên 100% semantic values của business timestamps (chỉ cắt bỏ sub-second ticks)
     ├── 2 JSON khác thứ tự thuộc tính sinh ra cùng mã SHA-256
     ├── Cache Hit trả về kết quả trong < 15ms
-    ├── Tự động fallback sang IMemoryCache khi Redis mất kết nối
-    └── TTL 15 phút và Strategy Version isolation hoạt động chính xác
+    ├── Tự động fallback sang IMemoryCache khi Redis mất kết nối (F5)
+    └── Cấu hình baseline TTL (TtlHours = 24) và Strategy Version isolation (decision:hash:{requestHash}:{strategyName}:v{strategyVersion}) hoạt động chính xác
 
 [ ] Append-only Audit Trail:
     ├── Ghi nhận đầy đủ thông số thực thi vào tadss.decision_executions
-    ├── Phân biệt rõ StrategyExecution, CacheHit, FallbackExecution
-    ├── MediatR event nằm trọn vẹn trong PostgreSQL Transaction
+    ├── Phân biệt rõ AUTOMATED, CACHE_HIT, FALLBACK
+    ├── Ghi đồng bộ trực tiếp (Mandatory Synchronous Fail-Closed) trong PostgreSQL Transaction
     └── Lưu vết ghi đè Override kèm lý do và định danh Manager
 
 [ ] Human-in-the-loop & Concurrency:
-    ├── Chặn 100% các request gửi trùng lặp qua IdempotencyKey
+    ├── Chặn 100% các request gửi trùng lặp qua IdempotencyKey (uq_decision_idempotency_key)
     ├── Xử lý tranh chấp dữ liệu đồng thời qua ExpectedVersion (Optimistic Concurrency)
     └── Tuyệt đối không tự động duyệt khi quá hạn (No Auto-Approve -> Expired/Cancelled)
 ```

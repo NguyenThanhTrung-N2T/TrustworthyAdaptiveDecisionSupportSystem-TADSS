@@ -131,9 +131,13 @@ public class DecisionResiliencePipelineTests
     private class SlowStrategy : IReservationDecisionStrategy
     {
         private readonly int _delayMs;
+        private readonly Stopwatch _timeline = new();
+        private readonly List<long> _attemptStartOffsetsMs = [];
+
         public string StrategyName => "SlowStrategy";
         public string StrategyVersion => "1.0.0";
         public int InvocationCount { get; private set; }
+        public IReadOnlyList<long> AttemptStartOffsetsMs => _attemptStartOffsetsMs;
 
         public SlowStrategy(int delayMs)
         {
@@ -143,6 +147,16 @@ public class DecisionResiliencePipelineTests
         public async Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
         {
             InvocationCount++;
+            if (InvocationCount == 1)
+            {
+                _timeline.Restart();
+                _attemptStartOffsetsMs.Add(0);
+            }
+            else
+            {
+                _attemptStartOffsetsMs.Add(_timeline.ElapsedMilliseconds);
+            }
+
             await Task.Delay(_delayMs, cancellationToken);
 
             return new DecisionResultDto
@@ -327,27 +341,70 @@ public class DecisionResiliencePipelineTests
     [Fact]
     public async Task Test07B_MultipleRetriesCumulativeDelay_StrictlyCappedByOuterDeadline()
     {
-        // Arrange: Outer Timeout 270ms, Inner Timeout 150ms, Retry Delay 50ms.
-        // Attempt 0 mất 150ms (inner timeout) + delay 50ms = 200ms. Attempt 1 bắt đầu ở 200ms và bị ngắt ở 270ms bởi Outer Timeout (trước khi inner timeout 350ms hoặc các retry tiếp theo có thể chạy).
+        // Arrange:
+        // - OuterTimeoutMs = 270ms (Hard deadline toàn cục của bài test)
+        // - InnerTimeoutMs = 120ms, RetryBaseDelayMs = 50ms, MaxRetryAttempts = 3 (tối đa 4 attempts nếu không bị chặn)
+        // Lịch trình lý thuyết:
+        // - Attempt 1: bắt đầu tại ~0ms, bị ngắt bởi InnerTimeout tại ~120ms -> chờ RetryDelay 50ms (~170ms)
+        // - Attempt 2: bắt đầu tại ~170ms (< 270ms), đang chạy thì bị OuterTimeout cắt tại ~270ms
+        // - Attempt 3 (~340ms) và Attempt 4 (~510ms) TUYỆT ĐỐI không được phép khởi chạy.
+        const int outerTimeoutMs = 270;
+        const int allowedSchedulingToleranceMs = 90; // Measurement/scheduling tolerance của môi trường test (không phải tăng OuterTimeout)
+
         var options = new ResilienceOptions
         {
-            OuterTimeoutMs = 270,
-            InnerTimeoutMs = 150,
+            OuterTimeoutMs = outerTimeoutMs,
+            InnerTimeoutMs = 120,
             MaxRetryAttempts = 3,
             RetryBaseDelayMs = 50
         };
         var pipeline = CreatePipeline(options);
-        var slowStrategy = new SlowStrategy(delayMs: 2000);
         var reservation = CreateTestReservation();
 
-        var stopwatch = Stopwatch.StartNew();
-        var act = () => pipeline.ExecuteStrategyAsync(slowStrategy, reservation);
+        var slowStrategy = new SlowStrategy(delayMs: 2000);
+        DecisionExecutionOutcome? outcome = null;
+        Exception? caughtException = null;
 
-        // Assert: Bị ngắt chặt chẽ bởi Outer Timeout và ném TimeoutRejectedException
-        await act.Should().ThrowAsync<TimeoutRejectedException>();
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            outcome = await pipeline.ExecuteStrategyAsync(slowStrategy, reservation);
+        }
+        catch (Exception ex)
+        {
+            caughtException = ex;
+        }
+
         stopwatch.Stop();
-        stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(200);
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(3500);
+
+        // 1. Tổng thời gian thực thi phải bám sát outerTimeoutMs (270ms) + dung sai lập lịch môi trường test
+        stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(120);
+        stopwatch.ElapsedMilliseconds.Should().BeLessThan(
+            outerTimeoutMs + allowedSchedulingToleranceMs,
+            "total execution time must be strictly capped by OuterTimeoutMs (270ms) plus test environment scheduling tolerance");
+
+        // 2. Chứng minh bằng timestamp từng lần gọi: Không có bất kỳ attempt/retry mới nào được phép bắt đầu tại hoặc sau Outer Deadline (270ms)
+        slowStrategy.AttemptStartOffsetsMs.Should().NotBeEmpty();
+        slowStrategy.AttemptStartOffsetsMs.Should().OnlyContain(
+            attemptStartMs => attemptStartMs < outerTimeoutMs,
+            "no retry attempt may start at or after the 270ms outer deadline");
+        slowStrategy.InvocationCount.Should().BeLessThanOrEqualTo(
+            2,
+            "attempt 3 (~340ms) and attempt 4 (~510ms) exceed the 270ms outer deadline and must never be invoked");
+
+        // 3 & 4. Outcome hợp lệ: Hoặc OuterTimeout thoát ra ngoài (TimeoutRejectedException),
+        // hoặc chuỗi Retry bị hủy sau InnerTimeout và được Fallback chuyển về trạng thái an toàn NEED_APPROVAL.
+        if (caughtException != null)
+        {
+            caughtException.Should().BeOfType<TimeoutRejectedException>();
+        }
+        else
+        {
+            outcome.Should().NotBeNull();
+            outcome!.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+            outcome.FallbackUsed.Should().BeTrue();
+            outcome.Result.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
+        }
     }
 
     [Fact]
@@ -396,5 +453,26 @@ public class DecisionResiliencePipelineTests
 
         outcome.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(30);
         outcome.Result.ExecutionTimeMs.Should().Be(outcome.ExecutionTimeMs);
+    }
+
+    [Fact]
+    public async Task Fallback_MissingReservationContext_DoesNotCrash()
+    {
+        var fallbackStrategy = new FallbackDecisionStrategy();
+
+        var resultFromNullSafe = await fallbackStrategy.EvaluateFailSafeAsync(reservation: null);
+        var resultFromInterface = await fallbackStrategy.EvaluateAsync(reservation: null!);
+
+        resultFromNullSafe.Should().NotBeNull();
+        resultFromNullSafe.ReservationId.Should().Be(Guid.Empty);
+        resultFromNullSafe.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
+        resultFromNullSafe.FallbackUsed.Should().BeTrue();
+        resultFromNullSafe.PrimaryReason.Should().Be(ErrorCodes.FallbackSafetyMode);
+        resultFromNullSafe.ExecutionTimeMs.Should().Be(0);
+
+        resultFromInterface.Should().NotBeNull();
+        resultFromInterface.ReservationId.Should().Be(Guid.Empty);
+        resultFromInterface.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
+        resultFromInterface.FallbackUsed.Should().BeTrue();
     }
 }

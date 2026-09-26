@@ -196,4 +196,53 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         overrideResp.IsOverridden.Should().BeTrue();
         overrideResp.OverriddenBy.Should().Be("manager-bob");
     }
+
+    [Fact]
+    public async Task EvaluateDecision_IdempotencyKeyExceeds128Chars_Returns400BadRequest_While128CharsSucceeds()
+    {
+        // Arrange
+        var request = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "VIP",
+            StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
+            BookingType = "Single",
+            TotalPrice = 400000m,
+            DepositAmount = 400000m,
+            PaymentStatus = "PAID",
+            Priority = "HIGH",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        var tooLongKey = new string('k', 129);
+        var validMaxKey = new string('m', 128);
+
+        // Act 1: 129 characters -> 400 Bad Request
+        using var badMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
+        {
+            Content = JsonContent.Create(request)
+        };
+        badMsg.Headers.Add("X-Idempotency-Key", tooLongKey);
+        var badRes = await _client.SendAsync(badMsg);
+
+        // Assert 1
+        badRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var doc = await JsonDocument.ParseAsync(await badRes.Content.ReadAsStreamAsync());
+        doc.RootElement.GetProperty("code").GetString().Should().Be("VALIDATION_ERROR");
+
+        // Act 2: 128 characters -> 200 OK
+        using var okMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
+        {
+            Content = JsonContent.Create(request)
+        };
+        okMsg.Headers.Add("X-Idempotency-Key", validMaxKey);
+        var okRes = await _client.SendAsync(okMsg);
+
+        // Assert 2
+        okRes.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
 }

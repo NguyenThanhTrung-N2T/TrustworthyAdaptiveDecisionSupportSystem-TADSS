@@ -4,10 +4,10 @@
 Đã duyệt (Accepted)
 
 ## Bối cảnh
-Mô hình AI (CatBoost/Gemini) chạy trên FastAPI service độc lập có khả năng bị quá tải, phản hồi chậm (>150ms) hoặc sập kết nối giữa chừng. Nếu không xử lý chịu lỗi, luồng đặt sân trực tuyến chính của khách hàng sẽ bị nghẽn hoặc báo lỗi 500, gây tổn thất doanh thu cho doanh nghiệp.
+Mô hình AI (CatBoost/Gemini) chạy trên FastAPI service độc lập có khả năng bị quá tải, phản hồi chậm (>120ms) hoặc sập kết nối giữa chừng. Nếu không xử lý chịu lỗi, luồng đặt sân trực tuyến chính của khách hàng sẽ bị nghẽn hoặc báo lỗi 500, gây tổn thất doanh thu cho doanh nghiệp.
 
 ## Quyết định
-Sử dụng thư viện **Polly v8** để thiết lập một Resilience Pipeline tập trung bảo vệ luồng gọi API quyết định. Chuỗi pipeline bao gồm các chiến lược độc lập liên kết chặt chẽ: `Outer Timeout` (Giới hạn tổng SLA tối đa 500ms) ➔ `Retry` (Thử lại tối đa 2 lần = 3 attempts tổng cộng) ➔ `Inner Timeout` (Khống chế thời gian xử lý từng lượt tối đa 150ms) ➔ `Circuit Breaker` (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ đánh giá 30 giây, tối thiểu 10 requests) ➔ `Fallback` (Chuyển sang dùng chiến lược cọc tĩnh mặc định `DefaultDecisionStrategy` với tỷ lệ cọc 100%).
+Sử dụng thư viện **Polly v8** để thiết lập một Resilience Pipeline tập trung bảo vệ luồng gọi API quyết định. Chuỗi pipeline bao gồm các chiến lược độc lập liên kết chặt chẽ: `Outer Timeout` (Giới hạn tổng SLA tối đa 500ms) ➔ `Fallback` (Chuyển sang `FallbackDecisionStrategy` trả về trạng thái an toàn `NEED_APPROVAL` để duy trì decision-path continuity) ➔ `Retry` (Thử lại tối đa 2 lần = 3 attempts tổng cộng, base delay 30ms) ➔ `Circuit Breaker` (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ đánh giá 30 giây, tối thiểu 10 requests) ➔ `Inner Timeout` (Khống chế thời gian xử lý từng lượt tối đa 120ms; ngân sách $3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$).
 
 ## Hệ quả
 *   **Tích cực (Positive):**

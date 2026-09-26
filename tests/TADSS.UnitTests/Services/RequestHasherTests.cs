@@ -138,4 +138,23 @@ public class RequestHasherTests
 
         RequestHasher.ComputeHash(original).Should().NotBe(RequestHasher.ComputeHash(changed));
     }
+
+    [Fact]
+    public void ComputeHash_SubSecondTicksAndDifferentRequestedAt_ProduceIdenticalHash()
+    {
+        var baseStart = new DateTime(2026, 9, 26, 18, 30, 0, DateTimeKind.Utc);
+        var baseEnd = new DateTime(2026, 9, 26, 20, 30, 0, DateTimeKind.Utc);
+
+        var first = DecisionRequestFactory.ValidDecisionRequest();
+        first.StartTime = baseStart;
+        first.EndTime = baseEnd;
+        first.RequestedAt = DateTime.UtcNow;
+
+        var second = DecisionRequestFactory.ValidDecisionRequest();
+        second.StartTime = baseStart.AddMilliseconds(456).AddTicks(789); // sub-second noise
+        second.EndTime = baseEnd.AddMilliseconds(912);
+        second.RequestedAt = DateTime.UtcNow.AddMinutes(5); // different request dispatch time
+
+        RequestHasher.ComputeHash(first).Should().Be(RequestHasher.ComputeHash(second));
+    }
 }

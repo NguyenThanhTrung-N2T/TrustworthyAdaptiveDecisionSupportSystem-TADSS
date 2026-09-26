@@ -127,7 +127,7 @@ Decision Service
    ▼
 Strategy
    │
-   ├── Default Strategy (100% Deterministic Fallback)
+   ├── Default Strategy (Conservative Baseline Business Policy)
    ├── Mock Alternative Strategy (30% / 50% Dynamic Deposit)
    └── Future AI/ML Strategy (TADS Adaptive Trust)
    │
@@ -136,7 +136,7 @@ Decision Result
    │
    ├── Decision Trace
    ├── Audit Log (tadss.decision_executions)
-   └── Resilience / Fallback
+   └── Resilience / Fallback (FallbackDecisionStrategy -> NEED_APPROVAL)
 ```
 
 The runtime is responsible for **orchestration, resilience, persistence, and observability**.
@@ -177,10 +177,10 @@ The strategy is responsible for **decision-making logic**.
 | :--- | :--- |
 | `Shared.DecisionContractSDK` | Shared domain primitives, rich domain model `Reservation`, contracts, enums and interfaces |
 | `TADSS.Runtime.Api` | Main runtime, DI-based Strategy Resolution, Polly resilience, and Web API controllers |
-| `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Deterministic 100% deposit fallback policy) |
+| `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Conservative baseline business policy) |
 | `TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` (30% off-peak / 50% peak demonstration policy) |
-| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, and policies (392 tests) |
-| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, and governance tests (18 tests) |
+| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, and policies (393 tests) |
+| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (25 tests) |
 
 ---
 
@@ -200,7 +200,7 @@ dotnet restore TADSS.slnx
 # 2. Build Release with zero warnings
 dotnet build TADSS.slnx --configuration Release --warnaserror
 
-# 3. Run all 410 unit & integration tests
+# 3. Run all 418 unit & integration tests
 dotnet test TADSS.slnx --configuration Release --verbosity normal
 
 # 4. Run API locally
@@ -235,7 +235,7 @@ Swagger UI is available at `http://localhost:5000/swagger` when running.
 * **Phase 4 — Resilience, Performance & Audit Experimentation (Tuần 7 — 9)** `[IN PROGRESS 🔄 - Milestone 4]`
   * [x] Failure Taxonomy & Failure Semantics Matrix ([RESILIENCE_AND_FAULT_TAXONOMY.md](docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md))
   * [x] Experimental Benchmark Methodology & Dataset Pipeline ([EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md))
-  * [ ] Polly Budget Hardening & Fault Injection Test Suite (F1 ➔ F7)
+  * [x] Polly Budget Hardening (Inner 120ms / Outer 500ms) & Fault Injection Test Suite (F1 ➔ F7)
   * [ ] Empirical Latency Envelope Benchmark ($G_0..G_2, R_0..R_3$) & Throughput measurement
   * [ ] Dataset Normalizer script & Ablation Study preparation
 

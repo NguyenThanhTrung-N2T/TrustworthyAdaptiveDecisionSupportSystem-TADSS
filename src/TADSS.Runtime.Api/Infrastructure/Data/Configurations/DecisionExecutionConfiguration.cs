@@ -37,7 +37,7 @@ public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionE
         builder.Property(e => e.OverrideReason).HasColumnName("override_reason");
 
         // Concurrency & Timestamps (Quản lý thuần túy bởi Interceptor)
-        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(100);
+        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(128);
         builder.Property(e => e.Version).HasColumnName("version").HasDefaultValue(1).IsConcurrencyToken().IsRequired();
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").IsRequired();

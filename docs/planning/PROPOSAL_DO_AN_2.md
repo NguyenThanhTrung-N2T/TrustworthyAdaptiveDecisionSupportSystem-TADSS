@@ -17,6 +17,8 @@
 
 > [!NOTE]
 > **Định danh hệ thống:** Trong phạm vi đề tài, **TADSS (Trustworthy Adaptive Decision Support System)** được sử dụng làm tên định danh chính thức của nền tảng runtime thực thi và kiểm soát các chiến lược quyết định (Decision Strategies). Trong phạm vi Đồ án 2, **"Trustworthy"** được hiểu theo khía cạnh operational trustworthiness của runtime (bao gồm khả năng chịu lỗi, fallback, auditability, kiểm soát phê duyệt thủ công, tính nhất quán khi thực thi và chống ghi đè/gọi trùng); các khía cạnh algorithmic fairness và trustworthy AI thuộc phạm vi Khóa luận tốt nghiệp.
+>
+> **📌 Ghi chú Quản trị Lịch sử (Historical Proposal Snapshot):** Văn bản này là bản Đề cương Đề xuất ban đầu (Initial Approved Proposal) nộp đầu kỳ. Trong quá trình hiện thực hóa thực tế ở Phase 3–4 (xem [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md), [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md) và [`MASTER_EXECUTION_PLAN.md`](./MASTER_EXECUTION_PLAN.md)), kiến trúc đã được chuẩn hóa ở 4 điểm: (1) `InnerTimeoutMs` được chuẩn hóa ở mức `120ms` ($3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$ `OuterTimeoutMs`); (2) Tách bạch `DefaultDecisionStrategy` (Conservative Baseline Business Policy: phân hạng khách hàng kết hợp mức thanh toán 100% mặc định khi không đạt ngưỡng ưu đãi) với `FallbackDecisionStrategy` (cơ chế an toàn hạ tầng trả về `NEED_APPROVAL` kèm khuyến nghị thanh toán 100%); (3) Ghi nhận Append-Only Audit Trail đồng bộ (Fail-Closed) qua `MediatR` in-process events (`INotification` / `INotificationHandler`) nằm trong cùng PostgreSQL transaction boundary; và (4) Định dạng Cache Key chuẩn hóa thành `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline `TtlHours = 24`.
 
 ---
 
@@ -91,7 +93,7 @@ Lớp 1: Case Study Product (SmashCourt) ─ Đồ án 1 (CRUD Booking, Payments
 #### 🔴 Core — Bắt buộc hoàn thành (Đồ án 2)
 * **Decision Contract SDK:** Thư viện Class Library dùng chung chứa Domain Model, DTOs, Enums.
 * **Decision Runtime API:** Endpoint `POST /api/v1/decisions`, định tuyến qua Strategy Factory (DI-based Strategy Resolution).
-* **Default & Mock Strategies:** Thiết kế `DefaultDecisionStrategy` (thanh toán tĩnh 100%) và `MockAlternativeDecisionStrategy` (cọc 50% - ví dụ giờ cao điểm) nhằm chứng minh Strategy Pattern được kiểm chứng bằng executable code thực tế.
+* **Default & Mock Strategies:** Thiết kế `DefaultDecisionStrategy` (Conservative Baseline Business Policy: phân hạng khách hàng kết hợp mức thanh toán 100% mặc định) và `MockAlternativeDecisionStrategy` (cọc 30% giờ thường / 50% giờ cao điểm) nhằm chứng minh Strategy Pattern được kiểm chứng bằng executable code thực tế.
 * **Polly Resilience Pipeline:** Khung chịu lỗi lồng nhau (Timeout, Retry, CB, Fallback).
 * **Append-only Audit Trail:** Ghi vết transaction audit trail thông qua in-process application events của MediatR đồng bộ.
 * **Override API:** Endpoint `POST /api/v1/decisions/{id}/override` có cơ chế idempotency và optimistic locking.
@@ -165,28 +167,26 @@ Khi TADSS trả về trạng thái quyết định, SmashCourt và Manager phố
 ```
 ┌── Outer Timeout: 500ms (Overall Request SLA Budget) ──────────┐
 │                                                                │
+│  Fallback: FallbackDecisionStrategy (NEED_APPROVAL, 100%)      │
+│   └── Overhead < 10ms sau khi failure được xác định           │
+│                                                                │
 │  Retry Policy (Tối đa 2 retries = 3 attempts, base delay 30ms) │
 │   │                                                            │
-│   └── Inner Timeout: 150ms per attempt                        │
-│        └── Strategy.EvaluateAsync()                           │
-│                                                                │
-│  Circuit Breaker (Mở mạch khi tỷ lệ lỗi vượt ngưỡng trong    │
-│   cửa sổ sampling 30 giây, tối thiểu 10 requests)              │
-│                                                                │
-│  Fallback: DefaultDecisionStrategy (thanh toán tĩnh 100%)              │
-│   └── Overhead < 10ms sau khi failure được xác định           │
+│   └── Circuit Breaker (Sampling 30s, tối thiểu 10 requests)    │
+│        └── Inner Timeout: 120ms per attempt                    │
+│             └── Strategy.EvaluateAsync()                       │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
 ```
 > [!IMPORTANT]
-> **Giải trình Budget trễ:** Outer Timeout 500ms là overall request budget (SLA) bọc ngoài toàn bộ retry attempts và retry delays. Inner Timeout 150ms là giới hạn cho từng strategy execution attempt riêng lẻ.
+> **Giải trình Budget trễ:** Outer Timeout 500ms là overall request budget (SLA) bọc ngoài toàn bộ retry attempts và retry delays. Inner Timeout 120ms là giới hạn cho từng strategy execution attempt riêng lẻ ($3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$).
 
 ### 6.3. Thiết kế Request-Hash Caching
 * **Thuật toán:** Cache Key được tính toán bằng cách băm SHA-256 các thông số định danh phiên bản và dữ liệu cốt lõi:
   $$\text{CacheKey} = \text{SHA256}(\text{strategyName} + \text{strategyVersion} + \text{normalizedDecisionRequest})$$
-  Namespace Redis: `decision:{strategyName}:{strategyVersion}:{requestHash}`
+  Namespace Redis: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`
 * **Stale Behavior Policy:**
-  * **Default Strategy (Tĩnh):** Cho phép cache bình thường với TTL = 15 phút.
+  * **Default Strategy (Baseline):** Cho phép cache bình thường với cấu hình baseline TTL = 24 giờ (`TtlHours = 24`).
   * **Adaptive Strategy (Khóa luận):** Mặc định bị vô hiệu hóa (disabled by default) hoặc đặt TTL = 1 phút (dưới dạng cấu hình thực nghiệm) để tránh stale decisions khi điểm tin cậy khách hàng thay đổi đột ngột.
 
 ### 6.4. Ràng buộc xử lý quá hạn phê duyệt (No Auto-Approve)
@@ -198,7 +198,7 @@ Khi TADSS trả về trạng thái quyết định, SmashCourt và Manager phố
 2.  **Phân loại theo thời gian đặt (Booking Lead Time Separation):** 
     *   **Đặt sát giờ (Last-minute booking - dưới 24h):** Ưu tiên ra quyết định tự động hoàn toàn (chỉ nhận kết quả `Approved` hoặc `Rejected` từ TADSS). Tránh tối đa trạng thái `NeedApproval` để không làm nghẽn luồng thanh toán của khách hàng khi thời gian bắt đầu cận kề.
     *   **Đặt trước dài ngày (Advance booking):** Cho phép kích hoạt luồng phê duyệt thủ công (`NeedApproval`), đưa yêu cầu lên Dashboard chờ Manager xử lý vì thời gian chuẩn bị còn dài.
-3.  **Chính sách theo thời điểm (Peak/Off-Peak Rules):** Tách biệt luồng gọi chiến lược mặc định (`DefaultDecisionStrategy` - thanh toán tĩnh 100%) đóng vai trò là kịch bản fallback chịu lỗi, và chiến lược thử nghiệm (`MockAlternativeDecisionStrategy`) áp dụng mức cọc 30% cho giờ thường (Approved) và cọc 50% cho giờ cao điểm (NeedApproval) nhằm kiểm chứng khả năng phân giải chiến lược linh hoạt của hệ thống.
+3.  **Chính sách theo thời điểm (Peak/Off-Peak Rules):** Tách biệt luồng gọi chiến lược mặc định (`DefaultDecisionStrategy` - Baseline Business Policy với mức 100% mặc định khi không đạt ngưỡng ưu đãi) và chiến lược thử nghiệm (`MockAlternativeDecisionStrategy`) áp dụng mức cọc 30% cho giờ thường (Approved) và cọc 50% cho giờ cao điểm (NeedApproval) nhằm kiểm chứng khả năng phân giải chiến lược linh hoạt của hệ thống.
 4.  **Cơ chế vận hành khẩn cấp (Emergency Valve):** Khi hệ thống TADSS quá tải hoặc gặp sự cố nghiêm trọng, Manager có thể tắt Feature Flag (`EnableTadssDecision = false`) trên SmashCourt. Hệ thống đặt sân sẽ lập tức chuyển sang chế độ tự hoạt động bằng chính sách thanh toán tĩnh mặc định (100%), cô lập hoàn toàn sự cố để bảo vệ luồng giao dịch cốt lõi.
 
 *Lưu ý: Các cơ chế phân luồng trên thuộc về logic nghiệp vụ của ứng dụng SmashCourt, không thuộc phạm vi xử lý lõi của TADSS Runtime Platform.*
@@ -232,8 +232,8 @@ Dự án được phân chia thành các giai đoạn phát triển logic kế t
 
 * **Phase 1 — Phân tích & Thiết kế (2 tuần):** Phân tích vấn đề, xác định yêu cầu nghiệp vụ, hoàn thiện chuẩn giao tiếp Decision Contract, thiết kế kiến trúc tổng thể và DB schema.
 * **Phase 2 — Xây dựng Decision Contract SDK (2 tuần):** Phát triển thư viện dùng chung `Shared.DecisionContractSDK` định nghĩa Reservation Aggregate, DTOs, Enums, giao diện `IReservationDecisionStrategy` và các quy tắc kiểm tra hợp lệ.
-* **Phase 3 — Xây dựng Decision Runtime API (2 tuần):** Xây dựng Web API `POST /decisions`, bộ nạp chiến lược `StrategyFactory` (DI-based resolution), chiến lược mặc định `DefaultDecisionStrategy` (thanh toán tĩnh 100%) và chiến lược thử nghiệm `MockAlternativeDecisionStrategy` (cọc 50% giờ cao điểm).
-* **Phase 4 — Resilience, Cache & Audit (3 tuần):** Tích hợp chuỗi chịu lỗi lồng nhau Polly v8 (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 150ms, Circuit Breaker, Fallback), bộ nhớ đệm Redis Request-Hash Cache và ghi vết transaction audit log qua MediatR xuống cơ sở dữ liệu PostgreSQL.
+* **Phase 3 — Xây dựng Decision Runtime API (2 tuần):** Xây dựng Web API `POST /decisions`, bộ nạp chiến lược `StrategyFactory` (DI-based resolution), chiến lược mặc định `DefaultDecisionStrategy` (Baseline Business Policy: phân hạng khách hàng kết hợp mức thanh toán 100% mặc định) và chiến lược thử nghiệm `MockAlternativeDecisionStrategy` (cọc 50% giờ cao điểm).
+* **Phase 4 — Resilience, Cache & Audit (3 tuần):** Tích hợp chuỗi chịu lỗi lồng nhau Polly v8 (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, Circuit Breaker, Fallback), bộ nhớ đệm Redis Request-Hash Cache và ghi vết transaction audit log qua MediatR xuống cơ sở dữ liệu PostgreSQL.
 * **Phase 5 — Human-in-the-loop & Integration (2 tuần):** Xây dựng Override API cho phép duyệt thủ công (idempotency, optimistic locking), màn hình Manager Dashboard trên Next.js, cơ chế vận hành khẩn cấp Feature Flag và tích hợp hoàn chỉnh với luồng đặt sân của hệ thống SmashCourt.
 * **Phase 6 — Testing, Evaluation & Hoàn thiện (3 tuần):** Thực hiện Unit Test, Integration Test, kiểm thử giả lập sự cố (Failure Injection Test), kiểm thử bắn tải (Load Test), đánh giá các chỉ số thiết kế (SC1-SC6), khắc phục lỗi, quay video demo và hoàn thiện báo cáo đồ án.
 

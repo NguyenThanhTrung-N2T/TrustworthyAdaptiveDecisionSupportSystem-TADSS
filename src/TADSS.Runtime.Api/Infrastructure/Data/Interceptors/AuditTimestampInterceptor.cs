@@ -40,6 +40,7 @@ public class AuditTimestampInterceptor : SaveChangesInterceptor
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = utcNow;
+                entry.Entity.Version++;
             }
         }
     }

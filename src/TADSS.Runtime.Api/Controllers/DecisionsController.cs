@@ -52,6 +52,21 @@ public class DecisionsController : ControllerBase
             return BadRequest(problemDetails);
         }
 
+        if (idempotencyKey.Length > 128)
+        {
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid Header Length",
+                Detail = $"The '{HttpHeaderNames.IdempotencyKey}' request header must not exceed 128 characters.",
+                Instance = HttpContext.Request.Path,
+                Type = "https://tadss.smashcourt.vn/errors/validation-error"
+            };
+            problemDetails.Extensions["code"] = ErrorCodes.ValidationError;
+            problemDetails.Extensions["traceId"] = HttpContext.TraceIdentifier;
+            return BadRequest(problemDetails);
+        }
+
         var result = await _decisionService.EvaluateDecisionAsync(request, idempotencyKey, cancellationToken);
 
         Response.Headers[HttpHeaderNames.DecisionId] = result.DecisionId.ToString();
