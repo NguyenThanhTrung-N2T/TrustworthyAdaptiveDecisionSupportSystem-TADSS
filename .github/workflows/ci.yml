@@ -43,9 +43,10 @@ jobs:
           dotnet test 
           --no-build 
           --configuration Release 
+          -m:1 
           --verbosity normal 
           --logger "GitHubActions" 
-          --logger "trx;LogFileName=test_results.trx" 
+          --logger "trx;LogFilePrefix=test_results" 
           --collect:"XPlat Code Coverage" 
           --results-directory ./TestResults
 
