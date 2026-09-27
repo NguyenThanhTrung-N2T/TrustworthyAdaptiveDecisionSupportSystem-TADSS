@@ -3,7 +3,7 @@
 > **Tài liệu đặc tả các Invariants cốt lõi của tầng lưu trữ quyết định (Decision Persistence Layer)**  
 > **Database:** `tadssdb` | **Schema:** `tadss` | **Bảng chính:** `tadss.decision_executions`  
 > **Phân loại kiến trúc:** *Decision Execution Audit Ledger with Immutable Machine Snapshot and Mutable Governance Metadata*  
-> **Áp dụng cho:** Đồ án 2 & Khóa luận tốt nghiệp (Research & Production-grade Baseline)
+> **📌 Khóa Phạm vi (Scope Lock):** Toàn bộ 4 Invariants lưu trữ dưới đây thuộc phạm vi bắt buộc của **Đồ án 2 (`TADSS Runtime Engine`)** nhằm bảo đảm tính toàn vẹn kiểm toán (Audit Provenance) và cơ chế ghi đè an toàn (Human-in-the-Loop). Việc khai thác dữ liệu lịch sử này cho các bài toán học máy hoặc nghiên cứu triệt tiêu thuộc giai đoạn tương lai **`[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`**.
 
 ---
 
@@ -47,7 +47,7 @@ Mỗi chu kỳ đánh giá độc lập sẽ được cấp phát một **`decis
 
 ### 2.3. Quy tắc Bất biến về Index
 * **Index Non-Unique:** `CREATE INDEX idx_decision_executions_request_hash ON tadss.decision_executions(request_hash);`
-* **Lý do:** Cùng một `request_hash = ABC` có thể được thực thi bởi các `strategy_version` khác nhau (v1.0.0 vs v1.1.0) hoặc tại các thời điểm khác nhau. Cả hai lần chạy đều được lưu trữ để phục vụ **Ablation Study** (Nghiên cứu triệt tiêu) trong Khóa luận.
+* **Lý do:** Cùng một `request_hash = ABC` có thể được thực thi bởi các `strategy_version` khác nhau (v1.0.0 vs v1.1.0) hoặc tại các thời điểm khác nhau. Cả hai lần chạy đều được lưu trữ để phục vụ kiểm toán lịch sử phiên bản chính sách (và mở rộng cho đối chứng thực nghiệm `[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`).
 
 ---
 
@@ -62,7 +62,7 @@ Bản ghi kiểm toán gồm 2 phần tách bạch:
 Một bản ghi quyết định chỉ được coi là đã ghi đè khi và chỉ khi thỏa mãn đồng thời:
 $$\forall e \in \text{DecisionExecutions}, \quad e.\text{is\_overridden} = \text{TRUE} \iff \begin{cases} e.\text{overridden\_by} \neq \text{NULL} \land \text{LEN}(e.\text{overridden\_by}) > 0 \\ e.\text{override\_reason} \neq \text{NULL} \land \text{LEN}(e.\text{override\_reason}) > 0 \\ e.\text{updated\_at} \ge e.\text{created\_at} \end{cases}$$
 
-Khi Quản lý can thiệp ghi đè, `response_payload` gốc **giữ nguyên 100%**, đảm bảo bảo tồn nguyên vẹn dữ liệu máy phục vụ đối chứng khoa học và huấn luyện mô hình thích ứng.
+Khi Quản lý can thiệp ghi đè, `response_payload` gốc **giữ nguyên 100%**, đảm bảo bảo tồn nguyên vẹn dữ liệu máy phục vụ truy vết kiểm toán vận hành (Immutable Audit Trail) (và làm nguồn dữ liệu đối chứng cho giai đoạn sau `[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`).
 
 ---
 

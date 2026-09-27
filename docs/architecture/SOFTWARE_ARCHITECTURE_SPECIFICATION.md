@@ -32,17 +32,13 @@ SmashCourt.sln (Solution)
 │   │       └── Shared.DecisionContractSDK.csproj
 │   │
 │   └── 4.Strategies/
-│       ├── Strategy.Default/                # Cài đặt DefaultDecisionStrategy (Conservative Baseline Business Policy)
+│       ├── TADSS.Strategies.Default/        # Cài đặt DefaultDecisionStrategy (Conservative Baseline Business Policy - Đồ án 2)
 │       │   └── DefaultDecisionStrategy.cs
 │       │
-│       ├── Strategy.MockAlternative/        # Cài đặt MockAlternativeDecisionStrategy (Demonstration Policy: 30% / 50%)
+│       ├── TADSS.Strategies.MockAlternative/# Cài đặt MockAlternativeDecisionStrategy (Demonstration Policy: 30% / 50% - Đồ án 2)
 │       │   └── MockAlternativeDecisionStrategy.cs
 │       │
-│       └── Strategy.AdaptiveTrust/          # Cài đặt TrustworthyAdaptiveDecisionStrategy (TADS Research - Khóa luận)
-│           ├── TrustModel/
-│           ├── MachineLearning/             # CatBoost Predictor
-│           ├── TrustworthyAdaptiveDecisionStrategy.cs
-│           └── Strategy.AdaptiveTrust.csproj# Nhúng DecisionContractSDK
+│       └── [Future Extension — Out-of-Scope Đồ án 2: Strategy.AdaptiveTrust (Khóa luận)]
 ```
 
 ---
@@ -241,7 +237,7 @@ sequenceDiagram
     participant TADSS as Decision Runtime (TADSS)
     participant Cache as Request-Hash Cache (Redis)
     participant PollyPipeline as Polly Resilience Pipeline
-    participant TADS as Active Decision Strategy
+    participant Strategy as Active Decision Strategy
     participant FallbackStr as FallbackDecisionStrategy (NEED_APPROVAL)
     participant DB as Database (PostgreSQL - Schema tadss)
 
@@ -257,14 +253,14 @@ sequenceDiagram
         Note over PollyPipeline: Configured Pipeline: Outer 500ms -> Fallback -> Retry 2 -> CB -> Inner 120ms
         
         alt Trường hợp Strategy phản hồi thành công
-            PollyPipeline->>TADS: EvaluateAsync(request, ct)
-            TADS-->>PollyPipeline: Trả về DecisionResult (30% hoặc 50% cọc)
+            PollyPipeline->>Strategy: EvaluateAsync(request, ct)
+            Strategy-->>PollyPipeline: Trả về DecisionResult (30% hoặc 50% cọc)
             PollyPipeline-->>TADSS: Trả về kết quả thành công
             TADSS->>Cache: Lưu DecisionResult vào Cache
             TADSS->>DB: Publish MediatR DecisionEvaluatedAuditNotification (đồng bộ: execution_type = 'AUTOMATED', fallback_used = FALSE)
         else Trường hợp Strategy bị timeout (>120ms) hoặc lỗi 500
-            PollyPipeline->>TADS: EvaluateAsync(request, ct)
-            Note over TADS: Gặp sự cố timeout hoặc ném Exception...
+            PollyPipeline->>Strategy: EvaluateAsync(request, ct)
+            Note over Strategy: Gặp sự cố timeout hoặc ném Exception...
             PollyPipeline->>PollyPipeline: Thực thi Retry (tối đa 2 lần) & Inner Timeout (120ms)
             PollyPipeline->>PollyPipeline: Mở mạch Circuit Breaker khi tỷ lệ lỗi vượt ngưỡng
             PollyPipeline->>FallbackStr: EvaluateFailSafeAsync(request, ct)

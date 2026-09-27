@@ -192,21 +192,21 @@ flowchart TD
         *   Tách biệt Request Identity (`RequestHash = SHA256(Canonical(DecisionRequest))`) và Strategy Identity trong Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` (kèm cấu hình baseline mặc định `TtlHours = 24` trên Redis 7.x/8.x L2 — hỗ trợ cả **Redis Cloud (`ap-southeast-1`)** lẫn Local/Docker — và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 khi vượt quá `RedisTimeoutMs = 150ms`).
     *   *Fault Injection Matrix (F1–F7):* Kiểm chứng tự động toàn bộ 7 kịch bản lỗi (`F1` Recoverable Timeout, `F2` Retry Exhaustion, `F3` Strategy Exception, `F4` Circuit Breaker Open, `F5` Redis Unavailable L2 $\rightarrow$ L1, `F6` Persistence Fail-Closed, `F7` Caller Cancellation).
 
-#### **Tuần 8: Thực nghiệm Đo đạc Hiệu năng Cache ($G_0..G_2$) & Độ chịu lỗi ($R_0..R_3$) (Performance Benchmark)**
-*   **Sinh viên 1 (Owner — Resilience Benchmark $R_0..R_3$):**
-    *   Thiết lập môi trường kiểm soát thực nghiệm (Benchmark Environment Lock) và thực thi quy trình đo 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải đồng thời $VUs \in \{1, 10, 50, 100\}$.
-    *   Đo đạc đối chứng 4 kịch bản chịu lỗi: $R_0$ (*Normal Strategy*), $R_1$ (*Recoverable Timeout*), $R_2$ (*Circuit Breaker OPEN Fast-Fail*), $R_3$ (*Retry Exhaustion $\rightarrow$ Fallback*).
-    *   Tính toán chỉ số **Decision Continuity Rate (DCR)** và kiểm chứng phong bì độ trễ $P_{50}, P_{90}, P_{95}, P_{99} \le 500\text{ms}$.
-*   **Sinh viên 2 (Owner — Caching Benchmark $G_0..G_2$):**
-    *   Thực thi thí nghiệm trực giao đo đạc 3 điều kiện bộ nhớ đệm: $G_0$ (*Direct Execution — No Cache*), $G_1$ (*Cache Miss Path*), $G_2$ (*Cache Hit Path*) với cấu hình baseline `Default TTL = 24h`.
-    *   Định lượng **Cache Miss Overhead** ($\text{Latency}(G_1) - \text{Latency}(G_0)$) và **Cache Benefit** ($\text{Latency}(G_0) - \text{Latency}(G_2)$).
+#### **Tuần 8: Thực nghiệm Đo đạc Hiệu năng Cache, Độ chịu lỗi & Tải Hỗn hợp Thực tế ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ — 19 Kịch bản / 76 Lượt chạy)**
+*   **Sinh viên 1 (Owner — Experimental Protocol, Resilience $R_0..R_3$, Strategy/DB $D_0..D_2$ & Recovery $E_0..E_4$):**
+    *   Thiết lập **Controlled Experimental Protocol** (`TADSS.BenchmarkRunner` độc lập tại `tests/TADSS.BenchmarkRunner`, không xâm nhập mã nguồn production, hỗ trợ `--suite Core7` 28 runs và `--suite Full19` 76 runs) kèm ghi nhận Traceable Run Metadata (`run_id`, `scenario`, `concurrency`, `warmup_requests`, `cache_state`, `redis_state`, `database_state`, resilience parameters).
+    *   Thực thi quy trình đo 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) trên ma trận tải đồng thời $VUs \in \{1, 10, 50, 100\}$ cho nhóm kịch bản chịu lỗi cốt lõi có cô lập trạng thái ($R_2 \neq R_3$): $R_0..R_3$, hiệu năng Strategy/DB ($D_0$ Heavy Multi-Rule Strategy, $D_1$ DB Audit Write Contention, $D_2$ Bimodal Jitter) và tải hỗn hợp/tự phục hồi ($E_0..E_4$, bao gồm $E_2$ Cascading Triple Stress, $E_3$ Intermittent Transient Faults và $E_4$ Half-Open $\rightarrow$ Closed Self-Healing).
+    *   Đo lường thực nghiệm phân phối độ trễ ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}$), thông lượng (RPS), tỷ lệ Fallback và chỉ số **Decision Continuity Rate (DCR)** thực tế để đánh giá đối chiếu với ngân sách cấu hình lý thuyết (`420ms` < `500ms` Outer Timeout) và tiêu chí chấp nhận SC1/SC2.
+*   **Sinh viên 2 (Owner — Caching Benchmark $G_0..G_2$, Cache Pathologies $C_0..C_3$ & Concurrency Matrix):**
+    *   Thực thi thí nghiệm trực giao đo đạc 3 điều kiện bộ nhớ đệm cơ sở ($G_0$ No Cache, $G_1$ Cache Miss Path, $G_2$ Pre-warmed Cache Hit Path) và 4 kịch bản bệnh lý bộ nhớ đệm thực tế ($C_0$ Partial 50% Hit, $C_1$ Slow WAN Cache RTT, $C_2$ Cache Thundering Herd Stampede, $C_3$ Bounded LRU Eviction Thrashing) tại các mức $VUs \in \{1, 10, 50, 100\}$.
+    *   Đo lường thực nghiệm **Cache Miss Overhead** ($\text{Latency}(G_1) - \text{Latency}(G_0)$), **Cache Benefit** ($\text{Latency}(G_0) - \text{Latency}(G_2)$) và WAN Cache Overhead, xuất dữ liệu JSON/CSV/Markdown có khả năng truy vết đầy đủ phục vụ Chương 3 & Chương 4.
 
-#### **Tuần 9: Truy xuất Telemetry Kiểm toán & Chuẩn hóa Tập dữ liệu Nghiên cứu (Dataset Normalizer)**
+#### **Tuần 9: Truy xuất Telemetry Kiểm toán & Chuẩn hóa Tập dữ liệu Thực nghiệm (Dataset Normalizer)**
 *   **Sinh viên 2 (Owner — Dataset Normalizer):**
     *   Xây dựng công cụ `DatasetNormalizer` kết hợp dữ liệu từ bảng `tadss.decision_executions` (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) với Metadata thực nghiệm (`experiment_id`, `scenario_id`, `concurrency_level`, `injected_fault_type`, `cache_condition`) mà không làm ô nhiễm schema production.
-    *   Trích xuất 3 tập dữ liệu chuẩn hóa (CSV / JSONL): (1) *Resilience Evaluation Dataset*, (2) *Latency & Caching Dataset*, (3) *Ablation & Governance Dataset*.
+    *   Trích xuất 3 tập dữ liệu chuẩn hóa (CSV / JSONL) phục vụ đánh giá kỹ thuật trong Đồ án 2: (1) *Resilience Evaluation Dataset*, (2) *Latency & Caching Dataset*, (3) *Governance & Audit Provenance Dataset*.
 *   **Sinh viên 1 (Supporting — Telemetry Verification & Analysis):**
-    *   Kiểm chứng tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo / Khóa luận.
+    *   Kiểm chứng tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo Đồ án 2.
 *   🎯 **Milestone 4 (Cuối Tuần 9):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2 và bộ dữ liệu benchmark chuẩn hóa hoàn tất.*
 
 ---

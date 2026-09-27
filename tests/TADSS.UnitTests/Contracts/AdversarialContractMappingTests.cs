@@ -340,16 +340,16 @@ public class AdversarialContractMappingTests
     [Fact]
     public void DecisionResultDto_WithFutureOrCustomReasonCode_SerializesAndDeserializesSuccessfully()
     {
-        // Arrange: Mô phỏng Decision Engine sinh ra mã lý do tương lai (Future/Custom Reason Code)
-        const string futureReasonCode = "ML_TRUST_SCORE_DECAY_EVALUATED";
-        const string customReasonMessage = "Điểm tin cậy thích ứng giảm 15% do tần suất hủy giờ chót.";
+        // Arrange: Mô phỏng Decision Engine sinh ra mã lý do tùy chỉnh mới (Future/Custom Reason Code)
+        const string futureReasonCode = "CUSTOM_PEAK_SURCHARGE_EVALUATED";
+        const string customReasonMessage = "Áp dụng chính sách phụ phí khung giờ cao điểm đặc biệt theo cấu hình mới.";
 
         var result = new DecisionResultDto
         {
             DecisionId = Guid.NewGuid(),
             ReservationId = Guid.NewGuid(),
             Status = DecisionStatus.NEED_APPROVAL.ToString(),
-            StrategyName = "AdaptiveTrustMLStrategy",
+            StrategyName = "CustomPolicyStrategy",
             StrategyVersion = "2.0.0",
             ExecutionTimeMs = 42,
             FallbackUsed = false,
