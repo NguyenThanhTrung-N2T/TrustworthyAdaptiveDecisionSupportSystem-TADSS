@@ -94,7 +94,7 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
     {
       "TadssConfig": {
         "EnableTadssDecision": true,
-        "TadssEndpoint": "http://localhost:5000/api/v1/decisions",
+        "TadssEndpoint": "http://localhost:5296/api/v1/decisions",
         "DefaultDepositRate": 1.0
       }
     }
@@ -111,7 +111,7 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
 
 ## 2. KẾ HOẠCH DI CƯ CƠ SỞ DỮ LIỆU (DATABASE MIGRATION PLAN)
 
-Cơ sở dữ liệu của TADSS Platform được tích hợp trực tiếp vào PostgreSQL 16 hiện tại của SmashCourt, cô lập hoàn toàn ở tầng **Logical Schema** có tên là `tadss` để tránh xung đột cấu trúc dữ liệu chính.
+Cơ sở dữ liệu của TADSS Platform được tích hợp trực tiếp vào PostgreSQL 16 hiện tại của SmashCourt (trên **Neon Cloud `ap-southeast-1`** hoặc Local), cô lập hoàn toàn ở tầng **Logical Schema** có tên là `tadss` để tránh xung đột cấu trúc dữ liệu chính.
 
 ```
 PostgreSQL Database (SmashCourt DB)
@@ -175,7 +175,7 @@ Nếu bản Migration gây lỗi hoặc cần gỡ bỏ hoàn toàn:
 
 ## 3. CƠ CHẾ REQUEST-HASH CACHING & CHUẨN HÓA DỮ LIỆU
 
-Nhằm tối ưu hóa hiệu năng phản hồi và tránh tính toán lại không cần thiết, TADSS áp dụng cơ chế Request-Hash Cache (Redis 7.x L2 kết hợp `IMemoryCache` L1 fallback, SHA-256 exact-match).
+Nhằm tối ưu hóa hiệu năng phản hồi và tránh tính toán lại không cần thiết, TADSS áp dụng cơ chế Request-Hash Cache (Redis 7.x / 8.x trên **Redis Cloud Managed `ap-southeast-1`** hoặc Local ở tầng L2, kết hợp `IMemoryCache` L1 fallback, SHA-256 exact-match).
 
 ### 3.1. Quy trình Chuẩn hóa Payload (Canonicalization - 4 bước)
 

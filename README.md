@@ -151,11 +151,11 @@ The strategy is responsible for **decision-making logic**.
 * **.NET 8** (C# 12)
 * ASP.NET Core Web API
 * Entity Framework Core 8
-* PostgreSQL 16 / Npgsql
+* PostgreSQL 16 / Npgsql *(Neon Cloud Managed `ap-southeast-1` hoặc Local/Docker)*
 
 ### Decision & Runtime
 * Polly v8 Resilience Pipelines
-* StackExchange.Redis 7.x
+* StackExchange.Redis *(Redis 7.x / 8.x trên Redis Cloud Managed `ap-southeast-1` hoặc Local, kèm L1 `IMemoryCache` Fallback)*
 * Serilog Structured Logging & LogContext Enricher
 
 ### API & Contracts
@@ -188,8 +188,8 @@ The strategy is responsible for **decision-making logic**.
 
 ### Requirements
 * .NET 8 SDK
-* PostgreSQL 16 (Schema `tadss`)
-* Redis 7.x *(tùy chọn khi bật Distributed Caching)*
+* PostgreSQL 16 (Schema `tadss` — Neon Cloud `ap-southeast-1` hoặc Local)
+* Redis 7.x / 8.x *(Redis Cloud `ap-southeast-1` hoặc Local — tự động suy thoái êm sang L1 `IMemoryCache` nếu không cấu hình)*
 
 ### Restore, Build & Test
 
@@ -207,7 +207,7 @@ dotnet test TADSS.slnx --configuration Release --verbosity normal
 dotnet run --project src/TADSS.Runtime.Api
 ```
 
-Swagger UI is available at `http://localhost:5000/swagger` when running.
+Swagger UI is available at `http://localhost:5296/swagger` (or `https://localhost:7074/swagger`) when running.
 
 ---
 
