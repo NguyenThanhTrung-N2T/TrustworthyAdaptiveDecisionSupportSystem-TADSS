@@ -179,8 +179,8 @@ The strategy is responsible for **decision-making logic**.
 | `TADSS.Runtime.Api` | Main runtime, DI-based Strategy Resolution, Polly resilience, and Web API controllers |
 | `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Conservative baseline business policy) |
 | `TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` (30% off-peak / 50% peak demonstration policy) |
-| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, and policies (393 tests) |
-| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (25 tests) |
+| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, and policies (429 tests) |
+| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (26 tests) |
 
 ---
 
@@ -200,7 +200,7 @@ dotnet restore TADSS.slnx
 # 2. Build Release with zero warnings
 dotnet build TADSS.slnx --configuration Release --warnaserror
 
-# 3. Run all 418 unit & integration tests
+# 3. Run all 455 unit & integration tests
 dotnet test TADSS.slnx --configuration Release --verbosity normal
 
 # 4. Run API locally

@@ -37,6 +37,7 @@ public class RedisDecisionCacheService : IDecisionCacheService
     public async Task<DecisionResultDto?> GetAsync(string key, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var redisKey = FormatKey(key);
         var redisValue = await Database.StringGetAsync(redisKey);
@@ -62,6 +63,7 @@ public class RedisDecisionCacheService : IDecisionCacheService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(result);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var redisKey = FormatKey(key);
         var effectiveTtl = ttl ?? TimeSpan.FromHours(_options.TtlHours);
@@ -74,6 +76,8 @@ public class RedisDecisionCacheService : IDecisionCacheService
     public async Task RemoveAsync(string key, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        cancellationToken.ThrowIfCancellationRequested();
+
         var redisKey = FormatKey(key);
         await Database.KeyDeleteAsync(redisKey);
     }
