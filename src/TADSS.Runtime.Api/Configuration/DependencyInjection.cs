@@ -59,8 +59,12 @@ public static class DependencyInjection
             var cacheOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TadssCacheOptions>>().Value;
             var redisConfig = StackExchange.Redis.ConfigurationOptions.Parse(cacheOptions.RedisConnectionString);
             redisConfig.AbortOnConnectFail = false;
-            redisConfig.ConnectTimeout = cacheOptions.RedisTimeoutMs;
+            var isPlaceholderHost = cacheOptions.RedisConnectionString.Contains("your-redis-host", StringComparison.OrdinalIgnoreCase);
+            redisConfig.ConnectTimeout = isPlaceholderHost
+                ? cacheOptions.RedisTimeoutMs
+                : Math.Max(cacheOptions.RedisTimeoutMs, 3000);
             redisConfig.SyncTimeout = cacheOptions.RedisTimeoutMs;
+            redisConfig.AsyncTimeout = cacheOptions.RedisTimeoutMs;
             return StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig);
         });
 
