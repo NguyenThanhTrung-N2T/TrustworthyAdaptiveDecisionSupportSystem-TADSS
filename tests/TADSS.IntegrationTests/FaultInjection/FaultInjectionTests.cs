@@ -391,7 +391,7 @@ public class FaultInjectionTests
                         Provider = "Redis",
                         EnableFallbackToMemory = true
                     });
-                    return new ResilientDecisionCacheService(memCache, opts, logger, redisCache: null);
+                    return new ResilientDecisionCacheService(memCache, opts, logger, redisCache: new FailingCacheService());
                 });
             });
         });

@@ -151,11 +151,11 @@ The strategy is responsible for **decision-making logic**.
 * **.NET 8** (C# 12)
 * ASP.NET Core Web API
 * Entity Framework Core 8
-* PostgreSQL 16 / Npgsql
+* PostgreSQL 16 / Npgsql *(Neon Cloud Managed `ap-southeast-1` hoặc Local/Docker)*
 
 ### Decision & Runtime
 * Polly v8 Resilience Pipelines
-* StackExchange.Redis 7.x
+* StackExchange.Redis *(Redis 7.x / 8.x trên Redis Cloud Managed `ap-southeast-1` hoặc Local, kèm L1 `IMemoryCache` Fallback)*
 * Serilog Structured Logging & LogContext Enricher
 
 ### API & Contracts
@@ -179,8 +179,8 @@ The strategy is responsible for **decision-making logic**.
 | `TADSS.Runtime.Api` | Main runtime, DI-based Strategy Resolution, Polly resilience, and Web API controllers |
 | `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Conservative baseline business policy) |
 | `TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` (30% off-peak / 50% peak demonstration policy) |
-| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, and policies (393 tests) |
-| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (25 tests) |
+| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, and policies (429 tests) |
+| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (26 tests) |
 
 ---
 
@@ -188,8 +188,8 @@ The strategy is responsible for **decision-making logic**.
 
 ### Requirements
 * .NET 8 SDK
-* PostgreSQL 16 (Schema `tadss`)
-* Redis 7.x *(tùy chọn khi bật Distributed Caching)*
+* PostgreSQL 16 (Schema `tadss` — Neon Cloud `ap-southeast-1` hoặc Local)
+* Redis 7.x / 8.x *(Redis Cloud `ap-southeast-1` hoặc Local — tự động suy thoái êm sang L1 `IMemoryCache` nếu không cấu hình)*
 
 ### Restore, Build & Test
 
@@ -200,14 +200,14 @@ dotnet restore TADSS.slnx
 # 2. Build Release with zero warnings
 dotnet build TADSS.slnx --configuration Release --warnaserror
 
-# 3. Run all 418 unit & integration tests
+# 3. Run all 455 unit & integration tests
 dotnet test TADSS.slnx --configuration Release --verbosity normal
 
 # 4. Run API locally
 dotnet run --project src/TADSS.Runtime.Api
 ```
 
-Swagger UI is available at `http://localhost:5000/swagger` when running.
+Swagger UI is available at `http://localhost:5296/swagger` (or `https://localhost:7074/swagger`) when running.
 
 ---
 

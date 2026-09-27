@@ -211,13 +211,13 @@ Technology stack của Đồ án 2 được gom cụm rõ ràng theo phân nhóm
 
 ### 7.1. Core Stack (Bắt buộc)
 * **Ngôn ngữ & Framework:** C# 12, .NET Core 8 (ASP.NET Core Web API).
-* **Database Access:** Entity Framework Core 8, PostgreSQL 16 (Logical schema isolation).
+* **Database Access:** Entity Framework Core 8, PostgreSQL 16 (Logical schema isolation — hỗ trợ triển khai Cloud Managed trên Neon PostgreSQL hoặc Local/Docker).
 * **Resilience Framework:** Polly v8 (Timeout, Retry, Circuit Breaker, Fallback).
 * **In-process Dispatcher:** MediatR (Synchronous event handling trong transaction boundary).
 * **Testing:** xUnit, FluentAssertions (Unit & Integration tests).
 
 ### 7.2. Supporting Stack (Nên có)
-* **Cache Provider:** Redis 7.x (Request-Hash Caching).
+* **Cache Provider:** Redis 7.x / 8.x (Request-Hash Distributed Caching trên Redis Cloud Managed hoặc Local/Docker, tích hợp L1 `IMemoryCache` Fallback).
 * **Logging Framework:** Serilog (Structured Logging ghi file/console).
 * **Frontend Framework:** Next.js (Manager Dashboard duyệt/ghi đè đơn giản).
 
@@ -251,8 +251,8 @@ Các chỉ số dưới đây đóng vai trò là **Design Targets** (Mục tiê
 
 | Mã | Chỉ số | Design Target (Kiểm chứng) |
 |---|---|---|
-| **SC1** | Thời gian xử lý thành công (Normal) | Latency p95 < 150ms đối với các request thành công thông thường (không hit cache và không tính các lượt phải retry/fallback). |
-| **SC2** | Thời gian xử lý kịch bản lỗi (Failure) | Overall request budget <= 500ms (được cưỡng chế bởi Polly Outer Timeout khi retry/timeout xảy ra). |
+| **SC1** | Thời gian xử lý thành công (Normal) | Latency p95 < 150ms đối với các request thành công thông thường trên môi trường chuẩn Local/In-Network (hoặc tách bạch độ trễ xử lý nội tại `execution_time_ms` với độ trễ mạng WAN RTT ~35–60ms/hop khi kết nối qua Cloud Managed tại region `ap-southeast-1`). |
+| **SC2** | Thời gian xử lý kịch bản lỗi (Failure) | Overall strategy resilience budget <= 500ms (được cưỡng chế bởi Polly Outer Timeout khi retry/timeout xảy ra). |
 | **SC3** | Tính nhất quán của Audit Trail | 100% các kịch bản kiểm thử ghi nhận đúng loại execution log tương ứng. |
 | **SC4** | Cơ chế chống ghi trùng (Override) | Chặn hoàn toàn các command gửi trùng lặp thông qua `IdempotencyKey`. |
 | **SC5** | Khả năng tự reload Feature Flag | Reload cấu hình Feature Flag động qua `IOptionsMonitor` dưới 2 giây. |

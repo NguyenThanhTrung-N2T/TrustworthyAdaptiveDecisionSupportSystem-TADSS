@@ -19,7 +19,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
         MemoryDecisionCacheService memoryCache,
         IOptions<TadssCacheOptions> options,
         ILogger<ResilientDecisionCacheService> logger,
-        RedisDecisionCacheService? redisCache = null)
+        IDecisionCacheService? redisCache = null)
     {
         _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
         _options = options?.Value ?? new TadssCacheOptions();
@@ -36,7 +36,7 @@ public class ResilientDecisionCacheService : IDecisionCacheService
             try
             {
                 var result = await _redisCache!.GetAsync(key, cancellationToken);
-                if (result != null)
+                if (result != null || !_options.EnableFallbackToMemory)
                 {
                     return result;
                 }

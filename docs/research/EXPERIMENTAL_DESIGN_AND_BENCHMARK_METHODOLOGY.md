@@ -70,17 +70,26 @@ Tuân thủ nghiêm ngặt nguyên tắc **"Measure First $\rightarrow$ Optimize
 ### 3.1. Các Yếu tố Kiểm soát Môi trường (Environmental Controls)
 Mọi lượt chạy benchmark phải ghi nhận và cố định các thông số:
 * **Hardware & Runtime:** CPU Core count, RAM, OS version, .NET 8 SDK / Runtime version.
-* **Infrastructure Dependencies:** PostgreSQL 16 version, Redis 7 version (cấu hình memory, connection limits, `RedisTimeoutMs = 150ms`).
+* **Infrastructure Dependencies & Deployment Topologies:**
+  * **Database:** PostgreSQL 16 (hỗ trợ cả **Cloud Managed trên Neon Serverless PostgreSQL** tại region AWS `ap-southeast-1` Singapore lẫn **Local/Container PostgreSQL**).
+  * **Distributed Cache:** Redis 7.x / 8.x (hỗ trợ cả **Redis Cloud Managed** tại region AWS `ap-southeast-1` Singapore lẫn **Local/Container Redis**, với cấu hình `RedisTimeoutMs = 150ms`, `ConnectTimeout >= 3000ms` và tự động suy thoái êm sang L1 `IMemoryCache` khi mất kết nối).
+* **Network Topology & Dual-Latency Telemetry Separation (WAN RTT vs. Engine Overhead):**
+  * Khi thực thi từ máy trạm tại Việt Nam kết nối tới hạ tầng Cloud Managed tại Singapore (`ap-southeast-1`), mỗi chặng mạng quốc tế (WAN RTT) phát sinh độ trễ vật lý nền khoảng `35–60ms`.
+  * Do đó, công cụ Benchmark thu thập song song **2 lớp độ trễ**:
+    1. **Internal Engine / Strategy Latency (`execution_time_ms`):** Ghi nhận trực tiếp từ `DecisionResultDto.ExecutionTimeMs` và bảng `tadss.decision_executions` (phản ánh chi phí xử lý nội tại của Strategy hoặc Cache Lookup `cacheElapsedMs`; bằng `0ms` khi kích hoạt `FallbackDecisionStrategy`).
+    2. **Client End-to-End HTTP Latency (`client_elapsed_ms`):** Phản ánh tổng thời gian phản hồi HTTP đầu-cuối. Khi đánh giá đối chứng RQ2 ($\text{Cache Benefit} = \text{Latency}(G_0) - \text{Latency}(G_2)$ và $\text{Cache Miss Overhead} = \text{Latency}(G_1) - \text{Latency}(G_0)$), cả 3 nhóm $G_0, G_1, G_2$ đều chạy trên cùng một topo mạng nên độ trễ nền được kiểm soát đồng nhất.
 * **Cache Identity Invariant vs. TTL Configuration:**
   * *Architectural Invariant:* `RequestHash = SHA256(Canonical(DecisionRequest))` (bảo toàn 100% giá trị thời gian nghiệp vụ, chỉ cắt bỏ sub-second ticks về giây UTC) và `CacheKey = decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`.
   * *Experimental Configuration Parameter:* `Default TTL for benchmark baseline = 24h` (`TtlHours = 24` trong `appsettings.json` — tham số cấu hình thực nghiệm, không phải bất biến kiến trúc cứng).
-* **Workload Configuration:** So sánh đối chứng tại các mức Concurrency giống hệt nhau:
-  $$\text{Workload Scenarios} = \left\{ \text{VUs} \in \{1, 10, 50, 100\}, \ N \approx 10.000 \text{ requests per condition/VU level} \right\}$$
+* **Workload Configuration & Cloud Free-Tier Quota Control:**
+  So sánh đối chứng tại các mức Concurrency giống hệt nhau:
+  $$\text{Workload Scenarios} = \left\{ \text{VUs} \in \{1, 10, 50, 100\}, \ N \text{ configurable (e.g. } N \in [500, 10.000]\text{ requests per condition/VU level)} \right\}$$
+  * *Lưu ý Kiểm soát Quota trên Cloud Free Tier:* Khi chạy trực tiếp trên gói miễn phí của Redis Cloud (`30 concurrent connections`, giới hạn `~100 ops/sec`) và Neon Cloud Pooler, cỡ mẫu $N$ và tốc độ bắn tải được tham số hóa linh hoạt (ví dụ $N \in [500, 2.000]$) nhằm tránh hiện tượng nhà cung cấp Cloud rate-limit gây nhiễu sang kịch bản suy thoái L1 (`F5`), trong khi cấu hình Local/In-Memory cho phép chạy toàn tải $N \approx 10.000$ không giới hạn băng thông.
 
 ### 3.2. Quy trình Thực hiện Đo đạc 3 Pha (3-Phase Execution Pipeline)
 Nhằm loại trừ sai số do .NET JIT Compilation, Connection Pool Warmup, và Redis lazy initialization:
-1. **Pha Khởi động (Warm-up Phase):** Chạy 500 – 1.000 requests giả lập trong 15–30 giây để ổn định JIT cache và pool kết nối. Không tính các request này vào báo cáo.
-2. **Pha Đo đạc (Measurement Phase):** Chạy liên tục trong khoảng thời gian xác định hoặc theo số lượng request kiểm soát ($N \approx 10.000$).
+1. **Pha Khởi động (Warm-up Phase):** Chạy 100 – 1.000 requests giả lập trong 10–30 giây để ổn định JIT cache cùng TCP connection pool tới PostgreSQL / Redis. Không tính các request này vào báo cáo.
+2. **Pha Đo đạc (Measurement Phase):** Chạy liên tục trong khoảng thời gian xác định hoặc theo số lượng request kiểm soát ($N$ cấu hình theo profile môi trường).
 3. **Pha Tổng hợp Thống kê (Statistical Aggregation):** Thu thập raw timestamps và tính toán:
    $$\text{Metrics} = \left\{ P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}, \text{Mean}, \text{Throughput (RPS)}, \text{Error Rate (\%)} \right\}$$
 

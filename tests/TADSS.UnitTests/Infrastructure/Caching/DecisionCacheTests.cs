@@ -244,19 +244,171 @@ public class DecisionCacheTests
             memService,
             options,
             NullLogger<ResilientDecisionCacheService>.Instance,
-            new RedisDecisionCacheService(Mock.Of<IConnectionMultiplexer>(), options, NullLogger<RedisDecisionCacheService>.Instance));
-
-        // Use reflection or override to inject the throwing mock
-        var resilientCacheWithMock = new ResilientDecisionCacheServiceWithMock(memService, options, mockRedisService.Object);
+            mockRedisService.Object);
 
         // Act & Assert 1: GetAsync falls back to memory cache despite Redis failure
-        var retrieved = await resilientCacheWithMock.GetAsync("test-key");
+        var retrieved = await resilientCache.GetAsync("test-key");
         retrieved.Should().NotBeNull();
         retrieved!.Status.Should().Be("APPROVED");
 
-        // Act & Assert 2: SetAsync does not throw even when Redis is offline
-        var actSet = () => resilientCacheWithMock.SetAsync("key-2", cachedItem);
+        // Act & Assert 2: SetAsync does not throw even when Redis is offline, and writes to L1 memory fallback
+        var actSet = () => resilientCache.SetAsync("key-2", cachedItem);
         await actSet.Should().NotThrowAsync();
+        var fallbackRead = await memService.GetAsync("key-2");
+        fallbackRead.Should().NotBeNull();
+
+        // Act & Assert 3: RemoveAsync does not throw when Redis fails and still removes from L1 memory cache
+        mockRedisService
+            .Setup(r => r.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis offline"));
+        await resilientCache.RemoveAsync("key-2");
+        (await memService.GetAsync("key-2")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RedisDecisionCacheService_GetSetRemoveAndCorruptedJsonSelfHealing_WorksCorrectly()
+    {
+        // Arrange
+        var mockDb = new Mock<IDatabase>();
+        var mockMultiplexer = new Mock<IConnectionMultiplexer>();
+        mockMultiplexer.Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(mockDb.Object);
+
+        var options = Options.Create(new TadssCacheOptions
+        {
+            Provider = "Redis",
+            InstanceName = "tadss:",
+            TtlHours = 24
+        });
+        var redisService = new RedisDecisionCacheService(
+            mockMultiplexer.Object,
+            options,
+            NullLogger<RedisDecisionCacheService>.Instance);
+
+        var sampleResult = new DecisionResultDto
+        {
+            DecisionId = Guid.NewGuid(),
+            ReservationId = Guid.NewGuid(),
+            Status = "APPROVED",
+            StrategyName = "DefaultDecisionStrategy",
+            StrategyVersion = "1.0.0",
+            ExecutionTimeMs = 4,
+            FallbackUsed = false,
+            PrimaryReason = "APPROVED_PAID_IN_FULL",
+            Reasons = ["Test reason"],
+            Recommendations = [],
+            EvaluatedAt = DateTime.UtcNow
+        };
+
+        RedisValue storedValue = RedisValue.Null;
+        mockDb
+            .Setup(db => db.StringSetAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<RedisValue>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<bool>(),
+                It.IsAny<When>(),
+                It.IsAny<CommandFlags>()))
+            .Callback<RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags>((_, val, _, _, _, _) => storedValue = val)
+            .ReturnsAsync(true);
+
+        mockDb
+            .Setup(db => db.StringGetAsync(It.Is<RedisKey>(k => k == "tadss:sample-key"), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(() => storedValue);
+
+        // Act 1: Set & Get valid JSON payload
+        await redisService.SetAsync("sample-key", sampleResult);
+        var fetched = await redisService.GetAsync("sample-key");
+
+        // Assert 1
+        fetched.Should().NotBeNull();
+        fetched!.DecisionId.Should().Be(sampleResult.DecisionId);
+        fetched.Status.Should().Be("APPROVED");
+
+        // Act 2: Corrupted JSON in Redis triggers self-healing KeyDeleteAsync and returns null
+        storedValue = "{invalid-json-payload";
+        var corruptedResult = await redisService.GetAsync("sample-key");
+
+        // Assert 2
+        corruptedResult.Should().BeNull();
+        mockDb.Verify(db => db.KeyDeleteAsync(It.Is<RedisKey>(k => k == "tadss:sample-key"), It.IsAny<CommandFlags>()), Times.Once);
+
+        // Act 3: Pre-cancelled token throws OperationCanceledException immediately
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var actCancelled = () => redisService.GetAsync("sample-key", cts.Token);
+        await actCancelled.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task EvaluateDecisionAsync_WithRedisPrimaryAndMemoryFallbackDisabled_ExecutesFullL2RedisCacheMissAndHitCycle()
+    {
+        // Arrange: Wire DecisionService -> ResilientDecisionCacheService -> RedisDecisionCacheService (with L1 fallback disabled)
+        using var dbContext = CreateInMemoryDbContext();
+        var redisStore = new System.Collections.Concurrent.ConcurrentDictionary<string, RedisValue>();
+
+        var mockDb = new Mock<IDatabase>();
+        mockDb
+            .Setup(db => db.StringSetAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<RedisValue>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<bool>(),
+                It.IsAny<When>(),
+                It.IsAny<CommandFlags>()))
+            .Callback<RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags>((k, v, _, _, _, _) => redisStore[k.ToString()] = v)
+            .ReturnsAsync(true);
+
+        mockDb
+            .Setup(db => db.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync((RedisKey k, CommandFlags _) => redisStore.TryGetValue(k.ToString(), out var val) ? val : RedisValue.Null);
+
+        var mockMultiplexer = new Mock<IConnectionMultiplexer>();
+        mockMultiplexer.Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(mockDb.Object);
+
+        var cacheOptions = Options.Create(new TadssCacheOptions
+        {
+            Provider = "Redis",
+            InstanceName = "tadss:",
+            TtlHours = 24,
+            EnableFallbackToMemory = false // Disable L1 fallback to prove 100% L2 Redis execution
+        });
+
+        var memoryCacheService = new MemoryDecisionCacheService(
+            new MemoryCache(new MemoryCacheOptions()),
+            cacheOptions,
+            NullLogger<MemoryDecisionCacheService>.Instance);
+
+        var redisCacheService = new RedisDecisionCacheService(
+            mockMultiplexer.Object,
+            cacheOptions,
+            NullLogger<RedisDecisionCacheService>.Instance);
+
+        var resilientCacheService = new ResilientDecisionCacheService(
+            memoryCacheService,
+            cacheOptions,
+            NullLogger<ResilientDecisionCacheService>.Instance,
+            redisCacheService);
+
+        var service = CreateService(dbContext, resilientCacheService);
+        var request = CreateSampleRequest();
+
+        // Act 1: First evaluation -> Redis L2 Miss -> Strategy executes -> Stored in Redis L2
+        var result1 = await service.EvaluateDecisionAsync(request, "redis-l2-key-01");
+
+        // Act 2: Second evaluation -> Redis L2 Hit (with L1 memory cache completely disabled)
+        var result2 = await service.EvaluateDecisionAsync(request, "redis-l2-key-02");
+
+        // Assert
+        redisStore.Should().ContainSingle();
+        result2.Status.Should().Be(result1.Status);
+        result2.DecisionId.Should().NotBe(result1.DecisionId);
+
+        var executions = await dbContext.DecisionExecutions.OrderBy(e => e.CreatedAt).ToListAsync();
+        executions.Should().HaveCount(2);
+        executions[0].ExecutionType.Should().Be(ExecutionType.AUTOMATED.ToString());
+        executions[0].CacheHit.Should().BeFalse();
+        executions[1].ExecutionType.Should().Be(ExecutionType.CACHE_HIT.ToString());
+        executions[1].CacheHit.Should().BeTrue();
     }
 
     [Fact]
@@ -351,66 +503,6 @@ public class DecisionCacheTests
                 Recommendations = [],
                 EvaluatedAt = DateTime.UtcNow
             });
-        }
-    }
-
-    private class ResilientDecisionCacheServiceWithMock : IDecisionCacheService
-    {
-        private readonly MemoryDecisionCacheService _memoryCache;
-        private readonly IDecisionCacheService _throwingRedis;
-        private readonly TadssCacheOptions _options;
-
-        public ResilientDecisionCacheServiceWithMock(
-            MemoryDecisionCacheService memoryCache,
-            IOptions<TadssCacheOptions> options,
-            IDecisionCacheService throwingRedis)
-        {
-            _memoryCache = memoryCache;
-            _options = options.Value;
-            _throwingRedis = throwingRedis;
-        }
-
-        public async Task<DecisionResultDto?> GetAsync(string key, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                return await _throwingRedis.GetAsync(key, cancellationToken);
-            }
-            catch (Exception)
-            {
-                if (_options.EnableFallbackToMemory)
-                {
-                    return await _memoryCache.GetAsync(key, cancellationToken);
-                }
-                return null;
-            }
-        }
-
-        public async Task SetAsync(string key, DecisionResultDto result, TimeSpan? ttl = null, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                await _throwingRedis.SetAsync(key, result, ttl, cancellationToken);
-            }
-            catch (Exception)
-            {
-                if (_options.EnableFallbackToMemory)
-                {
-                    await _memoryCache.SetAsync(key, result, ttl, cancellationToken);
-                }
-            }
-        }
-
-        public async Task RemoveAsync(string key, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                await _throwingRedis.RemoveAsync(key, cancellationToken);
-            }
-            catch (Exception)
-            {
-                await _memoryCache.RemoveAsync(key, cancellationToken);
-            }
         }
     }
 

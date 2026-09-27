@@ -189,7 +189,7 @@ flowchart TD
         2. Lowercase chuỗi định danh UUID.
         3. Chuẩn hóa format biểu diễn timestamp sang ISO 8601 UTC string (`yyyy-MM-ddTHH:mm:ssZ`, chỉ cắt bỏ sub-second ticks hệ thống; **TUYỆT ĐỐI giữ nguyên giá trị nghiệp vụ giờ/phút, không làm tròn timestamp nghiệp vụ**).
         4. Xóa khoảng trắng thừa (whitespace) và chuẩn hóa null fields.
-        *   Tách biệt Request Identity (`RequestHash = SHA256(Canonical(DecisionRequest))`) và Strategy Identity trong Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` (kèm cấu hình baseline mặc định `TtlHours = 24` và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 khi vượt quá `RedisTimeoutMs = 150ms`).
+        *   Tách biệt Request Identity (`RequestHash = SHA256(Canonical(DecisionRequest))`) và Strategy Identity trong Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` (kèm cấu hình baseline mặc định `TtlHours = 24` trên Redis 7.x/8.x L2 — hỗ trợ cả **Redis Cloud (`ap-southeast-1`)** lẫn Local/Docker — và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 khi vượt quá `RedisTimeoutMs = 150ms`).
     *   *Fault Injection Matrix (F1–F7):* Kiểm chứng tự động toàn bộ 7 kịch bản lỗi (`F1` Recoverable Timeout, `F2` Retry Exhaustion, `F3` Strategy Exception, `F4` Circuit Breaker Open, `F5` Redis Unavailable L2 $\rightarrow$ L1, `F6` Persistence Fail-Closed, `F7` Caller Cancellation).
 
 #### **Tuần 8: Thực nghiệm Đo đạc Hiệu năng Cache ($G_0..G_2$) & Độ chịu lỗi ($R_0..R_3$) (Performance Benchmark)**
@@ -206,7 +206,7 @@ flowchart TD
     *   Xây dựng công cụ `DatasetNormalizer` kết hợp dữ liệu từ bảng `tadss.decision_executions` (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) với Metadata thực nghiệm (`experiment_id`, `scenario_id`, `concurrency_level`, `injected_fault_type`, `cache_condition`) mà không làm ô nhiễm schema production.
     *   Trích xuất 3 tập dữ liệu chuẩn hóa (CSV / JSONL): (1) *Resilience Evaluation Dataset*, (2) *Latency & Caching Dataset*, (3) *Ablation & Governance Dataset*.
 *   **Sinh viên 1 (Supporting — Telemetry Verification & Analysis):**
-    *   Kiểm증 tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo / Khóa luận.
+    *   Kiểm chứng tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo / Khóa luận.
 *   🎯 **Milestone 4 (Cuối Tuần 9):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2 và bộ dữ liệu benchmark chuẩn hóa hoàn tất.*
 
 ---
@@ -254,22 +254,22 @@ flowchart TD
 
 | Kịch bản Kiểm thử | Thao tác / Giả lập sự cố | Tiêu chí Chấp nhận (Acceptance Criteria) |
 |:---|:---|:---|
-| **1. Normal Decision** | Gửi request hợp lệ giờ thường | Trả về `Approved` (cọc 30%), latency p95 < 150ms trong môi trường test chuẩn, ghi log `AUTOMATED`. |
+| **1. Normal Decision** | Gửi request hợp lệ giờ thường | Trả về `Approved` (cọc 30%), latency p95 < 150ms trong môi trường test chuẩn (hoặc cộng độ trễ mạng nền WAN RTT ~35–60ms/hop khi chạy qua Cloud Managed `ap-southeast-1`), ghi log `AUTOMATED`. |
 | **2. Peak Hour Decision** | Gửi request rơi vào khung giờ cao điểm | Trả về `NeedApproval` (cọc 50%), tạm dừng thanh toán VNPay. |
 | **3. Strategy Timeout** | Giả lập Strategy xử lý chậm > 120ms | Inner Timeout ngắt attempt, Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`). |
 | **4. Strategy Exception** | Giả lập Strategy ném lỗi 500 | Retry 2 lần, kích hoạt `FallbackDecisionStrategy` (`NEED_APPROVAL`), ghi log `FALLBACK`. |
 | **5. Cascading Failures** | Bắn liên tiếp 10 requests lỗi | Circuit Breaker mở mạch, chuyển thẳng sang Fallback trong < 10ms trong kịch bản benchmark. |
-| **6. Cache Hit** | Gửi lại 2 request giống hệt nhau | Lần 2 trả về ngay trong < 15ms, không gọi strategy, ghi log `CACHE_HIT`. |
+| **6. Cache Hit** | Gửi lại 2 request giống hệt nhau | Lần 2 trả về ngay mà không gọi lại Strategy (Lookup < 15ms trên Local/In-Memory hoặc ~40–70ms WAN RTT trên Redis Cloud `ap-southeast-1`), ghi log `CACHE_HIT`. |
 | **7. Key Sorting Cache** | Đảo thứ tự các thuộc tính JSON trong request | Vẫn Hit Cache bình thường (chứng minh hàm chuẩn hóa representation hoạt động). |
-| **8. Redis Unavailable** | Tắt Docker / Service Redis | Tự động chuyển sang `IMemoryCache`, hệ thống không sập. |
+| **8. Redis Unavailable** | Ngắt kết nối Redis Cloud / Tắt Service Redis | Tự động chuyển sang `IMemoryCache` L1, hệ thống không sập và không kích hoạt Strategy Fallback. |
 | **9. Duplicate Override** | Gửi liên tiếp 2 lệnh Override cùng `IdempotencyKey` | Lệnh thứ 2 bị chặn, database không bị ghi đè trùng lặp. |
 | **10. Concurrency Conflict** | 2 Manager cùng gửi Override với `version = 1` | 1 lệnh thành công (version lên 2), 1 lệnh báo lỗi Conflict 409. |
 | **11. Emergency Valve OFF** | Đặt `EnableTadssDecision = false` | SmashCourt bỏ qua TADSS, tự động áp dụng cọc tĩnh 100%. |
 
 #### **Tuần 14: Đo lường Chỉ số SLA & Proof of Portability**
 *   **Đo lường Performance SLA (SC1 & SC2):**
-    *   *Design Target:* Normal Latency $p95 < 150\text{ms}$ được kiểm chứng trong môi trường test chuẩn (local dev/staging).
-    *   *Design Target:* Overall Failure SLA Budget $\le 500\text{ms}$ khi xảy ra timeout/retry/fallback trong kịch bản benchmark.
+    *   *Design Target:* Normal Latency $p95 < 150\text{ms}$ được kiểm chứng trong môi trường test chuẩn (local/in-network; khi chạy thực nghiệm trên hạ tầng Cloud Managed liên vùng VN $\leftrightarrow$ AWS `ap-southeast-1` Singapore gồm Neon PostgreSQL + Redis Cloud, số liệu báo cáo tách bạch rõ thời gian xử lý nội tại `execution_time_ms` và độ trễ mạng quốc tế WAN RTT ~35–60ms/hop).
+    *   *Design Target:* Overall Failure SLA Budget $\le 500\text{ms}$ đối với chuỗi xử lý chiến lược (`ExecuteStrategyAsync`) khi xảy ra timeout/retry/fallback trong kịch bản benchmark.
 *   **Chứng minh Tính Độc lập Tên miền (Portability Mock - SC6):**
     *   Xây dựng một mock client đại diện cho **Coworking Space (Đặt phòng họp)** gửi request về TADSS Core thông qua `Reservation` SDK.
     *   Chứng minh TADSS xử lý và ra quyết định chính xác mà **không cần sửa đổi bất kỳ dòng code nào trong TADSS Core**.
@@ -291,7 +291,7 @@ flowchart TD
 *   Quay Video Demo kịch bản hoạt động tích hợp đầu cuối (SmashCourt ↔ TADSS ↔ VNPay ↔ Override Dashboard ➔ Failure Injection).
 *   Soạn Slide thuyết trình bảo vệ trước Hội đồng (20-25 slides).
 *   Diễn tập thuyết trình thử và chuẩn bị các câu trả lời phản biện.
-*   Đóng gói mã nguồn sạch sẽ trên GitHub Repository kèm tài liệu `README.md` hướng dẫn cài đặt từ Docker/Local.
+*   Đóng gói mã nguồn sạch sẽ trên GitHub Repository kèm tài liệu `README.md` hướng dẫn cài đặt từ Cloud Managed (Neon PostgreSQL + Redis Cloud) hoặc Docker/Local.
 *   🎯 **Final Milestone (Cuối Tuần 16):** *Ready for Defense — Sẵn sàng 100% bảo vệ xuất sắc Đồ án 2.*
 
 ---
@@ -313,7 +313,7 @@ Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vư
     ├── Key normalization sắp xếp alphabet và lowercase đúng chuẩn (RFC 8785)
     ├── Giữ nguyên 100% semantic values của business timestamps (chỉ cắt bỏ sub-second ticks)
     ├── 2 JSON khác thứ tự thuộc tính sinh ra cùng mã SHA-256
-    ├── Cache Hit trả về kết quả trong < 15ms
+    ├── Cache Hit bỏ qua thực thi Strategy và trả về kết quả nhanh (< 15ms trên Local/In-Memory hoặc theo WAN RTT ~40–70ms trên Redis Cloud ap-southeast-1)
     ├── Tự động fallback sang IMemoryCache khi Redis mất kết nối (F5)
     └── Cấu hình baseline TTL (TtlHours = 24) và Strategy Version isolation (decision:hash:{requestHash}:{strategyName}:v{strategyVersion}) hoạt động chính xác
 

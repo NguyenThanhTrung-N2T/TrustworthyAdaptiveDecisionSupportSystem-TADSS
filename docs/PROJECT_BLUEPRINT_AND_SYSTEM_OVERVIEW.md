@@ -5,7 +5,7 @@
 > **Hệ thống đối chứng (Host App):** SmashCourt — Hệ thống Đặt Sân Cầu Lông Trực Tuyến  
 > **Loại hình:** Hệ thống lai (Decoupled Decision Engine Subsystem + Web Application)  
 > **Thời điểm cập nhật:** Hết Tuần 7 (Phase 4 — Milestone Resilience Complete)  
-> **Trạng thái kiểm thử:** 🟢 **418/418 Automated Tests Passed**
+> **Trạng thái kiểm thử:** 🟢 **455/455 Automated Tests Passed (429 Unit + 26 Integration)**
 
 ---
 
@@ -267,7 +267,7 @@ flowchart TD
 |:---|:---|:---|:---|:---:|
 | **1. Đề xuất & Phạm vi** *(Why & Scope)* | Tại sao cần làm? Ranh giới hệ thống ở đâu? | `PROPOSAL_DO_AN_2.md` | Phân định ranh giới 3 lớp: SmashCourt (Host) $\leftrightarrow$ TADSS (Engine) $\leftrightarrow$ Strategies. | 🟢 **100% DONE** |
 | **2. Giao diện & Hợp đồng** *(What & Contract)* | Hai bên gửi nhận dữ liệu gì? Làm sao không vỡ code nhau? | `API_CONTRACT_V1.md`<br/>`CONTRACT_V1_FREEZE.md` | DLL Class Library `Shared.DecisionContractSDK` v1.0.0 độc lập, đóng băng bất biến. | 🟢 **100% DONE** |
-| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **418/418 automated tests passed**. | 🟢 **100% DONE (W7)** |
+| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **455/455 automated tests passed**. | 🟢 **100% DONE (W7)** |
 | **4. Kế hoạch Tác chiến** *(When & Execution)* | Chia việc thế nào? Kế hoạch ứng phó rủi ro là gì? | `MASTER_EXECUTION_PLAN.md`<br/>`PROJECT_WBS_MAPPING.md` | Kế hoạch 16 tuần chi tiết cho SV1 (Backend/Resilience) & SV2 (Cache/UI/Report) kèm 6 Milestones. | 🟡 **Đang chạy (W7 ➔ W8)** |
 | **5. Đánh giá & Thực nghiệm** *(Metrics & Evidence)* | Lấy số liệu gì để viết báo cáo tốt nghiệp? | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | Kịch bản đo Cache ($G_0, G_1, G_2$), đo Chịu lỗi ($R_0 \rightarrow R_3$), Dataset Normalizer xuất CSV/JSONL. | 🔵 **Chuẩn bị (W8)** |
 
@@ -349,7 +349,7 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 
 | STT | Tên File Tài Liệu | Nội dung cốt lõi (File này nói cái gì?) | Mối quan hệ liên kết với các file khác |
 |:---:|:---|:---|:---|
-| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 418+ automated tests. | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
+| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 455 automated tests. | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
 | **2** | `PROPOSAL_DO_AN_2.md` | Tuyên ngôn đề tài: Xác lập bối cảnh, 3 thách thức kỹ thuật (Coupling, SPOF, Lack of Audit), ranh giới 3 lớp kiến trúc và mục tiêu đồ án. | **Gốc rễ của toàn dự án.** Sinh ra các yêu cầu cho Contract (`API_CONTRACT_V1.md`) và Kiến trúc (`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`). |
 | **3** | `THESIS_DEVELOPMENT_PLAYBOOK.md` | Sổ tay định hướng phát triển Khóa luận tốt nghiệp: Quy định cách tái sử dụng kết quả kỹ thuật của Đồ án 2 vào cấu trúc các chương luận văn. | Kết nối trực tiếp giữa phần mềm thực tế (`TADSS-Runtime`) và các câu hỏi nghiên cứu (`RESEARCH_PROBLEM_BACKLOG.md`). |
 | **4** | `MASTER_EXECUTION_PLAN.md` | Kế hoạch tác chiến 16 tuần: Phân rã chi tiết công việc từng ngày cho Sinh viên 1 (Backend/Resilience) và Sinh viên 2 (Strategy/Cache/UI/Report). | Định hướng lịch trình thực thi dựa trên các yêu cầu từ `PROPOSAL_DO_AN_2.md` và `API_CONTRACT_V1.md`. |
