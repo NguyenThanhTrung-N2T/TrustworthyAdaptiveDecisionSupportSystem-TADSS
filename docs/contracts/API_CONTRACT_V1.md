@@ -233,7 +233,7 @@ $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \qu
 ### 8.1 Mô tả & Quy tắc Bất biến (Invariant 3)
 - **Route**: `POST /api/v1/decisions/{decisionId}/override`
 - **Nguyên tắc**:
-  1. Cột `response_payload` gốc của máy **tuyệt đối không bị sửa đổi** nhằm bảo tồn bằng chứng cho nghiên cứu / so sánh (Ablation study).
+  1. Cột `response_payload` gốc của máy **tuyệt đối không bị sửa đổi** nhằm bảo tồn tính toàn vẹn của nhật ký kiểm toán máy (Immutable Audit Trail) phục vụ truy vết vận hành (và mở rộng đối chứng ở giai đoạn sau `[OUT-OF-SCOPE ĐỒ ÁN 2: Khóa luận]`).
   2. Chỉ cập nhật các cờ quản trị: `is_overridden = true`, `overridden_by`, `override_reason`, và `updated_at = UtcNow`.
   3. **Disclaimer về Actor Identity**: Trường `overriddenBy` truyền trong body là giải pháp tường minh cho Phase 1 (khi chưa có Auth Context). Trong môi trường production, danh tính người thực hiện bắt buộc phải được trích xuất từ Authenticated Principal / JWT Token.
 

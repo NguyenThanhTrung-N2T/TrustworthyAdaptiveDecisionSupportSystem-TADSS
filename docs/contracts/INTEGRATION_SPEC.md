@@ -210,4 +210,4 @@ var cacheKey = $"decision:hash:{requestHash}:{strategyName}:v{strategyVersion}";
 ## 4. CHI TIẾT CHIẾN LƯỢC PHIÊN BẢN (VERSIONING STRATEGY)
 
 *   **Hợp đồng API:** Header `X-Contract-Version: 1.0.0`. Khi có breaking change, nâng major version lên `2.0.0`.
-*   **Phân giải Chiến lược qua DI (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyFactory` ($O(1)$ Lookup) theo `strategyName` và `strategyVersion`.
+*   **Phân giải Chiến lược qua DI (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyResolver` ($O(1)$ Lookup) theo `strategyName` và `strategyVersion`.

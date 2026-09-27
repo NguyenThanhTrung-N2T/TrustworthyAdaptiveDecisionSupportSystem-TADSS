@@ -1,8 +1,10 @@
-# ĐỀ CƯƠNG KHÓA LUẬN TIN GỌN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA)
+# ĐỀ CƯƠNG ĐỊNH HƯỚNG KHÓA LUẬN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA) `[OUT-OF-SCOPE ĐỒ ÁN 2]`
 
-*   **Tên Đề tài (Thesis Title)**: Thiết kế và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ (*Design and Evaluation of an Adaptive Trust Decision Architecture for Service Reservation Platforms*)
-*   **Mô hình hiện thực hóa đối chứng (Reference Implementation / Artifact)**: **TADSS (Trustworthy Adaptive Decision Support System)**.
-*   **Quy mô thực hiện**: Nhóm 1 - 2 sinh viên | Thời gian: 6 tháng (26 tuần).
+> **📌 Ghi chú Phạm vi (Scope Lock):** Tài liệu này lưu trữ đề cương định hướng cho **Khóa luận tốt nghiệp ở giai đoạn tiếp theo (Lớp 3 — Chiến lược `TADS` & Kiến trúc `ATDA`)** và **nằm ngoài phạm vi triển khai của Đồ án 2 hiện tại**. Phạm vi chính thức của **Đồ án 2 (16 tuần)** chỉ tập trung vào **Nền tảng Hạ tầng Thực thi Quyết định Chịu lỗi (`TADSS Decision Runtime Engine`)** — xem tài liệu gốc tại [`PROPOSAL_DO_AN_2.md`](../planning/PROPOSAL_DO_AN_2.md) và [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md).
+
+*   **Tên Đề tài Khóa luận (Future Thesis Title)**: Thiết kế và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ (*Design and Evaluation of an Adaptive Trust Decision Architecture for Service Reservation Platforms*)
+*   **Nền tảng Hạ tầng Kế thừa từ Đồ án 2 (Foundation Artifact)**: **TADSS (Trustworthy Adaptive Decision Support System — Runtime Engine)**.
+*   **Quy mô thực hiện (Đồ án 2 + Khóa luận)**: Nhóm 1 - 2 sinh viên | Thời gian tổng thể: 6 tháng (16 tuần Đồ án 2 + 12 tuần Khóa luận).
 
 ---
 

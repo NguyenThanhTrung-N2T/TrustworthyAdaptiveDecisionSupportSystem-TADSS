@@ -1,10 +1,12 @@
-# KHUNG NGHIÊN CỨU & KHẢO SÁT VẤN ĐỀ (ENTERPRISE AI OS RESEARCH BACKLOG)
+# [OUT-OF-SCOPE ĐỒ ÁN 2 — TÀI LIỆU KHẢO SÁT TIỀN ĐỀ] KHUNG NGHIÊN CỨU & KHẢO SÁT VẤN ĐỀ (ENTERPRISE AI OS RESEARCH BACKLOG)
 
-> **📌 Ghi chú Quản trị Lịch sử (Historical Pre-Scoping Exploration Document):** Tài liệu này lưu trữ kết quả khảo sát diện rộng (Brainstorming & Problem Exploration) ở giai đoạn tiền đề trước khi khóa phạm vi đề tài. Sau bước lọc phạm vi, đề tài chính thức đã được thu hẹp tập trung vào kiến trúc **ATDA (Adaptive Trust Decision Architecture)** và nền tảng **TADSS Runtime** — xem tài liệu chính thức tại [`RESEARCH_THESIS_DEFENSE.md`](./RESEARCH_THESIS_DEFENSE.md) và [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](./EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md). Các cấu phần ngoài phạm vi như MCP, GraphRAG, ClickHouse CDC trong tài liệu này chỉ đóng vai trò bối cảnh khảo sát ban đầu.
+> **📌 Khóa Phạm vi & Ghi chú Lịch sử (`[OUT-OF-SCOPE ĐỒ ÁN 2]`):** Tài liệu này lưu trữ kết quả khảo sát diện rộng (Brainstorming & Problem Exploration) ở giai đoạn tiền đề **trước khi khóa phạm vi đề tài**. Toàn bộ các cấu phần AI/ML, Agentic AI, MCP, GraphRAG, ClickHouse CDC trong tài liệu này **KHÔNG thuộc phạm vi triển khai của Đồ án 2** (Đồ án 2 chỉ xây dựng hạ tầng thực thi quyết định `TADSS Runtime Engine` không có AI/ML). Xem định nghĩa phạm vi chính thức tại [`PROPOSAL_DO_AN_2.md`](../planning/PROPOSAL_DO_AN_2.md) và [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](./EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
-Tài liệu này được tái cấu trúc nhằm định hình hướng nghiên cứu khoa học cho **Đồ án 2** và **Khóa luận tốt nghiệp**, lấy **Enterprise AI OS (Hệ điều hành trí tuệ nhân tạo doanh nghiệp)** làm trục kiến trúc cốt lõi. 
+*(Nội dung nguyên bản giai đoạn khảo sát tiền đề dưới đây được giữ lại để lưu vết lịch sử hình thành ý tưởng)*
 
-Chúng ta tập trung nghiên cứu **Tầng AI độc lập (AI Layer)** có khả năng cắm/rút (pluggable) vào bất kỳ phân hệ nghiệp vụ nào (Booking, CRM, Clinic, Spa, HR...), giải quyết các bài toán thông qua mô hình nghiên cứu khoa học nghiêm túc: **Pain Point ➔ Research Question ➔ Experiment ➔ Evaluation.**
+Tài liệu này được phác thảo ở giai đoạn ý tưởng ban đầu nhằm khảo sát các bài toán cho **Đồ án 2** và **Khóa luận tốt nghiệp**, lấy **Enterprise AI OS (Hệ điều hành trí tuệ nhân tạo doanh nghiệp)** làm chủ đề khảo sát. 
+
+Chúng ta khảo sát ý tưởng về **Tầng AI độc lập (AI Layer)** có khả năng cắm/rút (pluggable) vào bất kỳ phân hệ nghiệp vụ nào (Booking, CRM, Clinic, Spa, HR...), giải quyết các bài toán thông qua mô hình: **Pain Point ➔ Research Question ➔ Experiment ➔ Evaluation.**
 
 ---
 

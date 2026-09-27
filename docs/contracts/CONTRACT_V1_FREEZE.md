@@ -214,4 +214,4 @@ Hội đồng kỹ thuật và nhóm phát triển xác nhận toàn bộ 9 Qual
 | **SmashCourt Integration Lead** | Sinh viên thực hiện 2 | ✅ **APPROVED** | `SHA: 2e867f4c...` |
 | **System Architecture** | TADSS Engine Board | ✅ **FROZEN** | `v1.0.0-RELEASE` |
 
-> **Chuyển giao (Handoff):** Toàn bộ nền tảng Contract SDK v1.0.0 đã sẵn sàng làm nền móng vững chắc để bước sang **Phase 3: Core Decision Strategies & Rule Engine Implementation** (bắt đầu từ Deterministic Baseline Rule Strategy trước khi mở rộng sang Adaptive Trust).
+> **Chuyển giao (Handoff):** Toàn bộ nền tảng Contract SDK v1.0.0 đã sẵn sàng làm nền móng vững chắc để bước sang **Phase 3: Decision Runtime Core & Baseline Strategies Implementation** (`DefaultDecisionStrategy` và `MockAlternativeDecisionStrategy` trong phạm vi Đồ án 2; việc mở rộng sang Adaptive Trust thuộc giai đoạn sau `[OUT-OF-SCOPE ĐỒ ÁN 2: Khóa luận]`).

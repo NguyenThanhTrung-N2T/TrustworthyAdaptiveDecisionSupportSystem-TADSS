@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
     <ProjectReference Include="..\..\src\TADSS.Runtime.Api\TADSS.Runtime.Api.csproj" />
+    <ProjectReference Include="..\TADSS.BenchmarkRunner\TADSS.BenchmarkRunner.csproj" />
   </ItemGroup>
 
   <ItemGroup>

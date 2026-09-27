@@ -1,11 +1,12 @@
 # 🏛️ TỔNG QUAN KIẾN TRÚC & BẢN ĐỒ QUẢN TRỊ DỰ ÁN TADSS
 ## (TADSS System Blueprint, Architectural Workflows & Executive Documentation Map)
 
-> **Dự án:** TADSS (Trustworthy Adaptive Decision Support System)  
+> **Dự án:** TADSS (Trustworthy Adaptive Decision Support System — Nền tảng Decision Runtime Engine)  
+> **Phạm vi hiện tại:** **Đồ án 2 (16 tuần)** — Tập trung vào Hạ tầng Runtime Engine Chịu lỗi, Hợp đồng SDK, Bộ nhớ đệm L1/L2, Kiểm toán đồng bộ và Phê duyệt thủ công *(Không bao gồm mô hình AI/ML — thuộc phạm vi mở rộng Khóa luận)*  
 > **Hệ thống đối chứng (Host App):** SmashCourt — Hệ thống Đặt Sân Cầu Lông Trực Tuyến  
 > **Loại hình:** Hệ thống lai (Decoupled Decision Engine Subsystem + Web Application)  
-> **Thời điểm cập nhật:** Hết Tuần 7 (Phase 4 — Milestone Resilience Complete)  
-> **Trạng thái kiểm thử:** 🟢 **455/455 Automated Tests Passed (429 Unit + 26 Integration)**
+> **Thời điểm cập nhật:** Hết Tuần 8 (Phase 4 — Resilience & Controlled Benchmark Complete)  
+> **Trạng thái kiểm thử:** 🟢 **455/455 Automated Tests Passed (429 Unit + 26 Integration) & 28/28 Benchmark Runs Completed**
 
 ---
 
@@ -16,7 +17,7 @@
 4. [Vòng Đời Quyết Định & Cơ Chế Human-In-The-Loop](#4-vòng-đời-quyết-định--cơ-chế-human-in-the-loop)
 5. [Sơ Đồ Pipeline Dự Án Dành Cho PM (5-Stage Delivery Pipeline)](#5-sơ-đồ-pipeline-dự-án-dành-cho-pm-5-stage-delivery-pipeline)
 6. [Bảng Tổng Kết Quản Trị Dự Án (Executive Summary Dashboard)](#6-bảng-tổng-kết-quản-trị-dự-án-executive-summary-dashboard)
-7. [Bản Đồ Mạng Lưới Toàn Bộ 23 File Tài Liệu Quyết Định](#7-bản-đồ-mạng-lưới-toàn-bộ-23-file-tài-liệu-quyết-định)
+7. [Bản Đồ Mạng Lưới Toàn Bộ File Tài Liệu Quyết Định](#7-bản-đồ-mạng-lưới-toàn-bộ-23-file-tài-liệu-quyết-định)
 8. [Bảng Rà Soát & Chú Giải Chi Tiết Toàn Bộ Tài Liệu Trong Repo](#8-bảng-rà-soát--chú-giải-chi-tiết-toàn-bộ-tài-liệu-trong-repo)
 
 ---
@@ -28,9 +29,9 @@
 │ [ĐỒ ÁN 1: SMASHCOURT WEB APPLICATION]                                                   │
 │ • Hoàn thiện luồng đặt sân trực tuyến và tích hợp cổng thanh toán VNPay.                │
 │ • HẠN CHẾ CỐT LÕI: Chính sách cọc 100% bị HARDCODE cố định trong code CRUD nghiệp vụ.   │
-│ • RỦI RO KỸ THUẬT: Khi muốn đổi chính sách hoặc gọi AI tính cọc động:                   │
+│ • RỦI RO KỸ THUẬT: Khi muốn đổi chính sách hoặc áp dụng chiến lược tính cọc động:       │
 │   1. Phải sửa code và deploy lại toàn bộ ứng dụng lớn (Tight Coupling).                │
-│   2. Dịch vụ AI chậm/sập sẽ làm SẬP TOÀN BỘ luồng đặt sân (Single Point of Failure).   │
+│   2. Chiến lược quyết định chậm/sập sẽ làm SẬP TOÀN BỘ luồng đặt sân (SPOF).           │
 │   3. Thiếu vết lưu giải trình (Audit Trail) và cổng cho Quản lý can thiệp (No Override).│
 └───────────────────────────────────────────┬─────────────────────────────────────────────┘
                                             │
@@ -40,7 +41,7 @@
 │ • Tách riêng toàn bộ logic thẩm định thành ĐỘNG CƠ RA QUYẾT ĐỊNH ĐỘC LẬP.              │
 │ • Cung cấp cơ chế "CẮM RÚT CHIẾN LƯỢC" (Pluggable Strategies qua IReservationDecisionStrategy).│
 │ • Tích hợp CHUỖI CHỊU LỖI ĐA TẦNG POLLY v8 (Outer 500ms -> Retry -> CB -> Fallback 0ms)│
-│   ==> Đảm bảo luồng đặt sân không bao giờ bị chết dù Strategy AI gặp sự cố.             │
+│   ==> Đảm bảo luồng đặt sân không bao giờ bị chết dù Strategy gặp sự cố.                │
 │ • Ghi nhật ký kiểm toán bất biến (Append-Only Audit) & Cổng duyệt thủ công cho Quản lý. │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -79,9 +80,9 @@ flowchart TD
     end
 
     subgraph Layer3 ["🎯 LỚP 3: PLUGGABLE STRATEGIES (Các Chiến Lược Thẩm Định)"]
-        S1["🔒 Default Strategy<br/>Chính sách nghiệp vụ cơ sở"]
-        S2["⚡ Mock Strategy<br/>Cọc động 30% / 50%"]
-        S3["🧠 AI / ML Models<br/>Dự đoán rủi ro hủy"]
+        S1["🔒 DefaultDecisionStrategy<br/>Chính sách nghiệp vụ cơ sở (Đồ án 2)"]
+        S2["⚡ MockAlternativeDecisionStrategy<br/>Cọc động 30% / 50% (Đồ án 2)"]
+        S3["🔬 Future Strategy (Out-of-Scope ĐA2)<br/>Mở rộng ở Khóa luận"]
     end
 
     BE == "1. Gửi Đơn Đặt Sân (HTTP REST)" ==> API
@@ -181,7 +182,7 @@ sequenceDiagram
     actor User as Khách hàng
     participant SC as SmashCourt Backend
     participant TADSS as TADSS Decision Engine
-    participant Strat as AI/Dynamic Strategy
+    participant Strat as Active Decision Strategy
     participant Fallback as FallbackDecisionStrategy
     participant DB as PostgreSQL (tadss schema)
     actor Manager as Quản lý (Dashboard)
@@ -248,15 +249,14 @@ flowchart TD
     D1 ==>|1. Định hình hợp đồng| D2
     D2 ==>|2. Hiện thực hóa kiến trúc| D3
     D3 ==>|3. Phân rã kế hoạch thực thi| D4
-    D4 ==>|4. Đo lường & Thực nghiệm khoa học| D5
+    D4 ==>|4. Đo lường & Thực nghiệm kỹ thuật| D5
 
     classDef pDone fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#0f172a;
     classDef pInProg fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#0f172a;
     classDef pNext fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#0f172a;
 
-    class D1,D2 pDone;
-    class D3,D4 pInProg;
-    class D5 pNext;
+    class D1,D2,D3 pDone;
+    class D4,D5 pInProg;
 ```
 
 ---
@@ -268,19 +268,19 @@ flowchart TD
 | **1. Đề xuất & Phạm vi** *(Why & Scope)* | Tại sao cần làm? Ranh giới hệ thống ở đâu? | `PROPOSAL_DO_AN_2.md` | Phân định ranh giới 3 lớp: SmashCourt (Host) $\leftrightarrow$ TADSS (Engine) $\leftrightarrow$ Strategies. | 🟢 **100% DONE** |
 | **2. Giao diện & Hợp đồng** *(What & Contract)* | Hai bên gửi nhận dữ liệu gì? Làm sao không vỡ code nhau? | `API_CONTRACT_V1.md`<br/>`CONTRACT_V1_FREEZE.md` | DLL Class Library `Shared.DecisionContractSDK` v1.0.0 độc lập, đóng băng bất biến. | 🟢 **100% DONE** |
 | **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **455/455 automated tests passed**. | 🟢 **100% DONE (W7)** |
-| **4. Kế hoạch Tác chiến** *(When & Execution)* | Chia việc thế nào? Kế hoạch ứng phó rủi ro là gì? | `MASTER_EXECUTION_PLAN.md`<br/>`PROJECT_WBS_MAPPING.md` | Kế hoạch 16 tuần chi tiết cho SV1 (Backend/Resilience) & SV2 (Cache/UI/Report) kèm 6 Milestones. | 🟡 **Đang chạy (W7 ➔ W8)** |
-| **5. Đánh giá & Thực nghiệm** *(Metrics & Evidence)* | Lấy số liệu gì để viết báo cáo tốt nghiệp? | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | Kịch bản đo Cache ($G_0, G_1, G_2$), đo Chịu lỗi ($R_0 \rightarrow R_3$), Dataset Normalizer xuất CSV/JSONL. | 🔵 **Chuẩn bị (W8)** |
+| **4. Kế hoạch Tác chiến** *(When & Execution)* | Chia việc thế nào? Kế hoạch ứng phó rủi ro là gì? | `MASTER_EXECUTION_PLAN.md`<br/>`PROJECT_WBS_MAPPING.md` | Kế hoạch 16 tuần chi tiết cho SV1 (Backend/Resilience) & SV2 (Cache/UI/Report) kèm 6 Milestones. | 🟡 **Đang chạy (W8 ➔ W9)** |
+| **5. Đánh giá & Thực nghiệm** *(Metrics & Evidence)* | Lấy số liệu gì để viết báo cáo Đồ án 2? | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`<br/>`WEEK8_BENCHMARK_REPORT.md` | Kịch bản đo Cache ($G_0, G_1, G_2$), đo Chịu lỗi ($R_0 \rightarrow R_3$, 28 runs completed), Dataset Normalizer (W9). | 🟢 **W8 DONE / 🟡 W9** |
 
 ---
 
-## 7. BẢN ĐỒ MẠNG LƯỚI TOÀN BỘ 23 FILE TÀI LIỆU QUYẾT ĐỊNH
+## 7. BẢN ĐỒ MẠNG LƯỚI TOÀN BỘ 24 FILE TÀI LIỆU QUYẾT ĐỊNH
 
 ```mermaid
 flowchart TD
     subgraph G1 ["1. ĐỀ XUẤT, BỐI CẢNH & TỔNG QUAN (Vision & Foundation)"]
         F1["📄 README.md (Root Overview)"]
         F2["📄 PROPOSAL_DO_AN_2.md (Tuyên ngôn đề tài)"]
-        F3["📄 THESIS_DEVELOPMENT_PLAYBOOK.md (Sổ tay Khóa luận)"]
+        F3["📄 THESIS_DEVELOPMENT_PLAYBOOK.md (Phân tầng ĐA2 vs KLTN)"]
     end
 
     subgraph G2 ["2. GIAO ƯỚC HỢP ĐỒNG & TÍCH HỢP (Contracts & SDK)"]
@@ -309,22 +309,23 @@ flowchart TD
         F6["📄 BACKLOG_SPRINTS.md (Danh mục 6 Sprints)"]
     end
 
-    subgraph G6 ["6. THỰC NGHIỆM KHOA HỌC & BẢO VỆ (Research & Evidence)"]
-        F18["📄 EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md"]
-        F19["📄 RESEARCH_PROBLEM_BACKLOG.md (RQ1, RQ2, RQ3)"]
-        F20["📄 RESEARCH_THESIS_DEFENSE.md (Luận điểm bảo vệ)"]
+    subgraph G6 ["6. THỰC NGHIỆM KỸ THUẬT & ĐỊNH HƯỚNG MỞ RỘNG (Benchmarks & Future Scope)"]
+        F18["📄 EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md (RQ1-RQ3)"]
+        F21["📊 WEEK8_BENCHMARK_REPORT.md (Kết quả 28 Runs W8)"]
+        F19["📄 RESEARCH_PROBLEM_BACKLOG.md [OUT-OF-SCOPE ĐA2]"]
+        F20["📄 RESEARCH_THESIS_DEFENSE.md [OUT-OF-SCOPE ĐA2]"]
     end
 
     F2 -->|1. Sinh yêu cầu hợp đồng| F7
     F7 -->|2. Đóng băng bất biến| F8
     F2 -->|3. Định hướng kiến trúc| F13
-    F13 -->|4. Bảo chứng bằng 5 ADRs| F14
+    F13 -->|4. Bảo chứng bằng ADRs| F14
     F13 -->|5. Thiết lập chuỗi chịu lỗi| F15
     F15 -->|6. Ràng buộc lưu trữ| F16
     F7 & F13 -->|7. Lập kế hoạch thực thi| F4
     F4 -->|8. Phân rã rủi ro| F5
     F15 & F16 -->|9. Cung cấp kịch bản đo đạc| F18
-    F18 -->|10. Luận điểm bảo vệ khóa luận| F20
+    F18 -->|10. Xuất báo cáo thực nghiệm W8| F21
 
     classDef c1 fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a;
     classDef c2 fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#0f172a;
@@ -338,7 +339,7 @@ flowchart TD
     class F13,F14 c3;
     class F15,F16,F17 c4;
     class F4,F5,F6 c5;
-    class F18,F19,F20 c6;
+    class F18,F21,F19,F20 c6;
 ```
 
 ---
@@ -351,7 +352,7 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 |:---:|:---|:---|:---|
 | **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 455 automated tests. | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
 | **2** | `PROPOSAL_DO_AN_2.md` | Tuyên ngôn đề tài: Xác lập bối cảnh, 3 thách thức kỹ thuật (Coupling, SPOF, Lack of Audit), ranh giới 3 lớp kiến trúc và mục tiêu đồ án. | **Gốc rễ của toàn dự án.** Sinh ra các yêu cầu cho Contract (`API_CONTRACT_V1.md`) và Kiến trúc (`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`). |
-| **3** | `THESIS_DEVELOPMENT_PLAYBOOK.md` | Sổ tay định hướng phát triển Khóa luận tốt nghiệp: Quy định cách tái sử dụng kết quả kỹ thuật của Đồ án 2 vào cấu trúc các chương luận văn. | Kết nối trực tiếp giữa phần mềm thực tế (`TADSS-Runtime`) và các câu hỏi nghiên cứu (`RESEARCH_PROBLEM_BACKLOG.md`). |
+| **3** | `THESIS_DEVELOPMENT_PLAYBOOK.md` | Cẩm nang quản trị phạm vi: Khóa thuật ngữ (`TADSS` thuộc Đồ án 2 vs `TADS`/`ATDA` thuộc Khóa luận), ma trận phân tầng phạm vi và lối thoát khẩn cấp. | Bảo vệ ranh giới phạm vi giữa Đồ án 2 (`PROPOSAL_DO_AN_2.md`) và định hướng mở rộng giai đoạn sau (`RESEARCH_THESIS_DEFENSE.md`). |
 | **4** | `MASTER_EXECUTION_PLAN.md` | Kế hoạch tác chiến 16 tuần: Phân rã chi tiết công việc từng ngày cho Sinh viên 1 (Backend/Resilience) và Sinh viên 2 (Strategy/Cache/UI/Report). | Định hướng lịch trình thực thi dựa trên các yêu cầu từ `PROPOSAL_DO_AN_2.md` và `API_CONTRACT_V1.md`. |
 | **5** | `PROJECT_WBS_MAPPING.md` | Bảng ma trận phân rã công việc (WBS), ánh xạ sản phẩm bàn giao (Deliverables) qua 6 Milestones và 6 kịch bản rủi ro kèm giải pháp dự phòng. | Đi kèm `MASTER_EXECUTION_PLAN.md` để quản trị rủi ro tiến độ và kích hoạt kịch bản dự phòng khi tắc nghẽn. |
 | **6** | `BACKLOG_SPRINTS.md` | Danh mục Product Backlog chia thành 6 Sprints: Định nghĩa chi tiết các User Stories, Tasks và tiêu chí nghiệm thu (Acceptance Criteria). | Cụ thể hóa `MASTER_EXECUTION_PLAN.md` thành các backlog task để quản lý tiến độ kiểu Agile/Scrum. |
@@ -363,15 +364,16 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 | **12** | `openapi-v1.yaml` & `schemas/` | Đặc tả máy đọc chuẩn OpenAPI 3.0 và 7 file JSON Schema chi tiết (`decision-request`, `decision-result`, `override...`). | Tương thích 100% với `API_CONTRACT_V1.md`, dùng tạo Swagger UI và chạy kiểm thử Serialization tự động. |
 | **13** | `src/Shared.DecisionContractSDK/README.md` | Hướng dẫn lập trình và cài đặt thư viện SDK: Dành cho lập trình viên SmashCourt (phía gọi) và lập trình viên Strategy (phía viết thuật toán). | Tài liệu hướng dẫn sử dụng trực tiếp cho mã nguồn `Shared.DecisionContractSDK`. |
 | **14** | `SOFTWARE_ARCHITECTURE_SPECIFICATION.md` | Bản thiết kế kiến trúc chi tiết: Cấu trúc Clean/Hexagonal, cơ chế Dependency Injection Strategy Resolver $O(1)$ và luồng Middleware. | Hiện thực hóa các quyết định từ nhóm ADR thành kiến trúc mã nguồn C# thực tế. |
-| **15** | `ARCHITECTURE_DECISION_RECORDS.md` | Tổng hợp 5 bản ghi quyết định kiến trúc then chốt (ADR-001 ➔ ADR-005) kèm bối cảnh, phương án so sánh và hệ quả. | Trả lời câu hỏi *"Tại sao chọn công nghệ này?"* để phục vụ giải trình trước Hội đồng phản biện. |
-| **16** | `ADR-001` đến `ADR-005` (5 files) | Chi tiết từng quyết định: ADR-001 (Strategy Pattern), ADR-002 (SDK-first), ADR-003 (Polly v8), ADR-004 (Rich Domain), ADR-005 (CatBoost ML). | Các nhánh con chi tiết cấu thành nên `ARCHITECTURE_DECISION_RECORDS.md`. |
+| **15** | `ARCHITECTURE_DECISION_RECORDS.md` | Tổng hợp 5 bản ghi quyết định kiến trúc then chốt (ADR-001 ➔ ADR-004 cho Đồ án 2; ADR-005 định hướng Khóa luận) kèm bối cảnh, phương án so sánh và hệ quả. | Trả lời câu hỏi *"Tại sao chọn công nghệ này?"* để phục vụ giải trình trước Hội đồng phản biện. |
+| **16** | `ADR-001` đến `ADR-005` (5 files) | Chi tiết từng quyết định: ADR-001 (Strategy Pattern), ADR-002 (SDK-first), ADR-003 (Polly v8), ADR-004 (Rich Domain) thuộc Đồ án 2; ADR-005 (CatBoost ML — `[OUT-OF-SCOPE ĐA2]`). | Các nhánh con chi tiết cấu thành nên `ARCHITECTURE_DECISION_RECORDS.md`. |
 | **17** | `RESILIENCE_AND_FAULT_TAXONOMY.md` | **Sổ tay chịu lỗi cốt lõi:** Phân loại 3 miền lỗi, cấu hình chuỗi Polly v8 5 lớp, ngân sách SLA (420ms/500ms) và ma trận sự cố F1 ➔ F7. | **Kim chỉ nam cho tầng Resilience.** Làm cơ sở xây dựng bộ test `FaultInjectionTests.cs` (PASS 100%). |
 | **18** | `DECISION_PERSISTENCE_INVARIANTS.md` | Các quy tắc bất biến khi lưu trữ Audit Ledger: Dữ liệu quyết định do máy sinh là bất biến; Quản lý chỉ ghi đè metadata kèm Optimistic Locking. | Bảo vệ tính toàn vẹn dữ liệu cho bảng `tadss.decision_executions` trong cơ sở dữ liệu. |
 | **19** | `schema_smashcourt.sql` | Toàn bộ script DDL khởi tạo cơ sở dữ liệu PostgreSQL gồm các bảng nghiệp vụ SmashCourt (schema `public`) và bảng audit (schema `tadss`). | Hiện thực hóa vật lý các quy định lưu trữ trong `DECISION_PERSISTENCE_INVARIANTS.md`. |
-| **20** | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | **Phương pháp thực nghiệm khoa học:** Quy định nhóm đo Cache ($G_0..G_2$), nhóm đo Chịu lỗi ($R_0..R_3$), công thức $DCR$ và chuẩn hóa Research Dataset. | Dẫn xuất từ `RESILIENCE_AND_FAULT_TAXONOMY.md` để phục vụ đo đạc hiệu năng trong Tuần 8-9 và Chương 4 Khóa luận. |
-| **21** | `RESEARCH_PROBLEM_BACKLOG.md` | Danh mục 3 bài toán nghiên cứu cốt lõi: RQ1 (Decision Continuity), RQ2 (Tail Latency Envelope), RQ3 (Audit Provenance) kèm các giả thuyết. | Định hướng học thuật cho các thí nghiệm trong `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`. |
-| **22** | `RESEARCH_THESIS_DEFENSE.md` | Tổng hợp các luận điểm bảo vệ khóa luận: Chuyển đổi các kết quả phần mềm thành các đóng góp khoa học để phản biện trước Hội đồng. | Kết tinh từ toàn bộ kết quả của `PROPOSAL_DO_AN_2.md`, `RESILIENCE_AND_FAULT_TAXONOMY.md` và thực nghiệm. |
-| **23** | `PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md` | **Bản đồ tổng thể toàn dự án:** Tích hợp toàn bộ mô hình kiến trúc, luồng hoạt động, state machine, pipeline PM và bản đồ tài liệu. | **Tài liệu Single Source of Truth phục vụ báo cáo và tổng quan dự án.** |
+| **20** | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | **Phương pháp thực nghiệm kỹ thuật (Đồ án 2):** Quy định 3 câu hỏi RQ1–RQ3, nhóm đo Cache ($G_0..G_2$), nhóm đo Chịu lỗi ($R_0..R_3$), công thức $DCR$ và Telemetry Dataset. | Dẫn xuất từ `RESILIENCE_AND_FAULT_TAXONOMY.md` để phục vụ đo đạc hiệu năng trong Tuần 8–9 và Chương 4 Báo cáo Đồ án 2. |
+| **21** | `WEEK8_BENCHMARK_REPORT.md` | **Báo cáo kết quả thực nghiệm Tuần 8:** Kết quả đo lường 28 kịch bản ($G_0..G_2, R_0..R_3$ tại 1, 10, 50, 100 VUs), phân phối P50/P95/P99 và kiểm chứng bất biến kiểm toán. | Sản phẩm thực nghiệm trực tiếp hiện thực hóa phương pháp luận trong `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`. |
+| **22** | `RESEARCH_PROBLEM_BACKLOG.md` | **`[OUT-OF-SCOPE ĐỒ ÁN 2]`** Tài liệu lưu trữ khảo sát tiền đề lịch sử (Enterprise AI OS) ở giai đoạn brainstorm trước khi khóa phạm vi đề tài. | Lưu vết lịch sử hình thành ý tưởng ban đầu trước khi thu hẹp về `PROPOSAL_DO_AN_2.md`. |
+| **23** | `RESEARCH_THESIS_DEFENSE.md` | **`[OUT-OF-SCOPE ĐỒ ÁN 2]`** Đề cương định hướng nghiên cứu cho giai đoạn Khóa luận tốt nghiệp tiếp theo (Lớp 3 — Chiến lược `TADS` & khung `ATDA`). | Định hướng phát triển giai đoạn sau kế thừa nền tảng hạ tầng của Đồ án 2. |
+| **24** | `PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md` | **Bản đồ tổng thể toàn dự án:** Tích hợp toàn bộ mô hình kiến trúc, luồng hoạt động, state machine, pipeline PM và bản đồ tài liệu. | **Tài liệu Single Source of Truth phục vụ báo cáo và tổng quan dự án.** |
 
 ---
 

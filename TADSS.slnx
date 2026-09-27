@@ -6,6 +6,7 @@
     <Project Path="src/TADSS.Strategies.MockAlternative/TADSS.Strategies.MockAlternative.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/TADSS.BenchmarkRunner/TADSS.BenchmarkRunner.csproj" />
     <Project Path="tests/TADSS.IntegrationTests/TADSS.IntegrationTests.csproj" />
     <Project Path="tests/TADSS.UnitTests/TADSS.UnitTests.csproj" />
   </Folder>
