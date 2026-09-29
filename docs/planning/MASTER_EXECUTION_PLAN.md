@@ -37,44 +37,46 @@ flowchart TD
     subgraph P1 [Phase 1: Foundation]
         F1[Thiết kế DB Schema tadss] --> F3[Solution Skeleton]
         F2[API & Domain Contracts] --> F3
+        F3 --> M1["Milestone 1: Foundation Ready (✅ COMPLETED)"]
     end
 
     subgraph P2 [Phase 2: Contract SDK]
-        F3 --> SDK[Shared.DecisionContractSDK & Unit Tests]
+        M1 --> SDK[Shared.DecisionContractSDK & Unit Tests]
+        SDK --> M2["Milestone 2: Decision Contract Ready (✅ COMPLETED)"]
     end
 
     subgraph P3 [Phase 3: Runtime Core]
-        SDK --> RT[Runtime API & DI Strategy Resolution]
-        SDK --> ST[Default & Mock Strategies]
-        RT --> M2[Milestone 2: Runtime Engine Độc lập]
-        ST --> M2
+        M2 --> RT[Runtime API & DI Strategy Resolution]
+        M2 --> ST[Default & Mock Strategies]
+        RT --> M3["Milestone 3: Runtime Engine Độc lập (✅ COMPLETED)"]
+        ST --> M3
     end
 
     subgraph P4 [Phase 4: Resilience, Benchmark & Dataset]
-        M2 --> POL[Week 7: Polly v8, Sync Audit, L1/L2 Cache & F1-F7 Matrix]
-        POL --> BMK[Week 8: Cache G0-G2 & Resilience R0-R3 Benchmark]
-        BMK --> DSN[Week 9: Audit Telemetry & Dataset Normalizer]
-        DSN --> M3[Milestone 3: Engine Chịu Lỗi & Thực Nghiệm Chuẩn Hóa]
+        M3 --> POL[Week 7: Polly v8, Sync Audit, L1/L2 Cache & F1-F7 Matrix]
+        POL --> BMK[Week 8: 5-Layer Benchmark - 19 Scenarios / 76 Runs]
+        BMK --> DSN[Week 9: In-Vivo Audit Harvester & 3 Normalized Datasets]
+        DSN --> M4["Milestone 4: Engine Chịu Lỗi & Thực Nghiệm Chuẩn Hóa (✅ COMPLETED)"]
     end
 
     subgraph P5 [Phase 5: HITL & SmashCourt Integration]
-        M3 --> OVR[Override API & Feature Flag]
-        M3 --> DASH[Manager UI trong smashcourt-fe]
+        M4 --> OVR[Override API & Feature Flag]
+        M4 --> DASH[Manager UI trong smashcourt-fe]
         OVR --> INT[SmashCourt Backend Integration]
         DASH --> INT
-        INT --> M4[Milestone 4: End-to-End Integrated]
+        INT --> M5[Milestone 5: End-to-End Integrated]
     end
 
     subgraph P6 [Phase 6: Testing & Evaluation]
-        M4 --> TEST[Integration & Failure Injection Testing]
+        M5 --> TEST[Integration & Failure Injection Testing]
         TEST --> PERF[Performance & SLA Benchmark]
         PERF --> PORT[Coworking Portability Mock]
-        PORT --> M5[Milestone 5: Technical Evaluation Complete]
+        PORT --> M6[Milestone 6: Technical Evaluation Complete]
     end
 
     subgraph P7 [Phase 7: Final Defense Prep]
-        M5 --> DOC[Hoàn thiện Báo cáo, Video Demo & Slide]
-        DOC --> M6[Milestone Final: Sẵn sàng Bảo vệ]
+        M6 --> DOC[Hoàn thiện Báo cáo, Video Demo & Slide]
+        DOC --> MFinal[Final Milestone: Sẵn sàng Bảo vệ]
     end
 ```
 
@@ -110,7 +112,7 @@ flowchart TD
     *   Cấu hình Swagger API Documentation với các ví dụ request mẫu.
 *   **Hai thành viên (Prototype Happy-Path):**
     *   Dựng luồng chạy thử nghiệm tối giản: `SmashCourt Request ➔ TADSS Web API ➔ Mock Static Result ➔ Return Response` (chưa cần Polly/Cache).
-*   🎯 **Milestone 1 (Cuối Tuần 2):** *Foundation Ready — Solution build thành công, Database Migration sẵn sàng, Contract v1 được phê duyệt.*
+*   🎯 **Milestone 1 (Cuối Tuần 2 — ✅ COMPLETED):** *Foundation Ready — Solution build thành công, Database Migration sẵn sàng, Contract v1 được phê duyệt.*
 
 ---
 
@@ -139,7 +141,7 @@ flowchart TD
 *   **Hai thành viên (Gate Tuần 4):**
     *   Thực hiện reference thử nghiệm SDK vào cả `DecisionRuntime.TADSS` và `SmashCourt-BE`.
     *   *Tiêu chí Gate:* SDK Build SUCCESS, 100% Unit Tests PASS, Code Coverage > 80%, Contract đóng băng (Frozen v1).
-*   🎯 **Milestone 2 (Cuối Tuần 4):** *Decision Contract Ready — Thư viện dùng chung hoàn chỉnh và đóng gói an toàn.*
+*   🎯 **Milestone 2 (Cuối Tuần 4 — ✅ COMPLETED):** *Decision Contract Ready — Thư viện dùng chung hoàn chỉnh và đóng gói an toàn.*
 
 ---
 
@@ -166,7 +168,7 @@ flowchart TD
     *   Cập nhật Swagger UI với đầy đủ tài liệu schema và mock payloads.
 *   **Hai thành viên (End-to-End Test):**
     *   Chạy test end-to-end kiểm chứng: `Request ➔ DI-based Strategy Resolution ➔ Execution ➔ DecisionResult`.
-*   🎯 **Milestone 3 (Cuối Tuần 6):** *TADSS Decision Runtime Standalone — Nền tảng ra quyết định chạy độc lập hoàn chỉnh.*
+*   🎯 **Milestone 3 (Cuối Tuần 6 — ✅ COMPLETED):** *TADSS Decision Runtime Standalone — Nền tảng ra quyết định chạy độc lập hoàn chỉnh.*
 
 ---
 
@@ -202,12 +204,12 @@ flowchart TD
     *   Đo lường thực nghiệm **Cache Miss Overhead** ($\text{Latency}(G_1) - \text{Latency}(G_0)$), **Cache Benefit** ($\text{Latency}(G_0) - \text{Latency}(G_2)$) và WAN Cache Overhead, xuất dữ liệu JSON/CSV/Markdown có khả năng truy vết đầy đủ phục vụ Chương 3 & Chương 4.
 
 #### **Tuần 9: Truy xuất Telemetry Kiểm toán & Chuẩn hóa Tập dữ liệu Thực nghiệm (Dataset Normalizer)**
-*   **Sinh viên 2 (Owner — Dataset Normalizer):**
-    *   Xây dựng công cụ `DatasetNormalizer` kết hợp dữ liệu từ bảng `tadss.decision_executions` (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) với Metadata thực nghiệm (`experiment_id`, `scenario_id`, `concurrency_level`, `injected_fault_type`, `cache_condition`) mà không làm ô nhiễm schema production.
-    *   Trích xuất 3 tập dữ liệu chuẩn hóa (CSV / JSONL) phục vụ đánh giá kỹ thuật trong Đồ án 2: (1) *Resilience Evaluation Dataset*, (2) *Latency & Caching Dataset*, (3) *Governance & Audit Provenance Dataset*.
-*   **Sinh viên 1 (Supporting — Telemetry Verification & Analysis):**
-    *   Kiểm chứng tính toàn vẹn provenance của dữ liệu trích xuất và tổng hợp bảng số liệu thực nghiệm phục vụ Chương 4 Báo cáo Đồ án 2.
-*   🎯 **Milestone 4 (Cuối Tuần 9):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2 và bộ dữ liệu benchmark chuẩn hóa hoàn tất.*
+*   **Sinh viên 2 (Owner — Dataset Normalizer & In-Vivo Audit Harvester):**
+    *   Đóng băng đặc tả [`DATASET_SCHEMA_SPECIFICATION_V1.md`](../research/DATASET_SCHEMA_SPECIFICATION_V1.md) và xây dựng phân hệ `Normalization/` trong `TADSS.BenchmarkRunner` (`AuditLedgerHarvester`, `DatasetNormalizerEngine`, `GovernanceLifecycleHarness`, `DatasetArtifactExporter`) thu hoạch trực tiếp dữ liệu từ bảng `tadss.decision_executions` (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) khi host còn sống và kết nối song ánh 1:1 với `RawMeasurementRecord` qua khóa định danh logic `DecisionId` mà hoàn toàn không làm ô nhiễm schema production (Zero Production Schema Pollution).
+    *   Trích xuất 3 tập dữ liệu chuẩn hóa định dạng kép CSV & JSONL (UTF-8 No-BOM): (1) *`resilience_evaluation_dataset`* (`23` cột, `7.600` dòng — RQ1), (2) *`latency_caching_dataset`* (`19` cột, `8.800` dòng — RQ2), và (3) *`governance_audit_dataset`* (`31` cột, `50` ca kiểm định chuyển trạng thái $t_0 \rightarrow t_1$ — RQ3).
+*   **Sinh viên 1 (Supporting — Provenance Invariants Verification & Report):**
+    *   Xây dựng bộ kiểm định tự động `DatasetProvenanceVerifier` kiểm chứng 100% PASS cho 8 bất biến nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`), xuất biên bản `dataset_provenance_manifest.json` và báo cáo [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md) phục vụ Chương 4 Báo cáo Đồ án 2.
+*   🎯 **Milestone 4 (Cuối Tuần 9 — ✅ COMPLETED):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2, thực nghiệm 76 lượt chạy và 3 bộ dữ liệu nghiên cứu chuẩn hóa hoàn tất (507/507 automated tests pass).*
 
 ---
 
@@ -300,33 +302,34 @@ flowchart TD
 
 Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vượt qua bảng kiểm định kỹ thuật sau:
 
-```
-[ ] Polly Resilience Pipeline:
+```text
+[x] Polly Resilience Pipeline (COMPLETED — Phase 4 / Week 7-8):
     ├── Strategy timeout (InnerTimeout 120ms) được phát hiện chính xác
     ├── Retry 2 lần với đúng base delay (30ms)
     ├── Circuit Breaker mở mạch khi vượt ngưỡng tỷ lệ lỗi
-    ├── FallbackDecisionStrategy (NEED_APPROVAL) hoạt động với overhead < 10ms trong kịch bản benchmark
+    ├── FallbackDecisionStrategy (NEED_APPROVAL) hoạt động với overhead < 10ms trong benchmark
     ├── Outer SLA Budget 500ms được cưỡng chế tuyệt đối
     └── 100% critical test scenarios (F1-F7) pass không còn bug Blocker/High
 
-[ ] Request-Hash Cache:
+[x] Request-Hash Cache (COMPLETED — Phase 3-4 / Week 6-8):
     ├── Key normalization sắp xếp alphabet và lowercase đúng chuẩn (RFC 8785)
     ├── Giữ nguyên 100% semantic values của business timestamps (chỉ cắt bỏ sub-second ticks)
     ├── 2 JSON khác thứ tự thuộc tính sinh ra cùng mã SHA-256
-    ├── Cache Hit bỏ qua thực thi Strategy và trả về kết quả nhanh (< 15ms trên Local/In-Memory hoặc theo WAN RTT ~40–70ms trên Redis Cloud ap-southeast-1)
+    ├── Cache Hit bỏ qua thực thi Strategy và trả về kết quả nhanh (< 15ms Local/In-Memory)
     ├── Tự động fallback sang IMemoryCache khi Redis mất kết nối (F5)
-    └── Cấu hình baseline TTL (TtlHours = 24) và Strategy Version isolation (decision:hash:{requestHash}:{strategyName}:v{strategyVersion}) hoạt động chính xác
+    └── Cấu hình baseline TTL (TtlHours = 24) và Strategy Version isolation hoạt động chính xác
 
-[ ] Append-only Audit Trail:
-    ├── Ghi nhận đầy đủ thông số thực thi vào tadss.decision_executions
+[x] Append-only Audit Trail & Dataset Normalization (COMPLETED — Phase 3-4 / Week 6-9):
+    ├── Ghi nhận đầy đủ thông số thực thi vào tadss.decision_executions (19 cột)
     ├── Phân biệt rõ AUTOMATED, CACHE_HIT, FALLBACK
     ├── Ghi đồng bộ trực tiếp (Mandatory Synchronous Fail-Closed) trong PostgreSQL Transaction
-    └── Lưu vết ghi đè Override kèm lý do và định danh Manager
+    ├── Lưu vết ghi đè Override kèm lý do và định danh Manager (bảo toàn 9 trường Machine Snapshot)
+    └── Trích xuất 3 bộ dữ liệu chuẩn hóa CSV/JSONL (23/19/31 cột) đạt 100% PASS INV-P1..INV-P8
 
-[ ] Human-in-the-loop & Concurrency:
+[x] Human-in-the-loop & Concurrency Core (TADSS Runtime COMPLETED — SmashCourt UI/Integration ở Phase 5):
     ├── Chặn 100% các request gửi trùng lặp qua IdempotencyKey (uq_decision_idempotency_key)
-    ├── Xử lý tranh chấp dữ liệu đồng thời qua ExpectedVersion (Optimistic Concurrency)
-    └── Tuyệt đối không tự động duyệt khi quá hạn (No Auto-Approve -> Expired/Cancelled)
+    ├── Chặn ghi đè trùng lặp (IsOverridden guard) và xử lý tranh chấp đồng thời (Version token)
+    └── Tuyệt đối không tự động duyệt đơn NeedApproval trong TADSS Core (No Auto-Approve)
 ```
 
 ---

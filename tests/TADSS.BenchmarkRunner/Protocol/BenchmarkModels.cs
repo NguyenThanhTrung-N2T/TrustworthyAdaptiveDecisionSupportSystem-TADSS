@@ -161,6 +161,8 @@ public sealed class BenchmarkSuiteConfig
 
     public string OutputDirectory { get; init; } = BenchmarkDefaults.DefaultOutputDirectory;
 
+    public string DatasetsOutputDirectory { get; init; } = BenchmarkDefaults.DefaultDatasetsDirectory;
+
     public BenchmarkResilienceSettings Resilience { get; init; } = new();
 
     public BenchmarkFaultTimingSettings FaultTiming { get; init; } = new();
@@ -254,7 +256,8 @@ public sealed class RunMetadata
 }
 
 /// <summary>
-/// Bản ghi đo lường thô của từng HTTP request trong pha Measurement.
+/// Bản ghi đo lường thô của từng HTTP request trong pha Measurement,
+/// tích hợp khóa kết nối 1:1 (DecisionId, ReservationId) và mã băm chuẩn hóa kỳ vọng (ExpectedRequestHash).
 /// </summary>
 public sealed class RawMeasurementRecord
 {
@@ -262,6 +265,9 @@ public sealed class RawMeasurementRecord
     public required string Scenario { get; init; }
     public required int Concurrency { get; init; }
     public required int RequestIndex { get; init; }
+    public Guid DecisionId { get; init; } = Guid.Empty;
+    public Guid ReservationId { get; init; } = Guid.Empty;
+    public string ExpectedRequestHash { get; init; } = string.Empty;
     public required double ClientElapsedMs { get; init; }
     public required int ServerExecutionTimeMs { get; init; }
     public required int HttpStatusCode { get; init; }

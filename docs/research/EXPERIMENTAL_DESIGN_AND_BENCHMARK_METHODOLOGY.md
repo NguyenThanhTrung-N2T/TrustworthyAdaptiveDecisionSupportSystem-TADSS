@@ -211,7 +211,14 @@ Mỗi lượt chạy $(Scenario \times Concurrency)$ bắt buộc phải sinh k�
 
 ## 4. CHUẨN HÓA TẬP DỮ LIỆU KIỂM TOÁN & THỰC NGHIỆM CHO TUẦN 9 (TELEMETRY DATASET PIPELINE)
 
-Để **không làm phình hay ô nhiễm Database Schema của Production**, dữ liệu từ bảng `tadss.decision_executions` và `Run Metadata` của Tuần 8 được kết hợp thông qua **Dataset Normalizer** trong Tuần 9 để sinh 3 bộ dữ liệu chuẩn hóa phục vụ Chương 4 Báo cáo Đồ án 2 (và làm dữ liệu nền tảng nếu tái sử dụng ở giai đoạn sau):
-1. **Resilience Evaluation Dataset** (`resilience_evaluation_dataset.csv`) — Đối chứng hành vi chịu lỗi ($R_0..R_3$), trạng thái mạch ngắt, retry và fallback.
-2. **Latency & Caching Dataset** (`latency_caching_dataset.csv`) — Đối chứng phân phối độ trễ và hiệu quả bộ nhớ đệm ($G_0..G_2$).
-3. **Governance & Audit Provenance Dataset** (`governance_audit_dataset.csv`) — Đối chứng tính toàn vẹn của nhật ký kiểm toán hai tầng (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata).
+> **📌 Đặc tả Đóng băng Chi tiết (Frozen Specification v1.0):** Xem toàn văn cấu trúc cột, hợp đồng kết nối 1-1 và 8 bất biến truy xuất nguồn gốc tại [`DATASET_SCHEMA_SPECIFICATION_V1.md`](./DATASET_SCHEMA_SPECIFICATION_V1.md).
+
+Để **không làm phình hay ô nhiễm Database Schema của Production** (`Zero Production Schema Pollution`), dữ liệu kiểm toán thực tế từ bảng `tadss.decision_executions` được thu thập trực tiếp trong vòng đời lượt chạy (`In-Vivo Harvest` trước khi `ScenarioHostController.DisposeAsync()` giải phóng In-Memory DB) và kết nối 1-1 với `RawMeasurementRecord` $\oplus$ `RunMetadata` qua khóa định danh logic `DecisionId`.
+
+Từ tập bản ghi đã qua kiểm định nguồn gốc, **Dataset Normalizer** (`tests/TADSS.BenchmarkRunner/Normalization/`) xuất **3 bộ dữ liệu chuẩn hóa (`CSV` & `JSONL`)** phục vụ Chương 4 Báo cáo Đồ án 2:
+1. **Resilience Evaluation Dataset** (`resilience_evaluation_dataset.csv` — **23 cột**, 11 kịch bản `R0..R3, D0..D2, E1..E4` $\times$ 4 VUs = 44 lượt chạy) — Đối chứng hành vi chịu lỗi, trạng thái mạch ngắt, retry, fallback và tỷ lệ duy trì quyết định ($\text{DCR}$).
+2. **Latency & Caching Dataset** (`latency_caching_dataset.csv` — **19 cột**, 8 kịch bản `G0..G2, C0..C3, E0` $\times$ 4 VUs = 32 lượt chạy) — Đối chứng phân phối độ trễ, độ chênh lệch `client_server_latency_delta_ms`, mã băm chuẩn hóa RFC 8785 `request_hash` và hiệu quả bộ nhớ đệm.
+3. **Governance & Audit Provenance Dataset** (`governance_audit_dataset.csv` — **31 cột**, thiết kế dưới dạng *Transition-Evidence Dataset* cho cả nhóm `POSITIVE_CONTROL` `G-A, G-B` và `NEGATIVE_CONTROL` `G-C1, G-C2`) — Đối chứng tính toàn vẹn của nhật ký kiểm toán hai tầng (**9-field Machine Snapshot + invariant decision-state field `NeedApproval`** $\oplus$ **5-field Mutable Governance Metadata** của thao tác quản trị kết quả quyết định TADSS) và vòng đời hàng đợi `pending-approvals`.
+
+Toàn bộ 3 bộ dữ liệu đều được kiểm định tự động qua **8 Bất biến Truy xuất Nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`)** (bao gồm kiểm chứng tính duy nhất của `DecisionId` trong từng `run_id` tại `INV-P1`, định dạng SHA-256 tại `INV-P3a`, tính tất định chuẩn hóa RFC 8785 tại `INV-P3b`, và chuyển trạng thái `UpdatedAt_t1 >= UpdatedAt_t0` tại `INV-P7`) trước khi xuất biên bản `dataset_provenance_manifest.json` và báo cáo `WEEK9_DATASET_NORMALIZATION_REPORT.md`.
+

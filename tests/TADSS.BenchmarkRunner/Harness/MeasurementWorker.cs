@@ -79,6 +79,7 @@ public sealed class MeasurementWorker
     private async Task<RawMeasurementRecord> MeasureSingleRequestAsync(int requestIndex)
     {
         var payload = _hostController.CreatePayloadForRequest(requestIndex, isWarmup: false);
+        string expectedRequestHash = TADSS.Runtime.Api.Services.RequestHasher.ComputeHash(payload);
         var idempotencyKey = $"{_metadata.RunId}-REQ-{requestIndex:D6}";
 
         using var reqMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
@@ -97,6 +98,8 @@ public sealed class MeasurementWorker
             double elapsedMs = Stopwatch.GetElapsedTime(startTick, endTick).TotalMilliseconds;
             statusCode = (int)response.StatusCode;
 
+            Guid decisionId = Guid.Empty;
+            Guid reservationId = payload.ReservationId;
             string decisionStatus = "ERROR";
             string executionType = "NONE";
             bool fallbackUsed = false;
@@ -109,6 +112,8 @@ public sealed class MeasurementWorker
                 var dto = await response.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
                 if (dto != null)
                 {
+                    decisionId = dto.DecisionId;
+                    reservationId = dto.ReservationId;
                     decisionStatus = dto.Status;
                     serverExecMs = dto.ExecutionTimeMs;
                     fallbackUsed = dto.FallbackUsed;
@@ -128,6 +133,9 @@ public sealed class MeasurementWorker
                 Scenario = _metadata.Scenario,
                 Concurrency = _concurrency,
                 RequestIndex = requestIndex,
+                DecisionId = decisionId,
+                ReservationId = reservationId,
+                ExpectedRequestHash = expectedRequestHash,
                 ClientElapsedMs = elapsedMs,
                 ServerExecutionTimeMs = serverExecMs,
                 HttpStatusCode = statusCode,
@@ -162,6 +170,9 @@ public sealed class MeasurementWorker
                 Scenario = _metadata.Scenario,
                 Concurrency = _concurrency,
                 RequestIndex = requestIndex,
+                DecisionId = Guid.Empty,
+                ReservationId = payload.ReservationId,
+                ExpectedRequestHash = expectedRequestHash,
                 ClientElapsedMs = elapsedMs,
                 ServerExecutionTimeMs = 0,
                 HttpStatusCode = statusCode == 0 ? 504 : statusCode,

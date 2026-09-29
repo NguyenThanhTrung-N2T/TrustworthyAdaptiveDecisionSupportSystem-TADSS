@@ -12,8 +12,9 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
 *   **Đường dẫn:** `http://<tadss-host>:<port>/api/v1/decisions`
 *   **Headers:**
     *   `Content-Type: application/json`
-    *   `X-Contract-Version: 1.0.0`
-    *   `X-Correlation-Id: <GUID>` (Được sinh bởi SmashCourt để trace chéo log)
+    *   `X-Contract-Version: 1.0.0` (Bắt buộc — Kiểm tra tương thích phiên bản hợp đồng)
+    *   `X-Idempotency-Key: <GUID/String>` (Bắt buộc — Đảm bảo chống thực thi trùng lặp ở tầng Runtime)
+    *   `X-Correlation-Id: <GUID>` (Tùy chọn — Được sinh bởi SmashCourt để trace chéo log; nếu vắng mặt sẽ tự sinh GUID mới)
 
 #### Request Payload Schema (Decision Contract v1)
 ```json
@@ -32,7 +33,7 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
     "bookingType": { "type": "string", "default": "SINGLE" },
     "totalPrice": { "type": "number", "minimum": 0 },
     "depositAmount": { "type": "number", "minimum": 0 },
-    "paymentStatus": { "type": "string", "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED"] },
+    "paymentStatus": { "type": "string", "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED"] },
     "priority": { "type": "string", "default": "NORMAL" },
     "requestedAt": { "type": "string", "format": "date-time" },
     "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
