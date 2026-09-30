@@ -29,7 +29,7 @@ public static class DatasetArtifactExporter
         "schema_version,run_id,experiment_layer,scenario_id,concurrency_level,sample_index," +
         "decision_id,reservation_id,strategy_name,strategy_version,execution_type,decision_status," +
         "fallback_used,failure_reason,need_approval,cache_hit,http_status_code,client_elapsed_ms," +
-        "server_execution_time_ms,within_configured_outer_sla,circuit_setup_mode,is_eligible_for_dcr,created_at_utc";
+        "server_execution_time_ms,within_configured_outer_timeout,circuit_setup_mode,is_eligible_for_dcr,created_at_utc";
 
     public const string LatencyCachingCsvHeader =
         "schema_version,run_id,experiment_layer,scenario_id,concurrency_level,sample_index," +
@@ -92,6 +92,15 @@ public static class DatasetArtifactExporter
         int totalDbObserved = harvestResults.Sum(r => r.TotalDbExecutionsCount);
         int totalExcluded = harvestResults.Sum(r => r.ExcludedNonMeasurementExecutions.Count);
         int totalSelected = harvestResults.Sum(r => r.SelectedAuditExecutions.Count);
+        int totalMeasurementRequests = harvestResults.Sum(r => r.MeasurementRecords.Count);
+        int completedDecisionCount = harvestResults.Sum(r => r.MeasurementRecords.Count(m => m.DecisionId != Guid.Empty));
+        int callerCancelledCount = harvestResults.Sum(r => r.MeasurementRecords.Count(m => !m.IsEligibleForDcr));
+        int persistenceFailureCount = harvestResults.Sum(r => r.MeasurementRecords.Count(m => m.IsEligibleForDcr && m.DecisionId == Guid.Empty));
+        int dcrEligibleCount = harvestResults.Sum(r => r.MeasurementRecords.Count(m => m.IsEligibleForDcr));
+        int dcrCompletedCount = harvestResults.Sum(r => r.MeasurementRecords.Count(m => m.IsEligibleForDcr && m.IsSafeCompletedDecision));
+        double overallDcrPercent = dcrEligibleCount > 0
+            ? Math.Round(dcrCompletedCount * 100.0 / dcrEligibleCount, 2)
+            : 0.0;
         bool allInvariantsPassed = invariantResults.All(i => i.Passed);
 
         var manifest = new DatasetProvenanceManifest
@@ -102,6 +111,13 @@ public static class DatasetArtifactExporter
             TotalDbExecutionsObserved = totalDbObserved,
             ExcludedWarmupAndTripExecutions = totalExcluded,
             SelectedMeasurementExecutions = totalSelected,
+            MeasurementRequestCount = totalMeasurementRequests,
+            CompletedDecisionCount = completedDecisionCount,
+            CallerCancelledCount = callerCancelledCount,
+            PersistenceFailureCount = persistenceFailureCount,
+            DcrEligibleCount = dcrEligibleCount,
+            DcrCompletedCount = dcrCompletedCount,
+            OverallDcrPercent = overallDcrPercent,
             GovernanceLifecycleCasesExecuted = governanceRows.Count,
             AllProvenanceInvariantsPassed = allInvariantsPassed,
             InvariantResults = invariantResults,
@@ -183,7 +199,7 @@ public static class DatasetArtifactExporter
               .Append(r.HttpStatusCode.ToString(CultureInfo.InvariantCulture)).Append(',')
               .Append(r.ClientElapsedMs.ToString("F3", CultureInfo.InvariantCulture)).Append(',')
               .Append(r.ServerExecutionTimeMs.ToString(CultureInfo.InvariantCulture)).Append(',')
-              .Append(r.WithinConfiguredOuterSla ? "true" : "false").Append(',')
+              .Append(r.WithinConfiguredOuterTimeout ? "true" : "false").Append(',')
               .Append(EscapeCsv(r.CircuitSetupMode)).Append(',')
               .Append(r.IsEligibleForDcr ? "true" : "false").Append(',')
               .AppendLine(EscapeCsv(r.CreatedAtUtc));
@@ -301,7 +317,11 @@ public static class DatasetArtifactExporter
         sb.AppendLine($"| **Tổng số Lượt chạy Thực nghiệm đã Thu hoạch (`Runs`)** | `{manifest.TotalBenchmarkRunsHarvested}` | Thu hoạch trực tiếp từ `TadssDbContext` trước khi `DisposeAsync()` giải phóng In-Memory DB. |");
         sb.AppendLine($"| **Tổng số Bản ghi trong `tadss.decision_executions`** | `{manifest.TotalDbExecutionsObserved:N0}` | Bao gồm cả các bản ghi khởi động (`Warm-up`), mở mạch (`Circuit-Trip`), và đo đạc (`Measurement`). |");
         sb.AppendLine($"| **Số Bản ghi Khởi động / Mở mạch đã Loại trừ** | `{manifest.ExcludedWarmupAndTripExecutions:N0}` | Bị loại trừ chính xác tuyệt đối bởi bộ lọc tập khóa $\\mathcal{{K}}_{{\\text{{meas}}}}$ (`INV-P2`). |");
-        sb.AppendLine($"| **Số Bản ghi Đo đạc Hợp lệ được Kết nối 1:1 ($\\lvert \\mathcal{{E}}_{{\\text{{selected}}}} \\rvert$)** | `{manifest.SelectedMeasurementExecutions:N0}` | Khớp song ánh 1:1 với `RawMeasurementRecord` qua khóa `DecisionId` (`INV-P1`). |");
+        sb.AppendLine($"| **Tổng số Request Pha Đo đạc (`measurement_request_count`)** | `{manifest.MeasurementRequestCount:N0}` | Tổng số request gửi đi trong pha Measurement trên toàn bộ các lượt chạy ($\\lvert \\mathcal{{M}} \\rvert$). |");
+        sb.AppendLine($"| **Số Request Hủy bởi Caller `F7` (`caller_cancelled_count`)** | `{manifest.CallerCancelledCount:N0}` | Request bị hủy chủ động từ phía caller (`is_eligible_for_dcr == false`, loại khỏi mẫu số DCR). |");
+        sb.AppendLine($"| **Số Lỗi Lưu trữ `F6` (`persistence_failure_count`)** | `{manifest.PersistenceFailureCount:N0}` | Request hợp lệ nhưng gặp lỗi hạ tầng lưu trữ không sinh `DecisionId` (`DecisionId == Guid.Empty`). |");
+        sb.AppendLine($"| **Quần thể Mẫu số DCR (`dcr_eligible_count`)** | `{manifest.DcrEligibleCount:N0}` | Tổng số request hợp lệ tính vào mẫu số DCR (`R0..R3 + F6`, không tính `F7`). |");
+        sb.AppendLine($"| **Quần thể Tử số DCR (`dcr_completed_count` / `$\\lvert \\mathcal{{E}}_{{\\text{{selected}}}} \\rvert$`)** | `{manifest.DcrCompletedCount:N0}` | Số quyết định hoàn tất an toàn và khớp song ánh 1:1 với `tadss.decision_executions` (`Overall DCR = {manifest.OverallDcrPercent.ToString("F2", CultureInfo.InvariantCulture)}%`). |");
         sb.AppendLine($"| **Số Ca Kiểm định Vòng đời Quản trị (`G-A, G-B, G-C1, G-C2`)** | `{manifest.GovernanceLifecycleCasesExecuted}` | Gồm các ca `POSITIVE_CONTROL` (ghi đè hợp lệ) và `NEGATIVE_CONTROL` (chặn ghi đè trái phép). |");
         sb.AppendLine($"| **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`{(manifest.AllProvenanceInvariantsPassed ? "100% PASSED" : "FAILED")}`** | Kiểm định tự động trước khi xuất hiện vật CSV/JSONL. |");
         sb.AppendLine();
@@ -340,13 +360,13 @@ public static class DatasetArtifactExporter
 
         // 4.1 Resilience Evaluation Dataset Summary
         int resilienceFallbackCount = resilienceRows.Count(r => r.FallbackUsed);
-        int resilienceWithinSlaCount = resilienceRows.Count(r => r.WithinConfiguredOuterSla);
-        double resilienceSlaRate = resilienceRows.Count > 0 ? (resilienceWithinSlaCount * 100.0 / resilienceRows.Count) : 0.0;
+        int resilienceWithinTimeoutCount = resilienceRows.Count(r => r.WithinConfiguredOuterTimeout);
+        double resilienceTimeoutRate = resilienceRows.Count > 0 ? (resilienceWithinTimeoutCount * 100.0 / resilienceRows.Count) : 0.0;
 
         sb.AppendLine("### 4.1. Bộ 1 — `resilience_evaluation_dataset` (23 cột — Phục vụ RQ1)");
         sb.AppendLine($"* **Tổng số dòng mẫu:** `{resilienceRows.Count:N0}` dòng (trải đều qua các kịch bản Layer B `R0..R3`, Layer D `D0..D2`, và Layer E `E1..E4`).");
         sb.AppendLine($"* **Số bản ghi kích hoạt Fallback (`fallback_used == true`):** `{resilienceFallbackCount:N0}` dòng (100% thỏa mãn `execution_type == \"FALLBACK\"`, `cache_hit == false`, và `need_approval == true` theo `INV-P5`).");
-        sb.AppendLine($"* **Tỷ lệ mẫu nằm trong ngân sách Outer Timeout cấu hình (`<= 500ms`):** `{resilienceWithinSlaCount:N0} / {resilienceRows.Count:N0}` (`{resilienceSlaRate.ToString("F2", CultureInfo.InvariantCulture)}%`).");
+        sb.AppendLine($"* **Tỷ lệ mẫu nằm trong ngân sách Outer Timeout cấu hình (`within_configured_outer_timeout <= 500ms`):** `{resilienceWithinTimeoutCount:N0} / {resilienceRows.Count:N0}` (`{resilienceTimeoutRate.ToString("F2", CultureInfo.InvariantCulture)}%`).");
         sb.AppendLine();
 
         // 4.2 Latency & Caching Dataset Summary
@@ -358,7 +378,7 @@ public static class DatasetArtifactExporter
         sb.AppendLine($"* **Tổng số dòng mẫu:** `{cachingRows.Count:N0}` dòng (trải đều qua các kịch bản Layer A `G0..G2`, Layer C `C0..C3`, và Layer E `E0`).");
         sb.AppendLine($"* **Số bản ghi trúng bộ nhớ đệm (`cache_hit == true`):** `{cachingHitCount:N0}` dòng (100% có `execution_type == \"CACHE_HIT\"` và `server_execution_time_ms == 0`).");
         sb.AppendLine($"* **Độ chênh lệch độ trễ trung bình (`client_server_latency_delta_ms`):** `{avgLatencyDelta.ToString("F3", CultureInfo.InvariantCulture)} ms` (phản ánh tổng độ trễ quan sát được ngoài tầng Strategy).");
-        sb.AppendLine($"* **Số mẫu đạt mục tiêu SLA thực nghiệm `<= 150ms`:** `{cachingSla150Count:N0} / {cachingRows.Count:N0}`.");
+        sb.AppendLine($"* **Số mẫu đạt ngưỡng hiệu năng mục tiêu thực nghiệm SC1 (`within_sla_150ms <= 150ms`):** `{cachingSla150Count:N0} / {cachingRows.Count:N0}`.");
         sb.AppendLine();
 
         // 4.3 Governance & Audit Provenance Dataset Summary

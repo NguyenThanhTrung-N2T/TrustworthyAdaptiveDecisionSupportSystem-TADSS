@@ -26,6 +26,8 @@ public sealed class DatasetNormalizationAndProvenanceTests
         resilienceCols.Should().HaveCount(23);
         resilienceCols.Should().Contain("need_approval");
         resilienceCols.Should().Contain("cache_hit");
+        resilienceCols.Should().Contain("within_configured_outer_timeout");
+        resilienceCols.Should().NotContain("within_configured_outer_sla");
 
         cachingCols.Should().HaveCount(19);
         cachingCols.Should().Contain("client_server_latency_delta_ms");
@@ -35,6 +37,16 @@ public sealed class DatasetNormalizationAndProvenanceTests
         governanceCols.Should().Contain("governance_case_type");
         governanceCols.Should().Contain("version_transition");
         governanceCols.Should().NotContain("version_t0_to_t1");
+
+        // Verify canonical failure_reason normalization vocabulary (FailureReasonPrefixes)
+        DatasetNormalizerEngine.NormalizeFailureReason(null).Should().BeNull();
+        DatasetNormalizerEngine.NormalizeFailureReason("").Should().BeNull();
+        DatasetNormalizerEngine.NormalizeFailureReason("STRATEGY_TIMEOUT: Strategy execution timed out (> 120ms per attempt).").Should().Be("STRATEGY_TIMEOUT");
+        DatasetNormalizerEngine.NormalizeFailureReason("TIMEOUT").Should().Be("STRATEGY_TIMEOUT");
+        DatasetNormalizerEngine.NormalizeFailureReason("CIRCUIT_BREAKER_OPEN: Circuit breaker is open due to high failure rate. Strategy execution isolated.").Should().Be("CIRCUIT_BREAKER_OPEN");
+        DatasetNormalizerEngine.NormalizeFailureReason("CIRCUIT_OPEN").Should().Be("CIRCUIT_BREAKER_OPEN");
+        DatasetNormalizerEngine.NormalizeFailureReason("STRATEGY_EXCEPTION: Simulated transient error.").Should().Be("STRATEGY_EXCEPTION");
+        DatasetNormalizerEngine.NormalizeFailureReason("EXCEPTION").Should().Be("STRATEGY_EXCEPTION");
     }
 
     [Fact]
@@ -361,6 +373,11 @@ public sealed class DatasetNormalizationAndProvenanceTests
             var govRows = DatasetNormalizerEngine.ProjectGovernanceAuditDataset(govObservations);
 
             resilienceRows.Should().HaveCount(5);
+            resilienceRows.Should().AllSatisfy(r =>
+            {
+                r.FailureReason.Should().Be("CIRCUIT_BREAKER_OPEN");
+                r.WithinConfiguredOuterTimeout.Should().BeTrue();
+            });
             cachingRows.Should().HaveCount(5);
             govRows.Should().HaveCount(6);
 
@@ -376,6 +393,13 @@ public sealed class DatasetNormalizationAndProvenanceTests
                 invariants);
 
             manifest.AllProvenanceInvariantsPassed.Should().BeTrue();
+            manifest.MeasurementRequestCount.Should().Be(10);
+            manifest.CompletedDecisionCount.Should().Be(10);
+            manifest.CallerCancelledCount.Should().Be(0);
+            manifest.PersistenceFailureCount.Should().Be(0);
+            manifest.DcrEligibleCount.Should().Be(10);
+            manifest.DcrCompletedCount.Should().Be(10);
+            manifest.OverallDcrPercent.Should().Be(100.0);
             File.Exists(Path.Combine(tempDir, "resilience_evaluation_dataset.csv")).Should().BeTrue();
             File.Exists(Path.Combine(tempDir, "resilience_evaluation_dataset.jsonl")).Should().BeTrue();
             File.Exists(Path.Combine(tempDir, "latency_caching_dataset.csv")).Should().BeTrue();
@@ -521,7 +545,7 @@ public sealed class DatasetNormalizationAndProvenanceTests
             ExecutionType = executionType,
             ExecutionTimeMs = execTimeMs,
             FallbackUsed = fallback,
-            FailureReason = fallback ? "CIRCUIT_OPEN" : null,
+            FailureReason = fallback ? "CIRCUIT_BREAKER_OPEN" : null,
             CacheHit = cacheHit,
             NeedApproval = needApproval,
             RequestHash = requestHash,

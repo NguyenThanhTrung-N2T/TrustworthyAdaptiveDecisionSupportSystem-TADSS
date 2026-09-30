@@ -5,6 +5,13 @@
   "total_db_executions_observed": 18672,
   "excluded_warmup_and_trip_executions": 2272,
   "selected_measurement_executions": 16400,
+  "measurement_request_count": 16400,
+  "completed_decision_count": 16400,
+  "caller_cancelled_count": 0,
+  "persistence_failure_count": 0,
+  "dcr_eligible_count": 16400,
+  "dcr_completed_count": 16400,
+  "overall_dcr_percent": 100,
   "governance_lifecycle_cases_executed": 50,
   "all_provenance_invariants_passed": true,
   "invariant_results": [
@@ -88,9 +95,9 @@
       "column_count": 23,
       "row_count": 7600,
       "csv_file_name": "resilience_evaluation_dataset.csv",
-      "csv_sha256": "b72b85120c3075655498aac59e42f48e3293f39979d7ee47ff4371475c821a00",
+      "csv_sha256": "2fb13a6996935f36c01025975a3e7c7688b434a024d4c36afb49fd5c5b207a66",
       "jsonl_file_name": "resilience_evaluation_dataset.jsonl",
-      "jsonl_sha256": "d143ad82f3f0b49aaf72f7710cd39f15d833d2942dc89967be89ec73f324951f"
+      "jsonl_sha256": "3b2938923926180cc0e36dd69457722b399e40046759f58f5277ac9de3328f31"
     },
     {
       "dataset_name": "latency_caching_dataset",

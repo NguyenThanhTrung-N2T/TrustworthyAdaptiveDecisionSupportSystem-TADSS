@@ -113,8 +113,8 @@ public sealed class ResilienceEvaluationDatasetRow
     public required int ServerExecutionTimeMs { get; init; }
 
     [JsonPropertyOrder(20)]
-    [JsonPropertyName("within_configured_outer_sla")]
-    public required bool WithinConfiguredOuterSla { get; init; }
+    [JsonPropertyName("within_configured_outer_timeout")]
+    public required bool WithinConfiguredOuterTimeout { get; init; }
 
     [JsonPropertyOrder(21)]
     [JsonPropertyName("circuit_setup_mode")]
@@ -437,6 +437,27 @@ public sealed class DatasetProvenanceManifest
 
     [JsonPropertyName("selected_measurement_executions")]
     public required int SelectedMeasurementExecutions { get; init; }
+
+    [JsonPropertyName("measurement_request_count")]
+    public required int MeasurementRequestCount { get; init; }
+
+    [JsonPropertyName("completed_decision_count")]
+    public required int CompletedDecisionCount { get; init; }
+
+    [JsonPropertyName("caller_cancelled_count")]
+    public required int CallerCancelledCount { get; init; }
+
+    [JsonPropertyName("persistence_failure_count")]
+    public required int PersistenceFailureCount { get; init; }
+
+    [JsonPropertyName("dcr_eligible_count")]
+    public required int DcrEligibleCount { get; init; }
+
+    [JsonPropertyName("dcr_completed_count")]
+    public required int DcrCompletedCount { get; init; }
+
+    [JsonPropertyName("overall_dcr_percent")]
+    public required double OverallDcrPercent { get; init; }
 
     [JsonPropertyName("governance_lifecycle_cases_executed")]
     public required int GovernanceLifecycleCasesExecuted { get; init; }

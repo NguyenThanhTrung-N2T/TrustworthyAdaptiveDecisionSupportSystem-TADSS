@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using TADSS.BenchmarkRunner.Protocol;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
+using TADSS.Runtime.Api.Infrastructure.Resilience;
 
 namespace TADSS.BenchmarkRunner.Normalization;
 
@@ -148,17 +149,51 @@ public static class DatasetNormalizerEngine
             ExecutionType = e.ExecutionType,
             DecisionStatus = r.DecisionStatus,
             FallbackUsed = e.FallbackUsed,
-            FailureReason = e.FailureReason,
+            FailureReason = NormalizeFailureReason(e.FailureReason),
             NeedApproval = e.NeedApproval,
             CacheHit = e.CacheHit,
             HttpStatusCode = r.HttpStatusCode,
             ClientElapsedMs = roundedElapsedMs,
             ServerExecutionTimeMs = e.ExecutionTimeMs,
-            WithinConfiguredOuterSla = roundedElapsedMs <= meta.OuterTimeoutMs,
+            WithinConfiguredOuterTimeout = roundedElapsedMs <= meta.OuterTimeoutMs,
             CircuitSetupMode = meta.CircuitStateSetup,
             IsEligibleForDcr = r.IsEligibleForDcr,
             CreatedAtUtc = FormatIso8601Utc(e.CreatedAt)
         };
+    }
+
+    /// <summary>
+    /// Chuẩn hóa chuỗi FailureReason trong Audit Ledger về đúng từ vựng canonical của Runtime:
+    /// STRATEGY_TIMEOUT, CIRCUIT_BREAKER_OPEN, STRATEGY_EXCEPTION, hoặc null.
+    /// </summary>
+    public static string? NormalizeFailureReason(string? rawFailureReason)
+    {
+        if (string.IsNullOrWhiteSpace(rawFailureReason))
+        {
+            return null;
+        }
+
+        string trimmed = rawFailureReason.Trim();
+        if (trimmed.StartsWith(FailureReasonPrefixes.StrategyTimeout, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureReasonPrefixes.StrategyTimeout;
+        }
+
+        if (trimmed.StartsWith(FailureReasonPrefixes.CircuitBreakerOpen, StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("CIRCUIT_OPEN", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureReasonPrefixes.CircuitBreakerOpen;
+        }
+
+        if (trimmed.StartsWith(FailureReasonPrefixes.StrategyException, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "EXCEPTION", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureReasonPrefixes.StrategyException;
+        }
+
+        int colonIndex = trimmed.IndexOf(':', StringComparison.Ordinal);
+        return colonIndex > 0 ? trimmed[..colonIndex].Trim() : trimmed;
     }
 
     public static LatencyCachingDatasetRow MapToLatencyCachingRow(JoinedExperimentRecord joined)

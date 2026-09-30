@@ -14,6 +14,8 @@
 | **Tổng số Lượt chạy Thực nghiệm đã Thu hoạch (`Runs`)** | `76` | Thu hoạch trực tiếp từ `TadssDbContext` trước khi `DisposeAsync()` giải phóng In-Memory DB. |
 | **Tổng số Bản ghi trong `tadss.decision_executions`** | `18.672` | Bao gồm cả các bản ghi khởi động (`Warm-up`), mở mạch (`Circuit-Trip`), và đo đạc (`Measurement`). |
 | **Số Bản ghi Khởi động / Mở mạch đã Loại trừ** | `2.272` | Bị loại trừ chính xác tuyệt đối bởi bộ lọc tập khóa $\mathcal{K}_{\text{meas}}$ (`INV-P2`). |
+| **Tổng số Request Pha Đo đạc (`measurement_request_count`)** | `16.400` | Toàn bộ request phát ra trong pha Measurement ($\mathcal{M}$). |
+| **Số Request Hủy từ Caller `F7` / Lỗi Lưu trữ `F6`** | `0` / `0` | Hạch toán minh bạch các mẫu `DecisionId == Guid.Empty` trước phép nối (`DCR = 100.00%` trên `16.400 / 16.400` mẫu hợp lệ). |
 | **Số Bản ghi Đo đạc Hợp lệ được Kết nối 1:1 ($\lvert \mathcal{E}_{\text{selected}} \rvert$)** | `16.400` | Khớp song ánh 1:1 với `RawMeasurementRecord` qua khóa `DecisionId` (`INV-P1`). |
 | **Số Ca Kiểm định Vòng đời Quản trị (`G-A, G-B, G-C1, G-C2`)** | `50` | Gồm các ca `POSITIVE_CONTROL` (ghi đè hợp lệ) và `NEGATIVE_CONTROL` (chặn ghi đè trái phép). |
 | **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`100% PASSED`** | Kiểm định tự động trước khi xuất hiện vật CSV/JSONL. |
@@ -40,7 +42,7 @@
 
 | Tên Bộ Dữ liệu | Câu hỏi Nghiên cứu | Số Cột | Số Dòng | Tệp CSV & Mã băm SHA-256 | Tệp JSONL & Mã băm SHA-256 |
 | :--- | :--- | :---: | :---: | :--- | :--- |
-| **`resilience_evaluation_dataset`** | RQ1 (Resilience & Decision Continuity) | `23` | `7.600` | `resilience_evaluation_dataset.csv`<br>`b72b85120c307565...` | `resilience_evaluation_dataset.jsonl`<br>`d143ad82f3f0b49a...` |
+| **`resilience_evaluation_dataset`** | RQ1 (Resilience & Decision Continuity) | `23` | `7.600` | `resilience_evaluation_dataset.csv`<br>`2fb13a6996935f36...` | `resilience_evaluation_dataset.jsonl`<br>`3b2938923926180c...` |
 | **`latency_caching_dataset`** | RQ2 (Caching Overhead & Latency Envelope) | `19` | `8.800` | `latency_caching_dataset.csv`<br>`074eedbbd1c97d42...` | `latency_caching_dataset.jsonl`<br>`dc15554947fc470f...` |
 | **`governance_audit_dataset`** | RQ3 (Audit Provenance & Decision-Outcome Governance) | `31` | `50` | `governance_audit_dataset.csv`<br>`776479b1acbd62e5...` | `governance_audit_dataset.jsonl`<br>`f972251b50851f48...` |
 

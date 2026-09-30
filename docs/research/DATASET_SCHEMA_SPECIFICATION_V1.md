@@ -23,7 +23,8 @@
   * **Layer B (`R0, R1, R2, R3`):** Đường cơ sở và các kịch bản tiêm lỗi cô lập (Retry Recovery, Circuit Open Fast-Fail, Retry Exhaustion).
   * **Layer D (`D0, D1, D2`):** Chiến lược đa quy tắc nặng sát ngưỡng cắt, tranh chấp ghi DB kiểm toán, và biến thiên độ trễ hai đỉnh (Bimodal Jitter).
   * **Layer E (`E1, E2, E3, E4`):** Cộng hưởng độ trễ, suy giảm 3 tầng đồng thời (Cascading Triple Stress), tự chữa lành qua Retry (`E3`) và chu trình đóng lại mạch ngắt `OPEN` $\rightarrow$ `HALF-OPEN` $\rightarrow$ `CLOSED` (`E4`).
-* **Tổng số cột:** **23 cột** (đánh số tường minh từ `1` đến `23`: `6 Run Context + 2 Join Identity + 8 Execution & Fault + 4 Latency & SLA + 3 Run/Audit = 23`):
+  * *(Lưu ý phân hoạch `Layer E`: Các kịch bản thuộc `Layer E` (`E0..E4`) được phân hoạch có chủ đích giữa Dataset 1 (`E1..E4`: trọng tâm chịu lỗi cộng hưởng & tự phục hồi phục vụ RQ1) và Dataset 2 (`E0`: tải hỗn hợp chuẩn 80% Cache Hit / 20% Cache Miss phục vụ RQ2) theo đúng câu hỏi nghiên cứu chính của từng kịch bản).*
+* **Tổng số cột:** **23 cột** (đánh số tường minh từ `1` đến `23`: `6 Run Context + 2 Join Identity + 8 Execution & Fault + 4 Latency & Timeout + 3 Run/Audit = 23`):
 
 | # | Tên cột (`snake_case`) | Kiểu dữ liệu | Nguồn dữ liệu | Mô tả & Ngữ nghĩa học thuật |
 | :-: | :--- | :--- | :--- | :--- |
@@ -40,13 +41,13 @@
 | **11** | `execution_type` | `string` | `ClientRaw/DB` | Phương thức hoàn tất quyết định (`AUTOMATED`, `FALLBACK`, `CACHE_HIT` — xác minh từ [`DecisionService.cs:141`](../../src/TADSS.Runtime.Api/Services/DecisionService.cs#L141) và [`MeasurementWorker.cs:118-120`](../../tests/TADSS.BenchmarkRunner/Harness/MeasurementWorker.cs#L118-L120), được đối chiếu chéo bởi `INV-P4`). |
 | **12** | `decision_status` | `string` | `ClientRaw/DB` | Trạng thái kết quả quyết định (`APPROVED`, `REJECTED`, `NEED_APPROVAL`). |
 | **13** | `fallback_used` | `bool` | `ClientRaw/DB` | Cờ xác nhận đường ống đã kích hoạt `FallbackDecisionStrategy` (`DecisionExecution.FallbackUsed`, đối chiếu chéo bởi `INV-P4`). |
-| **14** | `failure_reason` | `string?` | `AuditLedger` | Nguyên nhân gốc kích hoạt Fallback (`TIMEOUT`, `CIRCUIT_OPEN`, `EXCEPTION`, hoặc `null`). |
+| **14** | `failure_reason` | `string?` | `AuditLedger` | Nguyên nhân gốc kích hoạt Fallback theo đúng từ vựng canonical của Runtime (`STRATEGY_TIMEOUT`, `CIRCUIT_BREAKER_OPEN`, `STRATEGY_EXCEPTION`, hoặc `null` — chuẩn hóa từ [`FailureReasonPrefixes.cs`](../../src/TADSS.Runtime.Api/Infrastructure/Resilience/FailureReasonPrefixes.cs)). |
 | **15** | `need_approval` | `bool` | `AuditLedger` | Cờ trạng thái quyết định yêu cầu xem xét quản trị (`DecisionExecution.NeedApproval`). |
 | **16** | `cache_hit` | `bool` | `ClientRaw/DB` | Cờ xác nhận trúng bộ nhớ đệm (`DecisionExecution.CacheHit`) — phục vụ kiểm định chéo `INV-P4` & `INV-P5`. |
 | **17** | `http_status_code` | `int` | `ClientRaw` | Mã trạng thái phản hồi HTTP (`200`, `500`, `504`, ...). |
 | **18** | `client_elapsed_ms` | `double` | `ClientRaw` | Độ trễ đầu-cuối (End-to-End RTT) đo bằng `Stopwatch` tại Client (`ms`, làm tròn 3 chữ số thập phân). |
 | **19** | `server_execution_time_ms` | `int` | `AuditLedger` | Thời gian thực thi tầng Strategy ghi nhận trong `DecisionExecution.ExecutionTimeMs` (`ms`). |
-| **20** | `within_configured_outer_sla` | `bool` | `Derived` | `true` nếu `client_elapsed_ms <= configured_outer_timeout_ms` (`500ms`). |
+| **20** | `within_configured_outer_timeout` | `bool` | `Derived` | `true` nếu `client_elapsed_ms <= configured_outer_timeout_ms` (`500ms` — ngân sách timeout cấu hình của đường ống, phân biệt rõ với SLA nghiệp vụ). |
 | **21** | `circuit_setup_mode` | `string` | `RunMetadata` | Trạng thái thiết lập Circuit Breaker của lượt chạy (`CLOSED`, `PRE_OPENED`, `ISOLATED_CLOSED`, `RECOVERED_CLOSED`). |
 | **22** | `is_eligible_for_dcr` | `bool` | `ClientRaw` | Thuộc mẫu số tính $\text{DCR}$ (`true` cho mọi request hợp lệ không bị hủy bởi caller `F7`). |
 | **23** | `created_at_utc` | `string` | `AuditLedger` | Thời điểm tạo bản ghi kiểm toán chuẩn ISO 8601 UTC (`DecisionExecution.CreatedAt`). |
@@ -58,7 +59,7 @@
 * **Phạm vi kịch bản:** **8 kịch bản $\times$ 4 mức VUs = 32 lượt chạy** thuộc:
   * **Layer A (`G0, G1, G2`):** Đường cơ sở đánh giá bộ nhớ đệm (Bypass, 100% Miss, 100% Hit).
   * **Layer C (`C0, C1, C2, C3`):** Các bệnh lý bộ nhớ đệm thực tế (50% Hit, WAN Latency, Thundering Herd, Eviction Thrashing).
-  * **Layer E (`E0`):** Tải hỗn hợp chuẩn vận hành thực tế (80% Cache Hit / 20% Cache Miss).
+  * **Layer E (`E0`):** Tải hỗn hợp chuẩn vận hành thực tế (80% Cache Hit / 20% Cache Miss — thuộc nhóm đánh giá hiệu năng bộ nhớ đệm RQ2).
 * **Tổng số cột:** **19 cột** (đánh số tường minh từ `1` đến `19`):
 
 | # | Tên cột (`snake_case`) | Kiểu dữ liệu | Nguồn dữ liệu | Mô tả & Ngữ nghĩa học thuật |
@@ -80,15 +81,16 @@
 | **15** | `server_execution_time_ms` | `int` | `AuditLedger` | Thời gian thực thi tầng Strategy trên Server (`0ms` khi `cache_hit == true`). |
 | **16** | `client_server_latency_delta_ms` | `double` | `Derived` | `max(0, client_elapsed_ms - server_execution_time_ms)`: Độ chênh lệch độ trễ quan sát được ngoài thời gian thực thi Strategy (`observed latency delta`, bao gồm HTTP/loopback transport, JSON serialization/deserialization, đồng bộ ghi DB Audit, và lập lịch luồng — **không quy kết cho riêng một thành phần đơn lẻ**). |
 | **17** | `run_cache_hit_ratio_percent` | `double` | `RunSummary` | Tỷ lệ trúng bộ nhớ đệm của toàn lượt chạy (`0.0` đến `100.0`). |
-| **18** | `within_sla_150ms` | `bool` | `Derived` | `true` nếu `client_elapsed_ms <= 150.0` (Ngưỡng mục tiêu hiệu năng thực nghiệm SC1). |
+| **18** | `within_sla_150ms` | `bool` | `Derived` | `true` nếu `client_elapsed_ms <= 150.0` (`150ms` là ngưỡng hiệu năng mục tiêu thực nghiệm SC1 cho đường truyền bình thường/cache, **không phải là SLA vận hành phổ quát áp dụng cho mọi kịch bản chịu lỗi có Retry/Fallback**). |
 | **19** | `created_at_utc` | `string` | `AuditLedger` | Thời điểm tạo bản ghi kiểm toán chuẩn ISO 8601 UTC (`DecisionExecution.CreatedAt`). |
 
 ---
 
 ### 2.3. Bộ 3 — `governance_audit_dataset` (`CSV` & `JSONL`) — Phục vụ RQ3
-* **Mục đích & Taxonomy Dữ liệu Kiểm toán:** Kiểm chứng thực nghiệm kiến trúc **Nhật ký Kiểm toán Hai tầng (Two-Tier Audit Ledger)** trên thực thể `DecisionExecution`:
-  1. **9-Field Immutable Machine Snapshot (`9 thuộc tính chụp trạng thái máy bất biến`):** `DecisionId`, `ReservationId`, `StrategyName`, `StrategyVersion`, `ExecutionType`, `ExecutionTimeMs`, `RequestHash`, `ResponsePayload`, `CreatedAt` **cộng với trường trạng thái quyết định bất biến (`invariant decision-state field`) `NeedApproval`** (không xếp `NeedApproval` làm trường thứ 10 của Machine Snapshot, nhưng giá trị của nó được giữ cố định từ thời điểm ra quyết định ban đầu).
-  2. **5-Field Mutable Governance Metadata (`5 thuộc tính quản trị khả biến trong thực thể DB`):** `IsOverridden`, `OverriddenBy`, `OverrideReason`, `Version`, `UpdatedAt`.
+* **Mục đích & Taxonomy Dữ liệu Kiểm toán:** Kiểm chứng thực nghiệm kiến trúc **Nhật ký Kiểm toán Hai tầng (Two-Tier Audit Ledger)** trên thực thể `DecisionExecution`.
+  > **Định nghĩa Thuật ngữ (Terminology Clarification):** Thuật ngữ **"Two-Tier Audit Ledger"** trong đặc tả này chỉ **sự phân tách logic về phân loại dữ liệu (logical data classification)** giữa **Tầng 1 — Bằng chứng thực thi máy bất biến (`Immutable Machine Snapshot`)** và **Tầng 2 — Siêu dữ liệu quản trị khả biến (`Mutable Governance Metadata`)** ngay bên trong **cùng một bản ghi kiểm toán vật lý (`tadss.decision_executions`)**, hoàn toàn không phải là kiến trúc hai cơ sở dữ liệu vật lý hay sổ cái phân tán.
+  1. **Tier 1 — 9-Field Immutable Machine Snapshot (`9 thuộc tính chụp trạng thái máy bất biến`):** `DecisionId`, `ReservationId`, `StrategyName`, `StrategyVersion`, `ExecutionType`, `ExecutionTimeMs`, `RequestHash`, `ResponsePayload`, `CreatedAt` **cộng với trường trạng thái quyết định bất biến (`invariant decision-state field`) `NeedApproval`** (không xếp `NeedApproval` làm trường thứ 10 của Machine Snapshot, nhưng giá trị của nó được giữ cố định từ thời điểm ra quyết định ban đầu).
+  2. **Tier 2 — 5-Field Mutable Governance Metadata (`5 thuộc tính quản trị khả biến trong thực thể DB`):** `IsOverridden`, `OverriddenBy`, `OverrideReason`, `Version`, `UpdatedAt`.
 * **Bản chất Bằng chứng của Schema 3 (Transition-Evidence Dataset Semantics):**
   * Schema 3 (`31 cột`) được thiết kế là một **Transition-Evidence Dataset (bộ dữ liệu bằng chứng chuyển trạng thái)**, **không lưu lặp lại toàn bộ 5 trường quản trị khả biến ở cả hai thời điểm $t_0$ và $t_1$** (nhằm giữ cấu trúc 31 cột tinh gọn, không phình lên 36–37 cột).
   * Cụ thể:
@@ -189,9 +191,18 @@ Gọi $\mathcal{M}$ là danh sách tất cả `RawMeasurementRecord` thu đượ
    $$\text{Count}(\mathcal{M}_{\text{valid}}) = \text{Count}(\text{Distinct}(\{ r.\text{DecisionId} \mid r \in \mathcal{M}_{\text{valid}} \})) = |\mathcal{K}_{\text{meas}}|$$
 3. **Tập bản ghi kiểm toán được chọn từ `tadss.decision_executions` ($\mathcal{E}_{\text{all}}$):**
    $$\mathcal{E}_{\text{selected}} = \{ e \in \mathcal{E}_{\text{all}} \mid e.\text{DecisionId} \in \mathcal{K}_{\text{meas}} \}$$
+4. **Hạch toán Toàn diện Quần thể Mẫu số DCR (`DCR Population Accounting` trong `dataset_provenance_manifest.json`):**
+   Để đảm bảo các lỗi không sinh bản ghi kiểm toán (`F6` — lỗi hạ tầng lưu trữ DB hoặc `F7` — caller hủy chủ động request) **không bao giờ bị "tàng hình"** khi lọc $\mathcal{M}_{\text{valid}}$ phục vụ phép nối 1:1, biên bản nguồn gốc `dataset_provenance_manifest.json` bắt buộc ghi nhận đầy đủ 7 chỉ số kiểm kê quần thể đo đạc từ $\mathcal{M}$:
+   * `measurement_request_count` ($\lvert \mathcal{M} \rvert$): Tổng số request phát ra trong pha Measurement.
+   * `completed_decision_count` ($\lvert \mathcal{M}_{\text{valid}} \rvert$): Tổng số request hoàn tất sinh `DecisionId != Guid.Empty`.
+   * `caller_cancelled_count` ($\lvert \mathcal{M}_{F7} \rvert$): Số request bị hủy từ phía caller (`IsEligibleForDcr == false`).
+   * `persistence_failure_count` ($\lvert \mathcal{M}_{F6} \rvert$): Số request hợp lệ nhưng thất bại trước hoặc trong khi ghi kiểm toán (`IsEligibleForDcr == true && DecisionId == Guid.Empty`).
+   * `dcr_eligible_count`: Tổng số mẫu thuộc mẫu số $\text{DCR}$ ($\lvert \mathcal{M} \rvert - \lvert \mathcal{M}_{F7} \rvert$).
+   * `dcr_completed_count`: Tổng số mẫu thuộc tử số $\text{DCR}$ (`IsEligibleForDcr && IsSafeCompletedDecision`).
+   * `overall_dcr_percent`: $\frac{\text{dcr\_completed\_count}}{\text{dcr\_eligible\_count}} \times 100\%$.
 
 ```text
-RawMeasurement (M)
+RawMeasurement (M) ──► Manifest DCR Population Accounting (M, M_valid, F6, F7, DCR%)
        │
        │ Filter r.DecisionId != Guid.Empty
        │ + Verify DecisionId uniqueness within run_id:
@@ -212,7 +223,7 @@ Bộ kiểm định `DatasetProvenanceVerifier` bắt buộc kiểm tra tự đ�
 
 | Mã Invariant | Tên Bất biến | Biểu thức Kiểm định & Quy tắc Ràng buộc |
 | :--- | :--- | :--- |
-| **`INV-P1`** | **Per-Run `DecisionId` Uniqueness & Bijective 1:1 Join** | Trong từng `run_id`:<br>1. **Uniqueness:** `DecisionId` trong $\mathcal{M}_{\text{valid}}$ ($r.\text{DecisionId} \neq \text{Guid.Empty}$) phải duy nhất tuyệt đối: $\text{Count}(\mathcal{M}_{\text{valid}}) = \text{Count}(\text{Distinct}(\mathcal{M}_{\text{valid}}.\text{DecisionId}))$.<br>2. **1:1 Bijection:** $\forall r \in \mathcal{M}_{\text{valid}}, \exists! e \in \mathcal{E}_{\text{selected}} : r.\text{DecisionId} = e.\text{DecisionId}$ và $\text{Count}(\mathcal{M}_{\text{valid}}) = \lvert \mathcal{E}_{\text{selected}} \rvert$. |
+| **`INV-P1`** | **Per-Run `DecisionId` Uniqueness & Bijective 1:1 Join** | Trong từng `run_id`:<br>1. **Prerequisite — Uniqueness Check (kiểm tra điều kiện tiên quyết TRƯỚC khi kiểm chứng song ánh):** `DecisionId` trong $\mathcal{M}_{\text{valid}}$ ($r.\text{DecisionId} \neq \text{Guid.Empty}$) phải duy nhất tuyệt đối: $\text{Count}(\mathcal{M}_{\text{valid}}) = \text{Count}(\text{Distinct}(\mathcal{M}_{\text{valid}}.\text{DecisionId}))$.<br>2. **1:1 Bijection:** $\forall r \in \mathcal{M}_{\text{valid}}, \exists! e \in \mathcal{E}_{\text{selected}} : r.\text{DecisionId} = e.\text{DecisionId}$ và $\text{Count}(\mathcal{M}_{\text{valid}}) = \lvert \mathcal{E}_{\text{selected}} \rvert$. |
 | **`INV-P2`** | **Zero Warm-up & Circuit-Trip Contamination** | • **Primary Selection:** $\mathcal{E}_{\text{selected}}$ được xác định thuần túy bằng phép lọc tập khóa $\mathcal{K}_{\text{meas}}$ ($\text{MeasurementDecisionIds}$), hoàn toàn độc lập với chuỗi ký tự.<br>• **Secondary Contamination Check:** $\forall e \in \mathcal{E}_{\text{selected}}$, kiểm tra bổ sung `e.IdempotencyKey` khớp mẫu `{RunId}-REQ-{6-digit}` và tuyệt đối không chứa `"WARMUP-"` hoặc `"TRIP-"`.<br>*(Caveat: Quy tắc chuỗi `IdempotencyKey` chỉ đóng vai trò lớp kiểm tra phụ thứ cấp, giữ tương thích ngược với 16,400 mẫu của Tuần 8).* |
 | **`INV-P3a`** | **SHA-256 RequestHash Format Integrity** | $\forall e \in \mathcal{E}_{\text{selected}}$: Chuỗi `e.RequestHash` không rỗng và khớp chính xác biểu thức chính quy `^[0-9a-f]{64}$` (64 ký tự hex chữ thường chuẩn SHA-256). |
 | **`INV-P3b`** | **RFC 8785 Canonical RequestHash Determinism** | • Trên mọi cặp $(r, e)$ đã kết nối: `e.RequestHash == r.ExpectedRequestHash` (đối chiếu trực tiếp với `RequestHasher.ComputeHash(payload)`).<br>• Trên các kịch bản dùng chung khóa chuẩn hóa (`G2`, `C2`), toàn bộ 100% bản ghi trong lượt chạy phải sinh ra duy nhất một giá trị `RequestHash` ($\lvert \{e.\text{RequestHash} \mid e \in \mathcal{E}_{\text{selected}}\} \rvert = 1$). |
