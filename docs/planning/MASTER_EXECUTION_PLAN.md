@@ -209,7 +209,7 @@ flowchart TD
     *   Trích xuất 3 tập dữ liệu chuẩn hóa định dạng kép CSV & JSONL (UTF-8 No-BOM): (1) *`resilience_evaluation_dataset`* (`23` cột, `7.600` dòng — RQ1), (2) *`latency_caching_dataset`* (`19` cột, `8.800` dòng — RQ2), và (3) *`governance_audit_dataset`* (`31` cột, `50` ca kiểm định chuyển trạng thái $t_0 \rightarrow t_1$ — RQ3).
 *   **Sinh viên 1 (Supporting — Provenance Invariants Verification & Report):**
     *   Xây dựng bộ kiểm định tự động `DatasetProvenanceVerifier` kiểm chứng 100% PASS cho 8 bất biến nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`), xuất biên bản `dataset_provenance_manifest.json` và báo cáo [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md) phục vụ Chương 4 Báo cáo Đồ án 2.
-*   🎯 **Milestone 4 (Cuối Tuần 9 — ✅ COMPLETED):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2, thực nghiệm 76 lượt chạy và 3 bộ dữ liệu nghiên cứu chuẩn hóa hoàn tất (507/507 automated tests pass).*
+*   🎯 **Milestone 4 (Cuối Tuần 9 — ✅ COMPLETED):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2, thực nghiệm 76 lượt chạy và 3 bộ dữ liệu nghiên cứu chuẩn hóa hoàn tất (510/510 automated tests pass).*
 
 ---
 
@@ -320,7 +320,7 @@ Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vư
     └── Cấu hình baseline TTL (TtlHours = 24) và Strategy Version isolation hoạt động chính xác
 
 [x] Append-only Audit Trail & Dataset Normalization (COMPLETED — Phase 3-4 / Week 6-9):
-    ├── Ghi nhận đầy đủ thông số thực thi vào tadss.decision_executions (19 cột)
+    ├── Ghi nhận đầy đủ thông số thực thi vào tadss.decision_executions (20 cột)
     ├── Phân biệt rõ AUTOMATED, CACHE_HIT, FALLBACK
     ├── Ghi đồng bộ trực tiếp (Mandatory Synchronous Fail-Closed) trong PostgreSQL Transaction
     ├── Lưu vết ghi đè Override kèm lý do và định danh Manager (bảo toàn 9 trường Machine Snapshot)

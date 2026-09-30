@@ -188,8 +188,8 @@ The strategy is responsible for **decision-making logic**.
 | `TADSS.Runtime.Api` | Main runtime, DI-based Strategy Resolution, Polly resilience, and Web API controllers |
 | `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Conservative baseline business policy) |
 | `TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` (30% off-peak / 50% peak demonstration policy) |
-| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, policies, benchmark harness, and dataset provenance normalizer (481 tests) |
-| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (26 tests) |
+| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, policies, benchmark harness, and dataset provenance normalizer (483 tests) |
+| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (27 tests) |
 | `TADSS.BenchmarkRunner` | Non-intrusive controlled experimental benchmark harness across 5 layers ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$, Concurrency Matrix $1 \rightarrow 100\text{ VUs}$) & In-Vivo Audit Dataset Normalizer (`INV-P1..P8`) |
 
 ---
@@ -210,7 +210,7 @@ dotnet restore TADSS.slnx
 # 2. Build Release with zero warnings
 dotnet build TADSS.slnx --configuration Release --warnaserror
 
-# 3. Run all 507 unit & integration tests (481 Unit + 26 Integration)
+# 3. Run all 510 unit & integration tests (483 Unit + 27 Integration)
 dotnet test TADSS.slnx --configuration Release --verbosity normal
 
 # 4. Run Week 8-9 Controlled Experimental Benchmark & Dataset Normalization Suite (76 runs + 50 governance cases)

@@ -6,7 +6,7 @@
 > **Hệ thống đối chứng (Host App):** SmashCourt — Hệ thống Đặt Sân Cầu Lông Trực Tuyến  
 > **Loại hình:** Hệ thống lai (Decoupled Decision Engine Subsystem + Web Application)  
 > **Thời điểm cập nhật:** Hết Tuần 9 (Phase 4 — Milestone 4 Complete: Resilience, Controlled Benchmark & Research Dataset Normalization)  
-> **Trạng thái kiểm thử:** 🟢 **507/507 Automated Tests Passed (481 Unit + 26 Integration), 76/76 Benchmark Runs + 50 Governance Lifecycle Cases, & 3 Normalized Datasets (`INV-P1..P8` 100% Passed)**
+> **Trạng thái kiểm thử:** 🟢 **510/510 Automated Tests Passed (483 Unit + 27 Integration), 76/76 Benchmark Runs + 50 Governance Lifecycle Cases, & 3 Normalized Datasets (`INV-P1..P8` 100% Passed)**
 
 ---
 
@@ -267,7 +267,7 @@ flowchart TD
 |:---|:---|:---|:---|:---:|
 | **1. Đề xuất & Phạm vi** *(Why & Scope)* | Tại sao cần làm? Ranh giới hệ thống ở đâu? | `PROPOSAL_DO_AN_2.md` | Phân định ranh giới 3 lớp: SmashCourt (Host) $\leftrightarrow$ TADSS (Engine) $\leftrightarrow$ Strategies. | 🟢 **100% DONE** |
 | **2. Giao diện & Hợp đồng** *(What & Contract)* | Hai bên gửi nhận dữ liệu gì? Làm sao không vỡ code nhau? | `API_CONTRACT_V1.md`<br/>`CONTRACT_V1_FREEZE.md` | DLL Class Library `Shared.DecisionContractSDK` v1.0.0 độc lập, đóng băng bất biến. | 🟢 **100% DONE** |
-| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **507/507 automated tests passed**. | 🟢 **100% DONE (W7)** |
+| **3. Kiến trúc & Chịu lỗi** *(How & Resilience)* | Chiến lược sập thì sao? SLA có bị lố 500ms không? | `RESILIENCE_AND_FAULT_TAXONOMY.md`<br/>`ARCHITECTURE_DECISION_RECORDS.md` | Polly v8 5 lớp, Ma trận tiêm lỗi 7 kịch bản (F1 ➔ F7), **510/510 automated tests passed**. | 🟢 **100% DONE (W7)** |
 | **4. Kế hoạch Tác chiến** *(When & Execution)* | Chia việc thế nào? Kế hoạch ứng phó rủi ro là gì? | `MASTER_EXECUTION_PLAN.md`<br/>`PROJECT_WBS_MAPPING.md` | Kế hoạch 16 tuần chi tiết cho SV1 (Backend/Resilience) & SV2 (Cache/UI/Report) kèm 7 Milestones. | 🟡 **Đang chạy (Sang Phase 5 - W10)** |
 | **5. Đánh giá & Thực nghiệm** *(Metrics & Evidence)* | Lấy số liệu gì để viết báo cáo Đồ án 2? | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`<br/>`DATASET_SCHEMA_SPECIFICATION_V1.md`<br/>`WEEK8_BENCHMARK_REPORT.md`<br/>`WEEK9_DATASET_NORMALIZATION_REPORT.md` | Kịch bản đo 5 tầng ($G_0..G_2, R_0..R_3, C_0..C_3, D_0..D_2, E_0..E_4$, 76 runs completed), In-Vivo Audit Harvester & 3 bộ dữ liệu chuẩn hóa CSV/JSONL (`INV-P1..P8` 100% PASS). | 🟢 **100% DONE (Milestone 4)** |
 
@@ -354,7 +354,7 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 
 | STT | Tên File Tài Liệu | Nội dung cốt lõi (File này nói cái gì?) | Mối quan hệ liên kết với các file khác |
 |:---:|:---|:---|:---|
-| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 507 automated tests (481 Unit + 26 Integration). | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
+| **1** | `README.md` (Root) | Tổng quan toàn bộ Solution TADSS-Runtime: Cấu trúc các project C#, hướng dẫn cài đặt, build và chạy bộ 510 automated tests (483 Unit + 27 Integration). | **Cổng vào của toàn bộ repository.** Giới thiệu tổng quát và dẫn dắt lập trình viên tới các tài liệu chi tiết. |
 | **2** | `PROPOSAL_DO_AN_2.md` | Tuyên ngôn đề tài: Xác lập bối cảnh, 3 thách thức kỹ thuật (Coupling, SPOF, Lack of Audit), ranh giới 3 lớp kiến trúc và mục tiêu đồ án. | **Gốc rễ của toàn dự án.** Sinh ra các yêu cầu cho Contract (`API_CONTRACT_V1.md`) và Kiến trúc (`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`). |
 | **3** | `THESIS_DEVELOPMENT_PLAYBOOK.md` | Cẩm nang quản trị phạm vi: Khóa thuật ngữ (`TADSS` thuộc Đồ án 2 vs `TADS`/`ATDA` thuộc Khóa luận), ma trận phân tầng phạm vi và lối thoát khẩn cấp. | Bảo vệ ranh giới phạm vi giữa Đồ án 2 (`PROPOSAL_DO_AN_2.md`) và định hướng mở rộng giai đoạn sau (`RESEARCH_THESIS_DEFENSE.md`). |
 | **4** | `MASTER_EXECUTION_PLAN.md` | Kế hoạch tác chiến 16 tuần: Phân rã chi tiết công việc từng ngày cho Sinh viên 1 (Backend/Resilience) và Sinh viên 2 (Strategy/Cache/UI/Report). | Định hướng lịch trình thực thi dựa trên các yêu cầu từ `PROPOSAL_DO_AN_2.md` và `API_CONTRACT_V1.md`. |
@@ -372,7 +372,7 @@ Dưới đây là bảng rà soát đầy đủ **100% tài liệu** hiện có 
 | **16** | `ADR-001` đến `ADR-005` (5 files) | Chi tiết từng quyết định: ADR-001 (Strategy Pattern), ADR-002 (SDK-first), ADR-003 (Polly v8), ADR-004 (Rich Domain) thuộc Đồ án 2; ADR-005 (CatBoost ML — `[OUT-OF-SCOPE ĐA2]`). | Các nhánh con chi tiết cấu thành nên `ARCHITECTURE_DECISION_RECORDS.md`. |
 | **17** | `RESILIENCE_AND_FAULT_TAXONOMY.md` | **Sổ tay chịu lỗi cốt lõi:** Phân loại 3 miền lỗi, cấu hình chuỗi Polly v8 5 lớp, ngân sách SLA (420ms/500ms) và ma trận sự cố F1 ➔ F7. | **Kim chỉ nam cho tầng Resilience.** Làm cơ sở xây dựng bộ test `FaultInjectionTests.cs` (PASS 100%). |
 | **18** | `DECISION_PERSISTENCE_INVARIANTS.md` | Các quy tắc bất biến khi lưu trữ Audit Ledger: Dữ liệu quyết định do máy sinh là bất biến; Quản lý chỉ ghi đè metadata kèm Optimistic Locking. | Bảo vệ tính toàn vẹn dữ liệu cho bảng `tadss.decision_executions` trong cơ sở dữ liệu. |
-| **19** | `schema_smashcourt.sql` | Toàn bộ script DDL khởi tạo cơ sở dữ liệu PostgreSQL gồm các bảng nghiệp vụ SmashCourt (schema `public`) và bảng audit (schema `tadss`). | Hiện thực hóa vật lý các quy định lưu trữ trong `DECISION_PERSISTENCE_INVARIANTS.md`. |
+| **19** | `schema_smashcourt.sql` | Script DDL khởi tạo cơ sở dữ liệu PostgreSQL 16 cho `tadss` schema (bảng `tadss.decision_executions`, 20 cột và 5 chỉ mục chuyên biệt). | Hiện thực hóa vật lý các quy định lưu trữ trong `DECISION_PERSISTENCE_INVARIANTS.md`. |
 | **20** | `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | **Phương pháp thực nghiệm kỹ thuật (Đồ án 2):** Quy định 3 câu hỏi RQ1–RQ3, 5 tầng thực nghiệm ($G_0..G_2, R_0..R_3, C_0..C_3, D_0..D_2, E_0..E_4$), công thức $DCR$ và Telemetry Dataset. | Dẫn xuất từ `RESILIENCE_AND_FAULT_TAXONOMY.md` để phục vụ đo đạc hiệu năng trong Tuần 8–9 và Chương 4 Báo cáo Đồ án 2. |
 | **21** | `DATASET_SCHEMA_SPECIFICATION_V1.md` | **Đặc tả đóng băng 3 Schema Dataset v1.0.0 (Tuần 9):** Quy định từ điển 23/19/31 cột cho 3 bộ dữ liệu, hợp đồng kết nối 1:1 qua `DecisionId` và 8 bất biến nguồn gốc `INV-P1..P8`. | Hợp đồng chuẩn hóa dữ liệu kết nối `DECISION_PERSISTENCE_INVARIANTS.md` và `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`. |
 | **22** | `WEEK8_BENCHMARK_REPORT.md` | **Báo cáo kết quả thực nghiệm Tuần 8:** Kết quả đo lường 76 lượt chạy qua 19 kịch bản ($G_0..G_2, R_0..R_3, C_0..C_3, D_0..D_2, E_0..E_4$ tại 1, 10, 50, 100 VUs), phân phối P50/P95/P99 và kiểm chứng bất biến kiểm toán. | Sản phẩm thực nghiệm trực tiếp hiện thực hóa phương pháp luận trong `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`. |

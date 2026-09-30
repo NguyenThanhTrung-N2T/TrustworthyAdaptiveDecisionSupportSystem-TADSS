@@ -210,6 +210,8 @@ $$\text{API Payload (DTO)} \quad \neq \quad \text{Domain Model (Invariants)} \qu
   "pageSize": 20,
   "totalItems": 3,
   "totalPages": 1,
+  "hasNext": false,
+  "hasPrev": false,
   "items": [
     {
       "decisionId": "018e3a2b-9f88-7111-a1b2-001122334455",
@@ -341,11 +343,11 @@ X-Correlation-ID: cor-9988-7766-5544
 | HTTP Status | Ý nghĩa trong TADSS |
 | :---: | :--- |
 | `200 OK` | Xử lý thành công (kể cả kết quả business là `APPROVED`, `REJECTED`, `NEED_APPROVAL`, `fallbackUsed: true`). |
-| `400 Bad Request` | Sai định dạng JSON, thiếu header bắt buộc, hoặc vi phạm Domain Invariants (`DOMAIN_INVARIANT_VIOLATION`). |
-| `404 Not Found` | Không tìm thấy `decisionId` tương ứng khi gọi GET hoặc Override. |
-| `409 Conflict` | Xung đột `X-Idempotency-Key` (`IDEMPOTENCY_KEY_REUSE`) hoặc can thiệp override trên đơn đã bị override. |
-| `504 Gateway Timeout` | Vượt quá thời hạn xử lý toàn cục. |
-| `500 Internal Server Error` | Lỗi nội bộ không mong muốn (thông tin kỹ thuật được mask bảo mật). |
+| `400 Bad Request` | Sai định dạng JSON, thiếu header bắt buộc, vi phạm Domain Invariants (`DOMAIN_INVARIANT_VIOLATION`), hoặc can thiệp override không hợp lệ (`need_approval = false` hoặc đơn đã `is_overridden = true`, mã `BAD_REQUEST`). |
+| `404 Not Found` | Không tìm thấy `decisionId` tương ứng khi gọi GET hoặc Override (`NOT_FOUND`). |
+| `409 Conflict` | Xung đột `X-Idempotency-Key` (`IDEMPOTENCY_KEY_REUSE`) hoặc xung đột khóa lạc quan (`CONFLICT` do `DbUpdateConcurrencyException` trên `version` khi 2 quản lý override đồng thời). |
+| `504 Gateway Timeout` | Vượt quá thời hạn xử lý toàn cục (`GATEWAY_TIMEOUT`). |
+| `500 Internal Server Error` | Lỗi nội bộ không mong muốn (thông tin kỹ thuật được mask bảo mật, mã `INTERNAL_ERROR`). |
 
 ---
 

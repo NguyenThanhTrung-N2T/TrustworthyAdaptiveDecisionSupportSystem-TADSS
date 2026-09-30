@@ -93,7 +93,7 @@ Tất cả các tài liệu trong workspace `TADSS-Runtime/` được tổ chứ
 
 ```text
 TADSS-Runtime/
-├── README.md                                               <-- [OVERVIEW] Tổng quan hệ thống, Phase 1–4, 507/507 tests
+├── README.md                                               <-- [OVERVIEW] Tổng quan hệ thống, Phase 1–4, 510/510 tests
 └── docs/
     ├── PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md            <-- [BLUEPRINT] Bản thiết kế tổng thể & kiến trúc 7-project
     ├── planning/
@@ -174,7 +174,7 @@ TADSS-Runtime/
 *   **[Mốc 1: Cuối Tuần 2]** ───► **Foundation Ready (✅ COMPLETED):** Solution skeleton, Database Schema `tadss` và Contract v1 được phê duyệt.
 *   **[Mốc 2: Cuối Tuần 4]** ───► **Decision Contract Ready (✅ COMPLETED):** DLL `Shared.DecisionContractSDK` biên dịch thành công, 100% pass tests.
 *   **[Mốc 3: Cuối Tuần 6]** ───► **Runtime Engine Standalone (✅ COMPLETED):** Web API và DI-based Strategy Resolution chạy độc lập hoàn chỉnh.
-*   **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core (✅ COMPLETED):** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, 5-Layer Benchmark (19 kịch bản $\times$ 4 VUs = 76 lượt chạy), 3 bộ dữ liệu chuẩn hóa (`INV-P1..INV-P8` 100% PASS) và `507/507` bài kiểm thử tự động hoàn tất.
+*   **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core (✅ COMPLETED):** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, 5-Layer Benchmark (19 kịch bản $\times$ 4 VUs = 76 lượt chạy), 3 bộ dữ liệu chuẩn hóa (`INV-P1..INV-P8` 100% PASS) và `510/510` bài kiểm thử tự động hoàn tất.
 *   **[Mốc 5: Cuối Tuần 12]** ───► **End-to-End Integration Ready:** SmashCourt ↔ TADSS ↔ VNPay và Manager Dashboard UI tích hợp thành công.
 *   **[Mốc 6: Cuối Tuần 14]** ───► **Technical Evaluation Complete:** Vượt qua 11 kịch bản kiểm thử sự cố tích hợp, đo lường đầy đủ SLA p95 < 150ms.
 *   **[Final Milestone: Cuối Tuần 16]** ───► **Defense Ready:** Hoàn thành cuốn Báo cáo 60 trang, Video Demo và Slide thuyết trình.

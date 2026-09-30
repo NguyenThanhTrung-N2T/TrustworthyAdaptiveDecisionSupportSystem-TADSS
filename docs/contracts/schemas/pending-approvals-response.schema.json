@@ -9,6 +9,8 @@
     "pageSize",
     "totalItems",
     "totalPages",
+    "hasNext",
+    "hasPrev",
     "items"
   ],
   "properties": {
@@ -28,6 +30,12 @@
     "totalPages": {
       "type": "integer",
       "minimum": 0
+    },
+    "hasNext": {
+      "type": "boolean"
+    },
+    "hasPrev": {
+      "type": "boolean"
     },
     "items": {
       "type": "array",

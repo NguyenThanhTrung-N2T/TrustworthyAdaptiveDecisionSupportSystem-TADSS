@@ -245,4 +245,46 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         // Assert 2
         okRes.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task PostDecision_InvalidWireEnum_Returns400BadRequestProblemDetails()
+    {
+        // Arrange
+        var request = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "VIP",
+            StartTime = DateTime.UtcNow.AddDays(1),
+            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
+            BookingType = "Single",
+            TotalPrice = 300000m,
+            DepositAmount = 150000m,
+            PaymentStatus = "INVALID_WIRE_ENUM",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.Add("X-Idempotency-Key", "idemp-invalid-enum-" + Guid.NewGuid());
+
+        // Act
+        var response = await _client.SendAsync(message);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(400);
+        doc.RootElement.GetProperty("title").GetString().Should().Be("Contract Validation Error");
+        doc.RootElement.GetProperty("code").GetString().Should().Be("INVALID_PAYMENT_STATUS");
+        doc.RootElement.GetProperty("errors").GetProperty("PaymentStatus")[0].GetString()
+            .Should().Contain("INVALID_WIRE_ENUM");
+    }
 }

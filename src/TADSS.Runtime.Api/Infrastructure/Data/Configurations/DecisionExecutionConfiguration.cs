@@ -43,23 +43,23 @@ public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionE
         builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
         // 3 Indexes cơ bản theo spec
-        builder.HasIndex(e => e.RequestHash).HasDatabaseName("idx_decision_executions_request_hash");
-        builder.HasIndex(e => e.ReservationId).HasDatabaseName("idx_decision_executions_reservation_id");
-        builder.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_decision_executions_created_at");
+        builder.HasIndex(e => e.RequestHash, "idx_decision_executions_request_hash").HasDatabaseName("idx_decision_executions_request_hash");
+        builder.HasIndex(e => e.ReservationId, "idx_decision_executions_reservation_id").HasDatabaseName("idx_decision_executions_reservation_id");
+        builder.HasIndex(e => e.CreatedAt, "idx_decision_executions_created_at").HasDatabaseName("idx_decision_executions_created_at");
 
         // Unique Constraint: Decision ID (1:1 logical evaluation instance)
-        builder.HasIndex(e => e.DecisionId)
+        builder.HasIndex(e => e.DecisionId, "uq_decision_id")
             .HasDatabaseName("uq_decision_id")
             .IsUnique();
 
         // Unique Constraint: Global Idempotency Key (Filtered for non-null keys)
-        builder.HasIndex(e => e.IdempotencyKey)
+        builder.HasIndex(e => e.IdempotencyKey, "uq_decision_idempotency_key")
             .HasDatabaseName("uq_decision_idempotency_key")
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");
 
         // Partial Index: Tối ưu riêng cho Manager Dashboard (Pending Approvals)
-        builder.HasIndex(e => e.CreatedAt)
+        builder.HasIndex(e => e.CreatedAt, "idx_decision_executions_pending_approval")
             .HasDatabaseName("idx_decision_executions_pending_approval")
             .HasFilter("need_approval = true AND is_overridden = false");
     }
