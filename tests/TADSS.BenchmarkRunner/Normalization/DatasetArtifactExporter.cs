@@ -306,6 +306,7 @@ public static class DatasetArtifactExporter
         sb.AppendLine("> **Báo cáo Chuẩn hóa Dữ liệu Nghiên cứu & Kiểm định Nguồn gốc Kiểm toán (Phase 4 — Milestone 4 / Tuần 9)**  ");
         sb.AppendLine($"> **Phiên bản Đặc tả Schema:** `{manifest.SchemaVersion}` ([`DATASET_SCHEMA_SPECIFICATION_V1.md`](../DATASET_SCHEMA_SPECIFICATION_V1.md))  ");
         sb.AppendLine($"> **Thời điểm Tạo Báo cáo (UTC):** `{manifest.GeneratedAtUtc}`  ");
+        sb.AppendLine("> **Phương pháp luận Thực nghiệm (Methodology Statement):** *The existing Week 8 empirical measurements were preserved, normalized, and provenance-checked against the Week 9 dataset artifacts.* (`Week 8` = empirical measurement; `Week 9` = provenance-preserving normalization and research dataset preparation).  ");
         sb.AppendLine("> **Ranh giới Phạm vi (Scope Lock):** Toàn bộ dữ liệu được trích xuất từ sổ cái kiểm toán `tadss.decision_executions` kết hợp với siêu dữ liệu thực nghiệm của `TADSS.BenchmarkRunner` nhằm đánh giá thực nghiệm hạ tầng kỹ thuật phần mềm (Resilience, Caching, và Two-Tier Audit Ledger kèm Quản trị Kết quả Quyết định Human-in-the-Loop). Hoàn toàn **không sử dụng hay chứa các thuộc tính AI/ML** (thuộc phạm vi Khóa luận tốt nghiệp giai đoạn sau).");
         sb.AppendLine();
         sb.AppendLine("---");
@@ -321,9 +322,9 @@ public static class DatasetArtifactExporter
         sb.AppendLine($"| **Số Request Hủy bởi Caller `F7` (`caller_cancelled_count`)** | `{manifest.CallerCancelledCount:N0}` | Request bị hủy chủ động từ phía caller (`is_eligible_for_dcr == false`, loại khỏi mẫu số DCR). |");
         sb.AppendLine($"| **Số Lỗi Lưu trữ `F6` (`persistence_failure_count`)** | `{manifest.PersistenceFailureCount:N0}` | Request hợp lệ nhưng gặp lỗi hạ tầng lưu trữ không sinh `DecisionId` (`DecisionId == Guid.Empty`). |");
         sb.AppendLine($"| **Quần thể Mẫu số DCR (`dcr_eligible_count`)** | `{manifest.DcrEligibleCount:N0}` | Tổng số request hợp lệ tính vào mẫu số DCR (`R0..R3 + F6`, không tính `F7`). |");
-        sb.AppendLine($"| **Quần thể Tử số DCR (`dcr_completed_count` / `$\\lvert \\mathcal{{E}}_{{\\text{{selected}}}} \\rvert$`)** | `{manifest.DcrCompletedCount:N0}` | Số quyết định hoàn tất an toàn và khớp song ánh 1:1 với `tadss.decision_executions` (`Overall DCR = {manifest.OverallDcrPercent.ToString("F2", CultureInfo.InvariantCulture)}%`). |");
+        sb.AppendLine($"| **Quần thể Tử số DCR (`dcr_completed_count` / `$\\lvert \\mathcal{{E}}_{{\\text{{selected}}}} \\rvert$`)** | `{manifest.DcrCompletedCount:N0}` | Thỏa mãn 3 lớp bằng chứng `INV-P1` (`DecisionId` unique within run + `Raw ↔ Dataset` set equality + `Audit ↔ Raw` 1:1, `Overall DCR = {manifest.OverallDcrPercent.ToString("F2", CultureInfo.InvariantCulture)}%`). |");
         sb.AppendLine($"| **Số Ca Kiểm định Vòng đời Quản trị (`G-A, G-B, G-C1, G-C2`)** | `{manifest.GovernanceLifecycleCasesExecuted}` | Gồm các ca `POSITIVE_CONTROL` (ghi đè hợp lệ) và `NEGATIVE_CONTROL` (chặn ghi đè trái phép). |");
-        sb.AppendLine($"| **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`{(manifest.AllProvenanceInvariantsPassed ? "100% PASSED" : "FAILED")}`** | Kiểm định tự động trước khi xuất hiện vật CSV/JSONL. |");
+        sb.AppendLine($"| **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`{(manifest.AllProvenanceInvariantsPassed ? "PASSED (9/9 Checks)" : "FAILED")}`** | Kiểm định tự động trước khi xuất hiện vật CSV/JSONL. |");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();

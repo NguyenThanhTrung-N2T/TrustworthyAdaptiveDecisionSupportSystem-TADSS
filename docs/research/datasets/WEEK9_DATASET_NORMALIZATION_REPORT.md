@@ -3,6 +3,7 @@
 > **Báo cáo Chuẩn hóa Dữ liệu Nghiên cứu & Kiểm định Nguồn gốc Kiểm toán (Phase 4 — Milestone 4 / Tuần 9)**  
 > **Phiên bản Đặc tả Schema:** `1.0.0` ([`DATASET_SCHEMA_SPECIFICATION_V1.md`](../DATASET_SCHEMA_SPECIFICATION_V1.md))  
 > **Thời điểm Tạo Báo cáo (UTC):** `2026-09-29T16:39:55Z`  
+> **Phương pháp luận Thực nghiệm (Methodology Statement):** *The existing Week 8 empirical measurements were preserved, normalized, and provenance-checked against the Week 9 dataset artifacts.* (`Week 8` = empirical measurement; `Week 9` = provenance-preserving normalization and research dataset preparation trên cùng một quần thể thực nghiệm `16.400` mẫu).  
 > **Ranh giới Phạm vi (Scope Lock):** Toàn bộ dữ liệu được trích xuất từ sổ cái kiểm toán `tadss.decision_executions` kết hợp với siêu dữ liệu thực nghiệm của `TADSS.BenchmarkRunner` nhằm đánh giá thực nghiệm hạ tầng kỹ thuật phần mềm (Resilience, Caching, và Two-Tier Audit Ledger kèm Quản trị Kết quả Quyết định Human-in-the-Loop). Hoàn toàn **không sử dụng hay chứa các thuộc tính AI/ML** (thuộc phạm vi Khóa luận tốt nghiệp giai đoạn sau).
 
 ---
@@ -15,10 +16,10 @@
 | **Tổng số Bản ghi trong `tadss.decision_executions`** | `18.672` | Bao gồm cả các bản ghi khởi động (`Warm-up`), mở mạch (`Circuit-Trip`), và đo đạc (`Measurement`). |
 | **Số Bản ghi Khởi động / Mở mạch đã Loại trừ** | `2.272` | Bị loại trừ chính xác tuyệt đối bởi bộ lọc tập khóa $\mathcal{K}_{\text{meas}}$ (`INV-P2`). |
 | **Tổng số Request Pha Đo đạc (`measurement_request_count`)** | `16.400` | Toàn bộ request phát ra trong pha Measurement ($\mathcal{M}$). |
-| **Số Request Hủy từ Caller `F7` / Lỗi Lưu trữ `F6`** | `0` / `0` | Hạch toán minh bạch các mẫu `DecisionId == Guid.Empty` trước phép nối (`DCR = 100.00%` trên `16.400 / 16.400` mẫu hợp lệ). |
-| **Số Bản ghi Đo đạc Hợp lệ được Kết nối 1:1 ($\lvert \mathcal{E}_{\text{selected}} \rvert$)** | `16.400` | Khớp song ánh 1:1 với `RawMeasurementRecord` qua khóa `DecisionId` (`INV-P1`). |
+| **Số Request Hủy từ Caller `F7` / Lỗi Lưu trữ `F6`** | `0` / `0` | Hạch toán minh bạch các mẫu `DecisionId == Guid.Empty` trước phép nối (`Overall DCR = 100.00%` trên `16.400 / 16.400` mẫu hợp lệ). |
+| **Số Bản ghi Đo đạc Hợp lệ được Kết nối 1:1 ($\lvert \mathcal{E}_{\text{selected}} \rvert$)** | `16.400` | Thỏa mãn 3 lớp bằng chứng `INV-P1`: (1) `DecisionId` duy nhất trong từng `run_id` (`0` trùng lặp) + (2) `Raw ↔ Dataset` khớp tập bản ghi (`16.400 = 7.600 + 8.800`) + (3) `Audit DecisionId ↔ Raw DecisionId` đối ứng 1:1. |
 | **Số Ca Kiểm định Vòng đời Quản trị (`G-A, G-B, G-C1, G-C2`)** | `50` | Gồm các ca `POSITIVE_CONTROL` (ghi đè hợp lệ) và `NEGATIVE_CONTROL` (chặn ghi đè trái phép). |
-| **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`100% PASSED`** | Kiểm định tự động trước khi xuất hiện vật CSV/JSONL. |
+| **Trạng thái Kiểm định 8 Bất biến Nguồn gốc (`INV-P1..P8`)** | **`PASSED (9/9 Checks)`** | Kiểm định tự động toàn bộ 9 quy tắc thuộc `INV-P1..INV-P8` trước khi xuất hiện vật CSV/JSONL. |
 
 ---
 
