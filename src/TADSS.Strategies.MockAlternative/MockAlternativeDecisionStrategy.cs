@@ -15,7 +15,7 @@ namespace TADSS.Strategies.MockAlternative;
 /// nhằm kiểm chứng khả năng phân giải và thay thế chiến lược linh hoạt (Strategy Interchangeability) của TADSS Runtime.
 /// </para>
 /// <remarks>
-/// Đây là chiến lược phục vụ nghiên cứu và thực nghiệm đối chứng (Ablation Baseline), không đại diện cho quy tắc nghiệp vụ cố định duy nhất.
+/// Đây là chiến lược phục vụ thực nghiệm đối chứng kiến trúc (Comparative Strategy Baseline), không đại diện cho quy tắc nghiệp vụ cố định duy nhất.
 /// </remarks>
 /// </summary>
 public class MockAlternativeDecisionStrategy : IReservationDecisionStrategy

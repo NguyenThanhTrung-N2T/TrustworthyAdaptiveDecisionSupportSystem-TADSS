@@ -14,39 +14,41 @@ Toàn bộ tài liệu kỹ thuật, kiến trúc, hợp đồng API và kế ho
 
 ```text
 TADSS-Runtime/docs/
-├── 🏛️ architecture/                                    <-- KIẾN TRÚC & QUYẾT ĐỊNH KỸ THUẬT
-│   ├── ARCHITECTURE_DECISION_RECORDS.md                (Tổng hợp các ADR cốt lõi)
-│   ├── SOFTWARE_ARCHITECTURE_SPECIFICATION.md          (Bản vẽ thiết kế hệ thống C4 Model)
-│   ├── DECISION_PERSISTENCE_INVARIANTS.md              (Invariants tầng lưu trữ DB & Audit Ledger)
-│   ├── RESILIENCE_AND_FAULT_TAXONOMY.md                (Ma trận lỗi F1-F7 & Resilience Invariants)
-│   └── adr/                                            (Chi tiết các bản ghi kiến trúc ADR-001 -> ADR-005)
+├── architecture/                                         <-- KIẾN TRÚC & QUYẾT ĐỊNH KỸ THUẬT
+│   ├── ARCHITECTURE_DECISION_RECORDS.md                  (Tổng hợp các ADR cốt lõi)
+│   ├── SOFTWARE_ARCHITECTURE_SPECIFICATION.md            (Bản vẽ thiết kế hệ thống C4 Model)
+│   ├── DECISION_PERSISTENCE_INVARIANTS.md                (Invariants tầng lưu trữ DB & Audit Ledger)
+│   ├── RESILIENCE_AND_FAULT_TAXONOMY.md                  (Ma trận lỗi F1-F7 & Resilience Invariants)
+│   └── adr/                                              (Chi tiết các bản ghi kiến trúc ADR-001 -> ADR-005)
 │       ├── ADR-001-why-strategy-pattern.md
 │       ├── ADR-002-why-sdk-first-approach.md
 │       ├── ADR-003-why-polly-resilience.md
 │       ├── ADR-004-why-rich-domain-model.md
-│       └── ADR-005-why-catboost-ml.md                  (Định hướng mở rộng cho Khóa luận - Out-of-Scope ĐA2)
+│       └── ADR-005-why-catboost-ml.md                    (Định hướng mở rộng cho Khóa luận - Out-of-Scope ĐA2)
 │
-├── 📜 contracts/                                       <-- HỢP ĐỒNG API & WIRE SCHEMAS (FROZEN v1.0.0)
-│   ├── API_CONTRACT_V1.md                              (Đặc tả API Contract v1 Single Source of Truth)
-│   ├── CONTRACT_V1_FREEZE.md                           (Tuyên ngôn đóng băng SDK v1.0.0 - Milestone 2)
-│   ├── INTEGRATION_SPEC.md                             (Đặc tả tích hợp hệ thống SmashCourt ↔ TADSS)
-│   ├── baseline_public_api.txt                         (Snapshot 32 Public Types của SDK)
-│   ├── baseline_metrics.md                             (Báo cáo Quality Gates Milestone 2)
-│   ├── openapi-v1.yaml                                 (OpenAPI 3.0 Specification)
-│   └── schemas/                                        (7 JSON Schemas Draft 2020-12)
+├── contracts/                                            <-- HỢP ĐỒNG API & WIRE SCHEMAS (FROZEN v1.0.0)
+│   ├── API_CONTRACT_V1.md                                (Đặc tả API Contract v1 Single Source of Truth)
+│   ├── CONTRACT_V1_FREEZE.md                             (Tuyên ngôn đóng băng SDK v1.0.0 - Milestone 2)
+│   ├── INTEGRATION_SPEC.md                               (Đặc tả tích hợp hệ thống SmashCourt ↔ TADSS)
+│   ├── baseline_public_api.txt                           (Snapshot 32 Public Types của SDK)
+│   ├── baseline_metrics.md                               (Báo cáo Quality Gates Milestone 2)
+│   ├── openapi-v1.yaml                                   (OpenAPI 3.0 Specification)
+│   └── schemas/                                          (7 JSON Schemas Draft 2020-12)
 │
-├── 📋 planning/                                        <-- QUẢN TRỊ ĐỀ ÁN & LỘ TRÌNH 16 TUẦN (ĐỒ ÁN 2)
-│   ├── MASTER_EXECUTION_PLAN.md                        (Kế hoạch thực thi 16 tuần - Kim chỉ nam đã khóa)
-│   ├── THESIS_DEVELOPMENT_PLAYBOOK.md                  (Cẩm nang điều hướng trung tâm & Khóa thuật ngữ)
-│   ├── BACKLOG_SPRINTS.md                              (Phân rã User Stories & Tasks chi tiết cho SV1 & SV2)
-│   ├── PROJECT_WBS_MAPPING.md                          (WBS Mapping, 6 Milestones, Quản trị rủi ro)
-│   └── PROPOSAL_DO_AN_2.md                             (Đề cương đề xuất Đồ án 2 chính thức)
+├── planning/                                             <-- QUẢN TRỊ ĐỀ ÁN & LỘ TRÌNH 16 TUẦN (ĐỒ ÁN 2)
+│   ├── MASTER_EXECUTION_PLAN.md                          (Kế hoạch thực thi 16 tuần - Kim chỉ nam đã khóa)
+│   ├── THESIS_DEVELOPMENT_PLAYBOOK.md                    (Cẩm nang điều hướng trung tâm & Khóa thuật ngữ)
+│   ├── BACKLOG_SPRINTS.md                                (Phân rã User Stories & Tasks chi tiết cho SV1 & SV2)
+│   ├── PROJECT_WBS_MAPPING.md                            (WBS Mapping, 7 Milestones, Quản trị rủi ro)
+│   └── PROPOSAL_DO_AN_2.md                               (Đề cương đề xuất Đồ án 2 chính thức)
 │
-└── 🔬 research/                                        <-- THỰC NGHIỆM HỆ THỐNG & ĐỊNH HƯỚNG NGHIÊN CỨU
-    ├── EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md(Phương pháp thực nghiệm 5 tầng: G0..G2, R0..R3, C0..C3, D0..D2, E0..E4)
-    ├── benchmarks/WEEK8_BENCHMARK_REPORT.md            (Báo cáo kết quả thực nghiệm 76 runs / 19 scenarios Tuần 8)
-    ├── RESEARCH_PROBLEM_BACKLOG.md                     (Tài liệu khảo sát tiền đề lịch sử - Pre-scoping)
-    └── RESEARCH_THESIS_DEFENSE.md                      (Định hướng mở rộng cho Khóa luận - Out-of-Scope ĐA2)
+└── research/                                             <-- THỰC NGHIỆM HỆ THỐNG & CHUẨN HÓA DỮ LIỆU NGHIÊN CỨU
+    ├── EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md  (Phương pháp thực nghiệm 5 tầng: G0..G2, R0..R3, C0..C3, D0..D2, E0..E4)
+    ├── DATASET_SCHEMA_SPECIFICATION_V1.md                (Đặc tả đóng băng 3 Schema Dataset v1.0.0 & 8 Bất biến INV-P1..P8)
+    ├── benchmarks/WEEK8_BENCHMARK_REPORT.md              (Báo cáo kết quả thực nghiệm 76 runs / 19 scenarios Tuần 8)
+    ├── datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md    (Báo cáo chuẩn hóa 3 Dataset CSV/JSONL & Provenance Manifest Tuần 9)
+    ├── RESEARCH_PROBLEM_BACKLOG.md                       (Tài liệu khảo sát tiền đề lịch sử - Pre-scoping)
+    └── RESEARCH_THESIS_DEFENSE.md                        (Định hướng mở rộng cho Khóa luận - Out-of-Scope ĐA2)
 ```
 
 | Danh mục | Tài liệu cốt lõi | Mô tả & Mục đích sử dụng |
@@ -59,6 +61,7 @@ TADSS-Runtime/docs/
 | **Kế hoạch 16 tuần** | [MASTER_EXECUTION_PLAN.md](docs/planning/MASTER_EXECUTION_PLAN.md) | Kế hoạch thực thi chi tiết 16 tuần Đồ án 2, ma trận Owner/Reviewer, Definition of Done và Ma trận Failure Test. |
 | **Cẩm nang Đề án** | [THESIS_DEVELOPMENT_PLAYBOOK.md](docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md) | Quy chuẩn thuật ngữ (`TADSS` trong Đồ án 2 vs `TADS` ở Khóa luận), phân tầng phạm vi và lối thoát khẩn cấp. |
 | **Thực nghiệm Hiệu năng** | [EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) | Giao thức thực nghiệm 5 tầng (19 kịch bản $\times$ 4 mức VUs = 76 runs), chỉ số DCR, và đường ống chuẩn hóa dữ liệu kiểm toán. |
+| **Đặc tả & Bộ Dữ liệu W9** | [DATASET_SCHEMA_SPECIFICATION_V1.md](docs/research/DATASET_SCHEMA_SPECIFICATION_V1.md) | Đặc tả đóng băng 3 bộ dữ liệu chuẩn hóa (`23 / 19 / 31` cột), hợp đồng kết nối `DecisionId` và 8 bất biến nguồn gốc `INV-P1..P8`. |
 
 ---
 
@@ -116,6 +119,7 @@ TADSS Runtime
         ├── Protocol
         ├── Harness
         ├── Telemetry
+        ├── Normalization
         └── Export
 ```
 
@@ -184,9 +188,9 @@ The strategy is responsible for **decision-making logic**.
 | `TADSS.Runtime.Api` | Main runtime, DI-based Strategy Resolution, Polly resilience, and Web API controllers |
 | `TADSS.Strategies.Default` | `DefaultDecisionStrategy` (Conservative baseline business policy) |
 | `TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` (30% off-peak / 50% peak demonstration policy) |
-| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, policies, and benchmark harness (471 tests) |
-| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (26 tests) |
-| `TADSS.BenchmarkRunner` | Non-intrusive controlled experimental benchmark harness across 5 layers ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$, Concurrency Matrix $1 \rightarrow 100\text{ VUs}$) |
+| `TADSS.UnitTests` | Unit tests for domain invariants, SDK serialization, resolvers, resilience, caching, middlewares, policies, benchmark harness, and dataset provenance normalizer (483 tests) |
+| `TADSS.IntegrationTests` | End-to-end API, DB stateful persistence, idempotency replay, fault injection, and governance tests (27 tests) |
+| `TADSS.BenchmarkRunner` | Non-intrusive controlled experimental benchmark harness across 5 layers ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$, Concurrency Matrix $1 \rightarrow 100\text{ VUs}$) & In-Vivo Audit Dataset Normalizer (`INV-P1..P8`) |
 
 ---
 
@@ -206,10 +210,10 @@ dotnet restore TADSS.slnx
 # 2. Build Release with zero warnings
 dotnet build TADSS.slnx --configuration Release --warnaserror
 
-# 3. Run all 497 unit & integration tests (471 Unit + 26 Integration)
+# 3. Run all 510 unit & integration tests (483 Unit + 27 Integration)
 dotnet test TADSS.slnx --configuration Release --verbosity normal
 
-# 4. Run Week 8 Controlled Experimental Benchmark Suite (76 runs across 19 scenarios x 4 VU levels, or --suite Core7 for 28 runs)
+# 4. Run Week 8-9 Controlled Experimental Benchmark & Dataset Normalization Suite (76 runs + 50 governance cases)
 dotnet run --project tests/TADSS.BenchmarkRunner/TADSS.BenchmarkRunner.csproj --configuration Release
 
 # 5. Run API locally
@@ -241,12 +245,12 @@ Swagger UI is available at `http://localhost:5296/swagger` (or `https://localhos
   * [x] Cross-cutting infrastructure: Canonical Correlation ID, RFC 7807 ProblemDetails
   * [x] Governance E2E Tests (DB stateful assertions, partial index filtering, machine snapshot immutability)
 
-* **Phase 4 — Resilience, Performance & Audit Experimentation (Tuần 7 — 9)** `[IN PROGRESS 🔄 - Milestone 4]`
+* **Phase 4 — Resilience, Performance & Audit Experimentation (Tuần 7 — 9)** `[COMPLETED ✅ - Milestone 4]`
   * [x] Failure Taxonomy & Failure Semantics Matrix ([RESILIENCE_AND_FAULT_TAXONOMY.md](docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md))
   * [x] Experimental Benchmark Methodology & Dataset Pipeline ([EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md))
   * [x] Polly Budget Hardening (Inner 120ms / Outer 500ms) & Fault Injection Test Suite (F1 ➔ F7)
   * [x] Empirical Latency Envelope Benchmark (19 Scenarios / 76 Runs: $G_0..G_2, R_0..R_3, C_0..C_3, D_0..D_2, E_0..E_4$) & Throughput measurement ([WEEK8_BENCHMARK_REPORT.md](docs/research/benchmarks/WEEK8_BENCHMARK_REPORT.md))
-  * [ ] Audit Telemetry & Research Dataset Normalizer (`Resilience`, `Caching`, `Governance` CSV/JSONL datasets)
+  * [x] Audit Telemetry & Research Dataset Normalizer (`resilience_evaluation_dataset`, `latency_caching_dataset`, `governance_audit_dataset` CSV/JSONL & `INV-P1..P8` verification — [DATASET_SCHEMA_SPECIFICATION_V1.md](docs/research/DATASET_SCHEMA_SPECIFICATION_V1.md) & [WEEK9_DATASET_NORMALIZATION_REPORT.md](docs/research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md))
 
 * **Phase 5 — Human-in-the-loop & SmashCourt Integration (Tuần 10 — 12)** `[UPCOMING ⏳ - Milestone 5]`
   * [ ] Human Override API hardening & Optimistic Concurrency (`ExpectedVersion`)

@@ -11,9 +11,9 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
 *   **Phương thức:** `POST`
 *   **Đường dẫn:** `http://<tadss-host>:<port>/api/v1/decisions`
 *   **Headers:**
-    *   `Content-Type: application/json`
-    *   `X-Contract-Version: 1.0.0`
-    *   `X-Correlation-Id: <GUID>` (Được sinh bởi SmashCourt để trace chéo log)
+    *   `Content-Type: application/json; charset=utf-8` (Bắt buộc)
+    *   `X-Idempotency-Key: <GUID/String>` (Bắt buộc đối với `POST /api/v1/decisions` — Chuỗi `1..128` ký tự đảm bảo chống thực thi trùng lặp ở tầng Runtime)
+    *   `X-Correlation-ID: <GUID>` (Tùy chọn — Được sinh bởi SmashCourt để trace chéo log; nếu vắng mặt TADSS tự sinh GUID mới và echo lại trong response header)
 
 #### Request Payload Schema (Decision Contract v1)
 ```json
@@ -32,7 +32,7 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
     "bookingType": { "type": "string", "default": "SINGLE" },
     "totalPrice": { "type": "number", "minimum": 0 },
     "depositAmount": { "type": "number", "minimum": 0 },
-    "paymentStatus": { "type": "string", "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED"] },
+    "paymentStatus": { "type": "string", "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED"] },
     "priority": { "type": "string", "default": "NORMAL" },
     "requestedAt": { "type": "string", "format": "date-time" },
     "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
@@ -102,10 +102,10 @@ Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di
 *   **Luồng hoạt động khi đặt sân:**
     1. Nếu `EnableTadssDecision = false`: SmashCourt tự động áp dụng chính sách cọc mặc định (100% giá đặt sân) trực tiếp mà không gọi TADSS.
     2. Nếu `EnableTadssDecision = true`: SmashCourt gửi request đến TADSS.
-       * Nếu TADSS phản hồi thành công: Áp dụng đề xuất `deposit_rate` lấy từ `Recommendation.Parameters.deposit_rate`.
-       * Nếu trả về `NeedApproval` (ví dụ cọc 50% giờ cao điểm): Tạm dừng thanh toán VNPay, chờ Manager duyệt/ghi đè trên Dashboard.
-       * **Quy tắc NO Auto-Approve:** Đơn ở trạng thái `NeedApproval` nếu quá hạn duyệt (timeout 15 phút, có thể cấu hình) sẽ tự động chuyển sang `Expired` hoặc `Cancelled`, tuyệt đối không tự động duyệt để bảo vệ an toàn dòng tiền.
-       * Nếu TADSS gặp sự cố sập kết nối hoặc trả về lỗi 5xx: HttpClient catch lỗi và tự động kích hoạt Fallback cọc 100% (`DefaultDepositRate`).
+       * Nếu TADSS phản hồi thành công (`status = "APPROVED"`): Áp dụng chính sách tự động duyệt theo phản hồi `DecisionResultDto` (và đọc gợi ý `Recommendations` như `REQUIRE_DEPOSIT` / `ALTERNATIVE_SLOT` nếu có).
+       * Nếu trả về `status = "NEED_APPROVAL"` (ví dụ cọc thiếu hoặc giờ cao điểm / fallback kích hoạt): Tạm dừng thanh toán VNPay, chờ Manager duyệt/ghi đè trên Dashboard (`POST /api/v1/decisions/{decisionId}/override`).
+       * **Quy tắc NO Auto-Approve:** Đơn ở trạng thái `NEED_APPROVAL` nếu quá hạn duyệt (timeout 15 phút, có thể cấu hình) sẽ tự động chuyển sang `Expired` hoặc `Cancelled`, tuyệt đối không tự động duyệt để bảo vệ an toàn dòng tiền.
+       * Nếu TADSS gặp sự cố sập kết nối hoặc trả về lỗi `504`/`5xx`: `HttpClient` phía SmashCourt catch lỗi và tự động kích hoạt Fallback cọc 100% (`DefaultDepositRate`).
 
 ---
 
@@ -148,8 +148,8 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
     idempotency_key VARCHAR(128) NULL,
     version INTEGER NOT NULL DEFAULT 1,
     
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT uq_decision_id UNIQUE (decision_id)
 );
@@ -158,7 +158,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_decision_idempotency_key ON tadss.decision_
 CREATE INDEX IF NOT EXISTS idx_decision_executions_request_hash ON tadss.decision_executions (request_hash);
 CREATE INDEX IF NOT EXISTS idx_decision_executions_reservation_id ON tadss.decision_executions (reservation_id);
 CREATE INDEX IF NOT EXISTS idx_decision_executions_created_at ON tadss.decision_executions (created_at);
-CREATE INDEX IF NOT EXISTS idx_decision_executions_pending_approval ON tadss.decision_executions (created_at DESC) WHERE (need_approval = true AND is_overridden = false);
+CREATE INDEX IF NOT EXISTS idx_decision_executions_pending_approval ON tadss.decision_executions (created_at) WHERE (need_approval = true AND is_overridden = false);
 ```
 
 ### 2.2. Kịch bản Khôi phục khi gặp Sự cố (Rollback Strategy)
@@ -209,5 +209,5 @@ var cacheKey = $"decision:hash:{requestHash}:{strategyName}:v{strategyVersion}";
 
 ## 4. CHI TIẾT CHIẾN LƯỢC PHIÊN BẢN (VERSIONING STRATEGY)
 
-*   **Hợp đồng API:** Header `X-Contract-Version: 1.0.0`. Khi có breaking change, nâng major version lên `2.0.0`.
+*   **Hợp đồng API (URL Path Versioning):** Định tuyến cố định theo tiền tố `/api/v1/` kèm JSON Schema khóa `additionalProperties: false`. Khi có thay đổi cấu trúc payload (breaking change), hệ thống nâng major version lên `/api/v2/`.
 *   **Phân giải Chiến lược qua DI (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyResolver` ($O(1)$ Lookup) theo `strategyName` và `strategyVersion`.

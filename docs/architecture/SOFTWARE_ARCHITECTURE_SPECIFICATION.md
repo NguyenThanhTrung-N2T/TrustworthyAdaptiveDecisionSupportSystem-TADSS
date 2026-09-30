@@ -4,133 +4,127 @@ Tài liệu này đặc tả chi tiết kiến trúc phần mềm, các thành p
 
 ---
 
-## 1. PHÂN RÃ HỆ THỐNG & NET SOLUTION STRUCTURE
+## 1. PHÂN RÃ HỆ THỐNG & .NET SOLUTION STRUCTURE (`TADSS.slnx` — 7 Projects)
 
-Mô hình phân rã dự án thành các project độc lập trong .NET Solution, loại bỏ liên kết ngược và bảo đảm tính di động (Portability):
+Mô hình phân rã dự án thành 7 project độc lập trong `TADSS.slnx` (tách biệt hoàn toàn khỏi `CaseStudy.SmashCourt` — kết nối qua HTTP REST / SDK), loại bỏ liên kết ngược và bảo đảm tính di động (Portability):
 
-```
-SmashCourt.sln (Solution)
+```text
+TADSS.slnx (7-Project Solution)
 ├── src/
-│   ├── 1.Product/
-│   │   └── CaseStudy.SmashCourt/            # Web App đặt sân (Case Study Application)
-│   │       ├── Controllers/, Hubs/, Services/
-│   │       └── CaseStudy.SmashCourt.csproj  # Nhúng DecisionContractSDK
+│   ├── Shared.DecisionContractSDK/          # Decision Contract SDK (Shared Kernel — 0 external NuGet deps)
+│   │   ├── Domain/                          # Reservation (Aggregate Root), Value Objects
+│   │   ├── Interfaces/                      # IReservationDecisionStrategy
+│   │   ├── Enums/                           # DecisionStatus, RecommendationType, BookingType, CustomerTier, ...
+│   │   ├── DTOs/                            # DecisionRequestDto, DecisionResultDto, OverrideDecisionDto, ...
+│   │   └── Common/                          # ContractVersionConstants, ContractVersionValidator, RequestHasher
 │   │
-│   ├── 2.Platform/
-│   │   └── DecisionRuntime.TADSS/           # Decision Runtime Platform
-│   │       ├── Controllers/                 # DecisionController, OverrideController
-│   │       ├── Infrastructure/              # StrategyResolver (DI Lookup), DecisionResiliencePipeline, FallbackDecisionStrategy, ResilientDecisionCacheService
-│   │       ├── Options/                     # ResilienceOptions, TadssCacheOptions
-│   │       └── DecisionRuntime.TADSS.csproj # Nhúng DecisionContractSDK (Không phụ thuộc trực tiếp vào CaseStudy)
+│   ├── TADSS.Runtime.Api/                   # Decision Runtime Platform (ASP.NET Core 8 Web API)
+│   │   ├── Controllers/                     # DecisionController, HealthController
+│   │   ├── Services/                        # DecisionService, StrategyResolver (O(1) DI Lookup)
+│   │   └── Infrastructure/
+│   │       ├── Data/                        # TadssDbContext, DecisionExecution, AuditTimestampInterceptor
+│   │       ├── Resilience/                  # DecisionResiliencePipeline (Polly v8), FallbackDecisionStrategy
+│   │       ├── Caching/                     # ResilientDecisionCacheService (L1/L2)
+│   │       └── Events/                      # DecisionEvaluatedAuditHandler, DecisionOverriddenAuditHandler
 │   │
-│   ├── 3.SDK/
-│   │   └── Shared.DecisionContractSDK/      # Decision Contract SDK (Shared Kernel)
-│   │       ├── Domain/                      # Reservation (Rich Domain Model), Value Objects
-│   │       ├── Interfaces/                  # IReservationDecisionStrategy
-│   │       ├── Enums/                       # DecisionStatus, ReasonCode, BookingPriority
-│   │       ├── DTOs/                        # DecisionRequest, DecisionResult, DecisionError
-│   │       └── Shared.DecisionContractSDK.csproj
+│   ├── TADSS.Strategies.Default/            # DefaultDecisionStrategy (Conservative Baseline Policy - Đồ án 2)
+│   │   └── DefaultDecisionStrategy.cs
 │   │
-│   └── 4.Strategies/
-│       ├── TADSS.Strategies.Default/        # Cài đặt DefaultDecisionStrategy (Conservative Baseline Business Policy - Đồ án 2)
-│       │   └── DefaultDecisionStrategy.cs
-│       │
-│       ├── TADSS.Strategies.MockAlternative/# Cài đặt MockAlternativeDecisionStrategy (Demonstration Policy: 30% / 50% - Đồ án 2)
-│       │   └── MockAlternativeDecisionStrategy.cs
-│       │
-│       └── [Future Extension — Out-of-Scope Đồ án 2: Strategy.AdaptiveTrust (Khóa luận)]
+│   └── TADSS.Strategies.MockAlternative/    # MockAlternativeDecisionStrategy (30% / 50% Dynamic Deposit - Đồ án 2)
+│       └── MockAlternativeDecisionStrategy.cs
+│
+└── tests/
+    ├── TADSS.UnitTests/                     # Unit, Resilience, Audit & Dataset Normalization Tests (483 tests)
+    ├── TADSS.IntegrationTests/              # Full HTTP Pipeline Integration Tests (27 tests)
+    └── TADSS.BenchmarkRunner/               # 5-Layer Benchmark Harness (76 runs) & Dataset Normalizer (INV-P1..P8)
 ```
 
 ---
 
-## 2. THIẾT KẾ KHUNG THỰC THỂ MIỀN (DOMAIN INTERFACES & SDK STRUCTS)
+## 2. THIẾT KẾ KHUNG THỰC THỂ MIỀN (DOMAIN INTERFACES & SDK STRUCTS — FROZEN CONTRACT v1.0.0)
 
-Chuẩn hóa các thực thể miền bên trong **Shared.DecisionContractSDK** theo mẫu thiết kế DDD.
+Chuẩn hóa các thực thể miền bên trong **Shared.DecisionContractSDK** theo mẫu thiết kế DDD và hợp đồng đóng băng `1.0.0`.
 
-### 2.1. Cấu trúc Lớp Entity & Aggregate Signatures
+### 2.1. Cấu trúc Lớp Entity & Aggregate Signatures (`Shared.DecisionContractSDK.Domain`)
 *   **Reservation (Aggregate Root)**
-    *   `Guid Id`
-    *   `CustomerInfo Customer`
-    *   `ResourceInfo Resource`
-    *   `ReservationSchedule Schedule`
-    *   `PaymentPolicy Payment`
-    *   `ReservationMetadata Metadata`
-    *   *Behaviors:* `EnsureValid()`, `GetDuration()`, `CanBeCancelledWithoutPenalty()`
-*   **ReservationMetadata (Value Object)**
-    *   `string Source`
-    *   `string Tenant`
-    *   `Guid CorrelationId`
-    *   `JsonElement ExtensionData` (Cho phép schema động không gây leak bộ nhớ)
+    *   `Guid ReservationId`
+    *   `CustomerInfo Customer` (Value Object gồm `Guid CustomerId`, `string Tier` chuẩn hóa uppercase, mặc định `"STANDARD"`)
+    *   `ResourceInfo Resource` (Value Object gồm `Guid CourtId`, `Guid BranchId`, `Guid? CourtTypeId`)
+    *   `ReservationSchedule Schedule` (Value Object gồm `DateTime StartTime`, `DateTime EndTime`, `TimeSpan Duration` kiểm chứng `StartTime < EndTime` và thời lượng `30 phút – 12 giờ`)
+    *   `PaymentPolicy Payment` (Value Object gồm `decimal TotalPrice`, `decimal DepositAmount`, `PaymentStatus PaymentStatus`, `decimal DepositPercentage`, `bool IsFullyPaid` kiểm chứng `TotalPrice >= 0` và `0 <= DepositAmount <= TotalPrice`)
+    *   `string BookingType` (mặc định `"SINGLE"`, tối đa 50 ký tự)
+    *   `BookingPriority Priority` (`NORMAL`, `HIGH`, `VIP`, `URGENT`)
+    *   `DateTime RequestedAt`, `ReservationMetadata Metadata` (`IReadOnlyDictionary<string, string> Attributes`)
+    *   *Behaviors:* `Create(...)`, `EnsureValid()`, `CanBeCancelledWithoutPenalty(DateTime currentUtc, TimeSpan? customWindow = null)`, `CalculateDepositRatio()`
 
 ### 2.2. Giao diện Chiến lược Quyết định: `IReservationDecisionStrategy`
 ```csharp
-namespace Shared.DecisionContractSDK.Interfaces
-{
-    using System.Threading;
-    using System.Threading.Tasks;
-    using Shared.DecisionContractSDK.Domain;
-    using Shared.DecisionContractSDK.DTOs;
+namespace Shared.DecisionContractSDK.Interfaces;
 
-    public interface IReservationDecisionStrategy
-    {
-        string StrategyName { get; }
-        string StrategyVersion { get; }
-        Task<DecisionResult> EvaluateAsync(DecisionRequest request, CancellationToken cancellationToken);
-    }
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+
+public interface IReservationDecisionStrategy
+{
+    string StrategyName { get; }
+    string StrategyVersion { get; }
+    Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default);
 }
 ```
 
-### 2.3. Hợp đồng dữ liệu yêu cầu: `DecisionRequest` DTO
+### 2.3. Hợp đồng dữ liệu yêu cầu: `DecisionRequestDto`
 ```csharp
-namespace Shared.DecisionContractSDK.DTOs
-{
-    using System;
-    using System.Text.Json;
-    using Shared.DecisionContractSDK.Domain;
+namespace Shared.DecisionContractSDK.DTOs.Decisions;
 
-    public class DecisionRequest
-    {
-        public string ContractVersion { get; set; } = "1.0.0"; // Kiểm soát tính tương thích ngược
-        public Reservation Reservation { get; set; }
-        public string RequestedBy { get; set; } // Định danh Actor yêu cầu (Customer/Staff)
-        public DateTimeOffset Timestamp { get; set; }
-        public Guid CorrelationId { get; set; } // UUID trace chéo hệ thống
-        public string PolicyVersion { get; set; } // Phiên bản chính sách nghiệp vụ mong muốn
-        public JsonElement RequestContext { get; set; } // Các tham số ngữ cảnh mở rộng (IP, Device...)
-    }
+public class DecisionRequestDto
+{
+    public Guid ReservationId { get; set; }
+    public Guid CourtId { get; set; }
+    public Guid? CourtTypeId { get; set; }
+    public Guid BranchId { get; set; }
+    public Guid CustomerId { get; set; }
+    public string CustomerTier { get; set; } = "STANDARD";
+    public DateTime StartTime { get; set; }
+    public DateTime EndTime { get; set; }
+    public string BookingType { get; set; } = "SINGLE";
+    public decimal TotalPrice { get; set; }
+    public decimal DepositAmount { get; set; }
+    public string PaymentStatus { get; set; } = "UNPAID";
+    public string Priority { get; set; } = "NORMAL";
+    public DateTime RequestedAt { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
 }
 ```
 
-### 2.4. Hợp đồng dữ liệu đầu ra: `DecisionResult` DTO
-*   **DecisionResult**
-    *   `DecisionStatus Status` (Approved, NeedApproval, Rejected)
-    *   `BookingPriority Priority` (Low, Medium, High)
-    *   `List<ReasonCode> Reasons` (Chứa danh sách lý do: STATIC_POLICY, PEAK_TIME, v.v.)
-    *   `double Confidence`
-    *   `string StrategyName`
-    *   `string StrategyVersion`
-    *   `DecisionRecommendation Recommendation`
-*   **DecisionRecommendation**
-    *   `string SchemaName`
-    *   `string SchemaVersion`
-    *   `JsonElement Parameters`
-    *   `DateTimeOffset? ExpiresAt`
+### 2.4. Hợp đồng dữ liệu đầu ra: `DecisionResultDto` & `DecisionRecommendationDto`
+*   **DecisionResultDto** (`Shared.DecisionContractSDK.DTOs.Decisions`)
+    *   `Guid DecisionId`, `Guid ReservationId`
+    *   `string Status` (`"APPROVED"`, `"REJECTED"`, `"NEED_APPROVAL"`)
+    *   `string StrategyName`, `string StrategyVersion`
+    *   `int ExecutionTimeMs`, `bool FallbackUsed`
+    *   `string PrimaryReason`, `List<string> Reasons`
+    *   `List<DecisionRecommendationDto> Recommendations`
+    *   `DateTime EvaluatedAt`
+*   **DecisionRecommendationDto** (`Shared.DecisionContractSDK.DTOs.Decisions`)
+    *   `string Type` (`"ALTERNATIVE_SLOT"`, `"ALTERNATIVE_COURT"`, `"PRICE_ADJUSTMENT"`, `"REQUIRE_DEPOSIT"`, `"REQUIRE_APPROVAL"`, `"PRIORITY_ESCALATION"`)
+    *   `string Description`
+    *   `Guid? SuggestedCourtId`, `DateTime? SuggestedStartTime`, `DateTime? SuggestedEndTime`
+    *   `decimal? SuggestedPrice`, `double? ConfidenceScore`
 
-### 2.5. Hợp đồng dữ liệu lỗi: `DecisionError` DTO (RFC 7807 Compliance)
+### 2.5. Hợp đồng Phản hồi Chuẩn & Mã Lỗi (`Shared.DecisionContractSDK.Common` & RFC 7807 `ProblemDetails`)
 ```csharp
-namespace Shared.DecisionContractSDK.DTOs
+namespace Shared.DecisionContractSDK.Common;
+
+public class ApiResponse<T>
 {
-    public class DecisionError
-    {
-        public string Type { get; set; } // Link đến tài liệu định nghĩa lỗi
-        public string Title { get; set; } // Tiêu đề lỗi ngắn gọn
-        public int Status { get; set; } // Mã trạng thái HTTP (e.g. 408, 500)
-        public string Detail { get; set; } // Giải thích chi tiết lỗi xảy ra
-        public string Instance { get; set; } // URI định danh request bị lỗi (CorrelationId)
-        public Dictionary<string, string[]> Extensions { get; set; } = new(); // Dữ liệu bổ sung
-    }
+    public bool Success { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public T? Data { get; set; }
+    public Dictionary<string, string[]>? Errors { get; set; }
 }
 ```
+*   Khi xảy ra ngoại lệ trên đường truyền HTTP, `GlobalExceptionHandler` chuẩn hóa phản hồi theo chuẩn **RFC 7807 (`application/problem+json`)** với các trường mở rộng `code` (thuộc tập hằng số `ErrorCodes`: `VALIDATION_ERROR`, `BAD_REQUEST`, `NOT_FOUND`, `CONFLICT`, `IDEMPOTENCY_KEY_REUSE`, `GATEWAY_TIMEOUT`, `INTERNAL_ERROR` hoặc mã `InvariantCode` của `DomainInvariantException`), `traceId`, `retryAfterSeconds` (khi `504`), và `errors`.
 
 ---
 
@@ -146,16 +140,16 @@ Hệ thống **Decision Runtime Platform (TADSS)** triển khai các module hạ
       ┌────────────────────────┬───────┼────────┬────────────────────────┐
       ▼                        ▼       ▼        ▼                        ▼
 ┌───────────┐            ┌──────────┐┌───┐┌──────────┐             ┌───────────┐
-│ Strategy  │            │  Policy  ││ O ││Feature   │             │Versioning │
-│ Registry  │            │  Engine  ││ b ││Flags     │             │& Migration│
+│ Strategy  │            │  Polly   ││ L ││ Dual-Tier│             │ URL Route │
+│ Resolver  │            │ Pipeline ││ o ││  Cache   │             │Versioning │
 └───────────┘            └──────────┘└───┘└──────────┘             └───────────┘
 ```
 
-1.  **Strategy Registry (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyResolver` với độ phức tạp $O(1)$.
+1.  **Strategy Registry (`StrategyResolver`):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `FrozenDictionary<string, IReservationDecisionStrategy>` với độ phức tạp $O(1)$.
 2.  **Safety Fallback Continuity (`FallbackDecisionStrategy`):** Khi Polly kích hoạt chế độ Fallback do strategy timeout hoặc lỗi nội bộ, hệ thống trả về quyết định an toàn xác định `Status = NEED_APPROVAL` (`FallbackUsed = true`, `ExecutionTimeMs = 0`), tách biệt hoàn toàn với chính sách nghiệp vụ thông thường (`DefaultDecisionStrategy`).
-3.  **Observability (Serilog + OpenTelemetry):** Đo lường và lưu vết thời gian xử lý (`execution_time_ms`), cache hit/miss và failure reasons.
-4.  **Feature Flags (`IFeatureFlagProvider`):** Bật/tắt nóng tính năng qua `IOptionsMonitor` dưới 2 giây.
-5.  **Versioning & Migration:** Tự động đối chiếu `ContractVersion` để từ chối hoặc fallback khi có breaking changes trong payload.
+3.  **Observability (`Serilog` + `CorrelationIdMiddleware`):** Tự động gắn `X-Correlation-ID` vào `LogContext` và đo lường thời gian thực thi (`execution_time_ms`), trạng thái `cache_hit`, `fallback_used` và `failure_reason`.
+4.  **Dual-Tier Request-Hash Cache (`ResilientDecisionCacheService`):** Kết hợp chuẩn hóa RFC 8785 (`RequestHasher`) với bộ nhớ đệm 2 tầng (Redis L2 + `IMemoryCache` L1 fallback khi Redis quá `150ms` hoặc đứt kết nối).
+5.  **API Versioning & Host Feature Toggle:** TADSS Runtime định tuyến cố định theo URL `/api/v1/` (với JSON Schema khóa `additionalProperties: false`); phía ứng dụng chủ `SmashCourt-BE` tích hợp công tắc `EnableTadssDecision` để bật/tắt gọi TADSS linh hoạt (Phase 5).
 
 ### 3.1. Polly Resilience Pipeline Configuration (C# Spec)
 
@@ -215,8 +209,8 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
     idempotency_key VARCHAR(128) NULL,
     version INTEGER NOT NULL DEFAULT 1,
     
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT uq_decision_id UNIQUE (decision_id)
 );
@@ -224,6 +218,8 @@ CREATE TABLE IF NOT EXISTS tadss.decision_executions (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_decision_executions_request_hash ON tadss.decision_executions (request_hash);
 CREATE INDEX IF NOT EXISTS idx_decision_executions_reservation_id ON tadss.decision_executions (reservation_id);
+CREATE INDEX IF NOT EXISTS idx_decision_executions_created_at ON tadss.decision_executions (created_at);
+CREATE INDEX IF NOT EXISTS idx_decision_executions_pending_approval ON tadss.decision_executions (created_at) WHERE need_approval = TRUE AND is_overridden = FALSE;
 ```
 
 ---

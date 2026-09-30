@@ -811,6 +811,120 @@ public class DecisionServiceTests
         doc.RootElement.GetProperty("code").GetString().Should().Be(Shared.DecisionContractSDK.Common.ErrorCodes.Conflict);
     }
 
+    [Fact]
+    public async Task EvaluateDecisionAsync_ConcurrentIdempotencyRaceWithPostgres23505AndDifferentHash_ThrowsIdempotencyConflictException()
+    {
+        // Arrange
+        var dbName = Guid.NewGuid().ToString();
+        var raceKey = "race-pg23505-conflict-key";
+        var request = new DecisionRequestDto
+        {
+            ReservationId = Guid.NewGuid(),
+            CourtId = Guid.NewGuid(),
+            BranchId = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            CustomerTier = "VIP",
+            StartTime = DateTime.UtcNow.AddHours(2),
+            EndTime = DateTime.UtcNow.AddHours(4),
+            BookingType = "Single",
+            TotalPrice = 200000m,
+            DepositAmount = 200000m,
+            PaymentStatus = "PAID",
+            Priority = "NORMAL",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        var options = new DbContextOptionsBuilder<TadssDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+
+        using var dbContext = new TadssDbContext(options);
+        var mockPublisher = new Moq.Mock<MediatR.IPublisher>();
+        mockPublisher
+            .Setup(p => p.Publish(Moq.It.IsAny<TADSS.Runtime.Api.Infrastructure.Data.Auditing.DecisionEvaluatedAuditNotification>(), Moq.It.IsAny<CancellationToken>()))
+            .Callback<TADSS.Runtime.Api.Infrastructure.Data.Auditing.DecisionEvaluatedAuditNotification, CancellationToken>((notif, _) =>
+            {
+                dbContext.DecisionExecutions.Add(notif.Execution);
+
+                // Simulate concurrent winner committing a record with the SAME idempotency key but a DIFFERENT RequestHash
+                using var concurrentContext = new TadssDbContext(options);
+                concurrentContext.DecisionExecutions.Add(new TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution
+                {
+                    Id = Guid.NewGuid(),
+                    DecisionId = Guid.NewGuid(),
+                    ReservationId = request.ReservationId,
+                    StrategyName = "DefaultDecisionStrategy",
+                    StrategyVersion = "1.0.0",
+                    ExecutionType = "AUTOMATED",
+                    ExecutionTimeMs = 4,
+                    FallbackUsed = false,
+                    CacheHit = false,
+                    NeedApproval = false,
+                    IdempotencyKey = raceKey,
+                    RequestHash = new string('f', 64), // Different payload hash!
+                    ResponsePayload = "{}",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                concurrentContext.SaveChanges();
+
+                var pgEx = new Npgsql.PostgresException(
+                    messageText: "duplicate key value violates unique constraint \"uq_decision_idempotency_key\"",
+                    severity: "ERROR",
+                    invariantSeverity: "ERROR",
+                    sqlState: "23505",
+                    constraintName: "uq_decision_idempotency_key");
+
+                throw new DbUpdateException("An error occurred while saving the entity changes.", pgEx);
+            });
+
+        var service = new DecisionService(
+            dbContext,
+            CreateResolver(),
+            new DecisionResiliencePipeline(new ResilienceOptions(), new FallbackDecisionStrategy(), NullLogger<DecisionResiliencePipeline>.Instance),
+            CreateMemoryCacheService(),
+            NullLogger<DecisionService>.Instance,
+            mockPublisher.Object);
+
+        // Act
+        var act = () => service.EvaluateDecisionAsync(request, raceKey);
+
+        // Assert
+        await act.Should().ThrowAsync<TADSS.Runtime.Api.Middlewares.IdempotencyConflictException>();
+    }
+
+    [Fact]
+    public async Task GlobalExceptionHandler_WhenContractValidationExceptionThrown_Returns400BadRequestWithFieldErrors()
+    {
+        // Arrange
+        var handler = new TADSS.Runtime.Api.Middlewares.GlobalExceptionHandler(
+            NullLogger<TADSS.Runtime.Api.Middlewares.GlobalExceptionHandler>.Instance);
+        var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        httpContext.Request.Path = "/api/v1/decisions";
+        await using var responseBody = new MemoryStream();
+        httpContext.Response.Body = responseBody;
+
+        var contractEx = new Shared.DecisionContractSDK.Common.ContractValidationException(
+            "INVALID_PAYMENT_STATUS",
+            "Invalid PaymentStatus value 'UNKNOWN_STATUS'.",
+            "PaymentStatus");
+
+        // Act
+        var handled = await handler.TryHandleAsync(httpContext, contractEx, CancellationToken.None);
+
+        // Assert
+        handled.Should().BeTrue();
+        httpContext.Response.StatusCode.Should().Be(Microsoft.AspNetCore.Http.StatusCodes.Status400BadRequest);
+
+        responseBody.Seek(0, SeekOrigin.Begin);
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(responseBody);
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(400);
+        doc.RootElement.GetProperty("title").GetString().Should().Be("Contract Validation Error");
+        doc.RootElement.GetProperty("code").GetString().Should().Be("INVALID_PAYMENT_STATUS");
+        doc.RootElement.GetProperty("errors").GetProperty("PaymentStatus")[0].GetString()
+            .Should().Contain("UNKNOWN_STATUS");
+    }
+
     private class SlowStrategyForService : Shared.DecisionContractSDK.Interfaces.IReservationDecisionStrategy
     {
         private readonly int _delayMs;

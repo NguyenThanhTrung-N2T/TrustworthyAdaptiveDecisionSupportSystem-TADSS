@@ -6,32 +6,32 @@ Tài liệu này đặc tả chi tiết **Bản phân rã công việc (WBS)**, 
 
 ## I. MÔ HÌNH PHÂN LỚP KIẾN TRÚC ENTERPRISE (PRAGMATIC ARCHITECTURE)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│             LỚP 3: CHIẾN LƯỢC NGHIÊN CỨU (TADS Strategy - Khóa luận)   │
+│    LỚP 3: CHIẾN LƯỢC NGHIÊN CỨU (TADS - Khóa luận [OUT-OF-SCOPE])      │
 │  - Adaptive Trust Score (Time Decay)   - Decision Trace (Explain API)  │
 │  - ML Dự đoán No-show (CatBoost)       - Đánh giá Cắt giảm (Ablation)  │
-│  - Ranking gợi ý AI bằng Trust Score   - Coworking Portability Mock    │
+│  - Ranking gợi ý AI bằng Trust Score   - Agent-based Simulator (1,000) │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ (Triển khai chiến lược & Thực nghiệm)
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │             LỚP 2: HỆ THỐNG RUNTIME ENGINE (TADSS - Đồ án 2)           │
-│  - Gọi chiến lược IReservationDecision - Fallback & Polly Gateway       │
-│  - Manager Approval UI & Override API  - Synchronous Audit Trail (DB)   │
-│  - Cost Guardrail & Request-Hash Cache - Tích hợp API đặt sân SmashCourt│
+│  - Gọi chiến lược IReservationDecision - Fallback & Polly Gateway      │
+│  - Manager Approval UI & Override API  - Synchronous Audit Trail (DB)  │
+│  - Request-Hash Cache (L1/L2)          - Coworking Portability Mock    │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ (Định tuyến & Giám sát vận hành)
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│             LỚP TRUNG GIAN: THƯ VIỆN CHUNG (Decision Contract SDK)    │
-│  - Giao diện IReservationDecisionStrategy - Canonical Reservation Contract│
-│  - DTOs, Enums (DecisionStatus/Reason) - DTOs, Value Objects, Events   │
-└────────────────────────────────────────────────────────────────────────┘
+│             LỚP TRUNG GIAN: THƯ VIỆN CHUNG (Decision Contract SDK)     │
+│  - Giao diện IReservationDecision      - Canonical Reservation Model   │
+│  - DTOs, Enums (DecisionStatus/Reason) - Value Objects, Domain Events  │
+└───────────────────────────────────┬────────────────────────────────────┘
                                     │ (Nhúng thư viện dùng chung)
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│             LỚP 1: HỆ THỐNG THƯƠNG MẠI (Case Study - SmashCourt Product)│
+│             LỚP 1: HỆ THỐNG THƯƠNG MẠI (Case Study - SmashCourt)       │
 │  - CRUD Booking, Sân & Người dùng     - Thanh toán VNPay (IPN/Return)  │
 │  - SignalR Real-time Time Grid         - Gemini AI Chatbot & Suggestion│
 └────────────────────────────────────────────────────────────────────────┘
@@ -85,17 +85,17 @@ Trước khi triển khai, nhóm thống nhất 3 nguyên tắc cô lập phạm
   * **Sinh viên 2:** Hiện thực hóa code cho hai chiến lược cụ thể (`Default` và `MockAlternative`), chuẩn hóa DTO response.
 
 ### PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
-*Trọng tâm: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu.*
+*Trọng tâm: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng 5 tầng ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ — 19 kịch bản / 76 lượt chạy), và chuẩn hóa 3 tập dữ liệu nghiên cứu (`INV-P1..P8`).*
 * **Task 4.1 (Polly v8 Resilience, Resilient L1/L2 Cache, Synchronous Audit & Fault Matrix F1–F7 - Tuần 7):**
   * Lập trình đường ống chịu lỗi 5 tầng: Outer Timeout (`500ms` SLA) $\rightarrow$ Fallback sang `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`, `FallbackUsed = true`, `ExecutionTimeMs = 0`) $\rightarrow$ Retry (2 lần, base delay `30ms`) $\rightarrow$ Circuit Breaker (tỷ lệ lỗi $\ge 50\%$ trong cửa sổ `30s`, `BreakDuration = 15s`) $\rightarrow$ Inner Timeout (`120ms` từng lần gọi).
   * Thiết lập hệ thống ghi vết Append-only Audit Trail đồng bộ (Fail-Closed) thông qua MediatR in-process events (`DecisionEvaluatedAuditNotification`) nằm trong transaction boundary của PostgreSQL (`tadss.decision_executions`), phân biệt rõ các loại thực thi (`AUTOMATED`, `CACHE_HIT`, `FALLBACK`) và `failure_reason` theo chuẩn `FailureReasonPrefixes`.
   * Chuẩn hóa JSON theo RFC 8785 (sắp xếp key alphabet, lowercase UUID, chuẩn hóa timestamp về giây chuẩn UTC `yyyy-MM-ddTHH:mm:ssZ` giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) tạo `RequestHash = SHA256(Canonical(DecisionRequest))` và Cache Key `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline mặc định `TtlHours = 24` và giáng cấp tự động Redis L2 $\rightarrow$ `IMemoryCache` L1 (F5).
 * **Task 4.2 (Thực nghiệm Benchmark 5 Tầng $G_0..G_2, R_0..R_3, C_0..C_3, D_0..D_2, E_0..E_4$ - Tuần 8):** Thực thi đo đạc 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải đồng thời $VUs \in \{1, 10, 50, 100\}$ cho 19 kịch bản thực nghiệm (76 lượt chạy, hỗ trợ chế độ rút gọn `--suite Core7` 28 lượt chạy và `--suite Full19` 76 lượt chạy), định lượng Cache Benefit, Cache Miss Overhead, Cache Pathologies ($C_0..C_3$), Strategy/DB Contention ($D_0..D_2$), Combined Stress/Self-Healing ($E_0..E_4$) và Decision Continuity Rate (DCR).
-* **Task 4.3 (Chuẩn hóa Tập dữ liệu Thực nghiệm với DatasetNormalizer - Tuần 9):** Xây dựng `DatasetNormalizer` kết hợp bảng `tadss.decision_executions` với Metadata thực nghiệm để trích xuất 3 bộ dữ liệu chuẩn hóa (*Resilience Evaluation Dataset*, *Latency & Caching Dataset*, *Governance & Audit Provenance Dataset*) phục vụ Chương 4 Báo cáo Đồ án 2.
-* **Sản phẩm bàn giao (Deliverables):** Ma trận kiểm thử tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark 76 lượt chạy ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Công cụ `DatasetNormalizer` và 3 bộ dữ liệu thực nghiệm chuẩn hóa.
+* **Task 4.3 (Chuẩn hóa Tập dữ liệu Thực nghiệm với DatasetNormalizer - Tuần 9):** Đóng băng đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md` và xây dựng phân hệ `Normalization/` (`AuditLedgerHarvester`, `DatasetNormalizerEngine`, `GovernanceLifecycleHarness`, `DatasetProvenanceVerifier`, `DatasetArtifactExporter`) kết hợp song ánh 1:1 bảng `tadss.decision_executions` với `RawMeasurementRecord` qua khóa `DecisionId` (Zero Production Schema Pollution) để trích xuất 3 bộ dữ liệu chuẩn hóa CSV/JSONL (`resilience_evaluation_dataset` 23 cột, `latency_caching_dataset` 19 cột, `governance_audit_dataset` 31 cột) kèm kiểm chứng tự động 8 bất biến nguồn gốc (`INV-P1..P8`) phục vụ Chương 4 Báo cáo Đồ án 2.
+* **Sản phẩm bàn giao (Deliverables):** Ma trận kiểm thử tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark 76 lượt chạy ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md`, phân hệ `Normalization/`, 3 bộ dữ liệu thực nghiệm chuẩn hóa CSV/JSONL và `WEEK9_DATASET_NORMALIZATION_REPORT.md` (510/510 automated tests pass).
 * **Phân chia công việc:**
-  * **Sinh viên 1:** Cấu hình Polly v8 Resilience Pipeline, Synchronous Audit Persistence, và thực thi Resilience/Strategy/Recovery Benchmark ($R_0..R_3, D_0..D_2, E_0..E_4$).
-  * **Sinh viên 2:** Tích hợp Resilient L1/L2 Request-Hash Caching, thực thi Cache & Pathologies Benchmark ($G_0..G_2, C_0..C_3$), và xây dựng `DatasetNormalizer`.
+  * **Sinh viên 1:** Cấu hình Polly v8 Resilience Pipeline, Synchronous Audit Persistence, thực thi Resilience/Strategy/Recovery Benchmark ($R_0..R_3, D_0..D_2, E_0..E_4$), và xây dựng `DatasetProvenanceVerifier` (`INV-P1..P8`).
+  * **Sinh viên 2:** Tích hợp Resilient L1/L2 Request-Hash Caching, thực thi Cache & Pathologies Benchmark ($G_0..G_2, C_0..C_3$), và xây dựng `AuditLedgerHarvester`, `DatasetNormalizerEngine`, `GovernanceLifecycleHarness`.
 
 ### PHASE 5: HUMAN-IN-THE-LOOP & TÍCH HỢP SMASHCOURT (Tuần 10 — Tuần 12)
 *Trọng tâm: Cung cấp quyền kiểm duyệt tối cao cho Manager, khởi tạo báo cáo sớm và kết nối đầu-cuối với SmashCourt (3 tuần).*
@@ -131,14 +131,14 @@ Trước khi triển khai, nhóm thống nhất 3 nguyên tắc cô lập phạm
 
 ---
 
-## IV. SƠ ĐỒ THEO DÕI CÁC MỐC THỜI GIAN (6 KPI MILESTONES)
+## IV. SƠ ĐỒ THEO DÕI CÁC MỐC THỜI GIAN (7 KPI MILESTONES)
 
-Để theo dõi sát sao tiến độ và sẵn sàng kích hoạt các phương án cắt giảm khối lượng (Scope Tiering) nhằm bảo vệ sức khỏe của nhóm, lộ trình áp dụng 6 mốc bàn giao trung gian (Milestones) sau:
+Để theo dõi sát sao tiến độ và sẵn sàng kích hoạt các phương án cắt giảm khối lượng (Scope Tiering) nhằm bảo vệ sức khỏe của nhóm, lộ trình áp dụng 7 mốc bàn giao trung gian (Milestones) sau:
 
-* **[Mốc 1: Cuối Tuần 2]** ───► **Foundation Ready:** Solution skeleton, Database Schema `tadss` và Contract v1 được phê duyệt.
-* **[Mốc 2: Cuối Tuần 4]** ───► **Decision Contract Ready:** DLL `Shared.DecisionContractSDK` biên dịch thành công, Unit Tests > 80% coverage.
-* **[Mốc 3: Cuối Tuần 6]** ───► **Runtime Engine Standalone:** Web API và DI-based Strategy Resolution chạy độc lập hoàn chỉnh.
-* **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core:** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, Benchmark ($G_0..G_2, R_0..R_3$) và Dataset Normalizer hoàn tất.
+* **[Mốc 1: Cuối Tuần 2]** ───► **Foundation Ready (✅ COMPLETED):** Solution skeleton, Database Schema `tadss` và Contract v1 được phê duyệt.
+* **[Mốc 2: Cuối Tuần 4]** ───► **Decision Contract Ready (✅ COMPLETED):** DLL `Shared.DecisionContractSDK` biên dịch thành công, Unit Tests > 80% coverage.
+* **[Mốc 3: Cuối Tuần 6]** ───► **Runtime Engine Standalone (✅ COMPLETED):** Web API và DI-based Strategy Resolution chạy độc lập hoàn chỉnh.
+* **[Mốc 4: Cuối Tuần 9]** ───► **Resilient, Auditable & Benchmarked Core (✅ COMPLETED):** Polly v8 Pipeline (F1–F7), Synchronous Audit Trail, Resilient L1/L2 Request-Hash Cache, Benchmark 5 tầng (19 kịch bản / 76 runs) và Dataset Normalizer (3 bộ dữ liệu CSV/JSONL + `INV-P1..P8` 100% PASS) hoàn tất.
 * **[Mốc 5: Cuối Tuần 12]** ───► **End-to-End Integration Ready:** SmashCourt ↔ TADSS ↔ VNPay và Manager Dashboard UI tích hợp thành công.
 * **[Mốc 6: Cuối Tuần 14]** ───► **Technical Evaluation Complete:** Vượt qua 11 kịch bản kiểm thử sự cố, đo lường đầy đủ SLA p95 < 150ms.
 * **[Final Milestone: Cuối Tuần 16]** ───► **Defense Ready:** Hoàn thành cuốn Báo cáo 60 trang, Video Demo và Slide thuyết trình.
@@ -168,7 +168,7 @@ flowchart TD
     Phase3 --> Phase4[Phase 4: Resilience, Benchmark & Dataset]
     Phase4 --> Phase5[Phase 5: Human-in-the-loop & SmashCourt Integration]
     Phase5 --> Phase6[Phase 6: Testing & Technical Evaluation]
-    Phase6 --> Phase7[Phase 7: Stabilization, Documentation & Defense]
+    Phase6 --> Phase7[Phase 7: Finalization & Defense Prep]
 ```
 
 ---
@@ -185,7 +185,7 @@ flowchart TD
     *   **Idempotency Protection (SC4):** Chặn 100% các yêu cầu duyệt trùng lặp qua `IdempotencyKey`.
     *   **Dynamic Reload (SC5):** Tự động nạp lại cấu hình Feature Flag dưới 2 giây qua `IOptionsMonitor`.
     *   **Domain Portability (SC6):** Nhận và xử lý thành công mock request từ Coworking Space mà không sửa code Core.
-*   **Lớp 3 (Khóa luận - TADS Strategy):**
+*   **Lớp 3 (`[OUT-OF-SCOPE ĐỒ ÁN 2]` Khóa luận - TADS Strategy):**
     *   **ML Baseline Quality:** Mô hình CatBoost đạt chỉ số **AUC-ROC > 0.75**, **Precision > 0.70**, và **Recall > 0.60** trên dữ liệu giả lập.
     *   **Correlation:** Điểm Trust Score có độ tương quan nghịch với tần suất no-show thực tế đạt chỉ số Pearson's $r < -0.60$.
     *   **Optimization Impact:** Chiến lược TADS giúp giảm tỷ lệ No-show ít nhất 20% so với chính sách cọc cố định trong môi trường giả lập.
@@ -217,9 +217,7 @@ flowchart TD
 Để đảm bảo các mốc Milestones và cơ chế màu tiến độ (Traffic Light) được vận hành kỷ luật, hai sinh viên tuân thủ quy trình 30 phút họp hàng tuần (mỗi Chủ Nhật từ 20:00 - 20:30):
 
 1. **Rà soát Tiến độ so với Kế hoạch (10 phút):** Kiểm tra danh sách Task hoàn thành trong tuần, ghi nhận các điểm nghẽn (Blockers) và xác định trạng thái màu (🟢 GREEN / 🟡 YELLOW / 🔴 RED).
-2. **Đánh giá Rủi ro & Kích hoạt Scope Tiering (10 phút):** Nếu rơi vào màu 🟡 YELLOW hoặc 🔴 RED, lập tức chốt việc kích hoạt phương án cắt giảm scope tương ứng (Chuyển Redis $
-ightarrow$ `IMemoryCache`, chuyển Next.js $
-ightarrow$ Razor Page).
+2. **Đánh giá Rủi ro & Kích hoạt Scope Tiering (10 phút):** Nếu rơi vào màu 🟡 YELLOW hoặc 🔴 RED, lập tức chốt việc kích hoạt phương án cắt giảm scope tương ứng (Chuyển Redis $\rightarrow$ `IMemoryCache`, chuyển Next.js $\rightarrow$ Razor Page).
 3. **Lập Kế hoạch Tuần tiếp theo (10 phút):** Phân công rõ 3 công việc trọng tâm nhất của từng người và ngày hoàn thành dự kiến.
 *Nhật ký họp được lưu lại ngắn gọn vào file `docs/weekly-logs/week-{N}.md` trong Git Repository.*
 

@@ -30,6 +30,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         var (statusCode, title, code) = exception switch
         {
             DomainInvariantException die => (StatusCodes.Status400BadRequest, "Domain Invariant Violation", die.InvariantCode),
+            ContractValidationException cve => (StatusCodes.Status400BadRequest, "Contract Validation Error", cve.ErrorCode),
             IdempotencyConflictException => (StatusCodes.Status409Conflict, "Idempotency Key Reuse Conflict", ErrorCodes.IdempotencyKeyReuse),
             DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", ErrorCodes.Conflict),
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Invalid Operation", ErrorCodes.BadRequest),
@@ -67,6 +68,13 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             problemDetails.Extensions["errors"] = new Dictionary<string, string[]>
             {
                 [domainEx.FieldName] = new[] { domainEx.Message }
+            };
+        }
+        else if (exception is ContractValidationException contractEx && !string.IsNullOrEmpty(contractEx.FieldName))
+        {
+            problemDetails.Extensions["errors"] = new Dictionary<string, string[]>
+            {
+                [contractEx.FieldName] = new[] { contractEx.Message }
             };
         }
 

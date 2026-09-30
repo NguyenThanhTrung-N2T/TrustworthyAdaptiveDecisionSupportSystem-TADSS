@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at_utc": "2026-09-29T16:39:55Z",
+  "total_benchmark_runs_harvested": 76,
+  "total_db_executions_observed": 18672,
+  "excluded_warmup_and_trip_executions": 2272,
+  "selected_measurement_executions": 16400,
+  "measurement_request_count": 16400,
+  "completed_decision_count": 16400,
+  "caller_cancelled_count": 0,
+  "persistence_failure_count": 0,
+  "dcr_eligible_count": 16400,
+  "dcr_completed_count": 16400,
+  "overall_dcr_percent": 100,
+  "governance_lifecycle_cases_executed": 50,
+  "all_provenance_invariants_passed": true,
+  "invariant_results": [
+    {
+      "invariant_id": "INV-P1",
+      "invariant_name": "Per-Run DecisionId Uniqueness \u0026 Bijective 1:1 Eligible Measurement Join",
+      "passed": true,
+      "checked_records_count": 16400,
+      "violation_count": 0,
+      "details": "100% of 16400 eligible measurement records across 76 run(s) have unique DecisionIds and 1:1 bijective match in tadss.decision_executions."
+    },
+    {
+      "invariant_id": "INV-P2",
+      "invariant_name": "Zero Warm-up \u0026 Circuit-Trip Contamination",
+      "passed": true,
+      "checked_records_count": 16400,
+      "violation_count": 0,
+      "details": "Filtered out 2272 warm-up/circuit-trip DB rows; 100% of 16400 selected audit rows belong strictly to K_meas and match \u0027{RunId}-REQ-{6-digit}\u0027."
+    },
+    {
+      "invariant_id": "INV-P3a",
+      "invariant_name": "SHA-256 RequestHash Format Integrity",
+      "passed": true,
+      "checked_records_count": 16400,
+      "violation_count": 0,
+      "details": "All 16400 persisted RequestHash values conform to 64-character lowercase hex SHA-256 format (`^[0-9a-f]{64}$`)."
+    },
+    {
+      "invariant_id": "INV-P3b",
+      "invariant_name": "RFC 8785 Canonical RequestHash Determinism",
+      "passed": true,
+      "checked_records_count": 16400,
+      "violation_count": 0,
+      "details": "100% of 16400 joined records match RequestHasher.ComputeHash(payload), and single-key scenarios (G2, C2) produce a single deterministic hash."
+    },
+    {
+      "invariant_id": "INV-P4",
+      "invariant_name": "Client-to-Ledger Telemetry Consistency",
+      "passed": true,
+      "checked_records_count": 16400,
+      "violation_count": 0,
+      "details": "100% of 16400 joined pairs exhibit exact agreement on ExecutionType, FallbackUsed, and CacheHit between Client telemetry and Server Audit Ledger."
+    },
+    {
+      "invariant_id": "INV-P5",
+      "invariant_name": "Fallback Safety Invariant (Engine \u002B Phase 4 Policy)",
+      "passed": true,
+      "checked_records_count": 1607,
+      "violation_count": 0,
+      "details": "All 1607 fallback executions satisfy Engine invariants (ExecutionType==\u0027FALLBACK\u0027, CacheHit==false) and Phase 4 FallbackDecisionStrategy policy (NeedApproval==true)."
+    },
+    {
+      "invariant_id": "INV-P6",
+      "invariant_name": "Immutable 9-Field Machine Snapshot \u002B NeedApproval Under Override",
+      "passed": true,
+      "checked_records_count": 50,
+      "violation_count": 0,
+      "details": "100% of 50 governance lifecycle cases preserved all 9 Machine Snapshot fields (DecisionId, ReservationId, StrategyName, StrategyVersion, ExecutionType, ExecutionTimeMs, RequestHash, ResponsePayload, CreatedAt) \u002B NeedApproval unchanged between t0 and t1."
+    },
+    {
+      "invariant_id": "INV-P7",
+      "invariant_name": "Governance State Transition (POSITIVE_CONTROL) \u0026 Guard Preservation (NEGATIVE_CONTROL)",
+      "passed": true,
+      "checked_records_count": 50,
+      "violation_count": 0,
+      "details": "Verified all 50 governance cases: POSITIVE_CONTROL transitions (IsOverridden false-\u003Etrue, Version 1-\u003E2, UpdatedAt_t1 \u003E= UpdatedAt_t0, HTTP 200) and NEGATIVE_CONTROL guard rejections (all 5 mutable fields unchanged, HTTP 400)."
+    },
+    {
+      "invariant_id": "INV-P8",
+      "invariant_name": "Pending Queue Hot-Index Lifecycle Consistency",
+      "passed": true,
+      "checked_records_count": 50,
+      "violation_count": 0,
+      "details": "100% of 50 governance cases satisfied GET /pending-approvals hot-queue membership at t0 and removal/absence at t1."
+    }
+  ],
+  "datasets": [
+    {
+      "dataset_name": "resilience_evaluation_dataset",
+      "research_question": "RQ1 (Resilience \u0026 Decision Continuity)",
+      "column_count": 23,
+      "row_count": 7600,
+      "csv_file_name": "resilience_evaluation_dataset.csv",
+      "csv_sha256": "2fb13a6996935f36c01025975a3e7c7688b434a024d4c36afb49fd5c5b207a66",
+      "jsonl_file_name": "resilience_evaluation_dataset.jsonl",
+      "jsonl_sha256": "3b2938923926180cc0e36dd69457722b399e40046759f58f5277ac9de3328f31"
+    },
+    {
+      "dataset_name": "latency_caching_dataset",
+      "research_question": "RQ2 (Caching Overhead \u0026 Latency Envelope)",
+      "column_count": 19,
+      "row_count": 8800,
+      "csv_file_name": "latency_caching_dataset.csv",
+      "csv_sha256": "074eedbbd1c97d4220cfa5d71afab53700f99ae776a912b9746907d9b4f9768b",
+      "jsonl_file_name": "latency_caching_dataset.jsonl",
+      "jsonl_sha256": "dc15554947fc470ffda54aa7ad184e11aec803a189ebf6ab2c65214c3917018d"
+    },
+    {
+      "dataset_name": "governance_audit_dataset",
+      "research_question": "RQ3 (Audit Provenance \u0026 Decision-Outcome Governance)",
+      "column_count": 31,
+      "row_count": 50,
+      "csv_file_name": "governance_audit_dataset.csv",
+      "csv_sha256": "776479b1acbd62e54449b60df53a1967c543256f0347cf9b09405e2894226f6f",
+      "jsonl_file_name": "governance_audit_dataset.jsonl",
+      "jsonl_sha256": "f972251b50851f486c4bd290fb530575b7ac66dc6f6baefab573c89a7298bffc"
+    }
+  ]
+}

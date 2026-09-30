@@ -49,7 +49,7 @@ Tài liệu này phân rã toàn bộ dự án từ **Epics ➔ Features ➔ Use
 ---
 
 ### PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
-*Mục tiêu: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu.*
+*Mục tiêu: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng 5 tầng ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ — 19 kịch bản / 76 lượt chạy), và chuẩn hóa 3 tập dữ liệu nghiên cứu (`INV-P1..P8`).*
 
 *   **User Story 4: Resilience, Benchmark & Dataset Normalization**
     *   *Task 4.1 (Sinh viên 1 & 2 - Tuần 7):*
@@ -58,9 +58,9 @@ Tài liệu này phân rã toàn bộ dự án từ **Epics ➔ Features ➔ Use
         *   Tích hợp Redis 7.x / 8.x (Redis Cloud Managed `ap-southeast-1` hoặc Local) L2 + `IMemoryCache` L1 fallback (F5), chuẩn hóa JSON theo RFC 8785 (sắp xếp key alphabet, chuyển UUID về lowercase, chuẩn hóa format ISO 8601 UTC `yyyy-MM-ddTHH:mm:ssZ` giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) tạo `RequestHash = SHA256(Canonical(DecisionRequest))` và Cache Key `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline mặc định `TtlHours = 24`.
         *   Kiểm chứng tự động toàn bộ 7 kịch bản lỗi trong Fault Injection Matrix (`F1–F7`).
     *   *Task 4.2 (Sinh viên 1 & 2 - Tuần 8):* Thực thi đo đạc Performance Benchmark theo quy trình 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải $VUs \in \{1, 10, 50, 100\}$ trên 19 kịch bản thực nghiệm (76 lượt chạy qua 5 tầng: Cache Baseline $G_0..G_2$, Core Resilience $R_0..R_3$, Cache Pathologies $C_0..C_3$, Strategy & DB Contention $D_0..D_2$, và Combined Stress & Self-Healing $E_0..E_4$).
-    *   *Task 4.3 (Sinh viên 2 - Owner, Tuần 9):* Xây dựng `DatasetNormalizer` trích xuất 3 bộ dữ liệu chuẩn hóa (*Resilience Evaluation Dataset*, *Latency & Caching Dataset*, *Governance & Audit Provenance Dataset*) từ bảng `tadss.decision_executions` kết hợp Metadata thực nghiệm phục vụ Chương 4 Báo cáo Đồ án 2.
+    *   *Task 4.3 (Sinh viên 2 - Owner, Sinh viên 1 - Supporting, Tuần 9):* Đóng băng đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md` và xây dựng phân hệ `Normalization/` (`AuditLedgerHarvester`, `DatasetNormalizerEngine`, `GovernanceLifecycleHarness`, `DatasetProvenanceVerifier`, `DatasetArtifactExporter`) trích xuất 3 bộ dữ liệu chuẩn hóa CSV/JSONL (`resilience_evaluation_dataset` 23 cột, `latency_caching_dataset` 19 cột, `governance_audit_dataset` 31 cột) từ bảng `tadss.decision_executions` kết hợp song ánh 1:1 với `RawMeasurementRecord` qua khóa `DecisionId` kèm kiểm chứng 8 bất biến nguồn gốc (`INV-P1..P8`) phục vụ Chương 4 Báo cáo Đồ án 2.
     *   *Emergency Escape Hatch:* Nếu cuối Tuần 8 Day 5 hạ tầng Cache/Benchmark gặp nghẽn môi trường $\rightarrow$ Bật MVP Mode: Duy trì Outer Timeout + `FallbackDecisionStrategy`, dùng `IMemoryCache` L1, ghi audit đồng bộ.
-    *   *Deliverables (Mốc 4 - Cuối Tuần 9):* Ma trận tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark 76 lượt chạy ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Công cụ `DatasetNormalizer` và 3 bộ dữ liệu thực nghiệm chuẩn hóa.
+    *   *Deliverables (Mốc 4 - Cuối Tuần 9):* Ma trận tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark 76 lượt chạy ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md`, phân hệ `Normalization/`, 3 bộ dữ liệu thực nghiệm chuẩn hóa CSV/JSONL và `WEEK9_DATASET_NORMALIZATION_REPORT.md` (510/510 automated tests pass).
 
 ---
 
@@ -98,9 +98,11 @@ Tài liệu này phân rã toàn bộ dự án từ **Epics ➔ Features ➔ Use
 
 ---
 
-## PHẦN B: KHÓA LUẬN TỐT NGHIỆP — CHIẾN LƯỢC QUYẾT ĐỊNH THÍCH ỨNG (TADS) (12 TUẦN)
+## PHẦN B: `[OUT-OF-SCOPE ĐỒ ÁN 2]` KHÓA LUẬN TỐT NGHIỆP — CHIẾN LƯỢC QUYẾT ĐỊNH THÍCH ỨNG (TADS) (12 TUẦN)
 
-### EPIC 2: ADAPTIVE DECISION STRATEGY (TADS RESEARCH)
+> **⚠️ LƯU Ý PHẠM VI (SCOPE LOCK):** Toàn bộ Phần B (Phase 8 & Phase 9) thuộc phạm vi mở rộng của **Khóa luận tốt nghiệp** ở giai đoạn tiếp theo và được loại trừ hoàn toàn khỏi phạm vi triển khai của **Đồ án 2** theo mục 5.2 của [`PROPOSAL_DO_AN_2.md`](PROPOSAL_DO_AN_2.md).
+
+### EPIC 2: ADAPTIVE DECISION STRATEGY (TADS RESEARCH — OUT-OF-SCOPE ĐỒ ÁN 2)
 
 ---
 

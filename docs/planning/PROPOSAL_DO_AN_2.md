@@ -65,14 +65,14 @@ Thiết kế và xây dựng **TADSS (Trustworthy Adaptive Decision Support Syst
 
 Để đảm bảo tính độc lập tuyệt đối giữa các học phần, ranh giới dự án được phân chia thành 3 lớp riêng biệt như sau:
 
-```
-Lớp 3: Chiến lược nghiên cứu (TADS) ─── KHÓA LUẬN (ML, Trust Model, Trace API)
+```text
+Lớp 3: Chiến lược nghiên cứu (TADS)    ───► KHÓA LUẬN (ML, Trust Model, Trace API)
        │ (implements IReservationDecisionStrategy)
        ▼
-Lớp 2: Decision Runtime Engine (TADSS) ─ ĐỒ ÁN 2 ✅ (SDK, Factory, Polly, Audit, Override, Cache)
+Lớp 2: Decision Runtime Engine (TADSS) ───► ĐỒ ÁN 2 [IN-SCOPE] (SDK, Polly, Audit, Override, Cache)
        │ (Giao tiếp qua HTTP REST Contract)
        ▼
-Lớp 1: Case Study Product (SmashCourt) ─ Đồ án 1 (CRUD Booking, Payments, Chatbot FAQ)
+Lớp 1: Case Study Product (SmashCourt) ───► ĐỒ ÁN 1 (CRUD Booking, Payments, Chatbot FAQ)
 ```
 
 ### 💡 Ghi chú 4 ranh giới kỹ thuật cốt lõi (Architectural Boundaries)
@@ -125,7 +125,7 @@ Lớp 1: Case Study Product (SmashCourt) ─ Đồ án 1 (CRUD Booking, Payments
 ### 6.1. Quy trình xử lý phê duyệt & Ghi đè (Human-in-the-loop Flow)
 Khi TADSS trả về trạng thái quyết định, SmashCourt và Manager phối hợp thực thi như sau:
 
-```
+```text
                   ┌────────────────────────┐
                   │    DecisionRequest     │
                   └───────────┬────────────┘
@@ -164,11 +164,11 @@ Khi TADSS trả về trạng thái quyết định, SmashCourt và Manager phố
 ### 6.2. Cấu hình Polly v8 Resilience Pipeline
 Để bảo vệ hệ thống khỏi các sự cố quá tải hoặc nghẽn mạng từ strategy nghiệp vụ, Polly v8 được thiết lập lồng nhau:
 
-```
-┌── Outer Timeout: 500ms (Overall Request SLA Budget) ──────────┐
+```text
+┌── Outer Timeout: 500ms (Overall Request SLA Budget) ───────────┐
 │                                                                │
 │  Fallback: FallbackDecisionStrategy (NEED_APPROVAL, 100%)      │
-│   └── Overhead < 10ms sau khi failure được xác định           │
+│   └── Overhead < 10ms sau khi failure được xác định            │
 │                                                                │
 │  Retry Policy (Tối đa 2 retries = 3 attempts, base delay 30ms) │
 │   │                                                            │
@@ -182,9 +182,9 @@ Khi TADSS trả về trạng thái quyết định, SmashCourt và Manager phố
 > **Giải trình Budget trễ:** Outer Timeout 500ms là overall request budget (SLA) bọc ngoài toàn bộ retry attempts và retry delays. Inner Timeout 120ms là giới hạn cho từng strategy execution attempt riêng lẻ ($3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}$).
 
 ### 6.3. Thiết kế Request-Hash Caching
-* **Thuật toán:** Cache Key được tính toán bằng cách băm SHA-256 các thông số định danh phiên bản và dữ liệu cốt lõi:
-  $$\text{CacheKey} = \text{SHA256}(\text{strategyName} + \text{strategyVersion} + \text{normalizedDecisionRequest})$$
-  Namespace Redis: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`
+* **Thuật toán:** Cache Key được tính toán bằng cách tách biệt định danh yêu cầu (`RequestHash` theo chuẩn RFC 8785 JCS) và định danh phiên bản chiến lược:
+  $$\text{RequestHash} = \text{SHA256}(\text{Canonical}(\text{DecisionRequestDto}))$$
+  Namespace Cache Key: `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}`
 * **Stale Behavior Policy:**
   * **Default Strategy (Baseline):** Cho phép cache bình thường với cấu hình baseline TTL = 24 giờ (`TtlHours = 24`).
   * **Adaptive Strategy (Khóa luận):** Mặc định bị vô hiệu hóa (disabled by default) hoặc đặt TTL = 1 phút (dưới dạng cấu hình thực nghiệm) để tránh stale decisions khi điểm tin cậy khách hàng thay đổi đột ngột.
@@ -233,9 +233,9 @@ Dự án được phân chia thành các giai đoạn phát triển logic kế t
 * **Phase 1 — Phân tích & Thiết kế (2 tuần):** Phân tích vấn đề, xác định yêu cầu nghiệp vụ, hoàn thiện chuẩn giao tiếp Decision Contract, thiết kế kiến trúc tổng thể và DB schema.
 * **Phase 2 — Xây dựng Decision Contract SDK (2 tuần):** Phát triển thư viện dùng chung `Shared.DecisionContractSDK` định nghĩa Reservation Aggregate, DTOs, Enums, giao diện `IReservationDecisionStrategy` và các quy tắc kiểm tra hợp lệ.
 * **Phase 3 — Xây dựng Decision Runtime API (2 tuần):** Xây dựng Web API `POST /decisions`, bộ nạp chiến lược `StrategyFactory` (DI-based resolution), chiến lược mặc định `DefaultDecisionStrategy` (Baseline Business Policy: phân hạng khách hàng kết hợp mức thanh toán 100% mặc định) và chiến lược thử nghiệm `MockAlternativeDecisionStrategy` (cọc 50% giờ cao điểm).
-* **Phase 4 — Resilience, Cache & Audit (3 tuần):** Tích hợp chuỗi chịu lỗi lồng nhau Polly v8 (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, Circuit Breaker, Fallback), bộ nhớ đệm Redis Request-Hash Cache và ghi vết transaction audit log qua MediatR xuống cơ sở dữ liệu PostgreSQL.
-* **Phase 5 — Human-in-the-loop & Integration (2 tuần):** Xây dựng Override API cho phép duyệt thủ công (idempotency, optimistic locking), màn hình Manager Dashboard trên Next.js, cơ chế vận hành khẩn cấp Feature Flag và tích hợp hoàn chỉnh với luồng đặt sân của hệ thống SmashCourt.
-* **Phase 6 — Testing, Evaluation & Hoàn thiện (3 tuần):** Thực hiện Unit Test, Integration Test, kiểm thử giả lập sự cố (Failure Injection Test), kiểm thử bắn tải (Load Test), đánh giá các chỉ số thiết kế (SC1-SC6), khắc phục lỗi, quay video demo và hoàn thiện báo cáo đồ án.
+* **Phase 4 — Resilience, Cache & Audit (3 tuần):** Tích hợp chuỗi chịu lỗi lồng nhau Polly v8 (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, Circuit Breaker, Fallback), bộ nhớ đệm Redis Request-Hash Cache, ghi vết transaction audit log qua MediatR xuống cơ sở dữ liệu PostgreSQL, thực thi bộ Benchmark 5 tầng (76 lượt chạy) và chuẩn hóa 3 bộ dữ liệu nghiên cứu (`INV-P1..INV-P8`).
+* **Phase 5 — Human-in-the-loop & Integration (3 tuần):** Xây dựng Override API cho phép duyệt thủ công (idempotency, optimistic locking), màn hình Manager Dashboard trên Next.js, cơ chế vận hành khẩn cấp Feature Flag và tích hợp hoàn chỉnh với luồng đặt sân của hệ thống SmashCourt.
+* **Phase 6 — Testing, Evaluation & Hoàn thiện (4 tuần: W13–W16):** Thực hiện Unit Test, Integration Test, kiểm thử giả lập sự cố (Failure Injection Test), kiểm thử bắn tải (Load Test), đánh giá các chỉ số thiết kế (SC1-SC6), khắc phục lỗi, quay video demo và hoàn thiện báo cáo đồ án.
 
 ### Ràng buộc phụ thuộc giữa các Giai đoạn (Dependencies)
 * **Phase 3** yêu cầu **Phase 2** hoàn thành 100% (để có SDK và Interface dùng chung).
@@ -260,7 +260,7 @@ Các chỉ số dưới đây đóng vai trò là **Design Targets** (Mục tiê
 
 ---
 
-## 10. ĐỊNH HƯỚNG PHÁT TRIỂN KHÓA LUẬN (THESIS DIRECTION)
+## 10. ĐỊNH HƯỚNG PHÁT TRIỂN KHÓA LUẬN (THESIS DIRECTION) `[OUT-OF-SCOPE ĐỒ ÁN 2 — DÀNH CHO KHÓA LUẬN]`
 
 Sau khi hoàn thành Đồ án 2, nền tảng chịu lỗi TADSS sẽ được sử dụng làm môi trường thực nghiệm cốt lõi để phát triển Khóa luận tốt nghiệp với đề tài **"Nghiên cứu và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ"**:
 

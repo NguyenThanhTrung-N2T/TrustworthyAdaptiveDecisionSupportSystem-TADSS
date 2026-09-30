@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using TADSS.BenchmarkRunner.Protocol;
 
@@ -156,6 +157,20 @@ public sealed class ScenarioHostController : IAsyncDisposable
 
             _ => CreateUniquePayload(requestIndex, isWarmup: false)
         };
+    }
+
+    /// <summary>
+    /// Mở IServiceScope trực tiếp từ WebApplicationFactory khi Host vẫn đang hoạt động (trước DisposeAsync)
+    /// để AuditLedgerHarvester trích xuất toàn bộ bản ghi từ TadssDbContext.DecisionExecutions.
+    /// </summary>
+    public Microsoft.Extensions.DependencyInjection.IServiceScope CreateServiceScope()
+    {
+        if (_factory == null)
+        {
+            throw new InvalidOperationException("Cannot create service scope before CreateBenchmarkClient() has initialized the host.");
+        }
+
+        return _factory.Services.CreateScope();
     }
 
     public ValueTask DisposeAsync()

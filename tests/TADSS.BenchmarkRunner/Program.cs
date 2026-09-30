@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TADSS.BenchmarkRunner.Export;
 using TADSS.BenchmarkRunner.Harness;
+using TADSS.BenchmarkRunner.Normalization;
 using TADSS.BenchmarkRunner.Protocol;
 using TADSS.BenchmarkRunner.Telemetry;
 
@@ -35,6 +36,7 @@ public static class Program
 
         var allSummaries = new List<ScenarioSummaryMetrics>();
         var allRawRecords = new List<RawMeasurementRecord>();
+        var allHarvestResults = new List<AuditHarvestResult>();
 
         try
         {
@@ -82,8 +84,16 @@ public static class Program
                         hostController.ObservedRetryCount,
                         hostController.ObservedInnerTimeoutCount);
 
+                    // Phase 4 (Week 9): In-Vivo Audit Ledger Harvest BEFORE ScenarioHostController.DisposeAsync()
+                    var harvestResult = await AuditLedgerHarvester.HarvestFromLiveHostAsync(
+                        hostController,
+                        metadata,
+                        summary,
+                        records);
+
                     allSummaries.Add(summary);
                     allRawRecords.AddRange(records);
+                    allHarvestResults.Add(harvestResult);
                     swRun.Stop();
 
                     Console.WriteLine(
@@ -98,9 +108,46 @@ public static class Program
             // Compute Layer A Differential Metrics (G1 - G0 and G0 - G2) per Concurrency level
             ResultAggregator.PopulateCacheDifferentials(allSummaries);
 
-            // Export all artifacts (JSON metadata, Summary CSV, Raw CSV, Markdown Report)
+            // Export Week 8 benchmark artifacts (JSON metadata, Summary CSV, Raw CSV, Markdown Report)
             await ArtifactExporter.ExportAllAsync(config.OutputDirectory, allSummaries, allRawRecords);
-            PrintExportedArtifactsBanner(config.OutputDirectory);
+
+            // Week 9: Execute Controlled Governance Lifecycle Suite (G-A, G-B, G-C1, G-C2)
+            Console.Write("  [GOVERNANCE SUITE] Executing G-A, G-B (Positive) & G-C1, G-C2 (Negative) Lifecycle Cases ... ");
+            var swGov = Stopwatch.StartNew();
+            var governanceObservations = await GovernanceLifecycleHarness.ExecuteSuiteAsync(config);
+            swGov.Stop();
+            Console.WriteLine($"Done ({swGov.Elapsed.TotalSeconds:F1}s) -> {governanceObservations.Count} cases captured.");
+
+            // Week 9: 1:1 Join & Project 3 Normalized Research Datasets
+            var joinedRecords = DatasetNormalizerEngine.JoinAllRuns(allHarvestResults);
+            var (resilienceRows, latencyCachingRows) = DatasetNormalizerEngine.ProjectResilienceAndCachingDatasets(joinedRecords);
+            var governanceRows = DatasetNormalizerEngine.ProjectGovernanceAuditDataset(governanceObservations);
+
+            // Week 9: Verify 8 Provenance Invariants (INV-P1 .. INV-P8)
+            var invariantResults = DatasetProvenanceVerifier.VerifyAll(
+                allHarvestResults,
+                joinedRecords,
+                governanceObservations);
+
+            var failedInvariants = invariantResults.Where(r => !r.Passed).ToList();
+            if (failedInvariants.Count > 0)
+            {
+                string failureMessage = string.Join(
+                    "; ",
+                    failedInvariants.Select(f => $"{f.InvariantId} ({f.ViolationCount} violations): {f.Details}"));
+                throw new InvalidOperationException($"Dataset provenance verification failed: {failureMessage}");
+            }
+
+            // Week 9: Export Normalized Datasets (CSV + JSONL), Provenance Manifest JSON & Week 9 Report
+            var manifest = await DatasetArtifactExporter.ExportAllAsync(
+                config.DatasetsOutputDirectory,
+                allHarvestResults,
+                resilienceRows,
+                latencyCachingRows,
+                governanceRows,
+                invariantResults);
+
+            PrintExportedArtifactsBanner(config.OutputDirectory, config.DatasetsOutputDirectory, manifest);
 
             return 0;
         }
@@ -148,7 +195,7 @@ public static class Program
     {
         int timedWarmup = Math.Min(config.WarmupRequests, config.FaultTiming.TimedScenarioMaxWarmupRequests);
         Console.WriteLine("================================================================================");
-        Console.WriteLine("  TADSS.BenchmarkRunner — Controlled Experimental Protocol (Week 8)");
+        Console.WriteLine("  TADSS.BenchmarkRunner — Controlled Experimental & Dataset Normalization Suite");
         Console.WriteLine("================================================================================");
         Console.WriteLine($"  Scenarios          : {string.Join(", ", config.Scenarios)}");
         Console.WriteLine($"  Concurrency (VUs)  : {string.Join(", ", config.ConcurrencyLevels)}");
@@ -156,19 +203,31 @@ public static class Program
         Console.WriteLine($"  Timed Fault Reqs   : {config.FaultTimedScenarioRequests} (+ {timedWarmup} warm-up)");
         Console.WriteLine($"  Resilience Budget  : {config.Resilience.ComputedAttemptAndDelayBudgetMs}ms / {config.Resilience.OuterTimeoutMs}ms SLA");
         Console.WriteLine($"  Cache Backend Mode : {config.CacheBackendMode}");
-        Console.WriteLine($"  Output Directory   : {Path.GetFullPath(config.OutputDirectory)}");
+        Console.WriteLine($"  Benchmarks Dir     : {Path.GetFullPath(config.OutputDirectory)}");
+        Console.WriteLine($"  Datasets Dir       : {Path.GetFullPath(config.DatasetsOutputDirectory)}");
         Console.WriteLine("================================================================================");
         Console.WriteLine();
     }
 
-    private static void PrintExportedArtifactsBanner(string outputDirectory)
+    private static void PrintExportedArtifactsBanner(
+        string benchmarkOutputDir,
+        string datasetsOutputDir,
+        DatasetProvenanceManifest manifest)
     {
+        Console.WriteLine();
         Console.WriteLine("================================================================================");
-        Console.WriteLine("  Exported Experimental Evidence Artifacts:");
-        Console.WriteLine($"  1. {Path.Combine(outputDirectory, "benchmark_runs_metadata.json")}");
-        Console.WriteLine($"  2. {Path.Combine(outputDirectory, "benchmark_summary.csv")}");
-        Console.WriteLine($"  3. {Path.Combine(outputDirectory, "benchmark_raw_samples.csv")}");
-        Console.WriteLine($"  4. {Path.Combine(outputDirectory, "WEEK8_BENCHMARK_REPORT.md")}");
+        Console.WriteLine("  Exported Week 8 Benchmark Evidence Artifacts:");
+        Console.WriteLine($"  1. {Path.Combine(benchmarkOutputDir, "benchmark_runs_metadata.json")}");
+        Console.WriteLine($"  2. {Path.Combine(benchmarkOutputDir, "benchmark_summary.csv")}");
+        Console.WriteLine($"  3. {Path.Combine(benchmarkOutputDir, "benchmark_raw_samples.csv")}");
+        Console.WriteLine($"  4. {Path.Combine(benchmarkOutputDir, "WEEK8_BENCHMARK_REPORT.md")}");
+        Console.WriteLine("--------------------------------------------------------------------------------");
+        Console.WriteLine($"  Exported Week 9 Normalized Research Datasets (Invariants Passed: {manifest.AllProvenanceInvariantsPassed}):");
+        Console.WriteLine($"  5. {Path.Combine(datasetsOutputDir, "resilience_evaluation_dataset.csv")} (.jsonl)");
+        Console.WriteLine($"  6. {Path.Combine(datasetsOutputDir, "latency_caching_dataset.csv")} (.jsonl)");
+        Console.WriteLine($"  7. {Path.Combine(datasetsOutputDir, "governance_audit_dataset.csv")} (.jsonl)");
+        Console.WriteLine($"  8. {Path.Combine(datasetsOutputDir, "dataset_provenance_manifest.json")}");
+        Console.WriteLine($"  9. {Path.Combine(datasetsOutputDir, "WEEK9_DATASET_NORMALIZATION_REPORT.md")}");
         Console.WriteLine("================================================================================");
     }
 }
