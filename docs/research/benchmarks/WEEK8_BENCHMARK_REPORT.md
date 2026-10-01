@@ -1,5 +1,7 @@
 ﻿# 📊 TADSS Week 8 — Controlled Experimental Benchmark Report
 
+> ⚠️ **Phạm vi diễn giải (ghi chú re-baseline 01/10/2026):** đây là **micro-benchmark phòng lab**. Runtime chạy trong `WebApplicationFactory` với **EF Core InMemory** (không phải PostgreSQL), strategy là các test double độ trễ bằng `Task.Delay`, còn "WAN cache" và "DB contention" là độ trễ giả lập. Các con số dưới đây chỉ mô tả **overhead của pipeline Polly/cache trong điều kiện có kiểm soát** và **không** được dùng làm minh chứng cho KPI SC1–SC9. Minh chứng trên hạ tầng thật được định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md). Thuật ngữ "RFC 8785" trong báo cáo cần hiểu là chuẩn hóa canonical theo thứ tự trường cố định.
+
 > **Báo cáo Kết quả Thực nghiệm Toàn diện (19 Kịch bản $\times$ 4 Mức tải = 76 Lượt chạy Thực nghiệm: $G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ tại $VUs \in \{1, 10, 50, 100\}$)**  
 > **Phạm vi Đánh giá (Scope Lock):** **Đồ án 2 — Nền tảng TADSS Decision Runtime Engine** *(Đo lường thuần túy hạ tầng Runtime, Request-Hash Cache L1/L2, Polly v8 Resilience Pipeline và Synchronous Audit Persistence trên các chiến lược quy tắc nghiệp vụ tất định `DefaultDecisionStrategy v1.0.0` & Fault-Injected Decorators; hoàn toàn không sử dụng mô hình AI/ML)*  
 > **Thời điểm thực thi (UTC):** `2026-09-29T16:36:32Z`  

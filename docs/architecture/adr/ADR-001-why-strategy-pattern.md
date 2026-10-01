@@ -7,7 +7,12 @@
 Luồng đặt sân trong hệ thống SmashCourt cần tích hợp các chính sách quyết định động (như tỷ lệ đặt cọc theo khung giờ cao điểm/thấp điểm và phân hạng khách hàng). Nếu nhúng trực tiếp các quy tắc quyết định động vào SmashCourt backend, hệ thống sẽ bị coupling chặt, khó thay đổi chính sách, khó viết test độc lập và gây rủi ro nghẽn luồng thanh toán khi thành phần tính toán quyết định gặp sự cố.
 
 ## Quyết định
-Sử dụng mẫu thiết kế **Strategy Pattern** bằng cách định nghĩa interface `IReservationDecisionStrategy` trong thư viện dùng chung `Shared.DecisionContractSDK`. Runtime Engine chỉ giao tiếp thông qua giao diện này và phân giải các cài đặt cụ thể từ DI container (DI-based Strategy Resolution $O(1)$: `DefaultDecisionStrategy` và `MockAlternativeDecisionStrategy` trong Đồ án 2).
+Sử dụng mẫu thiết kế **Strategy Pattern** bằng cách định nghĩa interface `IReservationDecisionStrategy` trong thư viện dùng chung `Shared.DecisionContractSDK`. Runtime Engine chỉ giao tiếp thông qua giao diện này; các strategy (`DefaultDecisionStrategy`, `MockAlternativeDecisionStrategy` trong Đồ án 2) được đăng ký vào DI container và tra cứu theo tên trên một dictionary.
+
+## Điều chỉnh khi re-baseline (01/10/2026)
+*   Strategy v2 chỉ trả quyết định nghiệp vụ (`StrategyDecision`: trạng thái, tỷ lệ cọc, mã lý do); runtime chịu trách nhiệm `decisionId`, thời gian thực thi, quy đổi số tiền và telemetry.
+*   Chọn strategy theo từng request bằng quy tắc cấu hình (`StrategyRouter`) và hỗ trợ shadow mode — xem ADR-011 trong [`ARCHITECTURE_DECISION_RECORDS.md`](../ARCHITECTURE_DECISION_RECORDS.md).
+*   Thêm strategy mới vẫn cần đăng ký DI và deploy lại runtime; không nạp DLL động.
 
 ## Hệ quả
 *   **Tích cực (Positive):**

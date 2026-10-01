@@ -5,7 +5,7 @@
 > **Git Branch:** `feat/phase-2-contract-sdk`  
 > **.NET SDK Version:** `10.0.401` (Targeting `net8.0` Runtime)  
 > **Operating System:** Microsoft Windows 11 Home Single Language 64-bit  
-> **Test Frameworks & Tooling:** xUnit 2.9.2, FluentAssertions 7.0.0, coverlet.collector 6.0.0, Microsoft.NET.Test.Sdk 17.11.1  
+> **Test Frameworks & Tooling:** xUnit 2.5.3, FluentAssertions 6.12.1, coverlet.collector 6.0.0, Microsoft.NET.Test.Sdk 17.8.0 *(đính chính 01/10/2026 theo `Directory.Packages.props`; bản trước ghi nhầm xUnit 2.9.2 / FluentAssertions 7.0.0 / Test.Sdk 17.11.1)*  
 > **Phạm vi kiểm định:** Thư viện dùng chung `Shared.DecisionContractSDK` (v1.0.0)  
 > **Người thực hiện:** TADSS Core Engineering Team (Sinh viên 1 & Sinh viên 2)  
 > **Trạng thái:** ✅ **ALL PRE-FLIGHT CHECKS, QUALITY GATES & REPRODUCIBILITY AUDITS PASSED**

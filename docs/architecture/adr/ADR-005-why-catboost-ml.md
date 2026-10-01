@@ -13,10 +13,11 @@ Khi mở rộng từ nền tảng hạ tầng `TADSS Runtime Engine` (Đồ án 
 
 ## Hệ quả
 *   **Tích cực (Positive):**
-    *   Đảm bảo các trường dữ liệu trong `Shared.DecisionContractSDK` v1.0.0 của Đồ án 2 được thiết kế đủ tính tổng quát để tái sử dụng ở Khóa luận mà không vi phạm chính sách đóng băng hợp đồng (Contract Freeze).
-    *   Giữ cho phạm vi Đồ án 2 hoàn toàn tinh gọn, tập trung 100% vào độ tin cậy vận hành (Operational Trustworthiness & Fault Tolerance) của Runtime Engine.
+    *   Contract v2 của Đồ án 2 đã bổ sung lịch sử khách (`history`) và snapshot request được lưu trong audit, nên Khóa luận có sẵn đặc trưng và nhãn kết quả (`decision_outcomes`) mà không phải đổi contract.
+    *   Giữ cho phạm vi Đồ án 2 tập trung vào độ tin cậy vận hành của Runtime Engine.
 *   **Tiêu cực (Negative):**
-    *   Không hiện thực hóa trong phạm vi 16 tuần của Đồ án 2.
+    *   Không hiện thực trong Đồ án 2. Lựa chọn mô hình cuối cùng phụ thuộc dữ liệu thực tế thu được (xem [`RESEARCH_THESIS_DEFENSE.md`](../../research/RESEARCH_THESIS_DEFENSE.md)); CatBoost là baseline định hướng, không phải cam kết.
+    *   Strategy học máy có thể nặng CPU, nên cần cơ chế cách ly timeout của runtime v2 (ADR-003).
 
 ## Phương án thay thế đã cân nhắc (Cho Khóa luận)
 1.  **Sử dụng XGBoost / LightGBM:** Yêu cầu tiền xử lý biến phân loại thủ công phức tạp hơn CatBoost.

@@ -7,7 +7,10 @@
 Cả ba thành phần phần mềm (Case Study App, Runtime Platform và các Decision Strategies) đều cần trao đổi thông tin đặt chỗ và kết quả quyết định. Nếu định nghĩa riêng biệt cấu trúc dữ liệu ở từng dự án, nguy cơ bất đồng bộ dữ liệu (data model drift) khi thay đổi schema là rất lớn, làm tăng chi phí bảo trì và kiểm thử.
 
 ## Quyết định
-Sử dụng tiếp cận **SDK-First** bằng cách tạo dự án thư viện dùng chung **Shared.DecisionContractSDK** làm nhân dùng chung (Shared Kernel). Dự án này chứa tất cả các định nghĩa về Domain Entities (`Reservation` Aggregate Root), Value Objects, Enums, DTOs (`DecisionRequest`, `DecisionResult`, `DecisionError`) và Interface của Strategy.
+Sử dụng tiếp cận **SDK-First** bằng cách tạo dự án thư viện dùng chung **Shared.DecisionContractSDK** làm nhân dùng chung (Shared Kernel). Dự án này chứa tất cả các định nghĩa về Domain Entities (`Reservation` Aggregate Root), Value Objects, Enums, DTOs (`DecisionRequestDto`, `DecisionResultDto`, `DecisionDetailDto`, DTO override/hàng chờ), mã lỗi (`ErrorCodes`) và Interface của Strategy. SDK chỉ phụ thuộc BCL (0 NuGet).
+
+## Điều chỉnh khi re-baseline (01/10/2026)
+SDK v1.0.0 đóng băng tại Milestone 2. Do v1 không biểu diễn được nghiệp vụ cọc, SDK được nâng lên v2.0.0 và đóng băng lại tại Milestone 5 — xem ADR-007 trong [`ARCHITECTURE_DECISION_RECORDS.md`](../ARCHITECTURE_DECISION_RECORDS.md) và [`INTEGRATION_SPEC.md`](../../contracts/INTEGRATION_SPEC.md).
 
 ## Hệ quả
 *   **Tích cực (Positive):**

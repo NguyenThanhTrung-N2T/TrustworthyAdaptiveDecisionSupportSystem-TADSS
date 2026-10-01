@@ -1,113 +1,168 @@
-# 📜 TADSS Decision Persistence & Data Invariants Specification
+# BẤT BIẾN LƯU TRỮ QUYẾT ĐỊNH & SCHEMA `tadss` — v2.0
 
-> **Tài liệu đặc tả các Invariants cốt lõi của tầng lưu trữ quyết định (Decision Persistence Layer)**  
-> **Database:** `tadssdb` | **Schema:** `tadss` | **Bảng chính:** `tadss.decision_executions`  
-> **Phân loại kiến trúc:** *Decision Execution Audit Ledger with Immutable Machine Snapshot and Mutable Governance Metadata*  
-> **📌 Khóa Phạm vi (Scope Lock):** Toàn bộ 4 Invariants lưu trữ dưới đây thuộc phạm vi bắt buộc của **Đồ án 2 (`TADSS Runtime Engine`)** nhằm bảo đảm tính toàn vẹn kiểm toán (Audit Provenance) và cơ chế ghi đè an toàn (Human-in-the-Loop). Việc khai thác dữ liệu lịch sử này cho các bài toán học máy hoặc nghiên cứu triệt tiêu thuộc giai đoạn tương lai **`[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`**.
-
----
-
-## 1. INVARIANT 1: `decision_id` Lifecycle & Idempotency Semantics
-
-### 1.1. Định nghĩa Định danh
-* **`id` (UUIDv4):** Khóa chính vật lý (*Physical Primary Key*) của bản ghi kiểm toán trong bảng `tadss.decision_executions`.
-* **`decision_id` (UUIDv4):** Mã định danh logic duy nhất (*Globally Unique Logical Decision Evaluation ID*) của một phiên thực thi đánh giá do engine TADSS sinh ra.
-* **`reservation_id` (UUIDv4):** Mã định danh đơn đặt sân (*Booking Entity Reference*) từ hệ thống SmashCourt.
-
-### 1.2. Mối quan hệ Cardinality ($1:N$)
-$$\text{Reservation} \ (1) \longrightarrow (N) \ \text{DecisionExecutions}$$
-Một đơn đặt sân (`reservation_id`) có thể trải qua nhiều chu kỳ ra quyết định trong vòng đời của nó:
-1. Đánh giá sơ bộ khi khách chọn khung giờ (*Initial Quote*).
-2. Đánh giá lại trước khi thanh toán cọc (*Pre-checkout Re-evaluation*).
-3. Đánh giá lại khi khách yêu cầu đổi lịch (*Rescheduling*).
-4. Đánh giá hậu can thiệp của Quản lý (*Post-override Evaluation*).
-
-Mỗi chu kỳ đánh giá độc lập sẽ được cấp phát một **`decision_id`** duy nhất (`CONSTRAINT uq_decision_id UNIQUE (decision_id)`). Tra cứu `GET /api/v1/decisions/{decisionId}` luôn trả về chính xác 1 bản ghi execution duy nhất.
-
-### 1.3. Cơ chế Global Idempotency & Replay
-* Ràng buộc duy nhất toàn cục: `CREATE UNIQUE INDEX uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key) WHERE idempotency_key IS NOT NULL`.
-* **Quy tắc thực thi:**
-  * **Key mới:** Thực thi Strategy, lưu bản ghi mới vào DB, trả về HTTP 200 OK.
-  * **Key đã tồn tại + Payload trùng khớp (`request_hash` giống nhau):** Database chặn ghi đúp, Application trả về bản ghi `response_payload` đã thực thi trước đó mà **không chạy lại thuật toán Strategy** (Replay HTTP 200 OK).
-  * **Key đã tồn tại + Payload khác biệt:** Database chặn ghi đúp, Application từ chối và trả về **HTTP 409 Conflict (`IDEMPOTENCY_KEY_REUSE`)**.
+> **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc bảng, ràng buộc, trigger, index và bất biến của schema `tadss`. Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md).
+>
+> **Database:** PostgreSQL 16, dùng chung máy chủ với SmashCourt, tách ở schema `tadss`. Lịch sử migration nằm ở `tadss.__EFMigrationsHistory`.
 
 ---
 
-## 2. INVARIANT 2: `request_hash` Canonicalization & Hashing Rules
+## A. HIỆN TRẠNG v1 (Phase 1–4, đang chạy)
 
-### 2.1. Mục đích
-`request_hash` đóng vai trò là "dấu vân tay ngữ nghĩa" (*Deterministic Semantic Fingerprint*) của dữ liệu đầu vào, dùng cho cơ chế **Exact-Match Request-Hash Cache (Redis SHA-256)** (tra cứu nhanh $O(1)$) và phục vụ thống kê phân tích mẫu quyết định.
+Một bảng `tadss.decision_executions` (20 cột) gồm hai phần:
 
-### 2.2. Thuật toán Chuẩn hóa (Canonicalization - RFC 8785 / JCS)
-Để đảm bảo hai payload có cùng ý nghĩa nghiệp vụ luôn sinh ra cùng một mã băm SHA-256:
-1. **Trích xuất thuộc tính:** Chỉ trích xuất các trường tác động trực tiếp đến quyết định (Schedule, CustomerInfo, ResourceInfo, PaymentPolicy).
-2. **Sắp xếp khóa (Key Sorting):** Sắp xếp thứ tự các khóa theo bảng mã ASCII (Lexicographical order).
-3. **Chuẩn hóa giá trị:** Trim khoảng trắng thừa, chuẩn hóa chữ hoa cho Enum, chuẩn hóa timestamp sang ISO 8601 UTC string (giữ nguyên semantic values).
-4. **Băm SHA-256:** Tính toán chuỗi băm SHA-256 từ mảng byte UTF-8 của JSON chuẩn hóa $\rightarrow$ Xuất ra đúng **64 ký tự Hexadecimal in thường (`[0-9a-f]{64}`)**.
+- **Snapshot máy:** `decision_id`, `reservation_id`, `strategy_name`, `strategy_version`, `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `need_approval`, `request_hash`, `response_payload` (jsonb), `created_at`.
+- **Metadata quản trị (được UPDATE khi override):** `is_overridden`, `overridden_by`, `override_reason`, `version` (concurrency token), `updated_at`.
 
-### 2.3. Quy tắc Bất biến về Index
-* **Index Non-Unique:** `CREATE INDEX idx_decision_executions_request_hash ON tadss.decision_executions(request_hash);`
-* **Lý do:** Cùng một `request_hash = ABC` có thể được thực thi bởi các `strategy_version` khác nhau (v1.0.0 vs v1.1.0) hoặc tại các thời điểm khác nhau. Cả hai lần chạy đều được lưu trữ để phục vụ kiểm toán lịch sử phiên bản chính sách (và mở rộng cho đối chứng thực nghiệm `[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`).
+Ràng buộc: `UNIQUE(decision_id)`; unique partial index `uq_decision_idempotency_key` (`WHERE idempotency_key IS NOT NULL`); partial index hàng chờ `WHERE need_approval AND NOT is_overridden`.
 
----
+**Hạn chế được ghi nhận khi re-baseline:**
 
-## 3. INVARIANT 3: Human Override Invariant & Ledger Semantics
+1. Override `UPDATE` trực tiếp lên bản ghi máy; tính bất biến chỉ là quy ước trong mã, DB không chặn.
+2. Không lưu trạng thái đích (APPROVED/REJECTED) và mức cọc của override.
+3. Không lưu input của quyết định (chỉ lưu hash), nên không replay được và không dùng làm dữ liệu cho Khóa luận.
+4. Không có `branch_id` để lọc hàng chờ; mỗi lần đánh giá lại cùng reservation sinh thêm một mục chờ.
 
-### 3.1. Phân định Cấu trúc Bản ghi
-Bản ghi kiểm toán gồm 2 phần tách bạch:
-1. **Immutable Machine Decision Snapshot:** `decision_id`, `reservation_id`, `strategy_name`, `strategy_version`, `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `need_approval`, `request_hash`, `response_payload`, `created_at` — **Không bao giờ bị sửa đổi**.
-2. **Mutable Governance Metadata:** `is_overridden`, `overridden_by`, `override_reason`, `version`, `updated_at` — **Được phép cập nhật khi Manager can thiệp ghi đè**.
-
-### 3.2. Ràng buộc Logic Trạng thái Override
-Một bản ghi quyết định chỉ được coi là đã ghi đè khi và chỉ khi thỏa mãn đồng thời:
-$$\forall e \in \text{DecisionExecutions}, \quad e.\text{is\_overridden} = \text{TRUE} \iff \begin{cases} e.\text{overridden\_by} \neq \text{NULL} \land \text{LEN}(e.\text{overridden\_by}) > 0 \\ e.\text{override\_reason} \neq \text{NULL} \land \text{LEN}(e.\text{override\_reason}) > 0 \\ e.\text{updated\_at} \ge e.\text{created\_at} \end{cases}$$
-
-Khi Quản lý can thiệp ghi đè, `response_payload` gốc **giữ nguyên 100%**, đảm bảo bảo tồn nguyên vẹn dữ liệu máy phục vụ truy vết kiểm toán vận hành (Immutable Audit Trail) (và làm nguồn dữ liệu đối chứng cho giai đoạn sau `[OUT-OF-SCOPE ĐỒ ÁN 2 — Khóa luận]`).
+Thiết kế v2 dưới đây khắc phục các hạn chế trên (hiện thực ở task T5.3 — Phase 5). Dữ liệu v1 trong schema `tadss` chỉ là dữ liệu kiểm thử nên migration v2 được phép tạo lại bảng; việc tạo/áp dụng migration chỉ thực hiện khi nhóm xác nhận.
 
 ---
 
-## 4. INVARIANT 4: Audit Timestamp Ownership (Application Interceptor)
+## B. THIẾT KẾ v2
 
-### 4.1. Quyền sở hữu duy nhất (Single Source of Truth)
-Toàn bộ thời gian kiểm toán (`created_at`, `updated_at`) thuộc quyền sở hữu tuyệt đối của **`AuditTimestampInterceptor`** tại tầng Application, không phụ thuộc vào SQL trigger hay server timestamp của PostgreSQL.
-
-### 4.2. Quy tắc Vòng đời Timestamp
-| Hành động EF Core | `created_at` | `updated_at` |
-| :--- | :--- | :--- |
-| **`EntityState.Added` (Thêm mới)** | `DateTime.UtcNow` | `DateTime.UtcNow` ($= \text{created\_at}$) |
-| **`EntityState.Modified` (Cập nhật/Override)** | **Không đổi (Immutable)** | `DateTime.UtcNow` ($> \text{created\_at}$) |
-
-* **Định dạng:** Chuẩn ISO 8601 UTC (`timestamp with time zone` / `TIMESTAMPTZ` trong PostgreSQL).
-
----
-
-## 5. TỔNG HỢP KIẾN TRÚC INDEX BẢNG `tadss.decision_executions`
+### B.1. Bảng `tadss.decision_executions` — bất biến
 
 ```sql
--- 1. Primary Key
-CONSTRAINT PK_decision_executions PRIMARY KEY (id);
+CREATE TABLE tadss.decision_executions (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    decision_id         uuid         NOT NULL UNIQUE,
+    reservation_id      uuid         NOT NULL,
+    branch_id           uuid         NOT NULL,
+    role                varchar(10)  NOT NULL CHECK (role IN ('PRIMARY', 'SHADOW')),
+    strategy_name       varchar(100) NOT NULL,
+    strategy_version    varchar(20)  NOT NULL,
+    strategy_status     varchar(20)  NOT NULL,   -- kết quả gốc của strategy/fallback
+    status              varchar(20)  NOT NULL CHECK (status IN ('APPROVED', 'NEED_APPROVAL', 'REJECTED')),
+    deposit_rate        numeric(5,4) NULL CHECK (deposit_rate BETWEEN 0 AND 1),
+    deposit_amount      numeric(14,2) NULL CHECK (deposit_amount >= 0),
+    reason_code         varchar(64)  NOT NULL,
+    execution_type      varchar(20)  NOT NULL CHECK (execution_type IN ('AUTOMATED', 'FALLBACK', 'CACHE_HIT')),
+    execution_time_ms   integer      NOT NULL CHECK (execution_time_ms >= 0),
+    fallback_used       boolean      NOT NULL,
+    failure_reason      text         NULL,
+    cache_hit           boolean      NOT NULL,
+    approval_expires_at timestamptz  NULL,
+    request_hash        char(64)     NOT NULL,
+    request_payload     jsonb        NOT NULL,   -- request v2 đã chuẩn hóa
+    response_payload    jsonb        NOT NULL,
+    idempotency_key     varchar(128) NULL,
+    correlation_id      varchar(128) NULL,
+    created_at          timestamptz  NOT NULL,
+    CONSTRAINT ck_de_deposit  CHECK ((status = 'APPROVED') = (deposit_rate IS NOT NULL AND deposit_amount IS NOT NULL)),
+    CONSTRAINT ck_de_approval CHECK ((status = 'NEED_APPROVAL') = (approval_expires_at IS NOT NULL))
+);
 
--- 2. Logical Decision Evaluation Uniqueness (1:1 per evaluation lifecycle)
-CREATE UNIQUE INDEX uq_decision_id 
-ON tadss.decision_executions (decision_id);
-
--- 3. Global Request Idempotency Key
-CREATE UNIQUE INDEX uq_decision_idempotency_key 
-ON tadss.decision_executions (idempotency_key) 
-WHERE idempotency_key IS NOT NULL;
-
--- 4. Telemetry & Entity Lookup
-CREATE INDEX idx_decision_executions_request_hash 
-ON tadss.decision_executions (request_hash);
-
-CREATE INDEX idx_decision_executions_reservation_id 
-ON tadss.decision_executions (reservation_id);
-
-CREATE INDEX idx_decision_executions_created_at 
-ON tadss.decision_executions (created_at);
-
--- 5. Manager Dashboard Partial Index (Hot Queue)
-CREATE INDEX idx_decision_executions_pending_approval 
-ON tadss.decision_executions (created_at DESC) 
-WHERE (need_approval = TRUE AND is_overridden = FALSE);
+CREATE UNIQUE INDEX uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key)
+    WHERE idempotency_key IS NOT NULL AND role = 'PRIMARY';
+CREATE INDEX idx_de_reservation_created ON tadss.decision_executions (reservation_id, created_at DESC);
+CREATE INDEX idx_de_pending ON tadss.decision_executions (branch_id, created_at)
+    WHERE status = 'NEED_APPROVAL' AND role = 'PRIMARY';
+CREATE INDEX idx_de_request_hash ON tadss.decision_executions (request_hash);
+CREATE INDEX idx_de_created_at ON tadss.decision_executions (created_at);
 ```
+
+### B.2. Bảng `tadss.decision_overrides` — append-only
+
+```sql
+CREATE TABLE tadss.decision_overrides (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    decision_id     uuid          NOT NULL UNIQUE REFERENCES tadss.decision_executions (decision_id),
+    action          varchar(10)   NOT NULL CHECK (action IN ('APPROVE', 'REJECT')),
+    deposit_rate    numeric(5,4)  NULL CHECK (deposit_rate BETWEEN 0 AND 1),
+    deposit_amount  numeric(14,2) NULL CHECK (deposit_amount >= 0),
+    actor_id        varchar(100)  NOT NULL,
+    reason          text          NOT NULL CHECK (char_length(reason) BETWEEN 5 AND 500),
+    idempotency_key varchar(128)  NOT NULL,
+    created_at      timestamptz   NOT NULL,
+    CONSTRAINT ck_do_deposit CHECK ((action = 'APPROVE') = (deposit_rate IS NOT NULL AND deposit_amount IS NOT NULL))
+);
+```
+
+### B.3. Bảng `tadss.decision_outcomes` — append-only
+
+```sql
+CREATE TABLE tadss.decision_outcomes (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    decision_id uuid        NOT NULL UNIQUE REFERENCES tadss.decision_executions (decision_id),
+    outcome     varchar(40) NOT NULL CHECK (outcome IN ('COMPLETED', 'NO_SHOW', 'CANCELLED_BY_CUSTOMER',
+                    'CANCELLED_BY_STAFF', 'PAYMENT_EXPIRED', 'APPROVAL_EXPIRED', 'REJECTED')),
+    occurred_at timestamptz NOT NULL,
+    reported_at timestamptz NOT NULL
+);
+```
+
+### B.4. Trigger chặn sửa/xóa
+
+```sql
+CREATE FUNCTION tadss.reject_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'Bảng %.% là append-only', TG_TABLE_SCHEMA, TG_TABLE_NAME USING ERRCODE = 'P0001';
+END $$;
+
+-- Áp dụng cho cả 3 bảng
+CREATE TRIGGER trg_de_append_only BEFORE UPDATE OR DELETE ON tadss.decision_executions
+    FOR EACH ROW EXECUTE FUNCTION tadss.reject_mutation();
+CREATE TRIGGER trg_de_no_truncate BEFORE TRUNCATE ON tadss.decision_executions
+    FOR EACH STATEMENT EXECUTE FUNCTION tadss.reject_mutation();
+-- (tương tự cho decision_overrides và decision_outcomes)
+```
+
+### B.5. Truy vấn hàng chờ duyệt
+
+```sql
+WITH latest AS (
+    SELECT DISTINCT ON (reservation_id) *
+    FROM tadss.decision_executions
+    WHERE role = 'PRIMARY' AND branch_id = @branchId
+    ORDER BY reservation_id, created_at DESC
+)
+SELECT l.*
+FROM latest l
+LEFT JOIN tadss.decision_overrides o ON o.decision_id = l.decision_id
+LEFT JOIN tadss.decision_outcomes  r ON r.decision_id = l.decision_id
+WHERE l.status = 'NEED_APPROVAL'
+  AND o.id IS NULL AND r.id IS NULL
+  AND l.approval_expires_at > now()
+ORDER BY l.approval_expires_at
+LIMIT @pageSize OFFSET @offset;
+```
+
+"Thay thế bản cũ" được thực hiện bằng cách chỉ lấy bản mới nhất của mỗi reservation, không cần sửa bản ghi cũ.
+
+---
+
+## C. BẤT BIẾN v2
+
+| Mã | Bất biến | Cơ chế bảo đảm | Kiểm thử |
+| :--- | :--- | :--- | :--- |
+| **INV-1** | Mỗi lần đánh giá có một `decision_id` duy nhất; quan hệ reservation : decision là 1 : N | `UNIQUE(decision_id)` | IT-01 |
+| **INV-2** | Cùng `idempotency_key` (PRIMARY) chỉ có một bản ghi; payload khác bị từ chối | Unique partial index + so sánh `request_hash` | IT-02, IT-03, IT-04 |
+| **INV-3** | `request_hash` tất định, không phụ thuộc múi giờ/culture của máy chủ | Chuẩn hóa canonical theo thứ tự trường cố định, thời gian quy về UTC từ giá trị có offset | UT-06 |
+| **INV-4** | Ba bảng audit không bị sửa/xóa sau khi ghi | Trigger B.4 | IT-05 |
+| **INV-5** | Mỗi quyết định có tối đa một override; chỉ override được quyết định `PRIMARY`, `NEED_APPROVAL`, chưa hết hạn; APPROVE phải có mức cọc | `UNIQUE(decision_id)` + CHECK + kiểm tra ở ứng dụng | IT-06, IT-07, IT-08 |
+| **INV-6** | Mỗi quyết định có tối đa một outcome | `UNIQUE(decision_id)` | IT-10 |
+| **INV-7** | `APPROVED` ⇔ có mức cọc; `NEED_APPROVAL` ⇔ có hạn duyệt | CHECK `ck_de_deposit`, `ck_de_approval` | IT-01, UT-10 |
+| **INV-8** | Bản ghi `SHADOW` không ảnh hưởng response và không vào hàng chờ | Lọc `role = 'PRIMARY'` | IT-12 |
+| **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC | `AuditTimestampInterceptor` | IT-01 |
+| **INV-10** | Request trả về thành công khi và chỉ khi bản ghi audit đã được lưu (fail-closed) | Ghi đồng bộ trước khi trả response | FI-08, SC3 |
+
+### C.1. Định danh
+
+- `id`: khóa chính vật lý.
+- `decision_id`: định danh logic của một lần đánh giá, trả về cho client.
+- `reservation_id`: định danh đơn bên client (SmashCourt `bookingId`).
+
+### C.2. Quy tắc tính `request_hash`
+
+1. Lấy các trường nghiệp vụ của request v2 (không gồm `requestedAt` và `metadata` không ảnh hưởng quyết định — danh sách trường được khai báo trong mã).
+2. Thời gian quy về UTC từ giá trị có offset, định dạng `yyyy-MM-ddTHH:mm:ssZ`; chuỗi phân loại viết hoa; số tiền định dạng bất biến theo culture.
+3. Dựng object canonical theo thứ tự trường cố định, serialize JSON không khoảng trắng.
+4. SHA-256 trên UTF-8 → 64 ký tự hex thường.

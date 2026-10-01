@@ -3,8 +3,10 @@
 - **Document Version**: `1.0.0`
 - **Target Runtime**: `TADSS.Runtime.Api` (.NET 8)
 - **Primary Consumer**: `SmashCourt-BE` (Core Booking & Management Backend)
-- **Status**: `LOCKED / SOURCE OF TRUTH`
-- **Last Updated**: `2026-09-13`
+- **Status**: `FROZEN v1 — ĐÃ TRIỂN KHAI, LƯU TRỮ`
+- **Last Updated**: `2026-10-01` (re-baseline)
+
+> **Ghi chú re-baseline (01/10/2026):** tài liệu này mô tả đúng contract v1 đang chạy trong mã nguồn và được giữ làm hồ sơ của Milestone 2. Contract v1 không biểu diễn được nghiệp vụ cọc đã chốt (số tiền cọc, override kèm mức cọc, chi nhánh, nhiều sân, khách vãng lai), nên **contract v2** thay thế v1 cho mọi tích hợp mới — xem [`INTEGRATION_SPEC.md`](INTEGRATION_SPEC.md). Endpoint `/api/v1` được gỡ khi v2 đóng băng (Milestone 5) vì chưa có consumer nào tích hợp v1.
 
 ---
 
@@ -315,9 +317,9 @@ Hệ thống thiết lập chuỗi chịu lỗi 2 tầng (Two-Tier Resilience Pi
    - Giới hạn thời gian thực thi của mỗi lượt gọi Strategy (3 attempts × 120ms + 2 delays × 30ms = 420ms < 500ms SLA).
    - Khi Strategy bị timeout (>120ms) hoặc ném ngoại lệ: Polly kích hoạt Retry (tối đa 2 lần, tổng 3 attempts với base delay 30ms) $\rightarrow$ Circuit Breaker $\rightarrow$ Chuyển sang **Fallback Strategy** (`FallbackDecisionStrategy` — chế độ dự phòng an toàn).
    - Kết quả trả về: **HTTP 200 OK** kèm metadata `fallbackUsed: true`, `status: "NEED_APPROVAL"`.
-3. **Outer Global Deadline (500 ms Hard Ceiling)**:
-   - Giới hạn thời gian tối đa cho toàn bộ chu trình xử lý request.
-   - Nếu tổng thời gian thực thi (bao gồm mọi retries, DB access, logic) vượt quá 500ms: Hệ thống ngắt toàn bộ pipeline (`TimeoutRejectedException`) và trả về **HTTP 504 Gateway Timeout** (không qua Fallback).
+3. **Outer Deadline của phần thực thi strategy (500 ms)**:
+   - Giới hạn tổng thời gian của các lần thử strategy và retry delay. Đọc/ghi cache và ghi audit **nằm ngoài** deadline này, nên độ trễ toàn endpoint có thể lớn hơn 500ms.
+   - Nếu phần thực thi strategy vượt quá 500ms: pipeline ngắt (`TimeoutRejectedException`) và trả về **HTTP 504 Gateway Timeout** (không qua Fallback). Với cấu hình hiện tại (3 × 120ms + 2 × 30ms = 420ms), trường hợp này chỉ xảy ra khi có độ trễ lập lịch bất thường.
 
 ### 504 Gateway Timeout Response Example:
 ```http
@@ -365,8 +367,8 @@ X-Correlation-ID: cor-9988-7766-5544
 ## 14. Machine-Readable Contract
 
 For automated client SDK generation, validation tooling, and automated contract testing, see:
-- **OpenAPI 3.0 Specification**: [`docs/contracts/openapi-v1.yaml`](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/TADSS-Runtime/docs/contracts/openapi-v1.yaml)
-- **JSON Schemas (Draft 7 / 2020-12)**: [`docs/contracts/schemas/`](file:///d:/SINH%20VIEN/HK6/DA1/SmashCourt/TADSS-Runtime/docs/contracts/schemas/)
+- **OpenAPI 3.0 Specification**: [`openapi-v1.yaml`](openapi-v1.yaml)
+- **JSON Schemas (Draft 2020-12)**: [`schemas/`](schemas/)
   - `decision-request.schema.json`
   - `decision-result.schema.json`
   - `decision-recommendation.schema.json`
