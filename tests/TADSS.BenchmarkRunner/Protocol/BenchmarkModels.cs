@@ -161,8 +161,6 @@ public sealed class BenchmarkSuiteConfig
 
     public string OutputDirectory { get; init; } = BenchmarkDefaults.DefaultOutputDirectory;
 
-    public string DatasetsOutputDirectory { get; init; } = BenchmarkDefaults.DefaultDatasetsDirectory;
-
     public BenchmarkResilienceSettings Resilience { get; init; } = new();
 
     public BenchmarkFaultTimingSettings FaultTiming { get; init; } = new();

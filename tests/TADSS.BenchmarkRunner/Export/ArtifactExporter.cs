@@ -113,6 +113,7 @@ public static class ArtifactExporter
         sb.AppendLine("# 📊 TADSS Week 8 — Controlled Experimental Benchmark Report");
         sb.AppendLine();
         sb.AppendLine($"> **Báo cáo Kết quả Thực nghiệm Toàn diện ({activeScenarios.Count} Kịch bản $\\times$ {concurrencyLevels.Count} Mức tải = {summaries.Count} Lượt chạy Thực nghiệm: $G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ tại $VUs \\in \\{{{vuListFormatted}\\}}$)**  ");
+        sb.AppendLine("> ⚠️ **Phạm vi diễn giải:** micro-benchmark phòng lab — runtime chạy với EF Core InMemory, strategy là test double độ trễ `Task.Delay`, độ trễ WAN cache/DB là giả lập. Kết quả chỉ mô tả overhead của pipeline, **không** dùng làm minh chứng KPI SC1–SC9 (xem `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`).  ");
         sb.AppendLine("> **Phạm vi Đánh giá (Scope Lock):** **Đồ án 2 — Nền tảng TADSS Decision Runtime Engine** *(Đo lường thuần túy hạ tầng Runtime, Request-Hash Cache L1/L2, Polly v8 Resilience Pipeline và Synchronous Audit Persistence trên các chiến lược quy tắc nghiệp vụ tất định `DefaultDecisionStrategy v1.0.0` & Fault-Injected Decorators; hoàn toàn không sử dụng mô hình AI/ML)*  ");
         sb.AppendLine($"> **Thời điểm thực thi (UTC):** `{firstMeta.TimestampUtc}`  ");
         sb.AppendLine($"> **Môi trường máy trạm:** `{firstMeta.MachineName}` | `{firstMeta.OsDescription}` | `{firstMeta.CpuCores} Logical Cores` | `.NET {firstMeta.DotNetVersion}`  ");
