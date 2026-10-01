@@ -1,86 +1,97 @@
-# 🛡️ TADSS Failure Taxonomy & Resilience Architecture Specification
+# PHÂN LOẠI LỖI & KIẾN TRÚC CHỊU LỖI — v2.0
 
-> **Tài liệu đặc tả Phân loại Lỗi và Kiến trúc Chịu lỗi (Resilience Architecture)**  
-> **Áp dụng cho:** TADSS-Runtime Engine (Phase 4 — Weeks 7, 8, 9)  
-> **Trạng thái:** *Locked Architectural Baseline for Empirical Fault Injection*  
+> **Vai trò của tài liệu:** nguồn duy nhất về miền lỗi, cấu hình pipeline chịu lỗi và ngữ nghĩa xử lý từng loại lỗi. Kịch bản kiểm thử tương ứng (FI-01…FI-14): [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
----
+Mục tiêu của tầng chịu lỗi không phải chứng minh "zero downtime" cho toàn hệ thống, mà là:
 
-## 1. TỔNG QUAN VÀ NGUYÊN TẮC THIẾT KẾ (CORE PRINCIPLES)
-
-Mục tiêu của tầng Resilience trong TADSS không phải là chứng minh "Zero Downtime" toàn diện của toàn bộ hệ sinh thái đặt sân, mà là chứng minh:
-
-> **Decision-Path Availability & Continuity under Dependency and Strategy Failure**  
-> *(Khả năng duy trì luồng ra quyết định liên tục và an toàn khi các phụ thuộc tính toán gặp sự cố)*
-
-### Các Nguyên tắc & Ràng buộc Bất biến (Core Invariants):
-1. **Resilience Budget Invariant:**
-   $$\text{Total Resilience Execution Budget} < \text{Outer Decision Timeout Budget (500ms)}$$
-   *Tổng thời gian thực thi của mọi lần thử (Inner Attempt Timeouts) cộng với độ trễ Retry Backoff Delays bắt buộc phải nằm trong giới hạn của Hard Deadline toàn cục (500ms).*
-2. **Failure Domain Isolation & Cache Degradation Invariant:**
-   *Sự cố hạ tầng Cache (Redis Unavailable) **TUYỆT ĐỐI KHÔNG ĐƯỢC** kích hoạt Fallback của Strategy, không làm thay đổi kết quả nghiệp vụ, không gây bão Retry (Retry Storm), và không được ghi nhận là lỗi của Strategy.* Khi Redis gặp sự cố:
-   - Nếu `EnableFallbackToMemory = true` (mặc định): Hệ thống suy thoái êm sang L1 In-Memory Cache (nếu L1 Miss $\rightarrow$ tính toán bình thường và ghi tạm vào L1; nếu L1 Hit $\rightarrow$ trả kết quả cache tương đương ngữ nghĩa).
-   - Nếu không có L1 Cache hoặc L1 Miss: Kích hoạt ngữ nghĩa **Cache Bypass / Miss Semantics** (Strategy tính toán bình thường).
-   - **Business-Decision Equivalence:** Dù đọc từ L1 Memory Cache hay tính toán trực tiếp từ Strategy, kết quả nghiệp vụ của quyết định hoàn toàn tương đương.
-3. **Mandatory Audit Policy Invariant (Policy A):**
-   *Trong Phase 4 baseline, việc lưu trữ bản ghi kiểm toán (`decision_executions`) được coi là một phần không thể tách rời của một phiên ra quyết định thành công. Nếu cơ sở dữ liệu PostgreSQL không thể ghi bản ghi audit $\rightarrow$ Hệ thống từ chối trả quyết định cho client và báo lỗi HTTP 500/503. (Chính sách B - Outbox Queue bất đồng bộ là mở rộng tương lai, không thuộc phạm vi Phase 4).*
-4. **Caller Cancellation Invariant:**
-   *Khi client chủ động hủy request (`CancellationToken` kích hoạt) $\rightarrow$ Hệ thống dừng xử lý ngay lập tức. Hành vi này **TUYỆT ĐỐI KHÔNG ĐƯỢC** tạo bản ghi quyết định hoàn tất trong bảng `decision_executions` (tránh rác audit), nhưng vẫn được phép ghi log vận hành (Application/Operational Log) kèm `CorrelationId` và thời gian thực thi để phục vụ giám sát hệ thống.*
-5. **Deterministic Fallback Semantics (`FallbackDecisionStrategy` $\neq$ `DefaultDecisionStrategy`):**
-   *Khi Strategy gặp sự cố quá ngân sách retry hoặc Circuit Breaker ở trạng thái `OPEN`, hệ thống chuyển sang `FallbackDecisionStrategy` (thiết kế có đường dẫn thực thi hữu hạn, không phụ thuộc I/O ngoài, không ném lỗi kể cả khi thiếu ngữ cảnh, có thể dự đoán và kiểm toán) — tách biệt hoàn toàn với `DefaultDecisionStrategy` (chính sách nghiệp vụ cơ sở thông thường). TADSS fallback chỉ chịu trách nhiệm duy trì decision-path continuity và chuyển sang trạng thái `NEED_APPROVAL`. Transactional/business fallback policy, nếu có, thuộc trách nhiệm của reservation platform và nằm ngoài decision authority của TADSS. Bản ghi kiểm toán ghi nhận rõ ràng:*
-   $$\text{ExecutionType} = \text{FALLBACK}, \quad \text{FallbackUsed} = \text{TRUE}, \quad \text{FailureReason} = \text{STRATEGY\_TIMEOUT} \mid \text{STRATEGY\_EXCEPTION} \mid \text{CIRCUIT\_BREAKER\_OPEN}$$
-6. **Immutability by Governance Invariant:**
-   *Dữ liệu quyết định do máy sinh ra (`response_payload`, `strategy_name`, `strategy_version`, `execution_time_ms`, `fallback_used`, `failure_reason`) là **bất biến theo quy tắc quản trị ứng dụng sau khi thực thi (immutable by application/governance invariant after execution)**. Mọi can thiệp ghi đè của con người chỉ cập nhật vào metadata quản trị (`is_overridden`, `overridden_by`, `override_reason`, `version`, `updated_at`).*
+> **Luồng ra quyết định luôn kết thúc bằng một kết quả an toàn trong ngân sách thời gian, và sự cố của TADSS không bao giờ làm hỏng booking của SmashCourt.**
 
 ---
 
-## 2. PHÂN LOẠI 3 MIỀN LỖI (FAILURE TAXONOMY)
+## 1. PIPELINE CHỊU LỖI (POLLY v8)
 
 ```text
-                               ┌───────────────────────────────────┐
-                               │       Decision Request Arrives    │
-                               └─────────────────┬─────────────────┘
-                                                 │
-                   ┌─────────────────────────────┼─────────────────────────────┐
-                   ▼                             ▼                             ▼
-        [1. Decision Dependency]      [2. Infra Persistence]        [3. Caller Behavior]
-        - Strategy Timeout            - Redis Connection Drop       - CancellationToken
-        - Strategy Exception          - PostgreSQL Connection/Write   Triggered (Client Abort)
-        - Circuit Breaker OPEN          Timeout or Refusal                     │
-                   │                             │                             ▼
-                   ▼                             ▼                    ┌──────────────────┐
-        ┌──────────────────────┐        ┌──────────────────┐          │ Prompt Abort     │
-        │ Deterministic        │        │ Policy A:        │          │ No Retry         │
-        │ Fallback Strategy    │        │ Mandatory Audit  │          │ No Fallback      │
-        │ (Audit: FALLBACK)    │        │ (Redis: Bypass)  │          │ App Log only     │
-        └──────────────────────┘        └──────────────────┘          └──────────────────┘
+Outer Timeout 500ms ─ deadline cho toàn bộ phần thực thi strategy
+ └─ Fallback ─ FallbackDecisionStrategy → NEED_APPROVAL (fallbackUsed = true)
+     └─ Retry ─ tối đa 2 lần, delay cố định 30ms (tổng 3 lần thử)
+         └─ Circuit Breaker ─ FailureRatio 0.5, SamplingDuration 30s, MinimumThroughput 10, BreakDuration 15s
+             └─ Inner Timeout 120ms ─ mỗi lần thử
+                 └─ Strategy.EvaluateAsync()
+```
+
+| Tham số (`Tadss:Resilience`) | Giá trị |
+| :--- | :--- |
+| `OuterTimeoutMs` | 500 |
+| `InnerTimeoutMs` | 120 |
+| `MaxRetryAttempts` | 2 |
+| `RetryBaseDelayMs` | 30 |
+| `CircuitBreakerFailureRatio` | 0.5 |
+| `CircuitBreakerSamplingSeconds` | 30 |
+| `CircuitBreakerMinimumThroughput` | 10 |
+| `CircuitBreakerBreakDurationSeconds` | 15 |
+
+**Ngân sách cấu hình:** 3 × 120ms + 2 × 30ms = 420ms < 500ms. Đây là ràng buộc cấu hình; độ trễ thực tế phải đo (SC2).
+
+**Phạm vi của outer timeout:** chỉ bao phần thực thi strategy (retry, circuit breaker, các lần thử). Đọc/ghi cache và ghi audit nằm ngoài pipeline, nên độ trễ toàn endpoint = thời gian pipeline + cache + ghi audit + serialize. KPI SC2 đo riêng hai đại lượng này.
+
+**Bổ sung ở v2 (Phase 5):**
+
+- **Cách ly strategy không hợp tác:** strategy được thực thi sao cho Inner Timeout vẫn cắt được kể cả khi strategy bỏ qua `CancellationToken` hoặc chạy đồng bộ nặng CPU (task bị bỏ, kết quả trễ bị bỏ qua). Đây là điều kiện cần cho strategy học máy ở Khóa luận.
+- **Circuit breaker cho Redis:** khi Redis lỗi liên tiếp, cache bị bỏ qua trong một khoảng thời gian thay vì mọi request đều chờ hết timeout của Redis.
+- **Quy tắc approval window:** xem Mục 1.1 trong [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md).
+
+---
+
+## 2. NGUYÊN TẮC BẤT BIẾN
+
+1. **Ngân sách:** tổng thời gian các lần thử + delay ≤ outer timeout.
+2. **Cô lập miền lỗi cache:** lỗi Redis không kích hoạt fallback của strategy, không đổi kết quả nghiệp vụ, không gây bão retry; cache được coi như miss.
+3. **Audit bắt buộc (fail-closed):** không ghi được audit thì không trả quyết định — trả 503 `PERSISTENCE_UNAVAILABLE`. (Outbox bất đồng bộ là future work.)
+4. **Client hủy request:** dừng xử lý, không tạo bản ghi audit, chỉ ghi log vận hành kèm correlation id.
+5. **Fallback tất định, tách khỏi chính sách nghiệp vụ:** `FallbackDecisionStrategy` không gọi I/O, không ném lỗi, luôn trả `NEED_APPROVAL`; tách biệt với `DefaultDecisionStrategy`. Mức cọc 100% khi TADSS không khả dụng là chính sách của SmashCourt, không phải của TADSS.
+6. **Bất biến audit:** bản ghi quyết định, override và outcome không bị sửa sau khi ghi (DB trigger — xem [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md)).
+7. **SmashCourt không phụ thuộc cứng vào TADSS:** mọi lỗi phía TADSS (timeout, 5xx, 401, mất mạng) → SmashCourt áp cọc 100%, booking vẫn hợp lệ.
+
+---
+
+## 3. BỐN MIỀN LỖI
+
+```text
+                         Yêu cầu quyết định
+                                │
+   ┌──────────────────┬─────────┴─────────┬──────────────────────┐
+   ▼                  ▼                   ▼                      ▼
+[1] Strategy      [2] Hạ tầng TADSS   [3] Caller            [4] Tích hợp SmashCourt ↔ TADSS
+timeout, lỗi,     Redis, PostgreSQL   hủy request           TADSS dừng/chậm, mất mạng,
+circuit mở                                                  flag tắt
+   │                  │                   │                      │
+Fallback →        Redis: bỏ qua cache   Dừng ngay,            SmashCourt áp 100%,
+NEED_APPROVAL     PG: fail-closed 503   không ghi audit       booking nhất quán
 ```
 
 ---
 
-## 3. MA TRẬN NGỮ NGHĨA VÀ HÀNH VI CHỊU LỖI (FAILURE SEMANTICS MATRIX)
+## 4. MA TRẬN NGỮ NGHĨA LỖI
 
-Bảng ma trận chi tiết 7 kịch bản lỗi cốt lõi (F1 ➔ F7) dùng làm đặc tả kỹ thuật cho bộ **Fault Injection Integration Tests** trong Tuần 7:
-
-| Mã | Kịch bản Lỗi (Fault Scenario) | Miền Lỗi | Cơ chế Phát hiện (Detection) | Chính sách (Policy) | Quyết định Trả về (Decision) | Retry? | Fallback? | Ghi nhận Audit Ledger | `failure_reason` |
-| :---: | :--- | :--- | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
-| **F1** | Per-attempt strategy timeout trong ngân sách | Decision | Task timeout cancellation (120ms) | Polly Constant Retry | Kết quả Strategy gốc (lần retry sau thành công) | **Có** | Không | Ghi nhận Execution bình thường | `null` |
-| **F2** | Strategy Timeout cạn kiệt ngân sách Retry | Decision | Retry attempts exhausted / Outer timeout | Fallback Execution | Quyết định từ `Deterministic Fallback` | **Có** (đã cạn) | **Có** | `ExecutionType = FALLBACK`, `FallbackUsed = true` | `STRATEGY_TIMEOUT` |
-| **F3** | Strategy ném ngoại lệ nội bộ không phục hồi | Decision | Exception Catch Filter | Fallback Execution | Quyết định từ `Deterministic Fallback` | Tùy Exception | **Có** | `ExecutionType = FALLBACK`, `FallbackUsed = true` | `STRATEGY_EXCEPTION` |
-| **F4** | Circuit Breaker đang ở trạng thái `OPEN` | Decision | Polly Circuit State Check | Fast-fail Bypass | Quyết định từ `Deterministic Fallback` | **Không** | **Có** | `ExecutionType = FALLBACK` ($T \approx 0\text{ms}$) | `CIRCUIT_BREAKER_OPEN` |
-| **F5** | Redis không khả dụng / Connection drop | Infra Cache | `RedisConnectionException` | L1 In-Memory Fallback / Cache Miss Semantics | Quyết định tương đương nghiệp vụ (từ L1 hoặc Strategy) | **Không** | **Không** | `cache_hit = true/false`, `fallback_used = false`, ghi log Warning | `null` |
-| **F6** | PostgreSQL Down / Write Timeout | Infra DB | `NpgsqlException` / `DbUpdateException` | Policy A (Mandatory Audit Consistency) | Lỗi hệ thống (HTTP 500 / 503 Service Unavailable) | **Không** | **Không** | Không thể ghi DB (Log Error cấp hệ thống) | `PERSISTENCE_FAILURE` |
-| **F7** | Caller chủ động Cancel Request | Caller | `CancellationToken.IsCancellationRequested` | Immediate Abort | Hủy xử lý (HTTP Aborted) | **Không** | **Không** | **KHÔNG** tạo bản ghi quyết định, chỉ ghi App Log | N/A |
+| Mã cũ (v1) | Kịch bản | Miền | Xử lý | Kết quả | `execution_type` / `failure_reason` | Kiểm thử v2 |
+| :---: | :--- | :---: | :--- | :--- | :--- | :---: |
+| F1 | Strategy chậm ở lần thử đầu, lần sau thành công | 1 | Retry | Kết quả của strategy | `AUTOMATED` / `null` | FI-01 |
+| F2 | Strategy chậm ở mọi lần thử | 1 | Fallback | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-02 |
+| F3 | Strategy ném lỗi | 1 | Retry → Fallback | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_EXCEPTION` | FI-03 |
+| F4 | Circuit đang mở | 1 | Fast-fail → Fallback | `NEED_APPROVAL` | `FALLBACK` / `CIRCUIT_BREAKER_OPEN` | FI-04 |
+| — | Strategy không hợp tác (bỏ qua token, bận CPU) | 1 | Cách ly + timeout | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-05 |
+| F5 | Redis mất kết nối / chậm | 2 | Bỏ qua cache (breaker Redis) | Kết quả bình thường | `AUTOMATED` / `null` | FI-06, FI-07 |
+| F6 | PostgreSQL mất kết nối | 2 | Fail-closed | 503 `PERSISTENCE_UNAVAILABLE` | không ghi được | FI-08 |
+| — | PostgreSQL chậm | 2 | Chờ trong giới hạn | Kết quả bình thường, độ trễ tăng | — | FI-09 |
+| F7 | Client hủy request | 3 | Dừng ngay | Không có response | không ghi audit | FI-10 |
+| — | TADSS dừng hoàn toàn | 4 | SmashCourt áp 100% | Booking hợp lệ | — | FI-11 |
+| — | TADSS chậm hơn timeout của BE | 4 | SmashCourt áp 100%, retry tối đa 1 lần cùng idempotency key | Không có quyết định trùng | — | FI-12 |
+| — | Tắt feature flag khi đang chạy | 4 | Reload cấu hình < 2s | Áp 100%, không gọi TADSS | — | FI-13 |
+| — | Đứt kết nối BE ↔ TADSS giữa chừng | 4 | SmashCourt áp 100% | Booking và slot nhất quán | — | FI-14 |
 
 ---
 
-## 4. KẾ HOẠCH BÀO CHẾ & KIỂM CHỨNG (VERIFICATION PLAN FOR WEEK 7)
+## 5. HIỆN TRẠNG KIỂM CHỨNG
 
-1. **Unit Test Suite:** Kiểm chứng từng Policy Handler (Polly Timeout, Circuit Breaker State Transitions `CLOSED` $\rightarrow$ `OPEN` $\rightarrow$ `HALF-OPEN` $\rightarrow$ `CLOSED`).
-2. **Integration Test Suite (Fault Injection Harness):**
-   * Giả lập độ trễ mạng và timeout có kiểm soát ($> 120\text{ms}$).
-   * Ném lỗi chiến lược có kiểm soát.
-   * Ngắt kết nối Redis để kiểm chứng suy thoái êm sang L1 In-Memory Cache và xác nhận Strategy vẫn chạy bình thường.
-   * Ngắt kết nối PostgreSQL để kiểm chứng Policy A trả về HTTP 500/503.
-   * Sử dụng đồng bộ hóa tín hiệu (`ExecutionStarted`) để kích hoạt `CancellationTokenSource.Cancel()` deterministically và xác minh không sinh bản ghi audit rác.
-3. **Auditing Invariant Verification:** Đảm bảo 100% test cases kiểm tra đúng giá trị của các cột `execution_type`, `fallback_used`, `failure_reason`, `cache_hit`, và `execution_time_ms` trong cơ sở dữ liệu.
+- **Phase 4 (v1):** F1–F7 có test tự động và đạt, nhưng chạy với EF Core InMemory và decorator `Task.Delay`. F5 (Redis) được mô phỏng bằng cache service ném exception; F6 được mô phỏng bằng interceptor ném `DbUpdateException` và trả 500 (v2 đổi thành 503). Chưa kịch bản nào được kiểm chứng trên Redis/PostgreSQL thật.
+- **Phase 5 (v2):** toàn bộ FI-01…FI-10 chạy trên hạ tầng thật (Testcontainers / docker-compose + Toxiproxy). FI-11…FI-14 chạy ở mức E2E sau khi tích hợp, kèm bộ truy vấn bất biến booking.

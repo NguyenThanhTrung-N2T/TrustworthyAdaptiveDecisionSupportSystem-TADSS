@@ -1,132 +1,156 @@
-# DANH SÁCH BẮC-LOG TRIỂN KHAI THEO PHASE (IMPLEMENTATION SPRINTS BACKLOG)
+# BACKLOG TRIỂN KHAI THEO PHASE (IMPLEMENTATION BACKLOG) — v2.0
 
-Tài liệu này phân rã toàn bộ dự án từ **Epics ➔ Features ➔ User Stories ➔ Tasks** cụ thể, phân chia trách nhiệm rõ ràng cho từng thành viên trong nhóm theo từng Phase phát triển (16 tuần cho Đồ án 2 và 12 tuần cho Khóa luận).
-
----
-
-## PHẦN A: ĐỒ ÁN 2 — NỀN TẢNG RUNTIME ENGINE CHỊU LỖI (16 TUẦN)
-
-### EPIC 1: DECISION RUNTIME PLATFORM (TADSS CORE)
+> **Vai trò của tài liệu:** phân rã mỗi phase trong [`MASTER_EXECUTION_PLAN.md`](MASTER_EXECUTION_PLAN.md) thành task có mã, owner và tiêu chí nghiệm thu. Lịch trình, gate và phân vai **chỉ** được định nghĩa ở MASTER_EXECUTION_PLAN. Mã test case (`UT-`, `IT-`, `CT-`, `FI-`, `LT-`, `E2E-`, `RP-`, `PT-`, `MT-`, `UAT-`, `BE-`, `FE-`) tham chiếu danh mục trong [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
+>
+> Quy ước: **SV1** = Lead Backend (TADSS, SmashCourt-BE, hạ tầng kiểm thử) · **SV2** = Frontend (smashcourt-fe, Playwright, k6).
 
 ---
 
-### PHASE 1: FOUNDATION & ARCHITECTURE (Tuần 1 — Tuần 2)
-*Mục tiêu: Thống nhất giao thức API Contract, thiết kế SQL Schema `tadss` và dựng khung dự án.*
+## PHASE 1–4 — ĐÃ HOÀN THÀNH (W01–W05)
 
-*   **User Story 1: Đặc tả Contract, Architecture Compliance & SQL Schema**
-    *   *Task 1.1 (Sinh viên 2 - Owner):* Đặc tả chi tiết cấu trúc Request/Response Payload JSON Schema giữa SmashCourt và TADSS Core (`DecisionRequest`, `DecisionResult`, `DecisionRecommendation`, `Reservation`). Đóng gói tài liệu tích hợp API v1.
-    *   *Task 1.2 (Sinh viên 1 - Owner):* Thiết kế sơ đồ quan hệ cơ sở dữ liệu cho schema `tadss` bao gồm duy nhất bảng nhật ký thực thi `decision_executions` (chứa toàn bộ telemetry và các trường phê duyệt override). Kiểm tra DDL constraints, foreign keys và unique indexes trên PostgreSQL.
-    *   *Task 1.3 (Sinh viên 1 - Owner):* Khởi tạo Solution .NET Core 8 trong Git Repository, thiết lập các thư mục dự án theo cấu trúc Clean Architecture chuẩn, kết nối EF Core PostgreSQL, biên dịch với cờ `--warnaserror` (0 warnings, 0 errors).
-    *   *Task 1.4 (Cả hai):* Dựng luồng prototype tối giản `SmashCourt Request ➔ TADSS Web API ➔ Mock Static Result` (chưa cần Polly/Cache).
-    *   *Tiêu chí Chấp nhận & Bằng chứng (Acceptance & Evidence):* Solution biên dịch 0 lỗi / 0 cảnh báo; File đặc tả API JSON Schema; Script DDL `schema_smashcourt.sql` và Snapshot `TadssDbContextModelSnapshot.cs` đồng bộ 100%.
-    *   *Deliverables (Mốc 1 - Cuối Tuần 2 — ✅ COMPLETED):* File đặc tả API JSON Schema; Script SQL khởi tạo schema `tadss`; Solution build thành công.
-
----
-
-### PHASE 2: XÂY DỰNG DECISION CONTRACT SDK (Tuần 3 — Tuần 4)
-*Mục tiêu: Xây dựng thư viện dùng chung `Shared.DecisionContractSDK`, đóng gói DLL độc lập và đóng băng Contract.*
-
-*   **User Story 2: Lập trình SDK dùng chung & Đóng băng Hợp đồng**
-    *   *Task 2.1 (Sinh viên 1 - Owner):* Khởi tạo dự án `Shared.DecisionContractSDK` độc lập (Class Library, 0 external NuGet dependencies), cấu hình đóng gói DLL độc lập để đảm bảo tính di động sang tên miền khác.
-    *   *Task 2.2 (Sinh viên 1 - Owner):* Hiện thực hóa thực thể `Reservation` (Aggregate Root) tích hợp sẵn các behavior kiểm tra tính hợp lệ (`EnsureValid`) và behavior nghiệp vụ (`CanBeCancelledWithoutPenalty`), cùng các Value Objects (`CustomerInfo`, `ResourceInfo`, `ReservationSchedule`, `PaymentPolicy`).
-    *   *Task 2.3 (Sinh viên 2 - Owner):* Định nghĩa các Enums trạng thái (`DecisionStatus`, `BookingPriority`, `ReasonCode`), DTOs kết quả, và interface `IReservationDecisionStrategy` (`EvaluateAsync`).
-    *   *Task 2.4 (Sinh viên 2 - Owner):* Viết bộ Unit Tests (xUnit + FluentAssertions) kiểm tra 25 domain invariants của thực thể `Reservation`, DTO validation, JSON serialization (đạt Coverage > 80%). Thực hiện khóa cứng 32 kiểu dữ liệu trong Public API Surface.
-    *   *Tiêu chí Chấp nhận & Bằng chứng (Acceptance & Evidence):* 100% Unit Tests PASS (25 Domain Invariant tests); Không có breaking changes so với API Surface đã khóa; JSON Schema áp dụng `additionalProperties: false`.
-    *   *Deliverables (Mốc 2 - Cuối Tuần 4 — ✅ COMPLETED):* DLL thư viện SDK biên dịch thành công; Hồ sơ [`baseline_public_api.txt`](../contracts/baseline_public_api.txt) (32 types) và [`CONTRACT_V1_FREEZE.md`](../contracts/CONTRACT_V1_FREEZE.md); 100% Unit Tests PASS.
+| Mã | Task | Owner | Kết quả |
+|:---|:---|:---:|:---|
+| T1.1 | Khởi tạo solution .NET 8, CI build + Docker | SV1 | ✅ |
+| T1.2 | Schema `tadss`, bảng `decision_executions`, migration EF Core | SV1 | ✅ |
+| T1.3 | Đặc tả contract nháp v1 (request/result/recommendation) | SV1 | ✅ |
+| T2.1 | `Shared.DecisionContractSDK`: `Reservation` + value objects + invariant | SV1 | ✅ |
+| T2.2 | DTO, enum, `IReservationDecisionStrategy`, 7 JSON schema | SV1 | ✅ |
+| T2.3 | Kiểm thử kiến trúc (dependency purity, public API baseline 32 type) — đóng băng v1 | SV1 | ✅ |
+| T3.1 | 4 endpoint v1, `StrategyResolver`, correlation id, RFC 7807 | SV1 | ✅ |
+| T3.2 | `DefaultDecisionStrategy`, `MockAlternativeDecisionStrategy` | SV1 | ✅ |
+| T3.3 | Idempotency (`X-Idempotency-Key` + `request_hash`), optimistic concurrency (`version`) | SV1 | ✅ |
+| T4.1 | Pipeline Polly v8 + `FallbackDecisionStrategy` | SV1 | ✅ |
+| T4.2 | Cache theo request-hash (Redis + `IMemoryCache`) | SV1 | ✅ |
+| T4.3 | Audit đồng bộ qua MediatR; bộ test tiêm lỗi F1–F7 | SV1 | ✅ |
+| T4.4 | Micro-benchmark lab (19 kịch bản × 4 mức tải, EF InMemory) | SV1 | ✅ (chỉ mô tả overhead pipeline — xem ghi chú Phase 4 trong MASTER_EXECUTION_PLAN) |
 
 ---
 
-### PHASE 3: XÂY DỰNG DECISION RUNTIME API (Tuần 5 — Tuần 6)
-*Mục tiêu: Xây dựng bộ não định tuyến quyết định, bảo vệ Idempotency 2 tầng và Optimistic Concurrency Control.*
+## PHASE R — RE-BASELINE (W05–W06)
 
-*   **User Story 3: Lập trình Runtime API, Strategy Loader & Concurrency Control**
-    *   *Task 3.1 (Sinh viên 1 - Owner):* Khởi tạo dự án Web API `DecisionRuntime.TADSS`, endpoint `POST /api/v1/decisions`, xử lý validation và correlation ID.
-    *   *Task 3.2 (Sinh viên 1 - Owner):* Lập trình lớp `StrategyResolver` tự động đăng ký và phân giải Strategy qua cơ chế Dependency Injection (DI-based Strategy Resolution) với độ phức tạp thuật toán kỳ vọng expected $O(1)$.
-    *   *Task 3.3 (Sinh viên 2 - Owner):* Hiện thực hóa mã nguồn cho 2 chiến lược nghiệp vụ cụ thể:
-        *   `DefaultDecisionStrategy`: Chính sách nghiệp vụ cơ sở bảo thủ của nền tảng (tách biệt với cơ chế cứu cánh hạ tầng `FallbackDecisionStrategy`).
-        *   `MockAlternativeDecisionStrategy`: Tự động phân tích khung giờ cao điểm trong `ReservationSchedule` để nâng cọc lên 50%, giờ thường cọc 30%.
-    *   *Task 3.4 (Sinh viên 1 & 2):* Hoàn thiện error handling middleware, correlation ID, Swagger UI với đầy đủ mock payloads, kiểm thử in-memory toàn bộ HTTP Pipeline qua `WebApplicationFactory<Program>`, bảo vệ 2 tầng Idempotency (App check + DB Unique Index `uq_decision_idempotency_key` bắt `SqlState 23505`) và Optimistic Concurrency Control (`Version` token 409 Conflict).
-    *   *Tiêu chí Chấp nhận & Bằng chứng (Acceptance & Evidence):* 0 unhandled 500 exceptions; 0 duplicate records khi gửi đồng thời cùng Idempotency-Key; Báo cáo test cases `IdempotencyIntegrationTests.cs` và `DecisionsControllerTests.cs` đạt 100% pass.
-    *   *Deliverables (Mốc 3 - Cuối Tuần 6 — ✅ COMPLETED):* Dự án Web API chạy local mượt mà; Tài liệu Swagger API hiển thị luồng phân giải Strategy thành công; Test suite `TADSS.IntegrationTests` đạt 100% pass.
+| Mã | Task | Owner | Tiêu chí nghiệm thu |
+|:---|:---|:---:|:---|
+| TR.1 | Audit mã nguồn + tài liệu, chốt nghiệp vụ cọc | SV1 | Danh sách phát hiện được ghi trong Mục 0 của MASTER_EXECUTION_PLAN |
+| TR.2 | Đồng bộ toàn bộ tài liệu theo kế hoạch v2.0 (mỗi chủ đề một nguồn) | SV1 | Không còn mâu thuẫn tham số/tên file/con số giữa tài liệu và mã nguồn |
+| TR.3 | Gỡ module `Normalization`, 6 dataset tổng hợp và báo cáo Tuần 9 | SV1 | Build `--warnaserror` + toàn bộ test còn lại pass |
+| TR.4 | Review tài liệu luồng nghiệp vụ cọc/duyệt từ góc nhìn FE | SV2 | Ghi nhận góp ý, chốt luồng |
+| TR.5 | Tạo tag `phase4-baseline`, commit kết quả re-baseline | Cả hai | `git status` sạch ở cả 4 repo |
 
 ---
 
-### PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
-*Mục tiêu: Triển khai chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng 5 tầng ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$ — 19 kịch bản / 76 lượt chạy), và chuẩn hóa 3 tập dữ liệu nghiên cứu (`INV-P1..P8`).*
+## PHASE 5 — HOÀN THIỆN TADSS + HẠ TẦNG KIỂM THỬ (W07–W10)
 
-*   **User Story 4: Resilience, Benchmark & Dataset Normalization**
-    *   *Task 4.1 (Sinh viên 1 & 2 - Tuần 7):*
-        *   Cấu hình Polly v8 5-Layer Resilience Pipeline: Outer Timeout (`500ms` SLA) $\rightarrow$ Fallback sang `FallbackDecisionStrategy` (`Status = NEED_APPROVAL`, `FallbackUsed = true`, `ExecutionTimeMs = 0`) $\rightarrow$ Retry (tối đa 2 lần, base delay `30ms`) $\rightarrow$ Circuit Breaker (tỷ lệ lỗi $\ge 50\%$ trong cửa sổ `30s`, `BreakDuration = 15s`) $\rightarrow$ Inner Timeout (`120ms`/attempt).
-        *   Triển khai Mandatory Synchronous Fail-Closed Append-only Audit Trail thông qua MediatR in-process events (`DecisionEvaluatedAuditNotification`) nằm trong PostgreSQL EF Core Transaction boundary để lưu nhật ký chi tiết (`execution_type` thuộc `'AUTOMATED' | 'CACHE_HIT' | 'FALLBACK'`) xuống bảng `tadss.decision_executions`.
-        *   Tích hợp Redis 7.x / 8.x (Redis Cloud Managed `ap-southeast-1` hoặc Local) L2 + `IMemoryCache` L1 fallback (F5), chuẩn hóa JSON theo RFC 8785 (sắp xếp key alphabet, chuyển UUID về lowercase, chuẩn hóa format ISO 8601 UTC `yyyy-MM-ddTHH:mm:ssZ` giữ nguyên giá trị nghiệp vụ, xóa whitespace và null) tạo `RequestHash = SHA256(Canonical(DecisionRequest))` và Cache Key `decision:hash:{requestHash}:{strategyName}:v{strategyVersion}` với cấu hình baseline mặc định `TtlHours = 24`.
-        *   Kiểm chứng tự động toàn bộ 7 kịch bản lỗi trong Fault Injection Matrix (`F1–F7`).
-    *   *Task 4.2 (Sinh viên 1 & 2 - Tuần 8):* Thực thi đo đạc Performance Benchmark theo quy trình 3 pha (*Warm-up $\rightarrow$ Measurement $\rightarrow$ Statistical Aggregation*) tại các mức tải $VUs \in \{1, 10, 50, 100\}$ trên 19 kịch bản thực nghiệm (76 lượt chạy qua 5 tầng: Cache Baseline $G_0..G_2$, Core Resilience $R_0..R_3$, Cache Pathologies $C_0..C_3$, Strategy & DB Contention $D_0..D_2$, và Combined Stress & Self-Healing $E_0..E_4$).
-    *   *Task 4.3 (Sinh viên 2 - Owner, Sinh viên 1 - Supporting, Tuần 9):* Đóng băng đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md` và xây dựng phân hệ `Normalization/` (`AuditLedgerHarvester`, `DatasetNormalizerEngine`, `GovernanceLifecycleHarness`, `DatasetProvenanceVerifier`, `DatasetArtifactExporter`) trích xuất 3 bộ dữ liệu chuẩn hóa CSV/JSONL (`resilience_evaluation_dataset` 23 cột, `latency_caching_dataset` 19 cột, `governance_audit_dataset` 31 cột) từ bảng `tadss.decision_executions` kết hợp song ánh 1:1 với `RawMeasurementRecord` qua khóa `DecisionId` kèm kiểm chứng 8 bất biến nguồn gốc (`INV-P1..P8`) phục vụ Chương 4 Báo cáo Đồ án 2.
-    *   *Emergency Escape Hatch:* Nếu cuối Tuần 8 Day 5 hạ tầng Cache/Benchmark gặp nghẽn môi trường $\rightarrow$ Bật MVP Mode: Duy trì Outer Timeout + `FallbackDecisionStrategy`, dùng `IMemoryCache` L1, ghi audit đồng bộ.
-    *   *Tiêu chí Chấp nhận & Bằng chứng (Acceptance & Evidence):* Ma trận tiêm lỗi F1–F7 pass 100%; $P_{99} < 500\text{ms}$ và $\text{DCR} = 100\%$ xuyên suốt 76 runs (5 tầng A–E); 8 bất biến nguồn gốc `INV-P1..INV-P8` đạt 100% PASS; Mã băm SHA-256 của 6 file dataset khớp bit-by-bit với manifest (510/510 automated tests pass đóng vai trò quality gate kiểm chứng chống hồi quy mã nguồn).
-    *   *Deliverables (Mốc 4 - Cuối Tuần 9 — ✅ COMPLETED):* Ma trận tiêm lỗi F1–F7 đạt 100% pass; Báo cáo số liệu Benchmark 76 lượt chạy ($P_{50}/P_{90}/P_{95}/P_{99}$, DCR); Đặc tả `DATASET_SCHEMA_SPECIFICATION_V1.md`, phân hệ `Normalization/`, 3 bộ dữ liệu thực nghiệm chuẩn hóa CSV/JSONL, biên bản [`dataset_provenance_manifest.json`](../research/datasets/dataset_provenance_manifest.json) và [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md).
+### Epic 5A — Contract v2 & lõi TADSS (SV1)
 
----
+| Mã | Task | Tuần | Test case liên quan |
+|:---|:---|:---:|:---|
+| T5.1 | Contract v2: OpenAPI v2, JSON schema v2 (`docs/contracts/schemas/v2/`), DTO v2 trong SDK, public API baseline v2 (theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md)) | W07 | CT-01, CT-02, UT-02 |
+| T5.2 | Domain v2: nhiều sân/booking, khách vãng lai, lịch sử khách, thời gian `DateTimeOffset` + múi giờ chi nhánh | W07–W08 | UT-01, UT-05 |
+| T5.3 | Migration DB v2: `decision_executions` bất biến (trigger), `decision_overrides`, `decision_outcomes`, snapshot request, `branch_id`, `approval_expires_at`, `role` | W07–W08 | IT-05, IT-15 |
+| T5.4 | Strategies v2: `DefaultDecisionStrategy` 2.0.0 (cọc theo hạng), `MockAlternativeDecisionStrategy` 2.0.0 (cọc theo khung giờ), tham số qua options | W08 | UT-03, UT-05 |
+| T5.5 | Override v2 (APPROVE kèm mức cọc / REJECT, `X-Actor-Id`, chống ghi đè đồng thời bằng `UNIQUE(decision_id)`), outcome endpoint | W08 | IT-06, IT-07, IT-08, IT-10 |
+| T5.6 | Hàng chờ duyệt: chỉ bản mới nhất của mỗi reservation, lọc `branchId`, loại bản hết hạn, partial index | W08 | IT-09 |
+| T5.7 | Xác thực service-to-service bằng `X-Api-Key`; sửa map exception (lỗi server không thành 400) | W08 | IT-11, UT-08 |
+| T5.8 | `RequestHasher` độc lập múi giờ máy chủ; canonical hóa theo contract v2 | W08 | UT-06 |
+| T5.9 | Định tuyến strategy theo từng request (`Tadss:Routing`) + shadow mode | W09 | UT-04, IT-12, IT-14 |
+| T5.10 | Cách ly timeout cho strategy không hợp tác (không tôn trọng `CancellationToken`) | W09 | FI-05 |
+| T5.11 | Chính sách cache do strategy khai báo (bật/tắt, TTL) + circuit breaker cho Redis | W09 | IT-13, FI-06, FI-07 |
 
-### PHASE 5: HUMAN-IN-THE-LOOP & TÍCH HỢP SMASHCOURT (Tuần 10 — Tuần 12 — Kế hoạch Triển khai)
-*Mục tiêu: Cung cấp quyền kiểm duyệt tối cao cho Manager, khởi tạo báo cáo sớm, đánh giá chất lượng tích hợp IQ1–IQ5 và kết nối đầu-cuối với hệ thống SmashCourt (3 tuần).*
+### Epic 5B — Hạ tầng kiểm thử & observability (SV1)
 
-*   **User Story 5: Override API, Manager Dashboard & Kế hoạch Đánh giá Tích hợp SmashCourt (IQ1–IQ5)**
-    *   *Task 5.1 (Sinh viên 1 - Owner, Tuần 10):* Hoàn thiện endpoint `POST /api/v1/decisions/{id}/override` tích hợp kiểm tra `IsOverridden` và Optimistic Concurrency (`Version` token) kèm ghi vết qua MediatR in-process event (`DecisionOverriddenAuditNotification`). Khóa nguyên tắc No Auto-Approve.
-    *   *Task 5.2 (Sinh viên 1 - Owner, Tuần 10):* Cấu hình Feature Flag `EnableTadssDecision` bọc ngoài luồng đặt sân của SmashCourt sử dụng `IOptionsMonitor` để reload cấu hình appsettings.json động dưới 2 giây.
-    *   *Task 5.3 (Cả hai, Tuần 10):* Viết phác thảo khung Báo cáo Đồ án 2 từ Tuần 10: Day 1-2 (Viết chung Chương 1: 10-12 trang), Day 3-4 (SV1 viết Chương 2.1-2.2: 8-10 trang), Day 5-6 (SV2 viết Chương 2.3-2.4: 8-10 trang) đạt 26-32 trang (>40% khối lượng).
-    *   *Task 5.4 (Sinh viên 2 - Owner, Tuần 11):* Dựng giao diện Manager Dashboard hoàn chỉnh tích hợp trực tiếp vào thư mục `smashcourt-fe` (Next.js) hiện có. Thiết lập kiểm thử Playwright E2E UI tự động đo đạc thời gian tải trang (đo lường hiệu năng truy xuất với Partial Index `need_approval = true AND is_overridden = false`, hướng tới Design Target $< 10\text{ms}$ trên môi trường thử nghiệm), tỷ lệ hoàn tất tác vụ ghi đè (100%), và xuất bản Trace Viewer Artifacts / Video. *(Quy tắc 2 ngày: Nếu sau Tuần 10 Day 2 chưa render được danh sách ➔ Chuyển ngay sang C# Razor Page / HTML Table).*
-    *   *Task 5.5 (Sinh viên 1 - Owner, Tuần 12):* Sửa đổi API tạo đặt sân ở SmashCourt Backend để gọi sang TADSS Core qua HTTP Client, nhận tỷ lệ cọc đề xuất để tính toán số tiền chuyển sang thanh toán VNPay. Đánh giá 5 chiều chất lượng tích hợp (IQ1 Functional Correctness, IQ2 Integration Latency, IQ3 Failure Containment & Zero Booking Corruption, IQ4 Operational Diagnosability qua `X-Correlation-ID`, IQ5 Quality-in-Use).
-    *   *Tiêu chí Chấp nhận & Bằng chứng Dự kiến (Acceptance & Evidence):* 0 đơn đặt sân bị lỗi hoặc trừ tiền trùng; Khi ngắt TADSS, SmashCourt tự giáng cấp sang cọc tĩnh 100% mượt mà; Manager Dashboard đạt Design Target tải trang $< 10\text{ms}$; Video & Playwright Trace ghi vết tương tác hoàn chỉnh.
-    *   *Deliverables (Mốc 5 - Cuối Tuần 12):* Giao diện UI phê duyệt cho Manager trên `smashcourt-fe`; Playwright E2E Trace & Video Artifacts; Tích hợp thành công luồng đặt sân SmashCourt ↔ TADSS ↔ VNPay; Khung Báo cáo Đồ án 2 đạt > 40% khối lượng trang.
+| Mã | Task | Tuần | Đầu ra |
+|:---|:---|:---:|:---|
+| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | Toàn bộ IT chạy trên container |
+| T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | `docker compose up` một lệnh |
+| T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) | W09 | Dashboard JSON lưu trong repo |
+| T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) | W09 | Script chạy ma trận FI |
+| T5.16 | **Schemathesis** chạy trên OpenAPI v2 | W09 | CT-03 |
+| T5.17 | **Stryker.NET** cho SDK, Strategies, service lõi; báo cáo coverage bằng ReportGenerator | W09 | MT-01…MT-03 |
+| T5.18 | Harness **replay**: truy vấn chỉ đọc xuất 215 booking SmashCourt (ẩn danh) → request v2 → kết quả | W10 | RP-01, RP-02 |
+| T5.19 | Adapter **Hotel Booking Demand** → contract v2 (chứng minh độc lập domain) | W10 | PT-01, PT-02 |
+| T5.20 | **Notebook** (Python, pandas, plotly) sinh báo cáo minh chứng HTML từ Evidence Pack; mẫu Evidence Pack + manifest SHA-256 | W10 | Notebook chạy lại được |
+| T5.21 | Chạy toàn bộ danh mục TADSS; đóng băng contract v2 | W10 | Gate M5 |
+| T5.22 | Chốt **API contract BE ↔ FE** cho Phase 6 (endpoint SmashCourt cho cọc, chờ duyệt, duyệt) | W10 | OpenAPI SmashCourt cập nhật |
+| T5.23 | Chốt môi trường staging cho pilot (máy chủ, tên miền, VNPay sandbox) | W10 | Ghi trong MASTER_EXECUTION_PLAN |
 
----
+### Epic 5C — Chuẩn bị kiểm thử phía FE/E2E (SV2)
 
-### PHASE 6: KIỂM THỬ TỔNG THỂ & ĐO LƯỜNG KPI (Tuần 13 — Tuần 14)
-*Mục tiêu: Chứng minh các chỉ số KPI, đo lường khả năng phục hồi lỗi và kiểm chứng tính độc lập tên miền.*
-
-*   **User Story 6: Testing & Technical Evaluation**
-    *   *Task 6.1 (Cả hai, Tuần 13):* Thực hiện ma trận kiểm thử sự cố (Failure Injection Test Matrix: 11 kịch bản gồm Timeout, Exception, Circuit Breaker, Cache Hit/Miss, Key Sorting, Concurrency Conflict, Emergency Valve).
-    *   *Task 6.2 (Cả hai, Tuần 14):* Thu thập số liệu chứng minh SLA phản hồi p95 < 150ms khi chạy bình thường, và SLA tổng thể <= 500ms khi xảy ra lỗi.
-    *   *Task 6.3 (Cả hai, Tuần 14):* Chạy kịch bản giả lập (Mock data) gửi request đặt phòng họp Coworking Space để chứng minh TADSS xử lý hoàn hảo mà không cần đổi một dòng code lõi nào.
-    *   *Deliverables (Mốc 6 - Cuối Tuần 14):* Source code hoàn chỉnh trên Github; Bộ Integration Test chạy tự động với 100% critical test scenarios đạt pass (không còn bug Blocker/High); Bảng số liệu đo lường KPI hoàn chỉnh.
-
----
-
-### PHASE 7: ỔN ĐỊNH HÓA, BÁO CÁO & CHUẨN BỊ BẢO VỆ (Tuần 15 — Tuần 16)
-*Mục tiêu: Đóng băng tính năng, hoàn thiện cuốn báo cáo 60 trang, quay video demo và diễn tập thuyết trình.*
-
-*   **User Story 7: Finalization, Documentation & Defense Prep**
-    *   *Task 7.1 (Cả hai, Tuần 15):* Áp dụng Feature Freeze. Hoàn thiện Chương 3 & 4 Báo cáo Đồ án 2, vẽ sơ đồ kiến trúc chuẩn (Class Diagram, Sequence Diagram, Database Diagram), soát lỗi chính tả và chuẩn hóa trích dẫn IEEE.
-    *   *Task 7.2 (Cả hai, Tuần 16):* Quay Video Demo hoạt động tích hợp đầu cuối (SmashCourt ↔ TADSS ↔ VNPay ↔ Override Dashboard ➔ Failure Injection), soạn 20-25 slide thuyết trình, diễn tập bảo vệ thử trước hội đồng và đóng gói GitHub repository.
-    *   *Deliverables (Final Milestone - Cuối Tuần 16):* File báo cáo đồ án bản mềm hoàn chỉnh (60 trang); Video demo thực tế hệ thống; Slide thuyết trình sẵn sàng bảo vệ.
+| Mã | Task | Tuần | Đầu ra |
+|:---|:---|:---:|:---|
+| T5.24 | Review contract v2 từ phía consumer | W07 | Góp ý được chốt trước khi đóng băng |
+| T5.25 | Dựng **Playwright** trong `smashcourt-fe` (cấu hình, trace, video, chạy trên CI) | W07 | Một test mẫu chạy được |
+| T5.26 | Dựng dự án **k6**; script LT-01…LT-05 | W07–W08 | Script chạy được với docker-compose |
+| T5.27 | Đặc tả từng bước kịch bản E2E-01…E2E-10 | W08–W09 | Danh mục E2E hoàn chỉnh |
+| T5.28 | Kịch bản pilot UAT + phiếu khảo sát **SUS** | W09 | UAT-01…UAT-03 |
+| T5.29 | Review API contract BE ↔ FE | W10 | Chốt cùng T5.22 |
 
 ---
 
-## PHẦN B: `[OUT-OF-SCOPE ĐỒ ÁN 2]` KHÓA LUẬN TỐT NGHIỆP — CHIẾN LƯỢC QUYẾT ĐỊNH THÍCH ỨNG (TADS) (12 TUẦN)
+## PHASE 6 — SMASHCOURT-BE ∥ SMASHCOURT-FE (W11–W14)
 
-> **⚠️ LƯU Ý PHẠM VI (SCOPE LOCK):** Toàn bộ Phần B (Phase 8 & Phase 9) thuộc phạm vi mở rộng của **Khóa luận tốt nghiệp** ở giai đoạn tiếp theo và được loại trừ hoàn toàn khỏi phạm vi triển khai của **Đồ án 2** theo mục 5.2 của [`PROPOSAL_DO_AN_2.md`](PROPOSAL_DO_AN_2.md).
+### Epic 6A — SmashCourt-BE (SV1)
 
-### EPIC 2: ADAPTIVE DECISION STRATEGY (TADS RESEARCH — OUT-OF-SCOPE ĐỒ ÁN 2)
+| Mã | Task | Tuần | Test case |
+|:---|:---|:---:|:---|
+| T6.1 | DB SmashCourt: giá trị `PENDING_APPROVAL` cho `booking_status`; trường cọc và `decision_id` trên hóa đơn/booking | W11 | BE-IT-01 |
+| T6.2 | `TadssClient` (HttpClient, timeout, idempotency key, correlation id, API key) + options `TadssConfig` qua `IOptionsMonitor` | W11 | BE-UT-01, CT-04 |
+| T6.3 | Ánh xạ booking SmashCourt → request v2 (nhiều sân, khách vãng lai, hạng thành viên, lịch sử khách) | W11 | BE-UT-02 |
+| T6.4 | Luồng đặt sân online theo cọc: APPROVED → VNPay theo số tiền cọc; NEED_APPROVAL → `PENDING_APPROVAL` + giữ slot; tắt flag/TADSS lỗi → 100% | W12 | BE-IT-02…BE-IT-04 |
+| T6.5 | Endpoint cho Manager: hàng chờ theo chi nhánh, chi tiết quyết định, duyệt (kèm mức cọc) / từ chối — proxy sang TADSS với `X-Actor-Id` lấy từ JWT | W12 | BE-IT-05, BE-IT-06 |
+| T6.6 | Sau duyệt: tạo link thanh toán cọc, thông báo khách (SignalR/email) | W12–W13 | BE-IT-07 |
+| T6.7 | Job hết hạn duyệt: hủy booking, giải phóng sân, báo outcome `APPROVAL_EXPIRED` (không tự duyệt) | W13 | BE-IT-08 |
+| T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…) | W13 | BE-IT-09 |
+| T6.9 | Thu phần còn lại khi checkout; hoàn cọc theo chính sách hủy hiện có | W13 | BE-IT-10 |
+| T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2 | W14 | Gate M6 |
+
+### Epic 6B — smashcourt-fe (SV2)
+
+| Mã | Task | Tuần | Test case |
+|:---|:---|:---:|:---|
+| T6.11 | Thiết kế UI/UX: hiển thị cọc, trạng thái chờ duyệt, dashboard duyệt, chi tiết quyết định | W11 | — |
+| T6.12 | Màn hình khách: tóm tắt cọc trước thanh toán, thanh toán cọc, trang chờ duyệt, thông báo kết quả | W12 | E2E-01…E2E-06 |
+| T6.13 | Dashboard Manager: hàng chờ theo chi nhánh, duyệt kèm mức cọc + lý do, từ chối, xử lý xung đột, realtime | W13 | E2E-02, E2E-03, E2E-07, E2E-08, E2E-10 |
+| T6.14 | Thu phần còn lại tại quầy (màn hình staff) | W13 | E2E-09 |
+| T6.15 | Playwright trên mock API; build + lint | W14 | Gate M6 |
 
 ---
 
-### PHASE 8: NGHIÊN CỨU THUẬT TOÁN & MODEL ML (Tuần 1 — Tuần 8)
-*Mục tiêu: Triển khai giải thuật tính điểm uy tín, huấn luyện mô hình dự toán rủi ro và viết API giải thích.*
+## PHASE 7 — INTEGRATE (W15)
 
-*   **User Story 8: Giải thuật thích ứng & Mô hình học máy**
-    *   *Task 8.1:* Lập trình logic tính điểm uy tín động (Adaptive Trust Score) tích hợp hàm mũ suy hao thời gian ($e^{-\lambda \Delta t}$) áp dụng cho hành vi lịch sử của người dùng.
-    *   *Task 8.2:* Xây dựng script giả lập dữ liệu lịch sử đặt sân (Synthetic Data Generator) đạt 20,000+ records. Huấn luyện mô hình phân loại CatBoost dự đoán xác suất bùng hẹn (No-show Probability) làm đầu vào cho Decision Engine.
-    *   *Task 8.3:* Viết hàm serialize chuỗi suy luận quyết định thành định dạng JSON lưu vào trường `trace_payload`. Viết API giải thích quyết định độc lập `GET /decision/{id}/trace` và giao diện đồ thị cây Decision Trace UI.
-    *   *Deliverables:* Lớp mã nguồn `AdaptiveTrustDecisionStrategy`; Tập dữ liệu Synthetic Dataset; API /trace và giao diện hiển thị vết quyết định.
+| Mã | Task | Owner |
+|:---|:---|:---:|
+| T7.1 | Ghép FE ↔ BE ↔ TADSS trên docker-compose; chạy smoke E2E | Cả hai |
+| T7.2 | Triển khai staging; cấu hình VNPay sandbox, tài khoản pilot, dữ liệu chi nhánh/sân | SV1 |
+| T7.3 | Chuyển Playwright từ mock sang staging | SV2 |
+| T7.4 | Feature freeze cuối W15; hoàn thành Chương 1–2 báo cáo | Cả hai |
 
 ---
 
-### PHASE 9: GIẢ LẬP & ĐÁNH GIÁ THỰC NGHIỆM (Tuần 9 — Tuần 12)
-*Mục tiêu: Đánh giá hiệu quả kinh doanh qua môi trường mô phỏng và hoàn thiện luận văn.*
+## PHASE 8 — TEST & FIX (W16–W17)
 
-*   **User Story 9: Thực nghiệm & Hoàn thiện luận văn**
-    *   *Task 9.1:* Phát triển phần mềm giả lập Agent-based Simulator mô phỏng 1,000 khách hàng hoạt động theo 4 nhóm hành vi (Loyal, Regular, Risky, New) gửi tải lên hệ thống.
-    *   *Task 9.2:* Chạy đối chứng thực nghiệm (Ablation Study) kiểm chứng giả thuyết H1, phân tích kết quả công bằng cơ hội (Equal Opportunity Fairness Metric) giữa các nhóm đối tượng khách hàng.
-    *   *Task 9.3:* Tập hợp số liệu so sánh Doanh thu, tỷ lệ bùng lịch, viết tài liệu luận văn và chuẩn bị Slide bảo vệ trước Hội đồng tốt nghiệp.
-    *   *Deliverables:* Mã nguồn bộ Simulator; Luận văn bản mềm; Slide thuyết trình.
+| Mã | Task | Owner |
+|:---|:---|:---:|
+| T8.1 | Chạy UT/IT/CT/MT trên cả 3 repo | SV1 |
+| T8.2 | Ma trận lỗi FI-01…FI-14 (Toxiproxy) + truy vấn bất biến booking sau mỗi kịch bản | SV1 |
+| T8.3 | Tải LT-01…LT-05 (k6) | SV2 |
+| T8.4 | Playwright E2E-01…E2E-10 trên staging (video + trace) | SV2 |
+| T8.5 | Replay RP-01, RP-02; portability PT-01, PT-02 | SV1 |
+| T8.6 | Pilot UAT-01…UAT-03 (2 tuần) | Cả hai |
+| T8.7 | Sửa lỗi; chạy lại test case liên quan sau mỗi lần sửa | Cả hai |
+| T8.8 | Sinh Evidence Pack + báo cáo notebook | SV1 |
+
+---
+
+## PHASE 9 — ĐÓNG GÓI & BẢO VỆ (W18)
+
+| Mã | Task | Owner |
+|:---|:---|:---:|
+| T9.1 | Hoàn thiện Chương 3–4 từ Evidence Pack; sơ đồ class/sequence/DB | Cả hai |
+| T9.2 | Slide 20–25 trang; video demo; diễn tập bảo vệ | Cả hai |
+| T9.3 | Đóng gói repo: README hướng dẫn chạy docker-compose và tái tạo minh chứng | SV1 |
+
+---
+
+## KHÓA LUẬN (NGOÀI PHẠM VI ĐỒ ÁN 2)
+
+Backlog Khóa luận (chiến lược TADS, mô hình học máy, mô phỏng) được mô tả tại [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) và không thuộc kế hoạch 18 tuần này.

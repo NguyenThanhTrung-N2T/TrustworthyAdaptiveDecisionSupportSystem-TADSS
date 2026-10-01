@@ -7,7 +7,7 @@
 Thực thể `Reservation` ban đầu được thiết kế chỉ chứa các thuộc tính dữ liệu và getter/setter (Anemic Domain Model). Điều này dẫn đến việc các logic xác thực tính hợp lệ (Business Invariants) và hành vi miền (như tính toán thời lượng đặt sân, kiểm tra thời gian hủy sân hợp lệ) bị phân tán rải rác ở tầng Service bên ngoài, vi phạm tính đóng gói (Encapsulation) của OOP.
 
 ## Quyết định
-Áp dụng mẫu thiết kế **Rich Domain Model** của DDD. Đưa toàn bộ các business invariants và behaviors trực tiếp vào bên trong thực thể `Reservation` (như các phương thức `EnsureValid()`, `GetDuration()`, `CanBeCancelledWithoutPenalty()`).
+Áp dụng mẫu thiết kế **Rich Domain Model** của DDD. Đưa toàn bộ các business invariants và behaviors trực tiếp vào bên trong thực thể `Reservation` (như `EnsureValid()`, `CanBeCancelledWithoutPenalty()`, `CalculateDepositRatio()` và thuộc tính `Schedule.Duration` của value object `ReservationSchedule`). Ở v2, domain được mở rộng cho booking nhiều tài nguyên, khách vãng lai, lịch sử khách và thời gian có múi giờ chi nhánh.
 
 ## Hệ quả
 *   **Tích cực (Positive):**

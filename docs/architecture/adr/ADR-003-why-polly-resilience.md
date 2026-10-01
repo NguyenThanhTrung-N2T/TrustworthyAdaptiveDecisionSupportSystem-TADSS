@@ -16,5 +16,11 @@ Sử dụng thư viện **Polly v8** để thiết lập một Resilience Pipeli
 *   **Tiêu cực (Negative):**
     *   Các yêu cầu rơi vào trạng thái sự cố sẽ chuyển sang `NEED_APPROVAL` (kèm khuyến nghị thanh toán an toàn 100%) chờ Quản lý phê duyệt trong thời gian chiến lược chính bị cô lập.
 
+## Điều chỉnh khi re-baseline (01/10/2026)
+*   Outer timeout chỉ bao phần thực thi strategy; đọc/ghi cache và ghi audit nằm ngoài pipeline.
+*   Inner timeout của Polly v8 chỉ có hiệu lực khi strategy tôn trọng `CancellationToken`; v2 bổ sung cơ chế cách ly để cắt được cả strategy không hợp tác (điều kiện cần cho strategy học máy ở Khóa luận).
+*   Bổ sung circuit breaker cho Redis để lỗi cache không làm mọi request chờ hết timeout.
+*   Chi tiết: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../RESILIENCE_AND_FAULT_TAXONOMY.md).
+
 ## Phương án thay thế đã cân nhắc
 1.  **Tự viết logic Retry/Timeout thủ công bằng vòng lặp `try/catch` và `CancellationTokenSource`:** Loại bỏ vì khó quản lý trạng thái trượt (sliding window) của Circuit Breaker dưới tải đồng thời cao và không tận dụng được cơ chế pipeline chuẩn hóa của Polly v8.

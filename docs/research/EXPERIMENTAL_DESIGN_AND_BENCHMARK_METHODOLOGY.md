@@ -1,224 +1,272 @@
-# 🔬 TADSS Experimental Design & Benchmark Methodology Specification
+# GIAO THỨC ĐÁNH GIÁ, DANH MỤC KIỂM THỬ & KPI — v2.0
 
-> **Tài liệu Đặc tả Thiết kế Thực nghiệm, Phương pháp Benchmark & Chuẩn hóa Dataset**  
-> **Áp dụng cho:** **Đồ án 2 — Nền tảng TADSS Decision Runtime Engine (Phase 4 — Weeks 8 & 9)**  
-> **Ranh giới Phạm vi (Scope Lock):** Toàn bộ thực nghiệm trong tài liệu này đánh giá **hạ tầng kỹ thuật phần mềm của TADSS Runtime Engine** (đường ống chịu lỗi Polly v8, bộ nhớ đệm chuẩn hóa RFC 8785 `Request-Hash Cache` L1/L2, và cơ chế lưu vết kiểm toán đồng bộ `Append-Only Audit Trail`) trên các chiến lược quy tắc nghiệp vụ tất định (`DefaultDecisionStrategy` / `MockAlternativeDecisionStrategy`) và các chiến lược tiêm lỗi có kiểm soát. Thực nghiệm Đồ án 2 **hoàn toàn không sử dụng hay đánh giá các mô hình AI/ML** (các mô hình học máy thuộc phạm vi mở rộng của Khóa luận tốt nghiệp ở giai đoạn sau, theo mục 5.2 của [`PROPOSAL_DO_AN_2.md`](../planning/PROPOSAL_DO_AN_2.md)).  
-> **Mục tiêu Thực nghiệm:** Đo lường thực nghiệm latency, throughput và decision continuity của TADSS Runtime dưới các mức concurrency ($VUs \in \{1, 10, 50, 100\}$) và các trạng thái cache/resilience được kiểm soát chặt chẽ, từ đó kiểm chứng liệu các tiêu chí chấp nhận (Acceptance Criteria) về hiệu năng và tính liên tục quyết định có đạt được trong môi trường thử nghiệm hay không *(Không giả định trước kết quả thực nghiệm)*.
+> **Vai trò của tài liệu:** nguồn duy nhất về **danh mục kiểm thử (test catalogue)**, **định nghĩa KPI SC1–SC9**, môi trường đo và giao thức thực nghiệm của Đồ án 2. Lịch xây dựng và chạy: [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md). Định dạng dữ liệu minh chứng: [`DATASET_SCHEMA_SPECIFICATION_V1.md`](DATASET_SCHEMA_SPECIFICATION_V1.md).
 
 ---
 
-## 1. CÂU HỎI NGHIÊN CỨU KỸ THUẬT, CHỈ SỐ ĐỊNH LƯỢNG & PHÂN BIỆT NGÂN SÁCH LÝ THUYẾT VS. THỰC NGHIỆM
+## 0. NGUYÊN TẮC
 
-Thiết kế thực nghiệm của TADSS được dẫn dắt bởi 3 Câu hỏi Nghiên cứu Kỹ thuật (Engineering Research Questions — RQ) và nguyên tắc: **Không thiết kế benchmark để ép giả thuyết đúng; thiết kế benchmark để kiểm chứng giả thuyết bằng dữ liệu thực nghiệm.**
-
-### 1.1. Phân biệt Ngân sách Cấu hình Lý thuyết (`420ms`) và Độ trễ Thực nghiệm Đo đạc ($P_{50}/P_{90}/P_{95}/P_{99}/\text{Max}$)
-
-Công thức ngân sách cấu hình trong Polly v8:
-$$\text{Configured Attempt-and-Delay Budget} = 3 \times 120\text{ms} + 2 \times 30\text{ms} = 420\text{ms} < 500\text{ms}\ (\text{Outer Timeout})$$
-chỉ chứng minh **ràng buộc cấu hình kiến trúc (theoretical/configured resilience budget)** nằm dưới ngưỡng Outer Timeout `500ms`. Công thức này **chưa chứng minh** kịch bản $R_3$ thực tế dưới tải đồng thời $100\text{ VUs}$ luôn đạt $\le 500\text{ms}$ (do còn phụ thuộc vào thread-pool scheduling, HTTP serialization, và database persistence contention).
-
-Do đó, Tuần 8 tách bạch rõ hai khái niệm:
-* **Configured Resilience Budget (`420ms` / `500ms`):** Ngưỡng cắt cấu hình của chuỗi Polly v8.
-* **Empirical Measured Latency ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}$):** Độ trễ thực tế đo được ở từng mức tải $VUs \in \{1, 10, 50, 100\}$, dùng để đối chiếu và đánh giá với tiêu chí SLA/SC1/SC2.
+1. **Hạ tầng thật:** mọi kiểm thử dùng làm minh chứng chạy trên PostgreSQL 16 và Redis 7 thật (container), giao tiếp qua HTTP thật. Lỗi hạ tầng được tiêm ở tầng mạng bằng Toxiproxy. EF Core InMemory và độ trễ giả lập bằng `Task.Delay` không được dùng làm minh chứng.
+2. **Toàn bộ danh mục là bắt buộc:** mọi test case dưới đây phải được hiện thực, chạy và đạt. Không có phân tầng ưu tiên.
+3. **Không định trước kết quả:** ngưỡng KPI là mục tiêu thiết kế; kết quả đo được báo cáo trung thực kể cả khi không đạt, kèm phân tích nguyên nhân.
+4. **Truy vết được:** mỗi lượt chạy có `run_id`, commit, cấu hình, phiên bản image, thông số máy; dữ liệu thô được lưu trong Evidence Pack.
+5. **Nêu rõ giới hạn:** báo cáo luôn ghi môi trường đo, cỡ mẫu và các mối đe dọa tính hợp lệ (Mục 8).
 
 ---
 
-### 🔬 RQ1 (Resilience & Decision Continuity):
-> *Khi chiến lược ra quyết định (`IReservationDecisionStrategy`) gặp sự cố (quá tải, ném lỗi hoặc timeout) ở các mức tải đồng thời khác nhau, cơ chế Resilience (Retry + Circuit Breaker + Fallback) của TADSS Runtime duy trì tính liên tục của luồng ra quyết định với Tỷ lệ Duy trì Quyết định (Decision Continuity Rate — DCR) và phân phối độ trễ ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}$) thực tế như thế nào so với tiêu chí chấp nhận đã định nghĩa?*
+## 1. LIÊN KẾT CÂU HỎI NGHIÊN CỨU — KPI — NHÓM KIỂM THỬ
 
-* **Công thức Định lượng Chỉ số:**
-  $$\text{DCR} = \frac{\text{Completed Safe Decisions (Normal } \cup \text{ Fallback)}}{\text{Eligible Decision Requests}} \times 100\%$$
-* **Bảng Quy ước Ngữ nghĩa Mẫu số (DCR Denominator Semantics):**
-
-| Kịch bản (Scenario) | Hoàn tất Quyết định An toàn (Numerator) | Thuộc Mẫu số DCR (Eligible Denominator) | Giải thích Ngữ nghĩa |
-| :--- | :---: | :---: | :--- |
-| **$R_0$ — Normal Strategy** | Có (`AUTOMATED`) | **Có** | Thực thi chiến lược bình thường thành công. |
-| **$R_1$ — Retry Recovery (`F1`)** | Có (`AUTOMATED`) | **Có** | Attempt 1 timeout, Retry thành công với Strategy gốc. |
-| **$R_2$ — Circuit OPEN (`F4`)** | Có (`FALLBACK`) | **Có** | Mạch ngắt đang `OPEN`, fast-fail sang `FallbackDecisionStrategy` (`NEED_APPROVAL`). |
-| **$R_3$ — Retry Exhaustion (`F2/F3`)** | Có (`FALLBACK`) | **Có** | Cạn kiệt 3 attempts, chuyển sang `FallbackDecisionStrategy` (`NEED_APPROVAL`). |
-| **$F_6$ — Persistence Failure** | **Không** (HTTP 500/503) | **Có** | Lỗi ghi cơ sở dữ liệu kiểm toán (Policy A Fail-Closed) làm gián đoạn phản hồi quyết định. |
-| **$F_7$ — Caller Cancellation** | **Không** (Aborted) | **KHÔNG (Loại trừ)** | Hành vi hủy chủ động từ phía client, không phản ánh sự cố của TADSS Runtime. |
-
-> **Nguyên tắc Đánh giá:** Tuần 8 **không mặc định trước $\text{DCR} = 100\%$** hay **$R_2 < 10\text{ms}$**, mà thực hiện đo đạc $\text{DCR}$ thực tế và phân vị $P_{50}/P_{90}/P_{95}/P_{99}/\text{Max}$ của từng kịch bản $R_0..R_3$, sau đó mới đánh giá kết quả thực nghiệm đối chiếu với tiêu chí thiết kế.
-
----
-
-### 🔬 RQ2 (Caching Overhead & Latency Envelope):
-> *Cơ chế tuần tự hóa chuẩn hóa RFC 8785 kết hợp băm SHA-256 (Request Hash) và bộ nhớ đệm tạo ra chi phí phát sinh khi trượt cache (Cache Miss Overhead) và mức chênh lệch độ trễ khi trúng cache (Cache Benefit) thực tế là bao nhiêu tại các phân vị ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}$) và mức tải $VUs \in \{1, 10, 50, 100\}$?*
-
-* **Công thức Đo lường Thực nghiệm (Không đặt giả định trước về độ lớn):**
-  $$\text{Cache Miss Overhead} = \text{Latency}(G_1) - \text{Latency}(G_0)$$
-  $$\text{Cache Benefit} = \text{Latency}(G_0) - \text{Latency}(G_2)$$
-  *(Nếu quá trình chuẩn hóa RFC 8785 + SHA-256 + Redis I/O khiến $G_1 - G_0$ đáng kể ở một số điều kiện mạng/concurrency, đó chính là phát hiện thực nghiệm có giá trị khoa học để phân tích đánh đổi kiến trúc).*
-
----
-
-### 🔬 RQ3 (Audit Provenance & Telemetry Dataset Extraction):
-> *Kiến trúc kiểm toán hai tầng (Immutable Machine Snapshot $\oplus$ Mutable Governance Metadata) kết hợp với Run Metadata của giao thức thực nghiệm có cung cấp đầy đủ khả năng truy xuất nguồn gốc (traceability & provenance) để tái tạo các tập dữ liệu chuẩn hóa phục vụ đánh giá thực nghiệm Resilience, Caching và Governance trong Đồ án 2 (đồng thời sẵn sàng làm dữ liệu nền tảng nếu tái sử dụng ở giai đoạn sau) hay không?*
-
----
-
-## 2. NĂM TẦNG THỰC NGHIỆM CÓ KIỂM SOÁT (5-LAYER EXPERIMENTAL ARCHITECTURE — 19 SCENARIOS)
-
-Thực nghiệm Tuần 8 được cấu trúc thành **5 tầng thực nghiệm trực giao (Layer A $\rightarrow$ Layer E, tổng cộng 19 kịch bản)** với sự cô lập trạng thái nghiêm ngặt (hỗ trợ chạy chế độ rút gọn `--suite Core7` gồm 28 lượt chạy hoặc chế độ toàn diện mặc định `--suite Full19` gồm 76 lượt chạy):
-
-### Layer A — Cache Baseline Experiment ($G_0 \rightarrow G_1 \rightarrow G_2$)
-
-```text
-G0 — No Cache (Direct)          G1 — Cache Miss Path                G2 — Cache Hit Path
-──────────────────────          ────────────────────                ───────────────────
-Request                         Request                             Request
-  ↓                               ↓                                   ↓
-Strategy                        Canonicalization + SHA-256          Canonicalization + SHA-256
-  ↓                               ↓                                   ↓
-Persistence                     Cache MISS                          Cache HIT (Skip Strategy)
-  ↓                               ↓                                   ↓
-Response                        Strategy                            Persistence (Audit CACHE_HIT)
-                                  ↓                                   ↓
-                                Cache SET                           Response
-                                  ↓
-                                Persistence (Audit AUTOMATED)
-                                  ↓
-                                Response
-```
-
-* **Khóa Trạng thái Thực nghiệm (Experimental State Lock cho $G_0, G_1, G_2$):**
-  Để phép trừ $G_1 - G_0$ và $G_0 - G_2$ phản ánh đúng hiệu ứng của tầng Cache mà không bị nhiễu bởi biến ngoại lai, cả 3 nhóm bắt buộc phải khóa cố định:
-  1. Cùng cấu trúc Payload và phân phối dữ liệu đầu vào.
-  2. Cùng Strategy (`DefaultDecisionStrategy`) và cùng `StrategyVersion` (`1.0.0`).
-  3. Cùng trạng thái Database, trạng thái Cache Provider, và cùng `TtlHours = 24`.
-  4. Cùng cấu hình Server, cùng máy vật lý/môi trường và cùng mức Concurrency ($VUs$).
-  5. **Quy tắc Warm-up riêng cho $G_2$:** Trước khi bước vào pha Measurement của $G_2$, hệ thống bắt buộc phải nạp trước (pre-warm) bản ghi Cache tương ứng trong pha Warm-up để 100% request trong pha Measurement của $G_2$ là `CACHE_HIT` thuần túy (không lẫn kết nối khởi tạo hay request `MISS` đầu tiên).
-* **Chỉ số đo ở Layer A:** $P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}, \text{Mean}$, Throughput (RPS), Cache Hit Ratio (%), $G_1 - G_0$, và $G_0 - G_2$.
-
----
-
-### Layer B — Core Resilience Experiment ($R_0, R_1, R_2, R_3$ — Cô lập Trạng thái $R_2 \neq R_3$)
-
-| Kịch bản | Cơ chế Thực thi trong Kịch bản | Trạng thái Mạch (Circuit State) & Cô lập Thực nghiệm |
+| Câu hỏi (xem Playbook) | KPI | Nhóm kiểm thử |
 | :--- | :--- | :--- |
-| **$R_0$ — Normal** | Chiến lược chạy bình thường không tiêm lỗi. | Circuit `CLOSED` xuyên suốt. |
-| **$R_1$ — Retry Recovery** | Attempt 1 bị treo quá `InnerTimeoutMs (120ms)` $\rightarrow$ Polly hủy Attempt 1, chờ `30ms` $\rightarrow$ Attempt 2 trả kết quả thành công. | Circuit được giữ `CLOSED` để đo thuần túy chi phí phục hồi qua Retry (`1 retry / request`). |
-| **$R_2$ — Circuit Open** | Kiểm tra **Fast-Fail + Fallback khi Circuit đã ở trạng thái `OPEN`**. | **Pre-tripped `OPEN` State:** Mạch ngắt được kích hoạt sang trạng thái `OPEN` ngay từ bước Setup/Warm-up và giữ `OPEN` trong suốt pha đo đạc để đo thời gian bypass trực tiếp sang `FallbackDecisionStrategy`. |
-| **$R_3$ — Retry Exhaustion** | Kiểm tra **Failure Propagation qua cạn kiệt Retry (3 attempts) $\rightarrow$ Fallback**. | **Isolated from $R_2$:** Ngưỡng mở mạch được cấu hình cô lập trong kịch bản $R_3$ để mạch **không tự động đóng cắt thành $R_2$ giữa chừng**, đảm bảo 100% request trong $R_3$ thực sự đi hết cả 3 attempts + 2 retry delays trước khi chạm `FallbackDecisionStrategy`. |
-
-* **Chỉ số đo ở Layer B:** Phân phối độ trễ ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}, \text{Mean}$), Throughput (RPS), Completion Rate, **DCR (%)**, Fallback Rate (%), Retry Count, Circuit State, và Timeout Occurrence.
+| **RQ1** Resilience & toàn vẹn giao dịch | SC1, SC2, SC5, SC6 | FI, LT, E2E, BE-IT |
+| **RQ2** Governance & khả năng kiểm toán | SC3, SC4 | IT, CT, E2E |
+| **RQ3** Chất lượng tích hợp & sử dụng | SC1 (E2E), SC9 | LT-04, E2E, UAT |
+| Độc lập domain | SC7 | PT |
+| Chất lượng bộ kiểm thử | SC8 | Toàn bộ, MT |
 
 ---
 
-### Layer C — Real-World Cache Pathologies ($C_0, C_1, C_2, C_3$)
+## 2. MÔI TRƯỜNG THỰC NGHIỆM
 
-| Kịch bản | Cơ chế Mô phỏng trong Harness | Mục tiêu Kiểm chứng Thực nghiệm |
+| Mã | Môi trường | Thành phần | Dùng cho |
+| :--- | :--- | :--- | :--- |
+| **E-TC** | Testcontainers (trong `dotnet test`) | PostgreSQL 16, Redis 7, Toxiproxy | UT, IT, CT-01/02/04, BE-IT, một phần FI |
+| **E-LOCAL** | `docker compose` trên máy dev | TADSS, PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm`; SmashCourt-BE/FE khi chạy E2E | FI, LT, CT-03, MT, RP, PT |
+| **E-STAGING** | Máy chủ staging (chốt ở W10) | SmashCourt FE/BE + TADSS + PostgreSQL + Redis + VNPay sandbox | E2E trên hệ thống thật, UAT |
+
+Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docker, digest của image, commit của cả 3 repo và file cấu hình đã dùng.
+
+---
+
+## 3. BỘ CÔNG CỤ
+
+| Công cụ | Mục đích | Vị trí | Nhóm |
+| :--- | :--- | :--- | :--- |
+| xUnit + FluentAssertions + Moq | Unit test | TADSS, SmashCourt-BE | UT, BE-UT |
+| **Testcontainers for .NET** | PostgreSQL/Redis/Toxiproxy thật trong test | TADSS, SmashCourt-BE | IT, BE-IT |
+| `Microsoft.AspNetCore.Mvc.Testing` | Chạy API trong test qua HTTP pipeline thật | TADSS, SmashCourt-BE | IT, BE-IT |
+| **WireMock.Net** | Giả lập TADSS cho BE-IT, response kiểm tra theo JSON schema v2 | SmashCourt-BE | BE-IT, CT-04 |
+| **JsonSchema.Net** | Kiểm tra response theo JSON schema v2 | TADSS, SmashCourt-BE | CT-01, CT-04 |
+| **Schemathesis** (Docker) | Sinh request tự động từ OpenAPI v2 để dò lỗi contract | E-LOCAL | CT-03 |
+| **Stryker.NET** | Mutation testing — đo khả năng phát hiện lỗi của bộ test | TADSS | MT |
+| coverlet + **ReportGenerator** | Độ bao phủ mã (báo cáo HTML) | TADSS, SmashCourt-BE | Bổ trợ MT |
+| **Toxiproxy** | Tiêm lỗi mạng: ngắt, trễ, giới hạn băng thông, reset kết nối | E-TC, E-LOCAL | FI |
+| **k6** | Tải: TADSS trực tiếp và E2E qua SmashCourt-BE; xuất summary JSON và đẩy metric | E-LOCAL | LT |
+| **OpenTelemetry .NET** + **`grafana/otel-lgtm`** | Trace, metric, log tập trung; dashboard Grafana làm minh chứng trực quan | E-LOCAL, E-STAGING | FI, LT, E2E |
+| **Playwright** | E2E UI: video, trace viewer, HTML report | smashcourt-fe | E2E, FE |
+| **MSW** (Mock Service Worker) | Mock API cho FE trong Phase 6 theo API contract đã chốt | smashcourt-fe | FE |
+| **Jupyter notebook** (pandas, plotly) | Sinh báo cáo minh chứng HTML từ dữ liệu thô | TADSS `docs/research/` | Toàn bộ |
+
+**Tiêm lỗi cho strategy:** dùng decorator chỉ đăng ký trong môi trường kiểm thử (bật qua cấu hình `Testing`), không có trong cấu hình production. Lỗi hạ tầng (Redis, PostgreSQL, mạng giữa BE và TADSS) luôn tiêm bằng Toxiproxy.
+
+---
+
+## 4. DANH MỤC KIỂM THỬ
+
+Cột **Xây dựng** là phase viết test; mọi test case được **chạy lại toàn bộ ở Phase 8**.
+
+### 4.1. UT — Unit test (TADSS)
+
+| ID | Phạm vi | Tiêu chí đạt | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| UT-01 | Bất biến domain v2 (items, khách vãng lai, thời lượng, giá, lịch sử) | Mọi bất biến có test biên đúng/sai | P5 |
+| UT-02 | Serialization contract v2 (round-trip, enum strict, `additionalProperties`) | Round-trip không mất dữ liệu; giá trị lạ bị từ chối | P5 |
+| UT-03 | Strategies v2: bảng quyết định theo hạng, khung giờ, ngưỡng giá trị lớn | Mọi ô trong bảng quyết định có test, gồm biên | P5 |
+| UT-04 | Quy tắc định tuyến strategy theo request | Đúng strategy cho từng quy tắc; quy tắc mặc định | P5 |
+| UT-05 | Múi giờ chi nhánh & ranh giới cao điểm (16:59/17:00/20:59/21:00, cuối tuần, đổi ngày) | Đúng với `Asia/Ho_Chi_Minh` và một múi giờ khác | P5 |
+| UT-06 | `RequestHasher` tất định, không phụ thuộc múi giờ máy chủ | Cùng hash khi chạy với TZ = UTC và UTC+7; khác hash khi đổi dữ liệu nghiệp vụ | P5 |
+| UT-07 | Cấu hình pipeline Polly (thứ tự, tham số, ngân sách) | Khớp cấu hình; ngân sách ≤ outer timeout | P1–P5 |
+| UT-08 | Map exception → HTTP/`code` | Lỗi server không thành 4xx | P5 |
+| UT-09 | Kiểm thử kiến trúc: dependency purity, public API baseline v2 | Đạt | P2, P5 |
+| UT-10 | Quy tắc approval window | Đổi `NEED_APPROVAL` → `APPROVED` 100% đúng điều kiện | P5 |
+
+### 4.2. IT — Integration test trên hạ tầng thật (TADSS, E-TC)
+
+| ID | Kịch bản | Tiêu chí đạt |
 | :--- | :--- | :--- |
-| **$C_0$ — Partial Cache Hit (50%)** | `Mixed50PercentHit` (50% request trùng khóa đã pre-warm, 50% request khóa mới). | Phân phối độ trễ hỗn hợp thực tế sau khi khởi động lại Cache hoặc mở ca đặt chỗ mới (`Hit Ratio = 50%`). |
-| **$C_1$ — Slow Redis WAN Latency** | `NetworkLatencyCacheDecorator` tiêm độ trễ mạng WAN (`25–45ms` RTT mỗi thao tác `Get`/`Set`). | Định lượng chi phí mạng WAN thực tế khi Redis Cloud đặt khác vùng mạng so với Runtime API. |
-| **$C_2$ — Cache Thundering Herd** | `IdenticalCanonicalKey` trên khóa lạnh kết hợp cửa sổ tính toán `15–20ms` (`ThunderingHerdColdComputeDelay`). | Đo số lượng luồng đồng thời đâm xuyên qua cùng 1 khóa lạnh tại thời điểm $t=0$ trước khi luồng đầu tiên kịp ghi Cache (Cache Stampede). |
-| **$C_3$ — Cache Eviction Thrashing** | `BoundedCapacityCacheService` giới hạn `32` entries dưới tập khóa làm việc xoay vòng `128` keys. | Đo sự suy giảm tỷ lệ trúng đích (Cache Hit Ratio) khi tập khóa hoạt động vượt quá dung lượng bộ nhớ đệm (LRU Eviction Thrashing). |
+| IT-01 | Đánh giá hợp lệ | 200; đúng 1 bản ghi `decision_executions` có snapshot request; response hợp lệ theo schema |
+| IT-02 | Gửi lại cùng key + cùng payload | Trả kết quả cũ; vẫn 1 bản ghi; strategy không chạy lại |
+| IT-03 | Cùng key + payload khác | 409 `IDEMPOTENCY_KEY_REUSE` |
+| IT-04 | 50 request song song cùng key | Đúng 1 bản ghi; 50 response giống nhau (đi qua nhánh xử lý lỗi `23505`) |
+| IT-05 | `UPDATE`/`DELETE` trực tiếp vào bảng audit | Trigger từ chối; dữ liệu không đổi |
+| IT-06 | Override APPROVE kèm mức cọc | Có bản ghi `decision_overrides`; chi tiết hiển thị override; hàng chờ không còn quyết định đó |
+| IT-07 | 20 override song song trên cùng quyết định | Đúng 1 thành công; còn lại 409 `ALREADY_OVERRIDDEN` |
+| IT-08 | Override quyết định không chờ duyệt / đã hết hạn | 409 `NOT_PENDING_APPROVAL` / `APPROVAL_EXPIRED` |
+| IT-09 | Hàng chờ: thay thế bản cũ cùng reservation, lọc `branchId`, loại bản hết hạn, dùng partial index | Kết quả đúng; `EXPLAIN` dùng index |
+| IT-10 | Ghi outcome; ghi trùng | 200; trùng khác payload → 409 |
+| IT-11 | Thiếu/sai `X-Api-Key`; override thiếu `X-Actor-Id` | 401; 400 |
+| IT-12 | Shadow mode | Bản ghi `SHADOW` được lưu; response không đổi; không vào hàng chờ |
+| IT-13 | Cache trên Redis thật; strategy tắt cache | Có `CACHE_HIT` khi được phép; strategy tắt cache không bao giờ hit |
+| IT-14 | Định tuyến: request giờ cao điểm / thấp điểm theo giờ chi nhánh | Đúng strategy theo quy tắc |
+| IT-15 | Migration trên DB trống; model snapshot | Áp dụng thành công; không có thay đổi chưa tạo migration |
 
----
+### 4.3. CT — Contract
 
-### Layer D — Strategy & Persistence Performance ($D_0, D_1, D_2$)
-
-| Kịch bản | Cơ chế Mô phỏng trong Harness | Mục tiêu Kiểm chứng Thực nghiệm |
+| ID | Kịch bản | Tiêu chí đạt |
 | :--- | :--- | :--- |
-| **$D_0$ — Heavy Multi-Rule Strategy** | `VariableDelayBenchmarkStrategy` mô phỏng tập quy tắc nghiệp vụ phức tạp chạy sát ngưỡng cắt (`80–105ms` vs. `InnerTimeoutMs = 120ms`). | Kiểm định hành vi hệ thống khi Strategy thực thi nặng nhưng vẫn hợp lệ dưới ngưỡng cắt 120ms. |
-| **$D_1$ — DB Audit Write Contention** | `SimulatedDbContentionInterceptor` tiêm độ trễ ghi `SavingChangesAsync` (`20–40ms`). | Chứng minh độ trễ tranh chấp khóa ghi kiểm toán đồng bộ xuống DB chỉ cộng vào latency đầu-cuối mà **không** kích hoạt nhầm Polly Retry của tầng Strategy. |
-| **$D_2$ — Bimodal Strategy Jitter** | `BimodalJitterBenchmarkStrategy` (80% request nhanh `5ms` / 20% request chậm `95ms`). | Chứng minh sự phân tách giữa trung vị $P_{50}$ và độ trễ đuôi $P_{95}/P_{99}$ dưới tải biến thiên hai đỉnh. |
+| CT-01 | Mọi response trong IT hợp lệ theo JSON schema v2 | 0 vi phạm |
+| CT-02 | Public API surface SDK so với baseline v2 | Khớp |
+| CT-03 | Schemathesis trên `openapi-v2.yaml` (E-LOCAL) | 0 lỗi 5xx; 0 response sai schema |
+| CT-04 | `TadssClient` của SmashCourt-BE với response mẫu hợp lệ theo schema v2 | Parse đúng mọi trạng thái và mã lỗi |
 
----
+### 4.4. MT — Mutation testing (Stryker.NET)
 
-### Layer E — Combined Production Stress & Self-Healing Recovery ($E_0, E_1, E_2, E_3, E_4$)
-
-| Kịch bản | Cơ chế Mô phỏng trong Harness | Mục tiêu Kiểm chứng Thực nghiệm |
+| ID | Phạm vi | Tiêu chí đạt |
 | :--- | :--- | :--- |
-| **$E_0$ — Composite Production Mix** | 80% Cache Hit + 20% Cache Miss (Strategy `5–10ms` + DB Audit `2–5ms`). | Đường cơ sở vận hành hỗn hợp chuẩn Production đạt mục tiêu SLA $P_{95} < 150\text{ms}$. |
-| **$E_1$ — Compound WAN Cache + Heavy Strategy** | 50% Cache Hit với WAN Cache (`15–25ms`) + Heavy Strategy (`65–85ms`). | Đo hiệu ứng cộng hưởng độ trễ giữa tầng bộ đệm từ xa và tầng tính toán chính sách nặng. |
-| **$E_2$ — Cascading Triple Stress** | 100% Cache Miss với WAN Cache (`15–25ms`) + Heavy Strategy (`90–110ms`) + Slow DB Audit (`15–25ms`). | Kiểm tra sức chịu đựng của ngân sách `OuterTimeoutMs = 500ms` khi cả 3 tầng hạ tầng cùng suy giảm hiệu năng đồng thời. |
-| **$E_3$ — Intermittent Transient Faults** | `IntermittentFaultBenchmarkStrategy` gây lỗi thoáng qua ở ~14.3% request tại Attempt 1 và hồi phục ở Attempt 2. | Kiểm chứng khả năng tự chữa lành (Self-Healing) bằng Polly Retry mà không cần kích hoạt Fallback (`DCR = 100%`, `Fallback = 0%`). |
-| **$E_4$ — Circuit Breaker Recovery** | `RecoveringCircuitBenchmarkStrategy` mở mạch ở Warm-up, chờ qua `BreakDuration`, sau đó phục hồi ở Measurement. | Kiểm chứng chu trình khép kín `OPEN` $\rightarrow$ `HALF-OPEN` (Probe OK) $\rightarrow$ `CLOSED` (`RECOVERED_CLOSED`). |
+| MT-01 | `Shared.DecisionContractSDK` | Mutation score ≥ 70% |
+| MT-02 | `TADSS.Strategies.*` | Mutation score ≥ 70% |
+| MT-03 | Service lõi của runtime (`DecisionService`, routing, pipeline, approval window) | Mutation score ≥ 70% |
+
+### 4.5. FI — Fault injection / chaos
+
+| ID | Lỗi tiêm | Cách tiêm | Kết quả kỳ vọng |
+| :--- | :--- | :--- | :--- |
+| FI-01 | Strategy chậm hơn inner timeout ở lần thử đầu | Decorator kiểm thử | Retry thành công; `AUTOMATED`; không fallback |
+| FI-02 | Strategy luôn chậm | Decorator kiểm thử | `NEED_APPROVAL`, `FALLBACK`, `STRATEGY_TIMEOUT`; thời gian pipeline ≤ 500ms |
+| FI-03 | Strategy ném lỗi | Decorator kiểm thử | Fallback, `STRATEGY_EXCEPTION` |
+| FI-04 | Lỗi liên tục | Decorator kiểm thử | Circuit mở, fast-fail; sau `BreakDuration` half-open → closed khi strategy hồi phục |
+| FI-05 | Strategy không hợp tác (bỏ qua `CancellationToken`, bận CPU) | Decorator kiểm thử | Vẫn bị cắt trong ngân sách; request không bị treo |
+| FI-06 | Redis mất kết nối | Toxiproxy (ngắt) | Không fallback strategy; độ trễ tăng có giới hạn nhờ breaker Redis |
+| FI-07 | Redis trễ 200ms | Toxiproxy (latency) | Bỏ qua cache; độ trễ có giới hạn |
+| FI-08 | PostgreSQL mất kết nối | Toxiproxy (ngắt) | 503 `PERSISTENCE_UNAVAILABLE`; không có bản ghi dở dang |
+| FI-09 | PostgreSQL trễ 300ms | Toxiproxy (latency) | Phản hồi đúng; không trùng bản ghi; độ trễ được ghi nhận |
+| FI-10 | Client hủy request giữa chừng | Hủy HTTP | Không tạo bản ghi audit |
+| FI-11 | TADSS dừng hoàn toàn (E2E) | Dừng container | SmashCourt áp 100%; booking hợp lệ; không lỗi 500 cho khách |
+| FI-12 | TADSS chậm hơn `TimeoutMs` của BE | Toxiproxy (BE → TADSS) | Áp 100%; retry dùng cùng idempotency key; không có quyết định trùng |
+| FI-13 | Tắt `EnableTadssDecision` khi đang chạy | Sửa cấu hình | Có hiệu lực < 2 giây; booking mới không gọi TADSS và áp 100% |
+| FI-14 | Đứt mạng BE ↔ TADSS giữa chừng | Toxiproxy (reset kết nối) | Booking nhất quán; không treo slot |
+
+Sau **mỗi** kịch bản FI ở mức E2E (FI-11…FI-14), chạy bộ truy vấn bất biến booking (Mục 5, SC6).
+
+### 4.6. LT — Tải (k6, E-LOCAL)
+
+| ID | Hồ sơ tải | Đo |
+| :--- | :--- | :--- |
+| LT-01 | TADSS, tốc độ đến cố định 50 RPS trong 10 phút, 3 lần lặp | p50/p95/p99, tỷ lệ lỗi (SC1) |
+| LT-02 | TADSS, tăng dần 10 → 400 RPS | Điểm gãy: RPS lớn nhất khi p95 < 150ms và lỗi < 1% |
+| LT-03 | TADSS 50 RPS khi FI-02 đang bật | Thời gian pipeline, p99 endpoint (SC2) |
+| LT-04 | E2E qua SmashCourt-BE: 20 VU tạo booking trên các slot khác nhau trong 10 phút | Độ trễ API tạo booking, tỷ lệ thành công, tính đúng của mức cọc |
+| LT-05 | TADSS soak 50 RPS trong 60 phút | Trôi độ trễ, bộ nhớ, kết nối DB |
+
+Pha warm-up 1 phút bị loại khỏi thống kê. Kết quả kèm dashboard Grafana cùng khoảng thời gian.
+
+### 4.7. BE — SmashCourt-BE (Testcontainers + WireMock.Net)
+
+| ID | Kịch bản | Tiêu chí đạt |
+| :--- | :--- | :--- |
+| BE-UT-01 | `TadssClient`: header, timeout, map lỗi, retry đúng một lần với cùng key | Đạt |
+| BE-UT-02 | Ánh xạ booking → request v2 (nhiều sân, khách vãng lai, hạng, lịch sử) | Đạt, hợp lệ theo schema |
+| BE-IT-01 | Script DB mới (enum `PENDING_APPROVAL`, trường cọc) trên DB thật | Áp dụng thành công; luồng cũ vẫn đạt |
+| BE-IT-02 | Luồng APPROVED | Số tiền VNPay = `deposit.amount`; hóa đơn lưu cọc và `decisionId` |
+| BE-IT-03 | Luồng NEED_APPROVAL | Booking `PENDING_APPROVAL`; slot giữ tới `approvalExpiresAt` |
+| BE-IT-04 | Flag tắt / TADSS lỗi 5xx / timeout / 401 | Áp 100%; booking hợp lệ |
+| BE-IT-05 | Hàng chờ cho Manager | Chỉ thấy chi nhánh của mình; Owner thấy tất cả |
+| BE-IT-06 | Duyệt / từ chối | Gửi override với `X-Actor-Id` từ JWT; xử lý 409 |
+| BE-IT-07 | Sau duyệt | Tạo link thanh toán cọc; gửi thông báo |
+| BE-IT-08 | Job hết hạn duyệt | Hủy booking, giải phóng slot, gửi outcome `APPROVAL_EXPIRED`; không tự duyệt |
+| BE-IT-09 | Job outcome | Gửi đúng outcome cho mỗi trạng thái kết thúc, đúng một lần |
+| BE-IT-10 | Checkout thu phần còn lại; hủy theo chính sách | Số tiền đúng; hoàn tiền theo chính sách hiện có |
+
+### 4.8. FE & E2E (smashcourt-fe, Playwright)
+
+| ID | Kịch bản | Môi trường |
+| :--- | :--- | :--- |
+| FE-01 | `tsc` + lint + build | CI |
+| FE-02 | Toàn bộ E2E-01…E2E-10 chạy trên mock MSW | P6 |
+| E2E-01 | Khách đặt sân → APPROVED → trang thanh toán đúng số tiền cọc → VNPay sandbox → booking xác nhận | E-STAGING |
+| E2E-02 | Khách đặt sân → NEED_APPROVAL → trang chờ; Manager duyệt kèm mức cọc → khách nhận link → thanh toán | E-STAGING |
+| E2E-03 | Manager từ chối → khách thấy bị từ chối; slot được giải phóng | E-STAGING |
+| E2E-04 | Hết hạn duyệt → booking bị hủy; không tự duyệt | E-STAGING |
+| E2E-05 | Tắt flag → thanh toán 100% | E-STAGING |
+| E2E-06 | TADSS dừng → thanh toán 100%; UI không lỗi | E-STAGING |
+| E2E-07 | Hai Manager duyệt cùng đơn → một thành công, một thấy thông báo xung đột | E-STAGING |
+| E2E-08 | Manager chỉ thấy đơn chờ của chi nhánh mình | E-STAGING |
+| E2E-09 | Staff checkout thu phần còn lại | E-STAGING |
+| E2E-10 | Hàng chờ cập nhật realtime khi có đơn mới (SignalR) | E-STAGING |
+
+Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra trên Grafana.
+
+### 4.9. RP — Replay dữ liệu SmashCourt
+
+| ID | Kịch bản | Đầu ra |
+| :--- | :--- | :--- |
+| RP-01 | Xuất 215 booking bằng truy vấn chỉ đọc, ẩn danh hóa, dựng request v2, chạy qua TADSS với cấu hình định tuyến chuẩn | Phân bố trạng thái, mức cọc theo hạng/khung giờ; 0 lỗi contract |
+| RP-02 | So sánh chính sách cọc 100% tĩnh với chính sách v2 trên cùng tập booking | Cọc trung bình, tỷ lệ cần duyệt, số tiền giữ được trên các booking có nhãn NO_SHOW (chỉ mang tính mô tả, xem Mục 8) |
+
+### 4.10. PT — Độc lập domain (Hotel Booking Demand)
+
+| ID | Kịch bản | Tiêu chí đạt |
+| :--- | :--- | :--- |
+| PT-01 | Adapter ánh xạ ≥ 10.000 đơn đặt phòng khách sạn (múi giờ `Europe/Lisbon`) → request v2 → TADSS | 0 lỗi contract; `git diff` của `src/TADSS.Runtime.Api` và `src/Shared.DecisionContractSDK` trước/sau khi thêm adapter là rỗng |
+| PT-02 | Phân bố quyết định và đối chiếu mô tả với nhãn `is_canceled` của dataset | Báo cáo mô tả, không kết luận nhân quả |
+
+### 4.11. UAT — Pilot người dùng thật
+
+| ID | Nội dung | Tiêu chí |
+| :--- | :--- | :--- |
+| UAT-01 | Pilot 2 tuần trên E-STAGING | ≥ 15 người dùng, ≥ 50 booking đi qua luồng tích hợp |
+| UAT-02 | Khảo sát System Usability Scale (SUS) cho khách và Manager | Báo cáo điểm trung bình, độ lệch chuẩn, cỡ mẫu |
+| UAT-03 | Thời gian từ lúc tạo đơn chờ đến lúc Manager xử lý | Báo cáo trung vị, p90 |
+| UAT-04 | Bộ truy vấn bất biến booking trên dữ liệu pilot | 0 vi phạm |
 
 ---
 
-### Ma trận Đồng thời 19 × 4 (Concurrency Scaling Matrix: $VUs \in \{1, 10, 50, 100\}$)
+## 5. ĐỊNH NGHĨA KPI
 
-Mỗi kịch bản trong 19 kịch bản ($G_0..G_2$, $R_0..R_3$, $C_0..C_3$, $D_0..D_2$, $E_0..E_4$) đều được thực thi độc lập qua đủ **4 mức tải đồng thời**:
-$$\text{Concurrency Levels (VUs)} = \{1, 10, 50, 100\}$$
+| Mã | Chỉ số | Cách đo | Mục tiêu thiết kế |
+| :--- | :--- | :--- | :--- |
+| **SC1** | Độ trễ quyết định bình thường | p95 thời gian xử lý phía server của `POST /api/v2/decisions` trong LT-01 (E-LOCAL, PostgreSQL/Redis thật); báo cáo thêm p95 API tạo booking của LT-04 | p95 TADSS < 150ms; p95 tạo booking E2E < 1000ms |
+| **SC2** | Độ trễ khi strategy lỗi | Trong FI-02/FI-03/FI-04 và LT-03 | 100% request có thời gian pipeline ≤ 500ms; p99 endpoint ≤ 700ms |
+| **SC3** | Toàn vẹn & bất biến audit | Mỗi lượt chạy: số response 200 = số bản ghi `PRIMARY`; thử `UPDATE/DELETE` | 0 thiếu, 0 thừa; 0 lần sửa thành công |
+| **SC4** | Idempotency & chống ghi đè đồng thời | IT-04, IT-07 và các lượt LT | 0 bản ghi quyết định trùng; 0 override kép |
+| **SC5** | Feature flag | FI-13 | Hiệu lực < 2 giây; 100% booking trong lúc tắt áp cọc 100% |
+| **SC6** | Không hỏng booking | Bộ truy vấn bất biến chạy sau FI-11…FI-14 và trên dữ liệu pilot | 0 vi phạm |
+| **SC7** | Độc lập domain | PT-01 | ≥ 10.000 bản ghi; 0 lỗi contract; 0 thay đổi mã runtime/SDK |
+| **SC8** | Chất lượng bộ kiểm thử | Toàn bộ danh mục; MT | 100% test case đạt; mutation score ≥ 70% |
+| **SC9** | Tính khả dụng trong pilot | UAT-01, UAT-02 | ≥ 15 người dùng, ≥ 50 booking; SUS trung bình ≥ 68 |
 
-Tạo thành **Ma trận Thực nghiệm Toàn diện 76 Lượt chạy ($19 \text{ Scenarios} \times 4 \text{ VU Levels}$)** (hoặc **28 Lượt chạy** khi chọn chế độ `--suite Core7`).
+**Bộ truy vấn bất biến booking (SC6, UAT-04)**, chạy trên DB SmashCourt sau mỗi kịch bản:
 
----
-
-## 3. GIAO THỨC THỰC NGHIỆM CÓ KIỂM SOÁT (CONTROLLED EXPERIMENTAL PROTOCOL)
-
-### 3.1. Ranh giới Kiến trúc của `TADSS.BenchmarkRunner` (Non-Intrusive Laboratory Harness)
-Công cụ `tests/TADSS.BenchmarkRunner` được thiết kế như một **Laboratory Harness độc lập** giao tiếp với `TADSS.Runtime.Api` qua HTTP, tuyệt đối **không làm biến đổi mã nguồn Production Runtime** để phục vụ benchmark:
-
-```text
-                    ┌─────────────────────────────────────────┐
-                    │         TADSS.BenchmarkRunner           │
-                    │  (Non-Intrusive Laboratory Harness)     │
-                    │                                         │
-                    │  • Scenario & State Controller          │
-                    │  • Concurrent HttpClient Load Generator │
-                    │  • High-Resolution Stopwatch Telemetry  │
-                    │  • Statistical Result Aggregator        │
-                    │  • Traceable JSON / CSV / MD Exporter   │
-                    └────────────────────┬────────────────────┘
-                                         │ HTTP (POST /api/v1/decisions)
-                                         ▼
-                    ┌─────────────────────────────────────────┐
-                    │            TADSS.Runtime.Api            │
-                    │          (Production Runtime)           │
-                    │                                         │
-                    │  • Decision Pipeline & Strategy         │
-                    │  • Request-Hash Cache (L2/L1)           │
-                    │  • Polly v8 5-Layer Resilience          │
-                    │  • Synchronous Audit Persistence        │
-                    └─────────────────────────────────────────┘
-```
-
-### 3.2. Định dạng Siêu dữ liệu Lượt chạy (Traceable Run Metadata Schema)
-Mỗi lượt chạy $(Scenario \times Concurrency)$ bắt buộc phải sinh kèm một bản ghi **Run Metadata** chuẩn hóa để bảo đảm tính truy vết (traceability) từ số liệu thô lên bảng tổng hợp Chương 3 / Chương 4:
-
-```json
-{
-  "run_id": "EXP-W8-20260927-R3-VU100",
-  "timestamp_utc": "2026-09-27T14:00:00Z",
-  "scenario": "R3",
-  "experiment_layer": "LayerB_Resilience",
-  "concurrency": 100,
-  "total_requests": 1000,
-  "warmup_requests": 200,
-  "strategy": "ExhaustiveTimeoutBenchmarkStrategy",
-  "strategy_version": "1.0.0",
-  "cache_state": "bypassed",
-  "redis_state": "available",
-  "database_state": "seeded_isolated",
-  "environment_profile": "ControlledSelfHosted",
-  "outer_timeout_ms": 500,
-  "inner_timeout_ms": 120,
-  "retry_count": 2,
-  "retry_delay_ms": 30
-}
-```
-
-### 3.3. Chuỗi Xử lý Dữ liệu Thực nghiệm (End-to-End Evidence Pipeline)
-1. **Run Metadata + Raw Measurements:** Ghi nhận từng request (`run_id`, `request_index`, `scenario`, `concurrency`, `client_elapsed_ms`, `server_execution_time_ms`, `http_status`, `decision_status`, `execution_type`, `fallback_used`, `cache_hit`, `failure_reason`).
-2. **Statistical Aggregation:** Tính toán phân vị nội suy chuẩn xác ($P_{50}, P_{90}, P_{95}, P_{99}, \text{Max}, \text{Mean}, \text{StdDev}$), Throughput (RPS), Cache Hit Ratio, $G_1 - G_0$, $G_0 - G_2$, DCR (%), Fallback Rate (%).
-3. **Structured Export:** Xuất ra `benchmark_runs_metadata.json`, `benchmark_summary.csv`, `benchmark_raw_samples.csv` và báo cáo học thuật `WEEK8_BENCHMARK_REPORT.md` tại `docs/research/benchmarks/`.
+1. Booking `CONFIRMED`/`PAID_ONLINE` từ luồng TADSS phải có hóa đơn với số đã thanh toán ≥ số tiền cọc đã áp dụng.
+2. Booking `PENDING_APPROVAL` phải có `decisionId` và slot lock còn hiệu lực.
+3. Booking đã hủy không còn slot lock hiệu lực.
+4. Không có hai booking hiệu lực chồng giờ trên cùng sân.
+5. Mỗi `decisionId` lưu ở SmashCourt tồn tại trong `tadss.decision_executions` (truy vấn chéo schema chỉ dùng trong kiểm thử).
 
 ---
 
-## 4. CHUẨN HÓA TẬP DỮ LIỆU KIỂM TOÁN & THỰC NGHIỆM CHO TUẦN 9 (TELEMETRY DATASET PIPELINE)
+## 6. QUY TRÌNH CHẠY & EVIDENCE PACK
 
-> **📌 Đặc tả Đóng băng Chi tiết (Frozen Specification v1.0):** Xem toàn văn cấu trúc cột, hợp đồng kết nối 1-1 và 8 bất biến truy xuất nguồn gốc tại [`DATASET_SCHEMA_SPECIFICATION_V1.md`](./DATASET_SCHEMA_SPECIFICATION_V1.md).
+1. `run_id` dạng `EV-{yyyyMMdd}-{nhóm}-{mã}-{lần}` (ví dụ `EV-20261216-LT-01-r2`).
+2. Trước khi chạy: ghi commit 3 repo, digest image, file cấu hình, thông số máy.
+3. Chạy test/kịch bản; xuất dữ liệu thô (k6 summary + time series, báo cáo test, kết quả truy vấn, bản ghi audit liên quan).
+4. Chụp dashboard Grafana cùng khoảng thời gian (ảnh + JSON snapshot).
+5. Sinh manifest SHA-256 cho mọi file; chạy notebook để sinh báo cáo HTML.
 
-Để **không làm phình hay ô nhiễm Database Schema của Production** (`Zero Production Schema Pollution`), dữ liệu kiểm toán thực tế từ bảng `tadss.decision_executions` được thu thập trực tiếp trong vòng đời lượt chạy (`In-Vivo Harvest` trước khi `ScenarioHostController.DisposeAsync()` giải phóng In-Memory DB) và kết nối 1-1 với `RawMeasurementRecord` $\oplus$ `RunMetadata` qua khóa định danh logic `DecisionId`.
+Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION_V1.md`](DATASET_SCHEMA_SPECIFICATION_V1.md).
 
-Từ tập bản ghi đã qua kiểm định nguồn gốc, **Dataset Normalizer** (`tests/TADSS.BenchmarkRunner/Normalization/`) xuất **3 bộ dữ liệu chuẩn hóa (`CSV` & `JSONL`)** phục vụ Chương 4 Báo cáo Đồ án 2:
-1. **Resilience Evaluation Dataset** (`resilience_evaluation_dataset.csv` — **23 cột**, 11 kịch bản `R0..R3, D0..D2, E1..E4` $\times$ 4 VUs = 44 lượt chạy) — Đối chứng hành vi chịu lỗi, trạng thái mạch ngắt, retry, fallback và tỷ lệ duy trì quyết định ($\text{DCR}$).
-2. **Latency & Caching Dataset** (`latency_caching_dataset.csv` — **19 cột**, 8 kịch bản `G0..G2, C0..C3, E0` $\times$ 4 VUs = 32 lượt chạy) — Đối chứng phân phối độ trễ, độ chênh lệch `client_server_latency_delta_ms`, mã băm chuẩn hóa RFC 8785 `request_hash` và hiệu quả bộ nhớ đệm.
-3. **Governance & Audit Provenance Dataset** (`governance_audit_dataset.csv` — **31 cột**, thiết kế dưới dạng *Transition-Evidence Dataset* cho cả nhóm `POSITIVE_CONTROL` `G-A, G-B` và `NEGATIVE_CONTROL` `G-C1, G-C2`) — Đối chứng tính toàn vẹn của nhật ký kiểm toán hai tầng (**9-field Machine Snapshot + invariant decision-state field `NeedApproval`** $\oplus$ **5-field Mutable Governance Metadata** của thao tác quản trị kết quả quyết định TADSS) và vòng đời hàng đợi `pending-approvals`.
+---
 
-Toàn bộ 3 bộ dữ liệu đều được kiểm định tự động qua **8 Bất biến Truy xuất Nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`)** (bao gồm kiểm chứng tính duy nhất của `DecisionId` trong từng `run_id` tại `INV-P1`, định dạng SHA-256 tại `INV-P3a`, tính tất định chuẩn hóa RFC 8785 tại `INV-P3b`, và chuyển trạng thái `UpdatedAt_t1 >= UpdatedAt_t0` tại `INV-P7`) trước khi xuất biên bản `dataset_provenance_manifest.json` và báo cáo `WEEK9_DATASET_NORMALIZATION_REPORT.md`.
+## 7. PHÂN TÍCH & TRÌNH BÀY
 
+- Độ trễ báo cáo p50/p95/p99/max kèm số mẫu; với LT-01 và LT-03 báo cáo khoảng tin cậy 95% của p95 bằng bootstrap trên 3 lần lặp.
+- Biểu đồ trong notebook: phân bố độ trễ theo kịch bản; đường thời gian độ trễ + trạng thái circuit khi tiêm lỗi; tỷ lệ trạng thái quyết định; phân bố mức cọc theo hạng/khung giờ (RP, PT); thời gian duyệt (UAT-03); điểm SUS.
+- Mỗi con số trong báo cáo dẫn về `run_id` và file dữ liệu thô tương ứng.
+
+---
+
+## 8. GIỚI HẠN & MỐI ĐE DỌA TÍNH HỢP LỆ
+
+| Giới hạn | Ảnh hưởng | Cách xử lý |
+| :--- | :--- | :--- |
+| 215 booking SmashCourt là dữ liệu môi trường phát triển; nhãn `NO_SHOW` do job tự gán khi không check-in, `CANCELLED` phần lớn do hết hạn thanh toán | Không phản ánh hành vi khách thật | Chỉ dùng làm input có hình dạng thực tế (RP); mọi số liệu theo nhãn chỉ mang tính mô tả |
+| Replay là phân tích phản thực tế: mức cọc có thể làm thay đổi chính hành vi khách | Không suy ra được "đã ngăn bao nhiêu no-show" | Không đưa kết luận nhân quả; để Khóa luận xử lý bằng đánh giá off-policy/shadow mode |
+| Dataset khách sạn khác domain | Chỉ là proxy | Dùng cho kiểm chứng độc lập domain và mô tả, không kết luận về sân cầu lông |
+| E-LOCAL chạy trên một máy | Số tuyệt đối khác production | Báo cáo kèm thông số máy; so sánh tương đối giữa kịch bản trên cùng máy |
+| Pilot cỡ mẫu nhỏ | Sai số lớn | Báo cáo cỡ mẫu, trung vị và phân vị; không khái quát hóa |
+
+---
+
+## 9. LƯU TRỮ: MICRO-BENCHMARK PHASE 4
+
+Bộ `tests/TADSS.BenchmarkRunner` (19 kịch bản × 4 mức tải, Tuần 8) chạy trên EF Core InMemory với strategy giả lập bằng `Task.Delay`. Kết quả ([`WEEK8_BENCHMARK_REPORT.md`](benchmarks/WEEK8_BENCHMARK_REPORT.md)) chỉ mô tả **overhead của pipeline trong phòng lab** và **không** được dùng làm minh chứng cho SC1–SC9. Module chuẩn hóa dataset Tuần 9 đã được gỡ bỏ trong Phase R.

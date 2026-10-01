@@ -1,213 +1,294 @@
-# TÀI LIỆU ĐẶC TẢ TÍCH HỢP HỆ THỐNG (INTEGRATION SPECIFICATION)
+# ĐẶC TẢ TÍCH HỢP SMASHCOURT ↔ TADSS & DECISION CONTRACT v2
 
-Tài liệu này đặc tả chi tiết giao thức kết nối, kế hoạch di cư cơ sở dữ liệu, chiến lược phiên bản và kế hoạch kiểm thử chất lượng tích hợp giữa ứng dụng đặt sân **SmashCourt** và **Decision Runtime Platform (TADSS)**.
+| | |
+| :--- | :--- |
+| **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (08/11/2026) |
+| **Thay thế** | Contract v1.0.0 ([`API_CONTRACT_V1.md`](API_CONTRACT_V1.md)) — v1 không có consumer thực tế nên được ngừng khi v2 đóng băng |
+| **Consumer** | `SmashCourt-BE` (Phase 6); adapter Hotel Booking Demand (kiểm chứng độc lập domain) |
+| **Sở hữu** | Tài liệu này là nguồn duy nhất về contract v2 và luồng tích hợp. Bất biến lưu trữ: [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) |
 
 ---
 
-## 1. SMASHCOURT ➔ TADSS CONTRACT SPECIFICATION
+## 1. NGHIỆP VỤ ĐẶT CỌC (ĐÃ CHỐT)
 
-### 1.1. Endpoint Đánh giá Quyết định (`POST /api/v1/decisions`)
+| Tình huống | Bên quyết định | Kết quả |
+| :--- | :--- | :--- |
+| Strategy xác định được mức cọc | TADSS | `APPROVED` + `deposit.amount` → SmashCourt tạo thanh toán VNPay đúng số tiền cọc |
+| Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) hoặc strategy lỗi (fallback) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
+| Cần duyệt nhưng không còn đủ thời gian duyệt trước giờ chơi (quy tắc *approval window*, Mục 1.1) | TADSS | `APPROVED` với cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE` |
+| Strategy từ chối theo chính sách | TADSS | `REJECTED` → SmashCourt hủy booking |
+| Feature flag tắt, hoặc TADSS không phản hồi / timeout / lỗi 5xx / lỗi xác thực | SmashCourt | Cọc **100%** (hành vi Đồ án 1), không chặn khách |
+| Hết hạn duyệt mà Manager chưa xử lý | SmashCourt (job) | Hủy booking, giải phóng sân. **Không bao giờ tự động duyệt** |
 
-*   **Phương thức:** `POST`
-*   **Đường dẫn:** `http://<tadss-host>:<port>/api/v1/decisions`
-*   **Headers:**
-    *   `Content-Type: application/json; charset=utf-8` (Bắt buộc)
-    *   `X-Idempotency-Key: <GUID/String>` (Bắt buộc đối với `POST /api/v1/decisions` — Chuỗi `1..128` ký tự đảm bảo chống thực thi trùng lặp ở tầng Runtime)
-    *   `X-Correlation-ID: <GUID>` (Tùy chọn — Được sinh bởi SmashCourt để trace chéo log; nếu vắng mặt TADSS tự sinh GUID mới và echo lại trong response header)
+Khách hàng **không** tự chọn mức cọc. Phần còn lại (tổng tiền − cọc) được thu khi checkout tại quầy.
 
-#### Request Payload Schema (Decision Contract v1)
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "reservationId": { "type": "string", "format": "uuid" },
-    "courtId": { "type": "string", "format": "uuid" },
-    "courtTypeId": { "type": ["string", "null"], "format": "uuid" },
-    "branchId": { "type": "string", "format": "uuid" },
-    "customerId": { "type": "string", "format": "uuid" },
-    "customerTier": { "type": "string", "default": "STANDARD", "description": "Mapped from client LoyaltyTier table" },
-    "startTime": { "type": "string", "format": "date-time" },
-    "endTime": { "type": "string", "format": "date-time" },
-    "bookingType": { "type": "string", "default": "SINGLE" },
-    "totalPrice": { "type": "number", "minimum": 0 },
-    "depositAmount": { "type": "number", "minimum": 0 },
-    "paymentStatus": { "type": "string", "enum": ["UNPAID", "PARTIALLY_PAID", "PAID", "REFUNDED", "EXPIRED"] },
-    "priority": { "type": "string", "default": "NORMAL" },
-    "requestedAt": { "type": "string", "format": "date-time" },
-    "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
-  },
-  "required": [
-    "reservationId", "courtId", "branchId", "customerId",
-    "startTime", "endTime", "bookingType", "totalPrice",
-    "depositAmount", "paymentStatus", "requestedAt"
-  ]
-}
+### 1.1. Quy tắc approval window (runtime TADSS)
+
+- `approvalExpiresAt = min(createdAt + Tadss:Approval:WindowMinutes, earliestStart − Tadss:Approval:MinLeadMinutes)`; mặc định `WindowMinutes = 30`, `MinLeadMinutes = 120`.
+- Nếu strategy (hoặc fallback) trả `NEED_APPROVAL` nhưng `approvalExpiresAt ≤ createdAt` → runtime trả `APPROVED`, cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE`. Kết quả gốc của strategy vẫn được lưu nguyên trong audit (`strategy_status`).
+
+---
+
+## 2. LUỒNG TÍCH HỢP
+
+### 2.1. Đặt sân online
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Khách
+    participant FE as smashcourt-fe
+    participant BE as SmashCourt-BE
+    participant T as TADSS
+    participant V as VNPay
+    actor M as Manager
+
+    C->>FE: Chọn sân, khung giờ
+    FE->>BE: POST /api/bookings/online
+    BE->>BE: Tạo booking PENDING, giữ slot, tính giá
+    alt EnableTadssDecision = true
+        BE->>T: POST /api/v2/decisions (X-Api-Key, X-Idempotency-Key = bookingId)
+        alt APPROVED
+            T-->>BE: deposit.amount
+            BE->>V: Tạo URL thanh toán = deposit.amount
+            BE-->>FE: paymentUrl + số tiền cọc + phần còn lại
+        else NEED_APPROVAL
+            T-->>BE: approvalExpiresAt
+            BE->>BE: booking = PENDING_APPROVAL, giữ slot tới approvalExpiresAt
+            BE-->>FE: trạng thái chờ duyệt
+            BE-)M: SignalR: có đơn chờ duyệt
+        else REJECTED
+            BE->>BE: Hủy booking, giải phóng slot
+            BE-->>FE: thông báo từ chối
+        else Timeout / 5xx / 401
+            BE->>V: Tạo URL thanh toán = 100%
+            BE-->>FE: paymentUrl (100%)
+        end
+    else EnableTadssDecision = false
+        BE->>V: Tạo URL thanh toán = 100%
+    end
 ```
 
-#### Response Payload Schema (Decision Contract v1)
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "decisionId": { "type": "string", "format": "uuid" },
-    "reservationId": { "type": "string", "format": "uuid" },
-    "status": { "type": "string", "enum": ["APPROVED", "REJECTED", "NEED_APPROVAL"] },
-    "strategyName": { "type": "string" },
-    "strategyVersion": { "type": "string" },
-    "executionTimeMs": { "type": "integer" },
-    "fallbackUsed": { "type": "boolean" },
-    "primaryReason": { "type": "string" },
-    "reasons": { "type": "array", "items": { "type": "string" } },
-    "recommendations": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "type": { "type": "string", "enum": ["ALTERNATIVE_SLOT", "ALTERNATIVE_COURT", "PRICE_ADJUSTMENT", "REQUIRE_DEPOSIT", "REQUIRE_APPROVAL", "PRIORITY_ESCALATION"] },
-          "description": { "type": "string" },
-          "suggestedCourtId": { "type": ["string", "null"], "format": "uuid" },
-          "suggestedStartTime": { "type": ["string", "null"], "format": "date-time" },
-          "suggestedEndTime": { "type": ["string", "null"], "format": "date-time" },
-          "suggestedPrice": { "type": ["number", "null"] },
-          "confidenceScore": { "type": ["number", "null"] }
-        },
-        "required": ["type", "description"]
-      }
-    },
-    "evaluatedAt": { "type": "string", "format": "date-time" }
-  },
-  "required": [
-    "decisionId", "reservationId", "status", "strategyName",
-    "strategyVersion", "executionTimeMs", "fallbackUsed",
-    "primaryReason", "reasons", "recommendations", "evaluatedAt"
-  ]
-}
+### 2.2. Manager duyệt
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor M as Manager
+    participant FE as smashcourt-fe
+    participant BE as SmashCourt-BE
+    participant T as TADSS
+    actor C as Khách
+    M->>FE: Mở hàng chờ (chi nhánh của mình)
+    FE->>BE: GET /api/decision-approvals?branchId=...
+    BE->>T: GET /api/v2/decisions/pending-approvals?branchId=...
+    M->>FE: Duyệt, cọc 30%, lý do
+    FE->>BE: POST /api/decision-approvals/{decisionId}/approve
+    BE->>T: POST /api/v2/decisions/{id}/override (X-Actor-Id = userId từ JWT)
+    alt 200 OK
+        BE->>BE: Cập nhật booking, tạo URL thanh toán cọc
+        BE-)C: SignalR/email: link thanh toán
+    else 409 ALREADY_OVERRIDDEN / APPROVAL_EXPIRED
+        BE-->>FE: Thông báo xung đột / đã hết hạn
+    end
 ```
 
-### 1.2. Cơ chế Bật/Tắt Nóng & Xử lý Lỗi (Feature Flags & Fallback)
+Endpoint phía SmashCourt-BE (`/api/decision-approvals/...`) là bản đề xuất; API contract BE ↔ FE được chốt ở task T5.22 (W10).
 
-*   **Cấu hình Feature Flag (`EnableTadssDecision`):**
-    Được cấu hình trong file `appsettings.json` và reload nóng qua `IOptionsMonitor` trong SmashCourt Backend:
-    ```json
+### 2.3. Báo kết quả thực tế (outcome)
+
+Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionId}/outcome` với một trong các giá trị: `COMPLETED`, `NO_SHOW`, `CANCELLED_BY_CUSTOMER`, `CANCELLED_BY_STAFF`, `PAYMENT_EXPIRED`, `APPROVAL_EXPIRED`, `REJECTED`. Đây là nhãn kết quả phục vụ phân tích và Khóa luận.
+
+---
+
+## 3. DECISION CONTRACT v2
+
+### 3.1. Quy ước chung
+
+- Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/` khi hiện thực T5.1).
+- Thời gian dùng ISO 8601 **kèm offset** (`2026-11-20T18:00:00+07:00`). Mọi quy tắc theo khung giờ được tính theo `branchTimeZone` (IANA, ví dụ `Asia/Ho_Chi_Minh`).
+- Tiền là số thập phân, đơn vị theo `currency` (SmashCourt: `VND`).
+
+### 3.2. Header
+
+| Header | Bắt buộc | Mô tả |
+| :--- | :---: | :--- |
+| `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client |
+| `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá) hoặc `{decisionId}:{action}` (override) |
+| `X-Actor-Id` | `POST /override` | Định danh Manager do SmashCourt lấy từ JWT đã xác thực |
+| `X-Correlation-ID` | Tùy chọn | Được echo lại trong response và gắn vào log, trace, audit |
+
+### 3.3. `POST /api/v2/decisions`
+
+**Request**
+
+```json
+{
+  "reservationId": "5b0a6f0e-7c0d-4a0e-9a64-0c2e7f1b9a11",
+  "branchId": "1f2e3d4c-0000-4000-8000-000000000001",
+  "branchTimeZone": "Asia/Ho_Chi_Minh",
+  "items": [
     {
-      "TadssConfig": {
-        "EnableTadssDecision": true,
-        "TadssEndpoint": "http://localhost:5296/api/v1/decisions",
-        "DefaultDepositRate": 1.0
-      }
+      "resourceId": "c0a8012e-0000-4000-8000-0000000000aa",
+      "resourceTypeId": "c0a8012e-0000-4000-8000-0000000000bb",
+      "startTime": "2026-11-20T18:00:00+07:00",
+      "endTime": "2026-11-20T20:00:00+07:00",
+      "price": 240000
     }
-    ```
-*   **Luồng hoạt động khi đặt sân:**
-    1. Nếu `EnableTadssDecision = false`: SmashCourt tự động áp dụng chính sách cọc mặc định (100% giá đặt sân) trực tiếp mà không gọi TADSS.
-    2. Nếu `EnableTadssDecision = true`: SmashCourt gửi request đến TADSS.
-       * Nếu TADSS phản hồi thành công (`status = "APPROVED"`): Áp dụng chính sách tự động duyệt theo phản hồi `DecisionResultDto` (và đọc gợi ý `Recommendations` như `REQUIRE_DEPOSIT` / `ALTERNATIVE_SLOT` nếu có).
-       * Nếu trả về `status = "NEED_APPROVAL"` (ví dụ cọc thiếu hoặc giờ cao điểm / fallback kích hoạt): Tạm dừng thanh toán VNPay, chờ Manager duyệt/ghi đè trên Dashboard (`POST /api/v1/decisions/{decisionId}/override`).
-       * **Quy tắc NO Auto-Approve:** Đơn ở trạng thái `NEED_APPROVAL` nếu quá hạn duyệt (timeout 15 phút, có thể cấu hình) sẽ tự động chuyển sang `Expired` hoặc `Cancelled`, tuyệt đối không tự động duyệt để bảo vệ an toàn dòng tiền.
-       * Nếu TADSS gặp sự cố sập kết nối hoặc trả về lỗi `504`/`5xx`: `HttpClient` phía SmashCourt catch lỗi và tự động kích hoạt Fallback cọc 100% (`DefaultDepositRate`).
+  ],
+  "customer": {
+    "customerId": "9d3f1c2a-0000-4000-8000-000000000123",
+    "isGuest": false,
+    "tier": "GOLD",
+    "history": { "completedCount": 12, "noShowCount": 1, "cancelledCount": 2, "lastCompletedAt": "2026-11-02T20:00:00+07:00" }
+  },
+  "totalPrice": 228000,
+  "currency": "VND",
+  "channel": "ONLINE",
+  "requestedAt": "2026-11-18T09:15:00+07:00",
+  "metadata": { "promotionCode": "WINTER" }
+}
+```
+
+| Trường | Ràng buộc |
+| :--- | :--- |
+| `items` | 1..20 phần tử; mỗi `endTime > startTime`, thời lượng 30 phút – 12 giờ; `price ≥ 0` |
+| `customer.customerId` | Bắt buộc khi `isGuest = false`; `null` khi `isGuest = true` |
+| `customer.tier` | Một trong `STANDARD`, `SILVER`, `GOLD`, `PLATINUM`, `DIAMOND` (client tự ánh xạ hạng nội bộ) |
+| `customer.history` | Tùy chọn; số đếm ≥ 0 |
+| `totalPrice` | Tổng sau giảm giá, ≥ 0 |
+
+**Response 200**
+
+```json
+{
+  "decisionId": "0f9c7e5a-0000-4000-8000-00000000d001",
+  "reservationId": "5b0a6f0e-7c0d-4a0e-9a64-0c2e7f1b9a11",
+  "status": "APPROVED",
+  "deposit": { "rate": 0.5, "amount": 114000, "currency": "VND" },
+  "strategyName": "MockAlternativeDecisionStrategy",
+  "strategyVersion": "2.0.0",
+  "executionType": "AUTOMATED",
+  "fallbackUsed": false,
+  "reasonCode": "PEAK_HOUR_DEPOSIT",
+  "reasons": ["Khung giờ cao điểm (18:00 thứ Sáu, giờ chi nhánh) áp dụng cọc 50%."],
+  "recommendations": [],
+  "approvalExpiresAt": null,
+  "evaluatedAt": "2026-11-18T02:15:00.041Z"
+}
+```
+
+| Trường | Quy tắc |
+| :--- | :--- |
+| `status` | `APPROVED` \| `NEED_APPROVAL` \| `REJECTED` |
+| `deposit` | **Bắt buộc** khi `APPROVED` (`0 ≤ rate ≤ 1`, `amount = round(totalPrice × rate)`); `null` trong các trường hợp còn lại |
+| `executionType` | `AUTOMATED` \| `FALLBACK` \| `CACHE_HIT` |
+| `approvalExpiresAt` | Bắt buộc khi `NEED_APPROVAL` |
+| `recommendations[].type` | `REQUIRE_APPROVAL`, `ALTERNATIVE_SLOT`, `ALTERNATIVE_RESOURCE`, `PRIORITY_ESCALATION` |
+
+### 3.4. `GET /api/v2/decisions/{decisionId}`
+
+Trả chi tiết: snapshot request đã chuẩn hóa, kết quả máy (gồm `strategyStatus`), telemetry thực thi, danh sách override, outcome (nếu có), dấu thời gian.
+
+### 3.5. `GET /api/v2/decisions/pending-approvals?branchId={id}&page=1&pageSize=20`
+
+- Chỉ gồm **bản quyết định mới nhất** của mỗi `reservationId` thỏa: `status = NEED_APPROVAL`, chưa override, chưa có outcome, `approvalExpiresAt > now`.
+- Mỗi item: `decisionId`, `reservationId`, `branchId`, `totalPrice`, `currency`, `earliestStart`, `customer.isGuest`, `customer.tier`, `reasonCode`, `fallbackUsed`, `approvalExpiresAt`, `createdAt`.
+
+### 3.6. `POST /api/v2/decisions/{decisionId}/override`
+
+```json
+{ "action": "APPROVE", "deposit": { "rate": 0.3 }, "reason": "Khách quen, chi nhánh bảo lãnh" }
+```
+
+- `action`: `APPROVE` (bắt buộc `deposit.rate` hoặc `deposit.amount`) \| `REJECT`. `reason` 5..500 ký tự.
+- Mỗi quyết định có **tối đa một** override (ràng buộc `UNIQUE(decision_id)` trên bảng `decision_overrides`). Gửi lại cùng `X-Idempotency-Key` và cùng payload → trả lại kết quả cũ (200).
+- **Response 200:** `decisionId`, `action`, `deposit` (đã quy đổi `rate` và `amount`), `actorId`, `reason`, `overriddenAt`.
+
+### 3.7. `POST /api/v2/decisions/{decisionId}/outcome`
+
+```json
+{ "outcome": "NO_SHOW", "occurredAt": "2026-11-20T18:30:00+07:00" }
+```
+
+Mỗi quyết định có tối đa một outcome. Gửi trùng với cùng payload → 200; khác payload → 409.
+
+### 3.8. Mã lỗi (RFC 7807 `application/problem+json`, trường `code`)
+
+| HTTP | `code` | Khi nào |
+| :---: | :--- | :--- |
+| 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header sai |
+| 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key` |
+| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` |
+| 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác |
+| 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái |
+| 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed) |
+| 504 | `GATEWAY_TIMEOUT` | Vượt deadline toàn cục |
+| 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |
+
+### 3.9. Idempotency
+
+| Trạng thái key | Payload | Hành vi |
+| :--- | :--- | :--- |
+| Chưa tồn tại | Bất kỳ | Thực thi, lưu audit, 200 |
+| Đã tồn tại | Giống (`request_hash` trùng) | Trả lại kết quả đã lưu, không chạy lại strategy, 200 |
+| Đã tồn tại | Khác | 409 `IDEMPOTENCY_KEY_REUSE` |
+
+Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo đảm chỉ một bản ghi; request thua đọc lại và trả kết quả của request thắng.
 
 ---
 
-## 2. KẾ HOẠCH DI CƯ CƠ SỞ DỮ LIỆU (DATABASE MIGRATION PLAN)
+## 4. TRÁCH NHIỆM PHÍA SMASHCOURT-BE
 
-Cơ sở dữ liệu của TADSS Platform được tích hợp trực tiếp vào PostgreSQL 16 hiện tại của SmashCourt (trên **Neon Cloud `ap-southeast-1`** hoặc Local), cô lập hoàn toàn ở tầng **Logical Schema** có tên là `tadss` để tránh xung đột cấu trúc dữ liệu chính.
+### 4.1. Cấu hình (`TadssConfig`, đọc qua `IOptionsMonitor`, reload < 2 giây)
 
-```
-PostgreSQL Database (SmashCourt DB)
-├── public schema (branches, courts, bookings, payments, loyalty...)
-└── tadss schema (decision_executions)
-```
-
-### 2.1. Cấu trúc Bảng Duy nhất `tadss.decision_executions` (Single-Table Audit Pattern)
-
-Bảng `tadss.decision_executions` lưu toàn bộ nhật ký thực thi, thông số telemetry và các trường phê duyệt của Manager:
-
-```sql
-CREATE SCHEMA IF NOT EXISTS tadss;
-
-CREATE TABLE IF NOT EXISTS tadss.decision_executions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    decision_id UUID NOT NULL,
-    reservation_id UUID NOT NULL,
-    strategy_name VARCHAR(100) NOT NULL,
-    strategy_version VARCHAR(20) NOT NULL,
-    execution_type VARCHAR(50) NOT NULL, -- 'AUTOMATED', 'CACHE_HIT', 'FALLBACK'
-    execution_time_ms INTEGER NOT NULL,
-    fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
-    failure_reason TEXT NULL,
-    cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
-    need_approval BOOLEAN NOT NULL DEFAULT FALSE,
-    request_hash VARCHAR(64) NOT NULL,
-    response_payload JSONB NOT NULL,
-    
-    -- Các trường Override & Concurrency
-    is_overridden BOOLEAN NOT NULL DEFAULT FALSE,
-    overridden_by VARCHAR(100) NULL,
-    override_reason TEXT NULL,
-    idempotency_key VARCHAR(128) NULL,
-    version INTEGER NOT NULL DEFAULT 1,
-    
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT uq_decision_id UNIQUE (decision_id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_decision_idempotency_key ON tadss.decision_executions (idempotency_key) WHERE idempotency_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_decision_executions_request_hash ON tadss.decision_executions (request_hash);
-CREATE INDEX IF NOT EXISTS idx_decision_executions_reservation_id ON tadss.decision_executions (reservation_id);
-CREATE INDEX IF NOT EXISTS idx_decision_executions_created_at ON tadss.decision_executions (created_at);
-CREATE INDEX IF NOT EXISTS idx_decision_executions_pending_approval ON tadss.decision_executions (created_at) WHERE (need_approval = true AND is_overridden = false);
+```json
+{
+  "TadssConfig": {
+    "EnableTadssDecision": true,
+    "BaseUrl": "http://localhost:5296",
+    "TimeoutMs": 800,
+    "TierMapping": { "Đồng": "STANDARD", "Bạc": "SILVER", "Vàng": "GOLD", "Bạch Kim": "PLATINUM", "Kim Cương": "DIAMOND" }
+  }
+}
 ```
 
-### 2.2. Kịch bản Khôi phục khi gặp Sự cố (Rollback Strategy)
+`ApiKey` đặt trong user-secrets/biến môi trường, không ghi vào `appsettings.json`. Tên hạng trong `TierMapping` là ví dụ; giá trị thật lấy theo bảng `loyalty_tiers`.
 
-Nếu bản Migration gây lỗi hoặc cần gỡ bỏ hoàn toàn:
-1.  Chuyển `EnableTadssDecision = false` tại cấu hình của SmashCourt để cô lập hoàn toàn luồng đặt chỗ.
-2.  Chạy script hạ cấp:
-     ```sql
-     DROP TABLE IF EXISTS tadss.decision_executions CASCADE;
-     DROP SCHEMA IF EXISTS tadss CASCADE;
-     ```
+**Cách SmashCourt-BE dùng contract:** BE **không** reference `Shared.DecisionContractSDK` (reference chéo repo từng làm vỡ CI độc lập và đã được gỡ ở commit `0b5d041` của SmashCourt-BE). BE tự định nghĩa DTO và `ITadssClient`/`TadssClient` trong `Integrations/Tadss/` theo mẫu `Integrations/AI/` hiện có; tính tương thích được bảo đảm bằng kiểm thử CT-04 (response mẫu kiểm tra theo JSON schema v2).
+
+### 4.2. Ánh xạ booking → request v2
+
+- Mỗi `booking_court` → một phần tử `items` (`resourceId = courtId`, `resourceTypeId = courtTypeId`, giá từng sân).
+- Khách vãng lai → `isGuest = true`, `customerId = null`, `tier = STANDARD`.
+- `history` tính từ các booking đã kết thúc của khách.
+- `X-Idempotency-Key = bookingId`, nên đánh giá lại cùng booking (khi client retry) không sinh quyết định mới.
+
+### 4.3. Xử lý kết quả
+
+- Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát.
+- Timeout `TimeoutMs`, lỗi 5xx, 401 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id. Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
+- Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
+
+### 4.4. Thay đổi dữ liệu SmashCourt (chi tiết hóa ở Phase 6)
+
+- Thêm giá trị `PENDING_APPROVAL` cho enum `booking_status`.
+- Hóa đơn: số tiền cọc, tỷ lệ cọc, `tadss_decision_id`, nguồn áp dụng cọc; trạng thái `PARTIALLY_PAID` (đã có) dùng sau khi thanh toán cọc.
+- Job: hết hạn duyệt (hủy + giải phóng sân), báo outcome.
+- Script SQL cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` theo quy trình hiện có của SmashCourt-BE.
 
 ---
 
-## 3. CƠ CHẾ REQUEST-HASH CACHING & CHUẨN HÓA DỮ LIỆU
+## 5. CƠ SỞ DỮ LIỆU TADSS
 
-Nhằm tối ưu hóa hiệu năng phản hồi và tránh tính toán lại không cần thiết, TADSS áp dụng cơ chế Request-Hash Cache (Redis 7.x / 8.x trên **Redis Cloud Managed `ap-southeast-1`** hoặc Local ở tầng L2, kết hợp `IMemoryCache` L1 fallback, SHA-256 exact-match).
+TADSS dùng schema `tadss` trên cùng máy chủ PostgreSQL với SmashCourt. Cấu trúc bảng, trigger chặn sửa và index của v2: xem [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md).
 
-### 3.1. Quy trình Chuẩn hóa Payload (Canonicalization - 4 bước)
-
-> **⚠️ NGUYÊN TẮC VÀNG (ARCHITECTURAL INVARIANT):** Canonicalization chỉ chuẩn hóa hình thức biểu diễn (representation), **TUYỆT ĐỐI GIỮ NGUYÊN GIÁ TRỊ NGHIỆP VỤ** (`startTime`, `endTime`, `totalPrice`, `depositAmount`). Các giá trị thời gian có ý nghĩa nghiệp vụ phải được bảo toàn chính xác; chỉ phần nhiễu hệ thống dưới mức giây (sub-second ticks) mới được cắt bỏ về giây chuẩn UTC.
-
-1.  **Sắp xếp Keys (Key Sorting):** Sắp xếp toàn bộ keys trong đối tượng JSON/Metadata theo thứ tự alphabet (RFC 8785 JCS).
-2.  **Chuẩn hóa Chuỗi Định danh & Phân loại:** Chuẩn hóa chuỗi UUID (`reservationId`, `customerId`, `courtId`, `branchId`) và in hoa (`ToUpperInvariant`) các trường phân loại (`customerTier`, `bookingType`, `paymentStatus`, `priority`).
-3.  **Chuẩn hóa Định dạng Timestamp & Loại bỏ Nhiễu Thời gian Gửi:** Chuyển đổi `startTime` và `endTime` sang định dạng ISO 8601 UTC mức giây (`yyyy-MM-ddTHH:mm:ssZ`, cắt bỏ sub-second ticks nhưng giữ nguyên giờ/phút nghiệp vụ), đồng thời **loại trừ `requestedAt`** (thời điểm gửi HTTP request) khỏi đối tượng băm để các lần gọi đánh giá cùng một lịch đặt sân luôn khớp Cache Key.
-4.  **Định dạng Số Thập phân Bất biến & Xóa Khoảng trắng:** Định dạng `totalPrice`, `depositAmount` theo `F2` (`CultureInfo.InvariantCulture`), loại bỏ khoảng trắng thừa và chuẩn hóa trường `null`.
-
-### 3.2. Thuật toán tạo RequestHash & Cache Key (Tách biệt Request Identity và Strategy Identity)
-
-```csharp
-// 1. Request Identity: Chuẩn hóa representation của DecisionRequestDto và băm SHA-256
-var normalizedPayload = CanonicalizeJson(decisionRequest);
-using var sha256 = System.Security.Cryptography.SHA256.Create();
-var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(normalizedPayload));
-var requestHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
-
-// 2. Cache Key: Kết hợp RequestHash với Strategy Identity (strategyName + strategyVersion)
-var cacheKey = $"decision:hash:{requestHash}:{strategyName}:v{strategyVersion}";
-```
-
-### 3.3. Chính sách TTL & Invalidation
-
-*   **TTL Configuration (Operational / Experimental Parameter):** Cấu hình mặc định cho baseline vận hành và thực nghiệm là `TtlHours = 24` (24 giờ, cấu hình qua `TadssCacheOptions` trong `appsettings.json`, có thể điều chỉnh linh hoạt theo từng kịch bản thực nghiệm mà không phải là bất biến kiến trúc cứng).
-*   **Strategy Version Isolation:** Khi nâng cấp chiến lược (ví dụ `Default:v1.0.0` $\rightarrow$ `Default:v2.0.0`), hậu tố `:v{strategyVersion}` trên cache key tự động thay đổi, không bao giờ lấy lại kết quả cũ của phiên bản trước.
-*   **Memory Fallback (F5):** Nếu Redis L2 gặp sự cố kết nối hoặc vượt quá `RedisTimeoutMs` (150ms), `ResilientDecisionCacheService` tự động giáng cấp sang `IMemoryCache` L1 in-process mà không gây gián đoạn API.
+**Rollback:** tắt `EnableTadssDecision` để SmashCourt quay về luồng 100%; schema `tadss` độc lập nên có thể gỡ mà không ảnh hưởng dữ liệu SmashCourt.
 
 ---
 
-## 4. CHI TIẾT CHIẾN LƯỢC PHIÊN BẢN (VERSIONING STRATEGY)
+## 6. QUẢN LÝ PHIÊN BẢN
 
-*   **Hợp đồng API (URL Path Versioning):** Định tuyến cố định theo tiền tố `/api/v1/` kèm JSON Schema khóa `additionalProperties: false`. Khi có thay đổi cấu trúc payload (breaking change), hệ thống nâng major version lên `/api/v2/`.
-*   **Phân giải Chiến lược qua DI (DI-based Strategy Resolution):** Đăng ký các Strategy vào `IServiceCollection` và phân giải qua `StrategyResolver` ($O(1)$ Lookup) theo `strategyName` và `strategyVersion`.
+- Contract v1.0.0 (Milestone 2) giữ nguyên trong `API_CONTRACT_V1.md`, `openapi-v1.yaml`, `schemas/` làm hồ sơ lịch sử.
+- Contract v2.0.0 đóng băng tại M5 với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK. Sau khi đóng băng, mọi thay đổi wire phải qua quy trình tại Mục 6 của [`CONTRACT_V1_FREEZE.md`](CONTRACT_V1_FREEZE.md).
+- Endpoint `/api/v1` được gỡ khi v2 đóng băng vì chưa có consumer nào tích hợp v1.

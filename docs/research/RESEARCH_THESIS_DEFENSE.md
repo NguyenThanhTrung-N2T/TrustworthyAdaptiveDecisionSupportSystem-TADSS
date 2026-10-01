@@ -1,83 +1,68 @@
-# ĐỀ CƯƠNG ĐỊNH HƯỚNG KHÓA LUẬN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA) `[OUT-OF-SCOPE ĐỒ ÁN 2]`
+# ĐỊNH HƯỚNG KHÓA LUẬN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA) `[NGOÀI PHẠM VI ĐỒ ÁN 2]`
 
-> **📌 Ghi chú Phạm vi (Scope Lock):** Tài liệu này lưu trữ đề cương định hướng cho **Khóa luận tốt nghiệp ở giai đoạn tiếp theo (Lớp 3 — Chiến lược `TADS` & Kiến trúc `ATDA`)** và **nằm ngoài phạm vi triển khai của Đồ án 2 hiện tại**. Phạm vi chính thức của **Đồ án 2 (16 tuần)** chỉ tập trung vào **Nền tảng Hạ tầng Thực thi Quyết định Chịu lỗi (`TADSS Decision Runtime Engine`)** — xem tài liệu gốc tại [`PROPOSAL_DO_AN_2.md`](../planning/PROPOSAL_DO_AN_2.md) và [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md).
+> Tài liệu định hướng cho Khóa luận tốt nghiệp (Lớp 3 — strategy TADS và khung ATDA). Không thuộc kế hoạch 18 tuần của Đồ án 2 ([`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md)).
 
-*   **Tên Đề tài Khóa luận (Future Thesis Title)**: Thiết kế và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ (*Design and Evaluation of an Adaptive Trust Decision Architecture for Service Reservation Platforms*)
-*   **Nền tảng Hạ tầng Kế thừa từ Đồ án 2 (Foundation Artifact)**: **TADSS (Trustworthy Adaptive Decision Support System — Runtime Engine)**.
-*   **Quy mô thực hiện (Đồ án 2 + Khóa luận)**: Nhóm 1 - 2 sinh viên | Thời gian tổng thể: 6 tháng (16 tuần Đồ án 2 + 12 tuần Khóa luận).
-
----
-
-## I. BA CÂU HỎI NGHIÊN CỨU TIN GỌN (RESEARCH QUESTIONS)
-
-Để đảm bảo tính tập trung cao độ, khóa luận chỉ xoay quanh 1 câu hỏi chính và 2 câu hỏi phụ:
-
-*   **Primary RQ (Câu hỏi chính)**: *Làm thế nào để thiết kế một Kiến trúc quyết định tin cậy thích ứng (ATDA) nhằm tối đa hóa hiệu ích kinh doanh kỳ vọng chuẩn hóa của nền tảng đặt chỗ dịch vụ mà vẫn đảm bảo tính công bằng toán học (Fairness) và tính chống chịu lỗi (Resilience) của hệ thống?*
-*   **Sub-RQ 1 (Trust & Fairness)**: *Làm thế nào để mô hình hóa điểm tin cậy thích ứng (Adaptive Trust Score) tích hợp hàm suy hao thời gian (Time Decay) và ràng buộc công bằng (Equalized Odds) để đưa ra đề xuất chính sách cá nhân hóa tối ưu?*
-*   **Sub-RQ 2 (Software Resilience)**: *Làm thế nào để thiết kế Tầng phục hồi (Resilience Layer) với cơ chế tự khôi phục (Circuit Breaker, Fallback) để hệ thống hoạt động liên tục khi thành phần strategy gặp sự cố?*
+- **Tên đề tài dự kiến:** Thiết kế và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ (*Design and Evaluation of an Adaptive Trust Decision Architecture for Service Reservation Platforms*).
+- **Thời lượng dự kiến:** 12 tuần sau khi bảo vệ Đồ án 2.
 
 ---
 
-## II. BA ĐÓNG GÓP KHOA HỌC CHÍNH (RESEARCH CONTRIBUTIONS)
+## I. KẾ THỪA TỪ ĐỒ ÁN 2
 
-Đề tài tập trung chứng minh và thực hiện đúng **3 đóng góp khoa học**:
-
-*   **Đóng góp 1**: Đề xuất kiến trúc quyết định tin cậy thích ứng (ATDA) tích hợp cấu phần đánh giá độ tin cậy (Trust Modeling) và cấu phần đề xuất chính sách (Decision Policy) cho các nền tảng đặt chỗ.
-*   **Đóng góp 2**: Thiết lập mô hình điểm tin cậy thích ứng (Adaptive Trust Score) có tích hợp suy hao thời gian (Time Decay) kết hợp ràng buộc công bằng toán học (Equalized Odds).
-*   **Đóng góp 3**: Đề xuất cơ chế phục hồi hệ thống (Resilience Layer) có khả năng tự động phát hiện sự cố strategy và chuyển sang quyết định an toàn xác định (`FallbackDecisionStrategy` $\rightarrow$ `NEED_APPROVAL`) để đảm bảo tính liên tục của luồng ra quyết định.
-
----
-
-## III. KHUNG KIẾN TRÚC THU HẸP (ATDA ARCHITECTURE LAYERS)
-
-Kiến trúc ATDA được thu hẹp tối đa vào 3 tầng cốt lõi:
-
-```
-                            ATDA
-                             │
-            ┌────────────────┴────────────────┐
-            ▼                                 ▼
-     Trust Modeling                    Decision Policy
-     - Trust Score Calculation         - Deposit/Limit Proposals
-     - Time Decay Integration          - Human-in-the-loop Feedback
-     - Fairness Constraints (E.Odds)
-            │                                 │
-            └────────────────┬────────────────┘
-                             │
-                             ▼
-                      Resilience Layer
-                      - Circuit Breaker (Polly)
-                      - Safety Fallback (NEED_APPROVAL)
-                      - Mandatory Synchronous Audit Trail
-                      - Offline Drift Monitoring
-```
-
-### 1. Phân hệ Trust Modeling (Mô hình hóa độ tin cậy)
-*   **Trust Score Calculation**: Tính điểm tin cậy dựa trên hành vi thanh toán, bùng hẹn và hủy lịch.
-*   **Time Decay**: Sử dụng hàm mũ suy hao thời gian $e^{-\lambda \Delta t}$ để giảm dần trọng số lỗi lầm cũ của khách hàng.
-*   **Fairness Constraint**: Sử dụng ràng buộc công bằng **Equalized Odds** để đảm bảo tỷ lệ AI đánh giá sai (False Positive Rate) là công bằng giữa khách hàng VIP và khách hàng mới.
-
-### 2. Phân hệ Decision Policy (Quyết định chính sách)
-*   **Policy Engine**: Đề xuất các thay đổi chính sách vận hành (yêu cầu đặt cọc động, hạn mức hủy lịch, thứ tự ưu tiên booking giờ vàng) nhằm tối đa hóa hiệu ích kinh doanh kỳ vọng chuẩn hóa ($Utility$):
-    $$\max \mathbb{E}[Utility] = \alpha \cdot \frac{Revenue}{Rev_{max}} + \beta \cdot Retention - \gamma \cdot Risk - \delta \cdot \frac{Complaint}{Complaints_{max}}$$
-*   **Human-in-the-loop Feedback**: Cho phép Manager phê duyệt hoặc ghi đè (Override) quyết định của hệ thống. Quyết định ghi đè được lưu lại dưới dạng append-only event trail làm feedback loop cho tập dữ liệu.
-
-### 3. Phân hệ Resilience Layer (Chống chịu lỗi & Bền vững hệ thống)
-*   **Circuit Breaker & Nested Timeout (thư viện Polly v8)**: Phát hiện sự cố strategy service (timeout, lỗi 5xx). Nếu một lần gọi strategy chậm quá `120ms` (Inner Timeout), hệ thống thực hiện retry tối đa 2 lần (base delay `30ms`) và tự động chuyển luồng ra quyết định sang `FallbackDecisionStrategy` (trả về trạng thái an toàn `NEED_APPROVAL` trong ngân sách SLA tổng thể `500ms`).
-*   **Mandatory Synchronous Append-only Audit Trail**: Đảm bảo ghi nhận đồng bộ an toàn (fail-closed) các sự kiện thực thi quyết định và phản hồi của con người thông qua MediatR in-process events (`INotificationHandler`) xuống Database trong cùng transaction boundary.
-*   **Offline Drift Monitoring**: Thay vì giám sát thời gian thực phức tạp, hệ thống chạy tiến trình kiểm tra ngoại tuyến (offline batch job) hàng tuần để so sánh phân phối dữ liệu thực tế với dữ liệu huấn luyện, đưa ra cảnh báo huấn luyện lại mô hình (retraining).
+| Kế thừa | Vai trò trong Khóa luận |
+| :--- | :--- |
+| TADSS runtime (pipeline chịu lỗi, cách ly strategy, audit fail-closed) | Môi trường chạy strategy TADS an toàn; strategy học máy lỗi/chậm vẫn có fallback |
+| Contract v2 (lịch sử khách, nhiều sân, giờ chi nhánh) | Đặc trưng đầu vào cho mô hình mà không cần đổi contract |
+| Audit bất biến: snapshot request + quyết định + override + outcome | Dataset có nhãn kết quả thực tế; override của Manager là tín hiệu phản hồi của con người |
+| Định tuyến theo request + **shadow mode** | So sánh TADS với baseline trên cùng traffic mà không ảnh hưởng khách |
+| Evidence Pack, notebook, k6, Toxiproxy, OpenTelemetry | Tái sử dụng để đo chi phí độ trễ và độ bền của strategy học máy |
 
 ---
 
-## IV. PHƯƠNG PHÁP THỰC NGHIỆM TIN GỌN (EVALUATION PLAN)
+## II. CÂU HỎI NGHIÊN CỨU
 
-Để đảm bảo tính khả thi trong 26 tuần thực hiện, phương án thực nghiệm được cắt giảm tối đa các cấu phần không cốt lõi:
+- **RQ chính:** Strategy quyết định thích ứng (TADS) chạy trên TADSS có cải thiện *Expected Business Utility* so với chính sách cọc tĩnh (baseline của Đồ án 2) mà vẫn thỏa ràng buộc công bằng và ràng buộc độ bền hay không?
+- **Sub-RQ1 — Trust & Fairness:** Mô hình hóa điểm tin cậy thích ứng với suy giảm theo thời gian ($e^{-\lambda \Delta t}$) và mô hình dự báo rủi ro no-show/hủy như thế nào để đề xuất mức cọc, đồng thời thỏa **Equal Opportunity**: $|TPR_{A} - TPR_{B}| \le \epsilon$ giữa các nhóm khách (ví dụ khách mới và khách thân thiết)?
+- **Sub-RQ2 — Đánh giá an toàn:** Có thể đánh giá một chính sách cọc mới trước khi áp dụng thật bằng cách kết hợp đánh giá off-policy trên dữ liệu audit và shadow mode trên traffic thật hay không?
+- **Ràng buộc độ bền (kế thừa Đồ án 2):** strategy TADS phải giữ SLA của pipeline (SC1, SC2) và không làm giảm tính liên tục của luồng quyết định.
 
-1.  **Kiểm chứng tính độc lập của Domain (DDD Canonical Model)**:
-    *   Sử dụng **Domain-Driven Design (DDD)** định nghĩa Aggregate Root là `Reservation` (chứa Customer, Resource, Schedule, Payment, Policy, DecisionContext).
-    *   Chứng minh tính độc lập bằng cách mô tả việc mapping cấu trúc dữ liệu JSON từ **SmashCourt** (sân cầu lông), **Hotel Reservation** (Khách sạn) và **Clinic Booking** (Phòng khám) về Canonical Model này, không cần xây dựng toàn bộ app của khách sạn và phòng khám.
-2.  **Đo lường Thuật toán dự đoán bùng lịch**: So sánh F1-Score của các mô hình cơ bản (CatBoost, XGBoost, Random Forest) trên tập dữ liệu bùng lịch giả lập của SmashCourt.
-3.  **Nghiên cứu cắt giảm cấu phần hệ thống (System Ablation Study)**: Chạy đối chứng thực nghiệm trong môi trường giả lập hành vi người dùng (Agent-based Simulation) để đo lường các chỉ số $Utility$, tỷ lệ no-show, tỷ lệ VIP churn dưới 5 cấu hình hệ thống từ đơn giản đến phức tạp (Baseline ➔ Chỉ có ML ➔ Có Fairness ➔ Có Human Loop ➔ Có Fallback).
+**Hàm mục tiêu tham khảo:**
+$$\max \mathbb{E}[Utility] = \alpha \cdot \frac{Revenue}{Rev_{max}} + \beta \cdot Retention - \gamma \cdot Risk - \delta \cdot \frac{Complaint}{Complaint_{max}}$$
 
 ---
-*Bản đề cương tin gọn này đã được phê duyệt làm lộ trình thực hiện khóa luận chính thức.*
+
+## III. NGUỒN DỮ LIỆU
+
+| Nguồn | Nội dung | Ghi chú |
+| :--- | :--- | :--- |
+| Audit TADSS từ pilot/vận hành thật (bộ D1) | Đặc trưng request, quyết định, override, outcome thật | Nhãn hành vi thật; cỡ mẫu phụ thuộc thời gian vận hành |
+| Hotel Booking Demand (Antonio, Almeida & Nunes, *Data in Brief*, 2019) | ~119 nghìn đơn đặt phòng, nhãn `is_canceled` | Proxy cho bài toán hủy; đã có adapter từ Đồ án 2 |
+| Medical Appointment No-Shows (Kaggle) | ~110 nghìn lịch hẹn, nhãn no-show | Proxy cho bài toán no-show |
+| Mô phỏng (agent-based) | Hành vi đặt/hủy của các nhóm khách | Hiệu chỉnh tham số theo các nguồn trên; dùng cho ablation |
+
+Dữ liệu 215 booking hiện có trong SmashCourt là dữ liệu môi trường phát triển (nhãn do job tự gán) nên **không** dùng làm nhãn huấn luyện.
+
+---
+
+## IV. PHƯƠNG PHÁP
+
+1. **Mô hình rủi ro:** baseline hồi quy logistic; so sánh CatBoost / LightGBM (ADR-005); đánh giá AUC, độ hiệu chỉnh xác suất (calibration), chỉ số công bằng theo nhóm.
+2. **Điểm tin cậy thích ứng:** tổng hợp lịch sử đúng hẹn/no-show/hủy có trọng số suy giảm theo thời gian.
+3. **Ánh xạ chính sách:** rủi ro + điểm tin cậy → mức cọc hoặc `NEED_APPROVAL`; hiện thực thành `AdaptiveTrustDecisionStrategy` theo contract v2.
+4. **Đánh giá off-policy:** ước lượng giá trị chính sách mới trên dữ liệu audit (ví dụ inverse propensity scoring), nêu rõ giả định.
+5. **Shadow mode:** chạy TADS song song với baseline trên traffic thật, so sánh phân bố quyết định và độ trễ.
+6. **Ablation trong mô phỏng:** Baseline → + mô hình rủi ro → + ràng buộc công bằng → + human-in-the-loop → + fallback.
+
+---
+
+## V. LỘ TRÌNH 12 TUẦN
+
+| Tuần | Nội dung |
+| :--- | :--- |
+| 1–3 | Tổng quan tài liệu; chuẩn bị dữ liệu (D1, hai dataset công khai); thiết kế đặc trưng |
+| 4–6 | Mô hình rủi ro, điểm tin cậy, ràng buộc công bằng; đánh giá offline |
+| 7–8 | Hiện thực `AdaptiveTrustDecisionStrategy`; đo chi phí độ trễ trên TADSS; shadow mode |
+| 9–10 | Đánh giá off-policy; mô phỏng và ablation |
+| 11–12 | Viết luận văn, chuẩn bị bảo vệ |
+
+Ngưỡng mục tiêu cho các chỉ số mô hình được chốt sau khi khảo sát dữ liệu ở tuần 1–3.

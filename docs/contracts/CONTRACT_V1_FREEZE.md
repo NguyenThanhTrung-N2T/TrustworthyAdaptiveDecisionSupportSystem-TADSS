@@ -200,7 +200,7 @@ SDK Code Coverage Summary:
    - **Quy trình phát hành v2:**
      - Tạo namespace mới `/api/v2/` trên API Gateway / Controller.
      - Tạo bộ schema mới trong thư mục `docs/contracts/schemas/v2/`.
-     - Duy trì `/api/v1/` hoạt động song song tối thiểu 6 tháng (Deprecation Grace Period).
+     - Duy trì `/api/v1/` song song trong thời gian chuyển đổi **nếu v1 đã có consumer**; nếu chưa có consumer nào tích hợp, v1 được gỡ ngay khi v2 đóng băng.
 
 ---
 
@@ -215,3 +215,14 @@ Hội đồng kỹ thuật và nhóm phát triển xác nhận toàn bộ 9 Qual
 | **System Architecture** | TADSS Engine Board | ✅ **FROZEN** | `v1.0.0-RELEASE` |
 
 > **Chuyển giao (Handoff):** Toàn bộ nền tảng Contract SDK v1.0.0 đã sẵn sàng làm nền móng vững chắc để bước sang **Phase 3: Decision Runtime Core & Baseline Strategies Implementation** (`DefaultDecisionStrategy` và `MockAlternativeDecisionStrategy` trong phạm vi Đồ án 2; việc mở rộng sang Adaptive Trust thuộc giai đoạn sau `[OUT-OF-SCOPE ĐỒ ÁN 2: Khóa luận]`).
+
+---
+
+## 8. Tiến hóa lên v2.0.0 (Re-baseline 01/10/2026)
+
+Khi rà soát trước giai đoạn tích hợp, nhóm xác định v1.0.0 không biểu diễn được nghiệp vụ đặt cọc đã chốt: response không có số tiền cọc; override chỉ đổi trạng thái và không lưu trạng thái đích; không có chi nhánh, danh tính Manager, booking nhiều sân, khách vãng lai, lịch sử khách và kết quả thực tế. Theo Mục 6, các thay đổi này bắt buộc phát hành **v2.0.0**:
+
+- Đặc tả v2: [`INTEGRATION_SPEC.md`](INTEGRATION_SPEC.md) (bản nháp, đóng băng tại Milestone 5 — 08/11/2026).
+- Artefact sẽ tạo khi đóng băng: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK.
+- Tài liệu này, `API_CONTRACT_V1.md`, `openapi-v1.yaml` và 7 schema v1 được giữ nguyên làm hồ sơ của Milestone 2. Riêng `baseline_public_api.txt` (được `PublicApiSurfaceTests` đọc) sẽ được thay bằng baseline v2 khi đóng băng; bản v1 truy lại qua tag git `phase4-baseline`.
+- Chưa có consumer tích hợp v1, nên endpoint `/api/v1` được gỡ khi v2 đóng băng.
