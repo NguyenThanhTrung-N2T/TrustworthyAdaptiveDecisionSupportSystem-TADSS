@@ -162,7 +162,7 @@ LIMIT @pageSize OFFSET @offset;
 
 ### C.2. Quy tắc tính `request_hash`
 
-1. Lấy các trường nghiệp vụ của request v2 (không gồm `requestedAt` và `metadata` không ảnh hưởng quyết định — danh sách trường được khai báo trong mã).
+1. Lấy các trường nghiệp vụ của request v2 (không gồm `requestedAt`, `metadata` và `demand` — ảnh chụp nhu cầu thay đổi giữa các lần retry cùng idempotency key; danh sách trường được khai báo trong mã). `demand` vẫn được lưu trong `request_payload`.
 2. Thời gian quy về UTC từ giá trị có offset, định dạng `yyyy-MM-ddTHH:mm:ssZ`; chuỗi phân loại viết hoa; số tiền định dạng bất biến theo culture.
 3. Dựng object canonical theo thứ tự trường cố định, serialize JSON không khoảng trắng.
 4. SHA-256 trên UTF-8 → 64 ký tự hex thường.

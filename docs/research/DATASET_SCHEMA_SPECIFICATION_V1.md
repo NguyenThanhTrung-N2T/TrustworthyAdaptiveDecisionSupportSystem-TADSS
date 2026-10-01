@@ -59,7 +59,7 @@ Nguồn dữ liệu chính cho Đồ án 2 và Khóa luận. Một dòng = một
 | Định danh | `decision_id`, `reservation_hash`, `branch_hash`, `role` (`PRIMARY`/`SHADOW`), `correlation_id`, `created_at_utc` |
 | Strategy & kết quả | `strategy_name`, `strategy_version`, `strategy_status`, `status`, `deposit_rate`, `deposit_amount`, `reason_code`, `approval_expires_at_utc` |
 | Thực thi | `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `request_hash` |
-| Đặc trưng request | `items_count`, `total_price`, `currency`, `earliest_start_local`, `lead_time_hours`, `is_peak`, `customer_is_guest`, `customer_tier`, `history_completed`, `history_no_show`, `history_cancelled` |
+| Đặc trưng request | `items_count`, `total_price`, `currency`, `earliest_start_local`, `lead_time_hours`, `is_peak`, `customer_is_guest`, `customer_tier`, `customer_member_days`, `history_completed`, `history_no_show`, `history_cancelled`, `history_late_cancelled`, `history_payment_expired`, `demand_occupancy_rate`, `demand_waitlist_count` (trường tùy chọn để trống khi nguồn không có) |
 | Con người | `override_action`, `override_deposit_rate`, `override_actor_hash`, `overridden_at_utc` |
 | Kết quả thực tế | `outcome`, `outcome_occurred_at_utc` |
 
