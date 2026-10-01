@@ -14,6 +14,7 @@ namespace TADSS.UnitTests.Architecture;
 public class PublicApiSurfaceTests
 {
     [Fact]
+    [Trait("CatalogId", "CT-02")]
     public void SharedDecisionContractSdk_PublicApiSurface_StrictlyMatchesFrozenBaseline()
     {
         // 1. Generate current Public API surface via reflection
@@ -41,13 +42,24 @@ public class PublicApiSurfaceTests
         var normalizedExpected = NormalizeText(expectedSurface);
 
         // 4. Strict assertion against frozen baseline (VERIFICATION ONLY - NEVER OVERWRITES IN TEST)
+        //    Khi lệch: ghi bề mặt thực tế ra TestResults/ để người phát triển so sánh và cập nhật baseline có chủ đích.
+        var testResultsDirectory = Path.GetFullPath(Path.Combine(baselinePath, "..", "..", "..", "TestResults"));
+        var actualSnapshotPath = Path.Combine(testResultsDirectory, "baseline_public_api.actual.txt");
+        if (normalizedActual != normalizedExpected)
+        {
+            Directory.CreateDirectory(testResultsDirectory);
+            File.WriteAllText(actualSnapshotPath, actualSurface, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+
         normalizedActual.Should().Be(
             normalizedExpected,
             "the public API surface of Shared.DecisionContractSDK must strictly match the frozen baseline v1.0.0. " +
-            "Any change indicates a breaking change or unauthorized contract modification.");
+            "Any change indicates a breaking change or unauthorized contract modification. " +
+            $"Actual surface written to '{actualSnapshotPath}' for comparison.");
     }
 
     [Fact]
+    [Trait("CatalogId", "CT-02")]
     public void SharedDecisionContractSdk_BreakingChangeSimulation_DetectsMismatch()
     {
         var sdkAssembly = typeof(Reservation).Assembly;
