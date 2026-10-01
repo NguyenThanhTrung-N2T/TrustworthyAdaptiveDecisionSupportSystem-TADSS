@@ -30,11 +30,11 @@
 
 | Mã | Task | Owner | Tiêu chí nghiệm thu |
 |:---|:---|:---:|:---|
-| TR.1 | Audit mã nguồn + tài liệu, chốt nghiệp vụ cọc | SV1 | Danh sách phát hiện được ghi trong Mục 0 của MASTER_EXECUTION_PLAN |
-| TR.2 | Đồng bộ toàn bộ tài liệu theo kế hoạch v2.0 (mỗi chủ đề một nguồn) | SV1 | Không còn mâu thuẫn tham số/tên file/con số giữa tài liệu và mã nguồn |
-| TR.3 | Gỡ module `Normalization`, 6 dataset tổng hợp và báo cáo Tuần 9 | SV1 | Build `--warnaserror` + toàn bộ test còn lại pass |
-| TR.4 | Review tài liệu luồng nghiệp vụ cọc/duyệt từ góc nhìn FE | SV2 | Ghi nhận góp ý, chốt luồng |
-| TR.5 | Tạo tag `phase4-baseline`, commit kết quả re-baseline | Cả hai | `git status` sạch ở cả 4 repo |
+| TR.1 | Audit mã nguồn + tài liệu, chốt nghiệp vụ cọc | SV1 | ✅ Danh sách phát hiện được ghi trong Mục 0 của MASTER_EXECUTION_PLAN |
+| TR.2 | Đồng bộ toàn bộ tài liệu theo kế hoạch v2.0 (mỗi chủ đề một nguồn) | SV1 | ✅ Không còn mâu thuẫn tham số/tên file/con số giữa tài liệu và mã nguồn |
+| TR.3 | Gỡ module `Normalization`, 6 dataset tổng hợp và báo cáo Tuần 9 | SV1 | ✅ Build `--warnaserror` + toàn bộ test còn lại pass (473 unit + 27 integration) |
+| TR.4 | Review tài liệu luồng nghiệp vụ cọc/duyệt từ góc nhìn FE | SV2 | ⏳ Ghi nhận góp ý, chốt luồng (đến 11/10; góp ý gộp vào T5.24) |
+| TR.5 | Tạo tag `phase4-baseline`, commit kết quả re-baseline | Cả hai | ✅ `git status` sạch ở cả 4 repo |
 
 ---
 

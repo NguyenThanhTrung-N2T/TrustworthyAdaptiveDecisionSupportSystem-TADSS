@@ -4,7 +4,7 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (01/10/2026):** Phase 1–4 hoàn thành trên contract v1 (Milestone 4: 510 test pass; sau khi gỡ module chuẩn hóa dataset ở Phase R còn 473 unit + 27 integration test, integration test hiện chạy với EF Core InMemory). Đang ở **Phase R — Re-baseline**; Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (01/10/2026):** Phase 1–4 hoàn thành trên contract v1 (Milestone 4: 510 test pass; sau khi gỡ module chuẩn hóa dataset ở Phase R còn 473 unit + 27 integration test, integration test hiện chạy với EF Core InMemory). **Phase R — Re-baseline** đã đóng Gate MR (01/10/2026, tag `phase4-baseline`); **Phase 5** hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 

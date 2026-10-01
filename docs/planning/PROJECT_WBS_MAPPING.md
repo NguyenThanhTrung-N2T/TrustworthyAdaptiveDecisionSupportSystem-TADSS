@@ -91,7 +91,7 @@ flowchart TD
 | **M2** | 18/09/2026 | Contract v1 đóng băng | ✅ |
 | **M3** | 22/09/2026 | Runtime chạy độc lập | ✅ |
 | **M4** | 01/10/2026 | Resilience & audit baseline (510 test pass) | ✅ |
-| **MR** | 11/10/2026 | Tài liệu đồng bộ, repo sạch | ⏳ |
+| **MR** | 11/10/2026 | Tài liệu đồng bộ, repo sạch | ✅ 01/10/2026 |
 | **M5** | 08/11/2026 | TADSS complete, hạ tầng kiểm thử sẵn sàng, danh mục kiểm thử toàn hệ thống | ⏳ |
 | **M6** | 06/12/2026 | SmashCourt-BE & smashcourt-fe complete | ⏳ |
 | **M7** | 13/12/2026 | Tích hợp xong, feature freeze | ⏳ |

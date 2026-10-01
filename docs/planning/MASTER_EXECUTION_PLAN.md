@@ -70,7 +70,7 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 | **2 — Contract SDK v1** | W03 | 14/09 – 20/09 (thực tế 13/09 – 18/09) | SDK, Rich Domain Model, đóng băng v1 | ✅ M2 |
 | **3 — Runtime Engine** | W03–W04 | thực tế 19/09 – 22/09 | Web API, chọn strategy qua DI, Default/Mock | ✅ M3 |
 | **4 — Resilience & Audit** | W04–W05 | thực tế 23/09 – 01/10 | Polly v8, cache, audit đồng bộ, micro-benchmark lab | ✅ M4 |
-| **R — Re-baseline** | W05–W06 | 01/10 – 11/10 | Audit, đồng bộ tài liệu, dọn repo | ⏳ MR |
+| **R — Re-baseline** | W05–W06 | 01/10 – 11/10 | Audit, đồng bộ tài liệu, dọn repo | ✅ MR (01/10) |
 | **5 — Hoàn thiện TADSS + hạ tầng kiểm thử** | W07–W10 | 12/10 – 08/11 | Contract v2, sửa lõi, toàn bộ công cụ kiểm thử, danh mục kiểm thử toàn hệ thống | ⏳ M5 |
 | **6 — BE ∥ FE** | W11–W14 | 09/11 – 06/12 | SmashCourt-BE và smashcourt-fe phát triển song song theo API contract đã chốt | ⏳ M6 |
 | **7 — Integrate** | W15 | 07/12 – 13/12 | Ghép FE ↔ BE ↔ TADSS, staging, **feature freeze** | ⏳ M7 |
@@ -125,11 +125,12 @@ gantt
 - **Milestone 4:** 510 test tự động pass (483 unit + 27 integration).
 - **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ trong Phase R vì dữ liệu sinh từ DB in-memory (xem [`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md)).
 
-### ⏳ Phase R — Re-baseline (W05–W06, 01/10 – 11/10)
+### ✅ Phase R — Re-baseline (W05–W06, kế hoạch 01/10 – 11/10, Gate MR đạt 01/10)
 
 - **SV1:** audit mã nguồn và tài liệu; đồng bộ toàn bộ tài liệu theo kế hoạch v2.0; gỡ module `Normalization` cùng 6 dataset tổng hợp; build + test xanh.
 - **SV2:** review tài liệu từ góc nhìn FE/UX; xác nhận luồng nghiệp vụ cọc và duyệt.
 - **Gate MR:** `git status` sạch ở cả 4 repo; không còn tài liệu mâu thuẫn với mã nguồn; TADSS build `--warnaserror` và test pass; tag `phase4-baseline` được tạo trước khi dọn.
+- **Kết quả Gate MR (01/10/2026):** 4 repo sạch; build 0 warning; 473 unit + 27 integration test pass, CI `develop` xanh; tag `phase4-baseline` (`243a421`) đã đẩy lên remote. Review của SV2 (TR.4) tiếp tục đến 11/10 và gộp góp ý vào T5.24.
 
 ### ⏳ Phase 5 — Hoàn thiện TADSS + hạ tầng kiểm thử (W07–W10, 12/10 – 08/11)
 

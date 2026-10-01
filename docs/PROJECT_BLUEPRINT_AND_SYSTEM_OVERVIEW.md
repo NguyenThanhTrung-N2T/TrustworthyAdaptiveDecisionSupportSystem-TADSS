@@ -130,7 +130,7 @@ Mọi chuyển trạng thái được ghi bằng bản ghi mới (quyết địn
 | Hạng mục | Trạng thái |
 | :--- | :--- |
 | Contract SDK v1, Runtime v1, pipeline chịu lỗi, audit đồng bộ, 510 test tại M4 (InMemory; còn 500 sau Phase R) | ✅ Phase 1–4 |
-| Đồng bộ tài liệu, dọn repo | ⏳ Phase R (đến 11/10) |
+| Đồng bộ tài liệu, dọn repo | ✅ Phase R (Gate MR 01/10) |
 | Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (12/10 – 08/11) |
 | SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (09/11 – 06/12) |
 | Tích hợp, kiểm thử & sửa lỗi, pilot, Evidence Pack | ⏳ Phase 7–8 (07/12 – 27/12) |
