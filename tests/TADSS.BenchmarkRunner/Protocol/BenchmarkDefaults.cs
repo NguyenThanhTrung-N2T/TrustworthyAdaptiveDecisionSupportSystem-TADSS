@@ -48,22 +48,6 @@ public static class BenchmarkDefaults
     public static readonly IReadOnlyList<int> DefaultConcurrencyLevels = [1, 10, 50, 100];
 
     public static readonly string DefaultOutputDirectory = Path.Combine("docs", "research", "benchmarks");
-    public static readonly string DefaultDatasetsDirectory = Path.Combine("docs", "research", "datasets");
-
-    public static class Normalization
-    {
-        public const string SchemaVersion = "1.0.0";
-        public const double Sla150ThresholdMs = 150.0;
-        public const int DefaultGovernancePositiveFallbackCases = 15;
-        public const int DefaultGovernancePositiveAutomatedReviewCases = 15;
-        public const int DefaultGovernanceNegativeDuplicateCases = 10;
-        public const int DefaultGovernanceNegativeNonApprovableCases = 10;
-        public const decimal HighValueReviewTotalPrice = 2_500_000m;
-        public const decimal HighValueReviewDepositAmount = 500_000m;
-        public const string HighValueReviewCustomerTier = "STANDARD";
-        public const string HighValueReviewPaymentStatus = "PARTIALLY_PAID";
-        public const string DefaultOperatorId = "manager-governance-audit@smashcourt.vn";
-    }
 
     public static class Execution
     {

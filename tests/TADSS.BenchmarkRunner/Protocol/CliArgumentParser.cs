@@ -14,7 +14,6 @@ public static class CliArgumentParser
         int warmupReqs = BenchmarkDefaults.Execution.DefaultWarmupRequests;
         string cacheMode = BenchmarkDefaults.CacheModes.Memory;
         string outputDir = BenchmarkDefaults.DefaultOutputDirectory;
-        string datasetsDir = BenchmarkDefaults.DefaultDatasetsDirectory;
         IReadOnlyList<ExperimentScenarioId>? customScenarios = null;
         List<int>? customVus = null;
 
@@ -58,14 +57,6 @@ public static class CliArgumentParser
                     if (string.IsNullOrWhiteSpace(outputDir))
                     {
                         throw new ArgumentException("--output-dir cannot be empty or whitespace.");
-                    }
-                    break;
-
-                case "--datasets-dir":
-                    datasetsDir = RequireValue(args, ref i, flag);
-                    if (string.IsNullOrWhiteSpace(datasetsDir))
-                    {
-                        throw new ArgumentException("--datasets-dir cannot be empty or whitespace.");
                     }
                     break;
 
@@ -129,7 +120,6 @@ public static class CliArgumentParser
             WarmupRequests = warmupReqs,
             CacheBackendMode = cacheMode,
             OutputDirectory = outputDir,
-            DatasetsOutputDirectory = datasetsDir,
             Resilience = new BenchmarkResilienceSettings
             {
                 OuterTimeoutMs = outerTimeoutMs,
@@ -161,7 +151,6 @@ public static class CliArgumentParser
           --warmup <int>               Warm-up requests per run (>= 0, default: 50)
           --cache-mode <Memory|RedisCloud> Cache backend mode (default: Memory)
           --output-dir <path>          Output directory for exported benchmark artifacts
-          --datasets-dir <path>        Output directory for normalized research datasets (default: docs/research/datasets)
           --outer-timeout-ms <int>     Outer Polly timeout in ms (> 0, default: 500)
           --inner-timeout-ms <int>     Inner per-attempt Polly timeout in ms (> 0, default: 120)
           --retry-count <int>          Max retry attempts (>= 0, default: 2)
