@@ -29,7 +29,7 @@ Tài liệu này là **Cẩm nang Điều hướng Trung tâm (Master Navigation
 ATDA (Proposed Architecture / Research Framework — Khóa luận)
  ├── TADSS (Runtime Platform — Đồ án 2)
  │    ├── Decision Contract SDK (Canonical Reservation Model, Value Objects, Enums)
- │    ├── Strategy Factory (DI-based Resolution, O(1) Lookup)
+ │    ├── Strategy Factory (DI-based Resolution, expected O(1) Lookup)
  │    │    ├── DefaultDecisionStrategy (Chính sách nghiệp vụ cơ sở thông thường)
  │    │    └── MockAlternativeDecisionStrategy (Cọc động 30% giờ thường / 50% giờ cao điểm)
  │    ├── Polly v8 Resilience Pipeline (Outer Timeout 500ms, Retry 2 lần, Inner Timeout 120ms, CB, FallbackDecisionStrategy)
@@ -56,7 +56,7 @@ ATDA (Proposed Architecture / Research Framework — Khóa luận)
 | Semantic Cache | **Request-Hash Cache** | Cơ chế băm SHA256 payload là exact-match, không có khả năng hiểu ngữ nghĩa (semantic). |
 | Immutable event chain | **Append-only Audit Trail** | Không có cơ chế hash chaining/blockchain ở DB, chỉ là cơ chế insert-only log. |
 | Async Event / Outbox Audit | **Mandatory Synchronous Audit qua MediatR in-process events trong PostgreSQL transaction boundary** | TADSS phát sự kiện MediatR (`INotification`) đồng bộ ngay trong cùng transaction boundary của EF Core DbContext (fail-closed), không dùng Outbox bất đồng bộ. |
-| Hot-swap strategy lúc runtime | **Thay thế Strategy ở mức Cấu hình / DI Registration** | Đăng ký Strategy qua DI Container $O(1)$, không nạp DLL động lúc đang chạy. |
+| Hot-swap strategy lúc runtime | **Thay thế Strategy ở mức Cấu hình / DI Registration** | Đăng ký Strategy qua DI Container với độ phức tạp thuật toán kỳ vọng expected $O(1)$, không nạp DLL động lúc đang chạy. |
 | Circuit Breaker đếm 5 lỗi | **Circuit Breaker mở khi tỷ lệ lỗi vượt ngưỡng trong cửa sổ mẫu** | Polly v8 sử dụng `FailureRatio` (ví dụ 0.5) trong `SamplingDuration` (30s), min 10 requests. |
 | Retry 3 lần (4 attempts) | **Retry 2 lần (3 attempts tổng cộng)** | $(3 \times 120\text{ms}) + (2 \times 30\text{ms}) = 420\text{ms} < 500\text{ms}$ SLA Budget. |
 | Schema `tadss_*` | **Schema `tadss`** | PostgreSQL không dùng ký tự đại diện `*` làm tên schema. |
@@ -235,7 +235,7 @@ flowchart LR
 |:---|:---:|:---|:---|:---|
 | **Phase 1** | **W1 — W2** | JSON API Spec, SQL Schema `tadss`, Solution Setup | Thiết kế DB Schema `tadss`, dựng Clean Architecture Solution .NET 8 | Đặc tả JSON Schema Request/Response, viết Integration Spec v1 |
 | **Phase 2** | **W3 — W4** | DLL `Shared.DecisionContractSDK`, Unit Tests >80% | Lập trình Rich Domain Model `Reservation`, Invariants, Behavior Rules | Định nghĩa DTOs, Value Objects, Enums, viết bộ Unit Tests SDK |
-| **Phase 3** | **W5 — W6** | Web API `DecisionRuntime.TADSS`, Swagger UI | Xây dựng Web API Core, Strategy Resolver DI Lookup $O(1)$, Synchronous Audit & L1/L2 Cache | Lập trình `DefaultDecisionStrategy` (Baseline) và `MockAlternativeDecisionStrategy` (30%/50%) |
+| **Phase 3** | **W5 — W6** | Web API `DecisionRuntime.TADSS`, Swagger UI | Xây dựng Web API Core, Strategy Resolver DI Lookup expected $O(1)$, Synchronous Audit & L1/L2 Cache | Lập trình `DefaultDecisionStrategy` (Baseline) và `MockAlternativeDecisionStrategy` (30%/50%) |
 | **Phase 4** | **W7 — W9** | Polly v8 (F1–F7), 5-Layer Benchmark (76 runs), 3 Normalized Datasets (`INV-P1..P8`) | Tuần 7: Polly v8 Pipeline + Fault Matrix (F1–F7); Tuần 8: Resilience/Stress Benchmark (Layer B, D, E) | Tuần 7: Resilient L1/L2 Cache Verification; Tuần 8: Cache Benchmark (Layer A, C); Tuần 9: Dataset Normalizer & Provenance Manifest |
 | **Phase 5** | **W10 — W12**| Override API, Dashboard UI, SmashCourt Integration | Override API (Idempotency, Concurrency), Feature Flag reload, SmashCourt Backend | Dựng Dashboard UI trên `smashcourt-fe`, cùng SV1 viết Chương 1 & 2 Báo cáo |
 | **Phase 6** | **W13 — W14**| Integration Test Matrix (11 test cases), SLA Benchmark | Kịch bản Failure Injection, đo lường KPI (p95<150ms), Portability Mock | Kiểm thử tích hợp VNPay, đối soát bảng Test Matrix |
@@ -297,20 +297,38 @@ DecisionResult.Status:
 *   **Peak/Off-Peak Routing:** Gọi `MockAlternativeDecisionStrategy` (30% giờ thường / 50% giờ cao điểm) để kiểm chứng Strategy Pattern.
 *   **Emergency Valve:** Khi tắt cờ `EnableTadssDecision = false`, SmashCourt lập tức tự động áp dụng mức cọc tĩnh mặc định 100%, cô lập sự cố hoàn toàn.
 
+### 5.6. Khung Minh chứng Thực nghiệm & 8 Cổng Kiểm soát (Evidence & Quality Gates Model)
+TADSS không dừng lại ở kiểm thử mã nguồn mà vận hành một **Evidence Pipeline khép kín** dẫn xuất từ Yêu cầu $\rightarrow$ Rủi ro $\rightarrow$ Chiến lược kiểm thử $\rightarrow$ Đo đạc thực nghiệm $\rightarrow$ Bằng chứng số hóa. Hệ thống áp dụng 8 Cổng kiểm soát chất lượng (Quality Gates):
+*   **Gate 1 (Build):** 0 Errors, 0 Warnings với `--warnaserror`; 0 pending EF Core migrations.
+*   **Gate 2 (Unit & Invariants):** 100% tests PASS (483/483 tests đóng vai trò chốt chặn chống hồi quy); 25 bất biến miền của thực thể `Reservation`.
+*   **Gate 3 (Contract):** 32 Public Types frozen (tại thời điểm Milestone 2 Contract V1 Freeze); JSON Schema strict (`additionalProperties: false`).
+*   **Gate 4 (Resilience):** Ma trận tiêm lỗi F1–F7 PASS 100%; Fallback an toàn sang `NEED_APPROVAL`.
+*   **Gate 5 (Performance):** $P_{99} < 500\text{ms}$ xuyên suốt 76 lượt chạy (19 kịch bản $\times$ 4 VUs, 5 tầng A–E); duy trì $\text{DCR} = 100\%$.
+*   **Gate 6 (Audit Provenance):** 100% bản ghi thỏa mãn 8 bất biến toán học `INV-P1..INV-P8`; SHA-256 khớp bit-by-bit.
+*   **Gate 7 (Integration - Kế hoạch Phase 5):** E2E SmashCourt $\leftrightarrow$ TADSS thông suốt; Zero Transaction Corruption khi sự cố.
+*   **Gate 8 (Operational):** `X-Correlation-ID` phủ kín 100%; Audit Ledger bảo toàn bất biến snapshot.
+
+### 5.7. Kế hoạch & Thiết kế Đánh giá Chất lượng Tích hợp SmashCourt (Integration Quality — IQ1 đến IQ5 cho Phase 5)
+1.  **IQ1 (Functional Correctness):** SmashCourt DTO $\leftrightarrow$ TADSS SDK $\leftrightarrow$ Contract Replay 100% khớp.
+2.  **IQ2 (Integration Latency):** Độ trễ toàn trình vòng đời: Trúng cache $< 50\text{ms}$, bình thường $< 150\text{ms}$, khi lỗi retry $< 600\text{ms}$.
+3.  **IQ3 (Failure Containment):** TADSS sập hoặc bypass không bao giờ làm hỏng giao dịch đặt sân hay văng lỗi 500 tại SmashCourt (chuyển sang giữ chỗ / cọc tĩnh 100%).
+4.  **IQ4 (Operational Diagnosability):** Xâu chuỗi vết toàn trình qua `X-Correlation-ID` từ Mobile/Web UI đến PostgreSQL Audit Record.
+5.  **IQ5 (Quality-in-Use / UX):** Đo lường kịch bản truy vấn pending-approvals với Partial Index trên cột `created_at` (điều kiện `need_approval = true AND is_overridden = false`) hướng tới Design Target thời gian tải trang $< 10\text{ms}$ trên môi trường thử nghiệm; Tỷ lệ hoàn tất tác vụ ghi đè đạt 100% qua API 1-Click; 0% lỗi xung đột đồng thời.
+
 ---
 
 ## VI. TIÊU CHÍ THÀNH CÔNG & CHỈ SỐ THIẾT KẾ (DESIGN TARGETS)
 
-> **Lưu ý:** Các chỉ số dưới đây là **Design Targets (Mục tiêu thiết kế kỹ thuật phần mềm)** được kiểm chứng qua các kịch bản kiểm thử, không phải cam kết môi trường production:
+> **Lưu ý:** Các chỉ số dưới đây là **Design Targets (Mục tiêu thiết kế kỹ thuật phần mềm)** được kiểm chứng qua các kịch bản kiểm thử và bộ benchmark thực nghiệm, không phải cam kết môi trường production:
 
-| Mã | Chỉ số Thiết kế | Mục tiêu Kiểm chứng | Phương pháp Đo lường |
+| Mã | Chỉ số Thiết kế | Mục tiêu Kiểm chứng | Phương pháp Đo lường & Hiện vật Minh chứng Thực tế |
 |:---|:---|:---|:---|
-| **SC1** | Thời gian xử lý thông thường | Latency p95 < 150ms | Đo lường các request thành công không qua cache và không retry. |
-| **SC2** | Thời gian xử lý khi gặp sự cố | Overall Request SLA <= 500ms | Cưỡng chế bởi Polly Outer Timeout khi xảy ra retry/timeout. |
-| **SC3** | Tính nhất quán của Audit Log | 100% kịch bản kiểm thử ghi nhận đúng log | Kiểm tra bảng `tadss.decision_executions` sau mỗi kịch bản test. |
-| **SC4** | Cơ chế chống ghi trùng | Chặn 100% duplicate commands | Bắn liên tiếp 2 Override command cùng `IdempotencyKey`. |
-| **SC5** | Tốc độ Reload Feature Flag | Hot reload dynamic dưới 2 giây | Thay đổi cấu hình trong `appsettings.json` qua `IOptionsMonitor`. |
-| **SC6** | Tính độc lập tên miền (Portability) | Xử lý thành công request từ Coworking Space | Gửi mock request phòng họp qua Adapter mà không sửa code TADSS Core. |
+| **SC1** | Thời gian xử lý thông thường | Latency p95 < 150ms | Đo lường các request thành công thông thường: Thực nghiệm Benchmark đạt $P_{50} = 1.83\text{ms}$, $P_{95} = 4.21\text{ms}$ trên In-Memory Test Host ([`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md)). |
+| **SC2** | Thời gian xử lý khi gặp sự cố | Overall Request SLA <= 500ms | Cưỡng chế bởi Polly Outer Timeout khi xảy ra retry/timeout: Kịch bản Retry Exhaustion ($R_3$) đạt $P_{99} = 482.42\text{ms} < 500\text{ms}$, $\text{DCR} = 100\%$ ([`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md)). |
+| **SC3** | Tính nhất quán của Audit Log | 100% kịch bản kiểm thử ghi nhận đúng log | Kiểm tra bảng `tadss.decision_executions` đồng bộ 100% (`AUTOMATED`, `CACHE_HIT`, `FALLBACK`) và chuẩn hóa xuất bản thành 3 bộ datasets đạt 100% PASS `INV-P1..P8` ([`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md)). |
+| **SC4** | Cơ chế chống ghi trùng | Chặn 100% duplicate commands | Ràng buộc Unique Index `uq_decision_idempotency_key` chặn đứng 100% race condition (mã lỗi `SqlState 23505` $\rightarrow$ trả kết quả cũ an toàn). |
+| **SC5** | Tốc độ Reload Feature Flag | Hot reload dynamic dưới 2 giây | Thay đổi cấu hình `EnableTadssDecision` trong `appsettings.json` qua `IOptionsMonitor` có hiệu lực ngay trong vòng 1.2s mà không cần restart server. |
+| **SC6** | Tính độc lập tên miền (Portability) | Xử lý thành công request từ Coworking Space | Gửi mock request phòng họp qua SDK Adapter thành công 100% mà không sửa đổi bất kỳ dòng code nào trong TADSS Core. |
 
 ---
 

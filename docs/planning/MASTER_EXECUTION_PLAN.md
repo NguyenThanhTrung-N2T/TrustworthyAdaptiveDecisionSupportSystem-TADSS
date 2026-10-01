@@ -17,7 +17,7 @@ Thay vì phân chia cô lập theo kiểu "code của ai người nấy làm", d
 |:---|:---:|:---:|:---|
 | **Solution & DB Architecture** | SV1 | SV2 | Solution .NET 8, PostgreSQL Schema `tadss`, bảng `tadss.decision_executions` |
 | **Decision Contract SDK** | SV2 | SV1 | DLL `Shared.DecisionContractSDK`, Rich Domain Model `Reservation`, Unit Tests |
-| **Decision Runtime Core API** | SV1 | SV2 | Web API, DI-based Strategy Resolution $O(1)$, Routing Controller |
+| **Decision Runtime Core API** | SV1 | SV2 | Web API, DI-based Strategy Resolution (expected $O(1)$), Routing Controller |
 | **Executable Strategies** | SV2 | SV1 | `DefaultDecisionStrategy` (Baseline Business Policy), `MockAlternativeDecisionStrategy` (30%/50%) |
 | **Polly v8 Resilience Pipeline** | SV1 | SV2 | Nested Pipeline (Outer 500ms, Retry 2, Inner 120ms, CB, `FallbackDecisionStrategy`) |
 | **Append-only Audit Trail** | SV1 | SV2 | Mandatory Synchronous Audit qua MediatR in-process events trong EF Core DbContext Transaction boundary |
@@ -86,6 +86,10 @@ flowchart TD
 
 ### 🟢 PHASE 1: FOUNDATION & ARCHITECTURE (Tuần 1 — Tuần 2)
 *Mục tiêu:* Khóa hợp đồng dữ liệu, thiết lập hạ tầng DB Schema `tadss` và tạo khung Happy-path prototype.
+* **Chiến lược Kiểm thử & Đảm bảo Chất lượng (Quality & Evidence Strategy):**
+  * *Mục tiêu khử bỏ rủi ro:* Ngăn chặn sai lệch cấu trúc giải pháp, vi phạm phân tầng Clean Architecture và lỗi thiết kế DDL Schema PostgreSQL (sai kiểu dữ liệu, thiếu ràng buộc toàn vẹn).
+  * *Phương pháp & Công cụ:* Kiểm thử tuân thủ kiến trúc (Architecture Compliance), kiểm định DDL Schema `schema_smashcourt.sql`, kiểm tra cơ chế di chuyển lược đồ tự động qua EF Core Migrations, biên dịch nghiêm ngặt với cờ `--warnaserror`.
+  * *Hiện vật Bằng chứng Đầu ra (Evidence Artifacts):* Migration Model Snapshot `TadssDbContextModelSnapshot.cs`, Script DDL `schema_smashcourt.sql`, Build log 0 warnings / 0 errors.
 
 #### **Tuần 1: Khóa Yêu cầu & Thiết kế Hợp đồng (Contract Lock)**
 *   **Sinh viên 1 (Backend Lead):**
@@ -118,6 +122,10 @@ flowchart TD
 
 ### 🟢 PHASE 2: DECISION CONTRACT SDK (Tuần 3 — Tuần 4)
 *Mục tiêu:* Xây dựng thư viện dùng chung độc lập, cô lập nghiệp vụ và đóng băng Contract.
+* **Chiến lược Kiểm thử & Đảm bảo Chất lượng (Quality & Evidence Strategy):**
+  * *Mục tiêu khử bỏ rủi ro:* Thay đổi ngầm (breaking changes) làm vỡ hợp đồng giao tiếp giữa các bên; dữ liệu đặt sân không hợp lệ (sai ngày giờ, sai mức tiền cọc) lọt sâu vào runtime core.
+  * *Phương pháp & Công cụ:* Kiểm thử đơn vị 25 bất biến nghiệp vụ miền (Domain Invariants) trong `ReservationTests` bằng `xUnit 2.x` + `FluentAssertions`; kiểm thử đóng băng bề mặt API công khai (Public API Surface) qua `PublicApiGenerator`; kiểm thử tương thích JSON Schema nghiêm ngặt (`additionalProperties: false`).
+  * *Hiện vật Bằng chứng Đầu ra (Evidence Artifacts):* Hồ sơ đóng băng [`baseline_public_api.txt`](../contracts/baseline_public_api.txt) (32 kiểu dữ liệu), tài liệu [`CONTRACT_V1_FREEZE.md`](../contracts/CONTRACT_V1_FREEZE.md), báo cáo Unit Tests đạt 100% pass với độ bao phủ (Coverage) > 80%.
 
 #### **Tuần 3: Lập trình Domain Model & SDK Unit Tests**
 *   **Sinh viên 1:**
@@ -147,12 +155,16 @@ flowchart TD
 
 ### 🟢 PHASE 3: DECISION RUNTIME API (Tuần 5 — Tuần 6)
 *Mục tiêu:* Xây dựng lõi Web API, cơ chế phân giải chiến lược qua Dependency Injection (DI-based Strategy Resolution) và các chiến lược mẫu.
+* **Chiến lược Kiểm thử & Đảm bảo Chất lượng (Quality & Evidence Strategy):**
+  * *Mục tiêu khử bỏ rủi ro:* Định tuyến chiến lược sai lệch hoặc thất bại; khách hàng bấm đúp tạo giao dịch trùng (Race condition); xung đột đồng thời khi 2 quản lý cùng thao tác trên 1 đơn.
+  * *Phương pháp & Công cụ:* Kiểm thử tích hợp component in-memory toàn bộ HTTP Pipeline qua `WebApplicationFactory<Program>`; kiểm thử bảo vệ 2 tầng Idempotency (Bộ nhớ đệm ứng dụng + Ràng buộc DB Unique Index `uq_decision_idempotency_key` bắt mã lỗi `SqlState 23505`); kiểm thử khóa đồng thời lạc quan Optimistic Concurrency Control (`Version` token 409 Conflict).
+  * *Hiện vật Bằng chứng Đầu ra (Evidence Artifacts):* Bộ kiểm thử tích hợp `TADSS.IntegrationTests`, báo cáo test cases `IdempotencyIntegrationTests.cs`, `DecisionsControllerTests.cs`.
 
 #### **Tuần 5: Runtime API Core & Strategy Resolution**
 *   **Sinh viên 1:**
     *   Xây dựng `DecisionController` tiếp nhận `POST /api/v1/decisions`.
     *   Xây dựng `DecisionService` và `StrategyResolver`.
-    *   Lập trình pipeline: `Validate Request ➔ Resolve Strategy (DI Lookup O(1)) ➔ Execute EvaluateAsync ➔ Return Recommendation`.
+    *   Lập trình pipeline: `Validate Request ➔ Resolve Strategy (DI Lookup expected O(1)) ➔ Execute EvaluateAsync ➔ Return Recommendation`.
 *   **Sinh viên 2:**
     *   Implement `DefaultDecisionStrategy` (**Conservative Baseline Business Policy**): Áp dụng chính sách nghiệp vụ cơ sở bảo thủ của nền tảng (tách biệt với cơ chế cứu cánh hạ tầng `FallbackDecisionStrategy`).
     *   Implement `MockAlternativeDecisionStrategy` (**Demonstration Policy**): Phân tích `ReservationSchedule` để áp dụng mức cọc 30% cho giờ thường (Approved) và cọc 50% cho giờ cao điểm (NeedApproval) nhằm kiểm chứng khả năng phân giải chiến lược động của hệ thống.
@@ -161,7 +173,7 @@ flowchart TD
 
 #### **Tuần 6: Hoàn thiện Runtime API Độc Lập**
 *   **Sinh viên 1:**
-    *   Hoàn thiện cơ chế DI Registration với Service Provider Lookup $O(1)$ (DI-based Strategy Resolution).
+    *   Hoàn thiện cơ chế DI Registration với Service Provider Lookup độ phức tạp thuật toán kỳ vọng expected $O(1)$ (DI-based Strategy Resolution).
     *   Xử lý Strategy Version Resolution, Global Error Handling Middleware, và sinh CorrelationId cho mỗi request.
 *   **Sinh viên 2:**
     *   Chuẩn hóa cấu trúc `Recommendation`, `ReasonCode`, `Priority` trả về.
@@ -174,6 +186,10 @@ flowchart TD
 
 ### 🟢 PHASE 4: RESILIENCE, PERFORMANCE BENCHMARK & DATASET NORMALIZATION (Tuần 7 — Tuần 9)
 *Mục tiêu:* Hoàn thiện chuỗi chịu lỗi Polly v8 cùng ma trận tiêm lỗi F1–F7, thực hiện đo đạc benchmark hiệu năng bộ nhớ đệm ($G_0..G_2$) & độ chịu lỗi ($R_0..R_3$), và chuẩn hóa tập dữ liệu nghiên cứu (`DatasetNormalizer`).
+* **Chiến lược Kiểm thử & Đảm bảo Chất lượng (Quality & Evidence Strategy):**
+  * *Mục tiêu khử bỏ rủi ro:* Chiến lược xử lý quá hạn làm sập toàn bộ ứng dụng; đứt kết nối bộ nhớ đệm Redis L2 làm nghẽn luồng xử lý; dữ liệu kiểm toán bị thất lạc hoặc sai lệch tính toàn vẹn toán học.
+  * *Phương pháp & Công cụ:* Giả lập và tiêm lỗi có kiểm soát ma trận `F1`–`F7` qua Custom Decorator Pattern (`FaultInjectedStrategyDecorator`); khung đo đạc thực nghiệm 76 lượt chạy (`TADSS.BenchmarkRunner`) bằng Hardware Timer `Stopwatch` và tính toán phân vị độ trễ; xác thực tự động 8 bất biến nguồn gốc dữ liệu (`INV-P1` $\rightarrow$ `INV-P8`) bằng `DatasetProvenanceVerifier` và mã băm SHA-256.
+  * *Hiện vật Bằng chứng Đầu ra (Evidence Artifacts):* Báo cáo thực nghiệm [`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md), báo cáo chuẩn hóa [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md), 3 bộ dữ liệu nghiên cứu chuẩn hóa CSV/JSONL (23, 19, 31 cột), biên bản mật mã [`dataset_provenance_manifest.json`](../research/datasets/dataset_provenance_manifest.json).
 
 #### **Tuần 7: Chuỗi Chịu lỗi Polly v8, Resilient L1/L2 Cache, Synchronous Audit & Fault Matrix (F1–F7)**
 *   **Sinh viên 1 (Owner — Resilience & Synchronous Audit):**
@@ -209,12 +225,16 @@ flowchart TD
     *   Trích xuất 3 tập dữ liệu chuẩn hóa định dạng kép CSV & JSONL (UTF-8 No-BOM): (1) *`resilience_evaluation_dataset`* (`23` cột, `7.600` dòng — RQ1), (2) *`latency_caching_dataset`* (`19` cột, `8.800` dòng — RQ2), và (3) *`governance_audit_dataset`* (`31` cột, `50` ca kiểm định chuyển trạng thái $t_0 \rightarrow t_1$ — RQ3).
 *   **Sinh viên 1 (Supporting — Provenance Invariants Verification & Report):**
     *   Xây dựng bộ kiểm định tự động `DatasetProvenanceVerifier` kiểm chứng 100% PASS cho 8 bất biến nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`), xuất biên bản `dataset_provenance_manifest.json` và báo cáo [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md) phục vụ Chương 4 Báo cáo Đồ án 2.
-*   🎯 **Milestone 4 (Cuối Tuần 9 — ✅ COMPLETED):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2, thực nghiệm 76 lượt chạy và 3 bộ dữ liệu nghiên cứu chuẩn hóa hoàn tất (510/510 automated tests pass).*
+*   🎯 **Milestone 4 (Cuối Tuần 9 — ✅ COMPLETED):** *Resilient, Auditable & Benchmarked Core Engine — Động cơ chịu lỗi, lưu vết đồng bộ, bộ nhớ đệm L1/L2, thực nghiệm 76 lượt chạy (19 kịch bản $\times$ 4 VUs) và 3 bộ dữ liệu nghiên cứu chuẩn hóa hoàn tất (510/510 automated tests pass đóng vai trò quality gate kiểm chứng chống hồi quy mã nguồn).*
 
 ---
 
-### 🟢 PHASE 5: HUMAN-IN-THE-LOOP & TÍCH HỢP SMASHCOURT (Tuần 10 — Tuần 12)
+### 🟢 PHASE 5: HUMAN-IN-THE-LOOP & TÍCH HỢP SMASHCOURT (Tuần 10 — Tuần 12 — Kế hoạch Triển khai)
 *Mục tiêu:* Cung cấp quyền kiểm duyệt cho Manager, khóa nguyên tắc No Auto-Approve, tích hợp UI và kết nối đầu-cuối với luồng đặt sân SmashCourt.
+* **Kế hoạch & Thiết kế Đánh giá Chất lượng Tích hợp (Quality & Evidence Strategy — IQ1 đến IQ5 cho Phase 5):**
+  * *Mục tiêu khử bỏ rủi ro:* TADSS gặp sự cố làm chết luồng đặt sân SmashCourt; lễ tân duyệt đơn bị chậm làm nghẽn sân; khách hàng bị trừ tiền trùng lặp; dữ liệu không thể chẩn đoán khi gặp lỗi thực tế.
+  * *Phương pháp & Công cụ:* Đánh giá chất lượng tích hợp 5 chiều (IQ1 Độ đúng đắn chức năng, IQ2 Độ trễ tích hợp đầu-cuối, IQ3 Cô lập sự cố & Zero Booking Corruption, IQ4 Khả năng chẩn đoán qua `X-Correlation-ID`, IQ5 Chất lượng trải nghiệm người dùng / UX); kiểm thử tự động Playwright E2E UI Test Runner thu thập DOM trace và Video thực nghiệm; kiểm thử đo độ trễ truy vấn Partial Index (`need_approval = true AND is_overridden = false`).
+  * *Hiện vật Bằng chứng Đầu ra (Evidence Artifacts):* Bộ kiểm thử E2E tích hợp SmashCourt Backend $\rightarrow$ TADSS, Playwright Trace & Video Artifacts, đo lường kịch bản truy vấn pending-approvals với partial index (Design Target $< 10\text{ms}$ trên môi trường thử nghiệm), biên bản kiểm thử Feature Flag Reload $< 2\text{s}$.
 
 #### **Tuần 10: Override API & Feature Flag Bật/Tắt Nóng**
 *   **Sinh viên 1:**
@@ -298,15 +318,61 @@ flowchart TD
 
 ---
 
-## IV. TIÊU CHÍ HOÀN THÀNH TỪNG CẤU PHẦN (DEFINITION OF DONE - DOD)
+## IV. HỆ THỐNG CỔNG KIỂM SOÁT CHẤT LƯỢNG & TIÊU CHÍ HOÀN THÀNH (QUALITY GATES & DEFINITION OF DONE)
 
-Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vượt qua bảng kiểm định kỹ thuật sau:
+Hệ thống TADSS áp dụng quy trình kiểm soát chất lượng qua **8 Cổng Kiểm Soát (Quality Gates)** kết hợp với tiêu chí hoàn thành (Definition of Done) nghiêm ngặt để đảm bảo mọi cấu phần bàn giao đều có minh chứng định lượng:
+
+```text
+[MÃ NGUỒN C# & SQL]
+   │
+   ▼
+[GATE 1: BUILD GATE] ────────► 0 Errors, 0 Warnings với cờ --warnaserror
+   │
+   ▼
+[GATE 2: UNIT & INVARIANT GATE] ──► 100% Invariant Tests PASS (25 Domain Invariants)
+   │
+   ▼
+[GATE 3: CONTRACT GATE] ─────► 32 Public Types frozen (Milestone 2 Contract V1 Freeze); JSON Schema additionalProperties: false
+   │
+   ▼
+[GATE 4: RESILIENCE GATE] ───► Ma trận F1-F7 PASS; Fallback luôn trả NEED_APPROVAL khi quá hạn
+   │
+   ▼
+[GATE 5: PERFORMANCE GATE] ──► P99 < 500ms xuyên suốt 76 runs (19 kịch bản x 4 VUs, 5 tầng A-E); DCR = 100%
+   │
+   ▼
+[GATE 6: AUDIT PROVENANCE GATE] ─► 100% thỏa mãn 8 bất biến toán học INV-P1 .. INV-P8
+   │
+   ▼
+[GATE 7: INTEGRATION GATE] ──► SmashCourt E2E workflow hoàn tất; Zero Transaction Corruption
+   │
+   ▼
+[GATE 8: OPERATIONAL GATE] ──► CorrelationId phủ kín 100%; Audit Ledger bất biến 100%
+   │
+   ▼
+[SẴN SÀNG BẢO VỆ ĐỒ ÁN / TRIỂN KHAI THỰC TẾ]
+```
+
+### 4.1. Bảng Tiêu chí Chi tiết 8 Cổng Kiểm Soát Chất lượng (Quality Gates)
+
+| Cổng Kiểm Soát | Phạm vi Áp dụng | Tiêu chí Vượt Cổng (Gate Criteria) | Hiện vật Minh chứng (Verifiable Evidence) |
+| :--- | :--- | :--- | :--- |
+| **Gate 1: Build Gate** | Toàn bộ Solution .NET 8 & Migrations | • 0 Compiler Errors, 0 Compiler Warnings với `TreatWarningsAsErrors = true`<br>• 0 model changes pending trong EF Core Migrations | • Output log của `dotnet build --warnaserror`<br>• [`TadssDbContextModelSnapshot.cs`](../../src/TADSS.Runtime.Api/Infrastructure/Data/Migrations/TadssDbContextModelSnapshot.cs) |
+| **Gate 2: Unit & Invariant Gate** | Domain Model & Invariant Rules | • 100% Unit Tests PASS (483/483 tests đóng vai trò chốt chặn chống hồi quy)<br>• 25 Domain Invariants của thực thể `Reservation` được kiểm chứng toàn diện | • Test run report của `TADSS.UnitTests` (483 tests pass)<br>• [`ReservationTests.cs`](../../tests/TADSS.UnitTests/Domain/ReservationTests.cs) |
+| **Gate 3: Contract Gate** | Shared.DecisionContractSDK & OpenAPI | • Bề mặt Public API Surface khớp 100% với baseline (32 public types tại thời điểm Milestone 2 Contract V1 Freeze)<br>• JSON Schema tuân thủ nghiêm ngặt (`additionalProperties: false`) | • [`baseline_public_api.txt`](../contracts/baseline_public_api.txt)<br>• [`CONTRACT_V1_FREEZE.md`](../contracts/CONTRACT_V1_FREEZE.md) |
+| **Gate 4: Resilience Gate** | Polly v8 Pipeline & Fault Decorators | • 100% các kịch bản tiêm lỗi trong ma trận `F1`–`F7` vượt qua<br>• Fallback kích hoạt chính xác sang `NEED_APPROVAL` khi timeout/lỗi | • Test suite `TADSS.IntegrationTests` (27 tests pass)<br>• Test cases `F1`–`F7` trong `TADSS.UnitTests` |
+| **Gate 5: Performance Gate** | Benchmark Runner (76 Lượt chạy) | • $P_{99} < 500\text{ms}$ xuyên suốt 76 lượt chạy thuộc 5 tầng A–E (kể cả kịch bản Retry Exhaustion $R_3$)<br>• Decision Continuity Rate đạt $\text{DCR} = 100\%$ | • [`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md)<br>• `benchmark_summary.csv` |
+| **Gate 6: Audit Provenance Gate** | Dataset Normalizer & In-Vivo Harvester | • 100% thỏa mãn 8 bất biến toán học nguồn gốc (`INV-P1` $\rightarrow$ `INV-P8`)<br>• Mã băm SHA-256 của 6 file dataset khớp bit-by-bit với manifest | • [`WEEK9_DATASET_NORMALIZATION_REPORT.md`](../research/datasets/WEEK9_DATASET_NORMALIZATION_REPORT.md)<br>• [`dataset_provenance_manifest.json`](../research/datasets/dataset_provenance_manifest.json) |
+| **Gate 7: Integration Gate (Kế hoạch Phase 5)** | Tích hợp SmashCourt Backend & E2E | • Luồng đặt sân SmashCourt $\leftrightarrow$ TADSS hoàn tất thông suốt<br>• Khi TADSS offline hoặc bypass, không có giao dịch đặt sân nào bị hỏng (Zero Transaction Corruption) | • Bộ kiểm thử E2E tích hợp SmashCourt Backend<br>• Playwright Trace Viewer & Video Artifacts |
+| **Gate 8: Operational Gate** | Khả năng Chẩn đoán & Quản trị HITL | • `X-Correlation-ID` phủ kín 100% từ request headers, logs đến database<br>• Bảng kiểm toán bảo toàn 100% tính bất biến (9 trường Machine Snapshot) | • Nhật ký Structured Logs Serilog<br>• `governance_audit_dataset.csv` (`INV-P6`, `INV-P7`) |
+
+### 4.2. Bảng Kiểm định Hoàn thành Cấu phần (Definition of Done Checklist)
 
 ```text
 [x] Polly Resilience Pipeline (COMPLETED — Phase 4 / Week 7-8):
     ├── Strategy timeout (InnerTimeout 120ms) được phát hiện chính xác
     ├── Retry 2 lần với đúng base delay (30ms)
-    ├── Circuit Breaker mở mạch khi vượt ngưỡng tỷ lệ lỗi
+    ├── Circuit Breaker mở mạch khi vượt ngưỡng tỷ lệ lỗi (50% trong 30s)
     ├── FallbackDecisionStrategy (NEED_APPROVAL) hoạt động với overhead < 10ms trong benchmark
     ├── Outer SLA Budget 500ms được cưỡng chế tuyệt đối
     └── 100% critical test scenarios (F1-F7) pass không còn bug Blocker/High
@@ -331,6 +397,15 @@ Hệ thống chỉ được công nhận hoàn thành một cấu phần khi vư
     ├── Chặn ghi đè trùng lặp (IsOverridden guard) và xử lý tranh chấp đồng thời (Version token)
     └── Tuyệt đối không tự động duyệt đơn NeedApproval trong TADSS Core (No Auto-Approve)
 ```
+
+### 4.3. Cách Trả Lời Chuẩn Mực Học Thuật khi Hội Đồng Hỏi: *"100% của cái gì?"*
+> *"Thưa Thầy/Cô, con số 100% của chúng em không có nghĩa là phần mềm không còn lỗi tiềm ẩn hay đạt chất lượng tuyệt đối. Con số 100% ở đây mang ý nghĩa kỹ thuật phần mềm cụ thể và có thể kiểm chứng độc lập theo từng lớp bằng chứng:
+> 1. *100% các Unit Test và Domain Invariants đã định nghĩa đều PASS (483/483 tests) — đóng vai trò chốt chặn tự động chống hồi quy (automated regression gate) cho các quy tắc nghiệp vụ đã cam kết.*
+> 2. *100% các kịch bản tiêm lỗi trong ma trận F1-F7 kích hoạt đúng các tầng bảo vệ của Polly v8 (27/27 integration tests).*
+> 3. *100% các mẫu đo đạc trong 76 lượt chạy đạt tỷ lệ duy trì quyết định (DCR = 100%), không có quyết định nào bị thất lạc.*
+> 4. *100% các bản ghi kiểm toán thỏa mãn 8 bất biến toán học về tính toàn vẹn và bất biến nguồn gốc (INV-P1..INV-P8).*
+> 5. *Toàn bộ các tiêu chí chấp nhận (Acceptance Criteria) đã khóa trong tài liệu đặc tả đều được đo lường và kiểm chứng bằng dữ liệu thực nghiệm, tách bạch rõ ràng giữa kết quả đã đo (Phase 1–4) và mục tiêu thiết kế khi tích hợp (Phase 5)."*
+
 
 ---
 
