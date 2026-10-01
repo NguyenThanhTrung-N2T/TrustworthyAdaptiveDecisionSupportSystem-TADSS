@@ -271,3 +271,62 @@
     String StrategyName { get; }
     String StrategyVersion { get; }
     Task`1 EvaluateAsync(Reservation reservation, CancellationToken cancellationToken)
+
+[class] Shared.DecisionContractSDK.V2.Common.ErrorCodes
+
+[class] Shared.DecisionContractSDK.V2.Common.PagedResult`1
+    .ctor()
+    Boolean HasNext { get; set; }
+    Boolean HasPrev { get; set; }
+    IReadOnlyList`1 Items { get; set; }
+    Int32 Page { get; set; }
+    Int32 PageSize { get; set; }
+    Int32 TotalItems { get; set; }
+    Int32 TotalPages { get; set; }
+    PagedResult`1 Create(IReadOnlyList`1 items, Int32 page, Int32 pageSize, Int32 totalItems)
+
+[class] Shared.DecisionContractSDK.V2.Common.ReasonCodes
+
+[class] Shared.DecisionContractSDK.V2.Common.TadssJson
+    JsonSerializerOptions Options { get; }
+    Void Apply(JsonSerializerOptions options)
+
+[enum] Shared.DecisionContractSDK.V2.Enums.Channel : IComparable, IConvertible, IFormattable, ISpanFormattable
+    ONLINE = 0
+    WALK_IN = 1
+
+[enum] Shared.DecisionContractSDK.V2.Enums.CustomerTier : IComparable, IConvertible, IFormattable, ISpanFormattable
+    STANDARD = 0
+    SILVER = 1
+    GOLD = 2
+    PLATINUM = 3
+    DIAMOND = 4
+
+[enum] Shared.DecisionContractSDK.V2.Enums.DecisionOutcome : IComparable, IConvertible, IFormattable, ISpanFormattable
+    COMPLETED = 0
+    NO_SHOW = 1
+    CANCELLED_BY_CUSTOMER = 2
+    CANCELLED_BY_STAFF = 3
+    PAYMENT_EXPIRED = 4
+    APPROVAL_EXPIRED = 5
+    REJECTED = 6
+
+[enum] Shared.DecisionContractSDK.V2.Enums.DecisionStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
+    APPROVED = 0
+    NEED_APPROVAL = 1
+    REJECTED = 2
+
+[enum] Shared.DecisionContractSDK.V2.Enums.ExecutionType : IComparable, IConvertible, IFormattable, ISpanFormattable
+    AUTOMATED = 0
+    FALLBACK = 1
+    CACHE_HIT = 2
+
+[enum] Shared.DecisionContractSDK.V2.Enums.OverrideAction : IComparable, IConvertible, IFormattable, ISpanFormattable
+    APPROVE = 0
+    REJECT = 1
+
+[enum] Shared.DecisionContractSDK.V2.Enums.RecommendationType : IComparable, IConvertible, IFormattable, ISpanFormattable
+    REQUIRE_APPROVAL = 0
+    ALTERNATIVE_SLOT = 1
+    ALTERNATIVE_RESOURCE = 2
+    PRIORITY_ESCALATION = 3
