@@ -31,6 +31,7 @@ public static class DependencyInjection
 
             options.AddInterceptors(sp.GetRequiredService<AuditTimestampInterceptor>());
         });
+        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
 
         // 3. Health Checks có phân nhóm Tags (Liveness / Readiness)
         services.AddHealthChecks()

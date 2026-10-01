@@ -60,8 +60,8 @@
 
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
-| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | Toàn bộ IT chạy trên container |
-| T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | `docker compose up` một lệnh |
+| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration |
+| T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | ✅ (gói 5.1) `docker compose up -d --build` một lệnh; môi trường E-LOCAL tự chứa |
 | T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) | W09 | Dashboard JSON lưu trong repo |
 | T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) | W09 | Script chạy ma trận FI |
 | T5.16 | **Schemathesis** chạy trên OpenAPI v2 | W09 | CT-03 |
@@ -72,6 +72,9 @@
 | T5.21 | Chạy toàn bộ danh mục TADSS; đóng băng contract v2 | W10 | Gate M5 |
 | T5.22 | Chốt **API contract BE ↔ FE** cho Phase 6 (endpoint SmashCourt cho cọc, chờ duyệt, duyệt) | W10 | OpenAPI SmashCourt cập nhật |
 | T5.23 | Chốt môi trường staging cho pilot (máy chủ, tên miền, VNPay sandbox) | W10 | Ghi trong MASTER_EXECUTION_PLAN |
+| T5.30 | **E-NGROK** — expose TADSS qua ngrok và truy cập được database: `docker-compose.ngrok.yml` (+ `docker-compose.neon.yml`), `X-Api-Key` fail-closed ngoài Development/Testing, `ForwardedHeaders`, tham số hóa cổng/image của compose (theo [`PHASE5_DESIGN_SPEC.md`](../../spec/PHASE5_DESIGN_SPEC.md) Mục 4.3.1) | W08 | NG-1…NG-5 |
+
+> **Ghi chú gói 5.1 (T5.12, T5.13):** hai lỗi V-1 và V-8 được phát hiện khi phân tích (spec Mục 2), cả hai đã sửa. **V-8:** mất kết nối PostgreSQL bị ánh xạ thành 400 (nay `GlobalExceptionHandler` trả 503 `PERSISTENCE_UNAVAILABLE`); FI-08 chạy trên PostgreSQL thật qua Toxiproxy xác nhận chuỗi exception thật `InvalidOperationException → NpgsqlException(IsTransient) → EndOfStreamException`, nếu không sửa sẽ bị ánh xạ thành 400 (chưa quan sát trực tiếp trạng thái 400 trên hạ tầng thật). **V-1:** `docker-compose` truyền `Redis__ConnectionString` (không được bind), nay là `Tadss__Cache__RedisConnectionString`; xác nhận bằng compose (thấy khóa Redis `tadss:decision:*`). 27 test cũ chuyển sang hạ tầng thật đều đạt mà không sửa kỳ vọng và không lộ lỗi mới.
 
 ### Epic 5C — Chuẩn bị kiểm thử phía FE/E2E (SV2)
 

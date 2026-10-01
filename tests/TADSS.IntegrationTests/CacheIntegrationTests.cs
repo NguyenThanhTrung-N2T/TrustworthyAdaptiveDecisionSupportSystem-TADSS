@@ -3,25 +3,27 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using TADSS.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class CacheIntegrationTests : IntegrationTestBase
 {
-    private readonly HttpClient _client;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
 
-    public CacheIntegrationTests(TadssWebApplicationFactory factory)
+    public CacheIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _client = factory.CreateClient();
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-13")]
     public async Task PostDecision_DifferentIdempotencyKeysSamePayload_SecondRequestIsCacheHitWithNewDecisionId()
     {
         // Arrange: Prepare identical request payload
@@ -48,7 +50,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         msg1.Headers.Add("X-Idempotency-Key", "cache-test-key-01");
-        var res1 = await _client.SendAsync(msg1);
+        var res1 = await Client.SendAsync(msg1);
         res1.StatusCode.Should().Be(HttpStatusCode.OK);
         var decision1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
         decision1.Should().NotBeNull();
@@ -59,7 +61,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         msg2.Headers.Add("X-Idempotency-Key", "cache-test-key-02");
-        var res2 = await _client.SendAsync(msg2);
+        var res2 = await Client.SendAsync(msg2);
         res2.StatusCode.Should().Be(HttpStatusCode.OK);
         var decision2 = await res2.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
         decision2.Should().NotBeNull();
@@ -69,7 +71,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
         decision2.DecisionId.Should().NotBe(decision1.DecisionId); // Must have a fresh DecisionId
 
         // Assert 2: GET detail on second decision verifies it was a CACHE_HIT
-        var detailRes2 = await _client.GetAsync($"/api/v1/decisions/{decision2.DecisionId}");
+        var detailRes2 = await Client.GetAsync($"/api/v1/decisions/{decision2.DecisionId}");
         detailRes2.StatusCode.Should().Be(HttpStatusCode.OK);
         var detail2 = await detailRes2.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
         detail2.Should().NotBeNull();
@@ -78,7 +80,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
         detail2.Execution.FallbackUsed.Should().BeFalse();
 
         // Assert 3: GET detail on first decision verifies it was AUTOMATED
-        var detailRes1 = await _client.GetAsync($"/api/v1/decisions/{decision1.DecisionId}");
+        var detailRes1 = await Client.GetAsync($"/api/v1/decisions/{decision1.DecisionId}");
         detailRes1.StatusCode.Should().Be(HttpStatusCode.OK);
         var detail1 = await detailRes1.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
         detail1.Should().NotBeNull();
@@ -87,6 +89,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-13")]
     public async Task PostDecision_SameIdempotencyKeySamePayload_TakesPrecedenceAsIdempotencyReplayOverCacheHit()
     {
         // Arrange
@@ -115,7 +118,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
+        var res1 = await Client.SendAsync(msg1);
         res1.StatusCode.Should().Be(HttpStatusCode.OK);
         var decision1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
 
@@ -125,7 +128,7 @@ public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         msg2.Headers.Add("X-Idempotency-Key", key);
-        var res2 = await _client.SendAsync(msg2);
+        var res2 = await Client.SendAsync(msg2);
         res2.StatusCode.Should().Be(HttpStatusCode.OK);
         var decision2 = await res2.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
 

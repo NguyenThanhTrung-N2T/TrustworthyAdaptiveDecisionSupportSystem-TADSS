@@ -5,25 +5,27 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
+using TADSS.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class DecisionsEndpointTests : IntegrationTestBase
 {
-    private readonly HttpClient _client;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
 
-    public DecisionsEndpointTests(TadssWebApplicationFactory factory)
+    public DecisionsEndpointTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _client = factory.CreateClient();
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task PostDecision_ValidRequest_Returns200WithHeadersAndResult()
     {
         // Arrange
@@ -52,7 +54,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         message.Headers.Add("X-Correlation-ID", "custom-trace-001");
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -67,6 +69,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-11")]
     public async Task PostDecision_MissingIdempotencyHeader_Returns400ProblemDetails()
     {
         // Arrange
@@ -94,7 +97,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         // Omit X-Idempotency-Key header
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -104,6 +107,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task GetDecisionDetail_ExistingDecision_Returns200WithAuditDetail()
     {
         // Arrange: Create a decision first
@@ -130,12 +134,12 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         };
         postMsg.Headers.Add("X-Idempotency-Key", "integration-idemp-detail");
 
-        var postRes = await _client.SendAsync(postMsg);
+        var postRes = await Client.SendAsync(postMsg);
         postRes.EnsureSuccessStatusCode();
         var evalResult = await postRes.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
 
         // Act: Get decision detail
-        var getRes = await _client.GetAsync($"/api/v1/decisions/{evalResult!.DecisionId}");
+        var getRes = await Client.GetAsync($"/api/v1/decisions/{evalResult!.DecisionId}");
 
         // Assert
         getRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -147,6 +151,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-06")]
     public async Task OverrideDecision_EligibleDecision_Returns200AndUpdatesState()
     {
         // Arrange: Create a NeedApproval decision
@@ -173,7 +178,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         };
         postMsg.Headers.Add("X-Idempotency-Key", "integration-idemp-override");
 
-        var postRes = await _client.SendAsync(postMsg);
+        var postRes = await Client.SendAsync(postMsg);
         var evalResult = await postRes.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
 
         var overrideReq = new OverrideDecisionRequestDto
@@ -184,7 +189,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         };
 
         // Act: Override the decision
-        var overrideRes = await _client.PostAsJsonAsync(
+        var overrideRes = await Client.PostAsJsonAsync(
             $"/api/v1/decisions/{evalResult!.DecisionId}/override", overrideReq);
 
         // Assert
@@ -198,6 +203,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-11")]
     public async Task EvaluateDecision_IdempotencyKeyExceeds128Chars_Returns400BadRequest_While128CharsSucceeds()
     {
         // Arrange
@@ -227,7 +233,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         badMsg.Headers.Add("X-Idempotency-Key", tooLongKey);
-        var badRes = await _client.SendAsync(badMsg);
+        var badRes = await Client.SendAsync(badMsg);
 
         // Assert 1
         badRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -240,13 +246,14 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
             Content = JsonContent.Create(request)
         };
         okMsg.Headers.Add("X-Idempotency-Key", validMaxKey);
-        var okRes = await _client.SendAsync(okMsg);
+        var okRes = await Client.SendAsync(okMsg);
 
         // Assert 2
         okRes.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
+    [Trait("CatalogId", "UT-02")]
     public async Task PostDecision_InvalidWireEnum_Returns400BadRequestProblemDetails()
     {
         // Arrange
@@ -274,7 +281,7 @@ public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
         message.Headers.Add("X-Idempotency-Key", "idemp-invalid-enum-" + Guid.NewGuid());
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);

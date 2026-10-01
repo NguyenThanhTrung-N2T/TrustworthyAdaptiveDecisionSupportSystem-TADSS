@@ -1,8 +1,10 @@
+using System.Net.Sockets;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
@@ -253,6 +255,38 @@ public class MiddlewareAndInterceptorTests
         statusCode.Should().Be(StatusCodes.Status500InternalServerError);
         body.GetProperty("code").GetString().Should().Be(ErrorCodes.InternalError);
         body.GetProperty("detail").GetString().Should().Be("An unexpected internal server error occurred.");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public async Task GlobalExceptionHandler_TransientNpgsqlFailureWrappedByEfCore_Returns503PersistenceUnavailable()
+    {
+        // Npgsql execution strategy mặc định bọc lỗi kết nối tạm thời trong InvalidOperationException
+        var connectionFailure = new NpgsqlException(
+            "Failed to connect to 10.0.0.5:5432",
+            new SocketException((int)SocketError.ConnectionRefused));
+        var wrapped = new InvalidOperationException(
+            "An exception has been raised that is likely due to a transient failure.", connectionFailure);
+
+        var (statusCode, body) = await ExecuteExceptionHandlerAsync(wrapped);
+
+        statusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        body.GetProperty("code").GetString().Should().Be(RuntimeErrorCodes.PersistenceUnavailable);
+        body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(5);
+        body.GetProperty("detail").GetString().Should().NotContain("10.0.0.5");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public async Task GlobalExceptionHandler_NonTransientPostgresError_DoesNotMapTo503()
+    {
+        var uniqueViolation = new DbUpdateException(
+            "Unique violation",
+            new PostgresException("duplicate key value", "ERROR", "ERROR", "23505"));
+
+        var (statusCode, _) = await ExecuteExceptionHandlerAsync(uniqueViolation);
+
+        statusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
 
     #endregion

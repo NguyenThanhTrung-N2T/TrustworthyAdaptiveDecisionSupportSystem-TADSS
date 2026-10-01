@@ -13,6 +13,7 @@ using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
+using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
@@ -25,8 +26,14 @@ namespace TADSS.IntegrationTests.FaultInjection;
 /// Bộ kiểm thử tích hợp tự động cho Ma trận Lỗi (Failure Semantics Matrix F1 ➔ F7)
 /// Đặc tả theo docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md.
 /// </summary>
-public class FaultInjectionTests
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class FaultInjectionTests : IntegrationTestBase
 {
+    public FaultInjectionTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
+    {
+    }
+
     private static DecisionRequestDto CreateSampleRequest(Guid? reservationId = null)
     {
         return new DecisionRequestDto
@@ -171,11 +178,12 @@ public class FaultInjectionTests
     #endregion
 
     [Fact]
+    [Trait("CatalogId", "FI-01")]
     public async Task F1_PerAttemptTimeoutInBudget_RetriesAndReturnsOriginalStrategyResult()
     {
         // Arrange
         var flakyStrategy = new FlakyTransientStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -219,11 +227,12 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-02")]
     public async Task F2_TimeoutExhaustsRetries_ActivatesDeterministicFallbackWithTimeoutReason()
     {
         // Arrange
         var timeoutStrategy = new ExhaustiveTimeoutStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -266,11 +275,12 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-03")]
     public async Task F3_StrategyInternalException_ActivatesDeterministicFallbackWithExceptionReason()
     {
         // Arrange
         var crashStrategy = new CrashStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -309,11 +319,12 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-04")]
     public async Task F4_CircuitBreakerOpen_FastFailsDirectlyToFallback()
     {
         // Arrange
         var crashStrategy = new CrashStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -371,10 +382,11 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-06")]
     public async Task F5_RedisUnavailable_DegradesGracefullyWithCacheMissSemantics()
     {
         // Arrange: Inject ResilientDecisionCacheService with Failing Redis and Working Memory cache
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -443,23 +455,14 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-08")]
     public async Task F6_DatabasePersistenceFailure_FailsClosedWithHttp500WithoutReturningDecision()
     {
         // Arrange: Inject failing DbContext interceptor (simulating DB down/write failure)
-        var dbName = Guid.NewGuid().ToString();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
-            {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<TadssDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
-
-                services.AddDbContext<TadssDbContext>((sp, options) =>
-                {
-                    options.UseInMemoryDatabase(dbName);
-                    options.AddInterceptors(new FailingSaveChangesInterceptor());
-                });
-            });
+                TadssWebApplicationFactory.ReplaceDbContext(services, ConnectionString, new FailingSaveChangesInterceptor()));
         });
 
         var client = factory.CreateClient();
@@ -482,11 +485,12 @@ public class FaultInjectionTests
     }
 
     [Fact]
+    [Trait("CatalogId", "FI-10")]
     public async Task F7_CallerCancellation_AbortsPromptlyWithoutCreatingAuditRecord()
     {
         // Arrange: Deterministic synchronization — cancel only after strategy has entered execution on server
         var slowStrategy = new ExhaustiveTimeoutStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        var factory = CreateFactory(builder =>
         {
             builder.ConfigureServices(services =>
             {

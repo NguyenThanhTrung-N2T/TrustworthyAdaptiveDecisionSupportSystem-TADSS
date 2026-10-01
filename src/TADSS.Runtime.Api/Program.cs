@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Serilog;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Services;
 
@@ -18,6 +21,13 @@ var app = builder.Build();
 
 // Eager startup validation for StrategyResolver (fail-fast on startup if strategy config is invalid)
 app.Services.GetRequiredService<IStrategyResolver>();
+
+// Tự áp migration khi khởi động — chỉ bật ở E-LOCAL (docker compose); Neon/staging giữ mặc định false
+if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.ApplyMigrationsOnStartup)
+{
+    using var migrationScope = app.Services.CreateScope();
+    await migrationScope.ServiceProvider.GetRequiredService<TadssDbContext>().Database.MigrateAsync();
+}
 
 // 1. Correlation ID Middleware (Canonical Correlation Propagation)
 app.UseMiddleware<CorrelationIdMiddleware>();

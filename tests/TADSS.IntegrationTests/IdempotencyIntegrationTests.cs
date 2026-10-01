@@ -6,25 +6,27 @@ using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
+using TADSS.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFactory>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class IdempotencyIntegrationTests : IntegrationTestBase
 {
-    private readonly HttpClient _client;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
 
-    public IdempotencyIntegrationTests(TadssWebApplicationFactory factory)
+    public IdempotencyIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _client = factory.CreateClient();
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-02")]
     public async Task PostDecision_SameIdempotencyKeySamePayload_Returns200OKAndReplaysOriginalDecision()
     {
         // Arrange
@@ -53,7 +55,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             Content = JsonContent.Create(request)
         };
         msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
+        var res1 = await Client.SendAsync(msg1);
         res1.StatusCode.Should().Be(HttpStatusCode.OK);
         var body1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
         body1.Should().NotBeNull();
@@ -64,7 +66,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             Content = JsonContent.Create(request)
         };
         msg2.Headers.Add("X-Idempotency-Key", key);
-        var res2 = await _client.SendAsync(msg2);
+        var res2 = await Client.SendAsync(msg2);
 
         // Assert
         res2.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -76,6 +78,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-03")]
     public async Task PostDecision_SameIdempotencyKeyDifferentPayload_Returns409Conflict()
     {
         // Arrange
@@ -104,7 +107,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             Content = JsonContent.Create(baseReq)
         };
         msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
+        var res1 = await Client.SendAsync(msg1);
         res1.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second request with SAME key but DIFFERENT payload (price changed)
@@ -132,7 +135,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
         msg2.Headers.Add("X-Idempotency-Key", key);
 
         // Act
-        var res2 = await _client.SendAsync(msg2);
+        var res2 = await Client.SendAsync(msg2);
 
         // Assert
         res2.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -142,6 +145,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-02")]
     public async Task PostDecision_ReplayAfterOverride_ReturnsOriginalMachineSnapshot_WhileGetDetailShowsOverridden()
     {
         // Arrange
@@ -170,7 +174,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             Content = JsonContent.Create(request)
         };
         msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
+        var res1 = await Client.SendAsync(msg1);
         res1.StatusCode.Should().Be(HttpStatusCode.OK);
         var body1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
         body1!.Status.Should().Be("NEED_APPROVAL");
@@ -182,7 +186,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             OverriddenBy = "manager-integration",
             OverrideReason = "Khách vip quen"
         };
-        var overrideRes = await _client.PostAsJsonAsync($"/api/v1/decisions/{body1.DecisionId}/override", overrideReq);
+        var overrideRes = await Client.PostAsJsonAsync($"/api/v1/decisions/{body1.DecisionId}/override", overrideReq);
         overrideRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Act 3: Client replays request with same idempotency key
@@ -191,7 +195,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
             Content = JsonContent.Create(request)
         };
         msgReplay.Headers.Add("X-Idempotency-Key", key);
-        var resReplay = await _client.SendAsync(msgReplay);
+        var resReplay = await Client.SendAsync(msgReplay);
 
         // Assert 1: Replayed machine decision retains original status
         resReplay.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -200,7 +204,7 @@ public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFact
         bodyReplay.Status.Should().Be("NEED_APPROVAL");
 
         // Assert 2: GET /decisions/{id} returns overridden governance state
-        var detailRes = await _client.GetAsync($"/api/v1/decisions/{body1.DecisionId}");
+        var detailRes = await Client.GetAsync($"/api/v1/decisions/{body1.DecisionId}");
         detailRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var detailBody = await detailRes.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
         detailBody!.Governance.IsOverridden.Should().BeTrue();

@@ -58,7 +58,7 @@ src/
 └── TADSS.Strategies.MockAlternative/  # MockAlternativeDecisionStrategy — chỉ phụ thuộc SDK
 tests/
 ├── TADSS.UnitTests/                   # Domain, Contracts, Services, Strategies, Infrastructure, Architecture
-├── TADSS.IntegrationTests/            # API qua WebApplicationFactory (v2: Testcontainers)
+├── TADSS.IntegrationTests/            # API qua WebApplicationFactory trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy)
 └── TADSS.BenchmarkRunner/             # Micro-benchmark lab Phase 4 (lưu trữ)
 ```
 

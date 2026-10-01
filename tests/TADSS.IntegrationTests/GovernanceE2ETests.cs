@@ -8,32 +8,31 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
+using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class GovernanceE2ETests : IntegrationTestBase
 {
-    private readonly HttpClient _client;
-    private readonly TadssWebApplicationFactory _factory;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
 
-    public GovernanceE2ETests(TadssWebApplicationFactory factory)
+    public GovernanceE2ETests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _factory = factory;
-        _client = factory.CreateClient();
     }
 
     #region E2E 1: Correlation ID Propagation (Happy Path & Error Responses)
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task CorrelationId_ClientProvidedCustomString_PropagatedToResponseHeaderAndTraceIdentifier()
     {
         // Arrange
@@ -47,7 +46,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         message.Headers.Add("X-Correlation-ID", customCorrelationId);
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -56,6 +55,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task CorrelationId_ClientProvidedOnBadRequest_PropagatedToProblemDetailsTraceIdAndHeader()
     {
         // Arrange: Missing X-Idempotency-Key triggers 400 BadRequest
@@ -68,7 +68,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         message.Headers.Add("X-Correlation-ID", customCorrelationId);
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -82,6 +82,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task CorrelationId_ClientOmitted_GeneratesValidGuidInResponseHeader()
     {
         // Arrange
@@ -94,7 +95,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         // Omit X-Correlation-ID
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -108,6 +109,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     #region E2E 2: Missing Idempotency Key Enforcement
 
     [Fact]
+    [Trait("CatalogId", "IT-11")]
     public async Task PostDecision_MissingIdempotencyKey_Returns400WithMissingIdempotencyCode()
     {
         // Arrange
@@ -118,7 +120,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         };
 
         // Act
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -134,6 +136,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     #region E2E 3: GET /api/v1/decisions/{decisionId} Detail Verification
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task GetDecisionDetail_ExistingDecision_Returns200WithContractDefinedProjection()
     {
         // Arrange: Evaluate a decision first
@@ -145,13 +148,13 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         };
         postMsg.Headers.Add("X-Idempotency-Key", idempotencyKey);
 
-        var postRes = await _client.SendAsync(postMsg);
+        var postRes = await Client.SendAsync(postMsg);
         postRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var evalResult = await postRes.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
         evalResult.Should().NotBeNull();
 
         // Act: Get decision detail
-        var getRes = await _client.GetAsync($"/api/v1/decisions/{evalResult!.DecisionId}");
+        var getRes = await Client.GetAsync($"/api/v1/decisions/{evalResult!.DecisionId}");
 
         // Assert
         getRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -177,13 +180,14 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-01")]
     public async Task GetDecisionDetail_NonExistentGuid_Returns404ProblemDetails()
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/decisions/{nonExistentId}");
+        var response = await Client.GetAsync($"/api/v1/decisions/{nonExistentId}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -199,6 +203,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     #region E2E 4: Pending Approval Filtering & Pagination
 
     [Fact]
+    [Trait("CatalogId", "IT-09")]
     public async Task GetPendingApprovals_FiltersOnlyUnOverriddenNeedApprovalRecords()
     {
         // Arrange: Seed 1 APPROVED, 2 NEED_APPROVAL (1 will be overridden)
@@ -214,11 +219,11 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
             OverriddenBy = "manager@smashcourt.vn",
             OverrideReason = "Special concession"
         };
-        var overrideRes = await _client.PostAsJsonAsync($"/api/v1/decisions/{needApproval3.DecisionId}/override", overrideReq);
+        var overrideRes = await Client.PostAsJsonAsync($"/api/v1/decisions/{needApproval3.DecisionId}/override", overrideReq);
         overrideRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Act: Query pending approvals
-        var getRes = await _client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=50");
+        var getRes = await Client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=50");
 
         // Assert
         getRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -239,10 +244,11 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     }
 
     [Fact]
+    [Trait("CatalogId", "IT-09")]
     public async Task GetPendingApprovals_PaginationParameters_ReturnsConsistentPageMetadata()
     {
         // Act: Query with specific page and pageSize
-        var response = await _client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=5");
+        var response = await Client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=5");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -259,6 +265,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
     #region E2E 5: Override Immutability & Duplicate Protection
 
     [Fact]
+    [Trait("CatalogId", "IT-06")]
     public async Task OverrideDecision_PreservesMachineSnapshotImmutability_AndRejectsDuplicates()
     {
         // Arrange: Evaluate a NEED_APPROVAL decision
@@ -286,7 +293,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
             OverrideReason = "VIP Customer manual adjustment"
         };
 
-        var overrideRes = await _client.PostAsJsonAsync($"/api/v1/decisions/{decisionId}/override", overrideReq);
+        var overrideRes = await Client.PostAsJsonAsync($"/api/v1/decisions/{decisionId}/override", overrideReq);
 
         // Assert 1: Override HTTP response is 200 OK
         overrideRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -316,7 +323,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         dbSnapshotAfterFirst.OverrideReason.Should().Be("VIP Customer manual adjustment");
         dbSnapshotAfterFirst.Version.Should().Be(dbSnapshotBefore.Version + 1);
         // Assert: Overridden decision MUST no longer appear in pending approvals list
-        var pendingRes = await _client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=50");
+        var pendingRes = await Client.GetAsync("/api/v1/decisions/pending-approvals?page=1&pageSize=50");
         pendingRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var pagedPending = await pendingRes.Content.ReadFromJsonAsync<PagedResult<PendingApprovalItemDto>>(JsonOptions);
         pagedPending.Should().NotBeNull();
@@ -330,7 +337,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
             OverrideReason = "Second override attempt"
         };
 
-        var duplicateRes = await _client.PostAsJsonAsync($"/api/v1/decisions/{decisionId}/override", duplicateOverrideReq);
+        var duplicateRes = await Client.PostAsJsonAsync($"/api/v1/decisions/{decisionId}/override", duplicateOverrideReq);
 
         // Assert 2: Duplicate override is rejected with 400 ProblemDetails
         duplicateRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -358,7 +365,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
         };
         message.Headers.Add("X-Idempotency-Key", key);
 
-        var response = await _client.SendAsync(message);
+        var response = await Client.SendAsync(message);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
@@ -390,7 +397,7 @@ public class GovernanceE2ETests : IClassFixture<TadssWebApplicationFactory>
 
     private async Task<DecisionExecution?> GetExecutionFromDbAsync(Guid decisionId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
         return await dbContext.DecisionExecutions
             .AsNoTracking()
