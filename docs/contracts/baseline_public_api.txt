@@ -1,22 +1,7 @@
-# Shared.DecisionContractSDK Public API Surface Snapshot v1.0.0
-# Assembly: Shared.DecisionContractSDK, Version=1.0.0.0
-# STATUS: FROZEN v1.0.0 BASELINE
+# Shared.DecisionContractSDK Public API Surface Snapshot v2.0.0-draft
+# Assembly: Shared.DecisionContractSDK, Version=2.0.0.0
+# STATUS: DRAFT v2.0.0 BASELINE (chờ đóng băng M5)
 --------------------------------------------------
-
-[class] Shared.DecisionContractSDK.Common.ApiResponse : ApiResponse`1
-    .ctor()
-    ApiResponse`1 Fail(String message, String code, Dictionary`2 errors)
-    ApiResponse`1 Ok(Object data, String message)
-
-[class] Shared.DecisionContractSDK.Common.ApiResponse`1
-    .ctor()
-    String Code { get; set; }
-    T Data { get; set; }
-    Dictionary`2 Errors { get; set; }
-    String Message { get; set; }
-    Boolean Success { get; set; }
-    ApiResponse`1 Fail(String message, String code, Dictionary`2 errors)
-    ApiResponse`1 Ok(T data, String message)
 
 [class] Shared.DecisionContractSDK.Common.ContractValidationException : Exception, ISerializable
     .ctor(String errorCode, String message, String fieldName)
@@ -27,255 +12,6 @@
 
 [class] Shared.DecisionContractSDK.Common.PagedResult`1
     .ctor()
-    Boolean HasNext { get; }
-    Boolean HasPrev { get; }
-    IEnumerable`1 Items { get; set; }
-    Int32 Page { get; set; }
-    Int32 PageSize { get; set; }
-    Int32 TotalItems { get; set; }
-    Int32 TotalPages { get; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionDetailDto
-    .ctor()
-    DecisionSummaryDto Decision { get; set; }
-    Guid DecisionId { get; set; }
-    ExecutionSummaryDto Execution { get; set; }
-    GovernanceSummaryDto Governance { get; set; }
-    String RequestHash { get; set; }
-    Guid ReservationId { get; set; }
-    TimestampSummaryDto Timestamps { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionRecommendationDto
-    .ctor()
-    Nullable`1 ConfidenceScore { get; set; }
-    String Description { get; set; }
-    Nullable`1 SuggestedCourtId { get; set; }
-    Nullable`1 SuggestedEndTime { get; set; }
-    Nullable`1 SuggestedPrice { get; set; }
-    Nullable`1 SuggestedStartTime { get; set; }
-    String Type { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionRequestDto
-    .ctor()
-    String BookingType { get; set; }
-    Guid BranchId { get; set; }
-    Guid CourtId { get; set; }
-    Nullable`1 CourtTypeId { get; set; }
-    Guid CustomerId { get; set; }
-    String CustomerTier { get; set; }
-    Decimal DepositAmount { get; set; }
-    DateTime EndTime { get; set; }
-    Dictionary`2 Metadata { get; set; }
-    String PaymentStatus { get; set; }
-    String Priority { get; set; }
-    DateTime RequestedAt { get; set; }
-    Guid ReservationId { get; set; }
-    DateTime StartTime { get; set; }
-    Decimal TotalPrice { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionResultDto
-    .ctor()
-    Guid DecisionId { get; set; }
-    DateTime EvaluatedAt { get; set; }
-    Int32 ExecutionTimeMs { get; set; }
-    Boolean FallbackUsed { get; set; }
-    String PrimaryReason { get; set; }
-    List`1 Reasons { get; set; }
-    List`1 Recommendations { get; set; }
-    Guid ReservationId { get; set; }
-    String Status { get; set; }
-    String StrategyName { get; set; }
-    String StrategyVersion { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionSummaryDto
-    .ctor()
-    String PrimaryReason { get; set; }
-    List`1 Reasons { get; set; }
-    List`1 Recommendations { get; set; }
-    String Status { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.ExecutionSummaryDto
-    .ctor()
-    Boolean CacheHit { get; set; }
-    Int32 ExecutionTimeMs { get; set; }
-    String ExecutionType { get; set; }
-    String FailureReason { get; set; }
-    Boolean FallbackUsed { get; set; }
-    String StrategyName { get; set; }
-    String StrategyVersion { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.GovernanceSummaryDto
-    .ctor()
-    Boolean IsOverridden { get; set; }
-    Boolean NeedApproval { get; set; }
-    Nullable`1 OverriddenAt { get; set; }
-    String OverriddenBy { get; set; }
-    String OverrideReason { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Decisions.TimestampSummaryDto
-    .ctor()
-    DateTime CreatedAt { get; set; }
-    DateTime UpdatedAt { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideDecisionRequestDto
-    .ctor()
-    OverrideTargetPayloadDto Decision { get; set; }
-    String OverriddenBy { get; set; }
-    String OverrideReason { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideDecisionResponseDto
-    .ctor()
-    Guid DecisionId { get; set; }
-    Boolean IsOverridden { get; set; }
-    String OriginalStatus { get; set; }
-    DateTime OverriddenAt { get; set; }
-    String OverriddenBy { get; set; }
-    String OverriddenStatus { get; set; }
-    String OverrideReason { get; set; }
-    Guid ReservationId { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideTargetPayloadDto
-    .ctor()
-    String Status { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Governance.PendingApprovalItemDto
-    .ctor()
-    DateTime CreatedAt { get; set; }
-    Guid DecisionId { get; set; }
-    Int32 ExecutionTimeMs { get; set; }
-    Boolean FallbackUsed { get; set; }
-    String PrimaryReason { get; set; }
-    Guid ReservationId { get; set; }
-    String Status { get; set; }
-    String StrategyName { get; set; }
-    String StrategyVersion { get; set; }
-
-[class] Shared.DecisionContractSDK.DTOs.Mappings.DecisionMappingExtensions
-    BookingPriority ParseBookingPriority(String value)
-    DecisionStatus ParseDecisionStatus(String value)
-    PaymentStatus ParsePaymentStatus(String value)
-    RecommendationType ParseRecommendationType(String value)
-    Reservation ToDomain(DecisionRequestDto request)
-    DecisionRequestDto ToDto(Reservation reservation)
-
-[class] Shared.DecisionContractSDK.Domain.CustomerInfo : IEquatable`1
-    .ctor(Guid customerId, String tier)
-    Guid CustomerId { get; set; }
-    String Tier { get; set; }
-    CustomerInfo <Clone>$()
-    Boolean Equals(Object obj)
-    Boolean Equals(CustomerInfo other)
-    Int32 GetHashCode()
-    String ToString()
-
-[class] Shared.DecisionContractSDK.Domain.DomainInvariantException : Exception, ISerializable
-    .ctor(String invariantCode, String message, String fieldName)
-    String FieldName { get; }
-    String InvariantCode { get; }
-
-[class] Shared.DecisionContractSDK.Domain.PaymentPolicy : IEquatable`1
-    .ctor(Decimal totalPrice, Decimal depositAmount, PaymentStatus paymentStatus)
-    Decimal DepositAmount { get; set; }
-    Decimal DepositPercentage { get; }
-    Boolean IsFullyPaid { get; }
-    PaymentStatus PaymentStatus { get; set; }
-    Decimal TotalPrice { get; set; }
-    PaymentPolicy <Clone>$()
-    Boolean Equals(Object obj)
-    Boolean Equals(PaymentPolicy other)
-    Int32 GetHashCode()
-    String ToString()
-
-[class] Shared.DecisionContractSDK.Domain.Reservation
-    .ctor(Guid reservationId, CustomerInfo customer, ResourceInfo resource, ReservationSchedule schedule, PaymentPolicy payment, String bookingType, BookingPriority priority, DateTime requestedAt, ReservationMetadata metadata)
-    String BookingType { get; }
-    CustomerInfo Customer { get; }
-    ReservationMetadata Metadata { get; }
-    PaymentPolicy Payment { get; }
-    BookingPriority Priority { get; }
-    DateTime RequestedAt { get; }
-    Guid ReservationId { get; }
-    ResourceInfo Resource { get; }
-    ReservationSchedule Schedule { get; }
-    Decimal CalculateDepositRatio()
-    Boolean CanBeCancelledWithoutPenalty(DateTime currentUtc, Nullable`1 customWindow)
-    Reservation Create(Guid reservationId, Guid customerId, String customerTier, Guid courtId, Guid branchId, Nullable`1 courtTypeId, DateTime startTime, DateTime endTime, Decimal totalPrice, Decimal depositAmount, PaymentStatus paymentStatus, String bookingType, BookingPriority priority, DateTime requestedAt, IDictionary`2 metadata)
-    Void EnsureValid()
-
-[class] Shared.DecisionContractSDK.Domain.ReservationMetadata : IEquatable`1
-    .ctor(IDictionary`2 attributes)
-    IReadOnlyDictionary`2 Attributes { get; }
-    ReservationMetadata <Clone>$()
-    Boolean Equals(Object obj)
-    Boolean Equals(ReservationMetadata other)
-    String Get(String key)
-    Int32 GetHashCode()
-    String ToString()
-
-[class] Shared.DecisionContractSDK.Domain.ReservationSchedule : IEquatable`1
-    .ctor(DateTime startTime, DateTime endTime)
-    TimeSpan Duration { get; }
-    DateTime EndTime { get; set; }
-    DateTime StartTime { get; set; }
-    ReservationSchedule <Clone>$()
-    Boolean Equals(Object obj)
-    Boolean Equals(ReservationSchedule other)
-    Int32 GetHashCode()
-    String ToString()
-
-[class] Shared.DecisionContractSDK.Domain.ResourceInfo : IEquatable`1
-    .ctor(Guid courtId, Guid branchId, Nullable`1 courtTypeId)
-    Guid BranchId { get; set; }
-    Guid CourtId { get; set; }
-    Nullable`1 CourtTypeId { get; set; }
-    ResourceInfo <Clone>$()
-    Boolean Equals(Object obj)
-    Boolean Equals(ResourceInfo other)
-    Int32 GetHashCode()
-    String ToString()
-
-[enum] Shared.DecisionContractSDK.Enums.BookingPriority : IComparable, IConvertible, IFormattable, ISpanFormattable
-    NORMAL = 0
-    HIGH = 1
-    VIP = 2
-    URGENT = 3
-
-[enum] Shared.DecisionContractSDK.Enums.DecisionStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
-    APPROVED = 0
-    REJECTED = 1
-    NEED_APPROVAL = 2
-
-[enum] Shared.DecisionContractSDK.Enums.ExecutionType : IComparable, IConvertible, IFormattable, ISpanFormattable
-    AUTOMATED = 0
-    FALLBACK = 1
-    CACHE_HIT = 2
-
-[enum] Shared.DecisionContractSDK.Enums.PaymentStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
-    UNPAID = 0
-    PARTIALLY_PAID = 1
-    PAID = 2
-    REFUNDED = 3
-    EXPIRED = 4
-
-[class] Shared.DecisionContractSDK.Enums.ReasonCode
-
-[enum] Shared.DecisionContractSDK.Enums.RecommendationType : IComparable, IConvertible, IFormattable, ISpanFormattable
-    ALTERNATIVE_SLOT = 0
-    ALTERNATIVE_COURT = 1
-    PRICE_ADJUSTMENT = 2
-    REQUIRE_DEPOSIT = 3
-    REQUIRE_APPROVAL = 4
-    PRIORITY_ESCALATION = 5
-
-[interface] Shared.DecisionContractSDK.Interfaces.IReservationDecisionStrategy
-    String StrategyName { get; }
-    String StrategyVersion { get; }
-    Task`1 EvaluateAsync(Reservation reservation, CancellationToken cancellationToken)
-
-[class] Shared.DecisionContractSDK.V2.Common.ErrorCodes
-
-[class] Shared.DecisionContractSDK.V2.Common.PagedResult`1
-    .ctor()
     Boolean HasNext { get; set; }
     Boolean HasPrev { get; set; }
     IReadOnlyList`1 Items { get; set; }
@@ -285,13 +21,13 @@
     Int32 TotalPages { get; set; }
     PagedResult`1 Create(IReadOnlyList`1 items, Int32 page, Int32 pageSize, Int32 totalItems)
 
-[class] Shared.DecisionContractSDK.V2.Common.ReasonCodes
+[class] Shared.DecisionContractSDK.Common.ReasonCodes
 
-[class] Shared.DecisionContractSDK.V2.Common.TadssJson
+[class] Shared.DecisionContractSDK.Common.TadssJson
     JsonSerializerOptions Options { get; }
     Void Apply(JsonSerializerOptions options)
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.CustomerDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.CustomerDto
     .ctor()
     Nullable`1 CustomerId { get; set; }
     CustomerHistoryDto History { get; set; }
@@ -299,7 +35,7 @@
     Nullable`1 MemberSince { get; set; }
     CustomerTier Tier { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.CustomerHistoryDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.CustomerHistoryDto
     .ctor()
     Int32 CancelledCount { get; set; }
     Int32 CompletedCount { get; set; }
@@ -308,7 +44,7 @@
     Int32 NoShowCount { get; set; }
     Int32 PaymentExpiredCount { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionDetailDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionDetailDto
     .ctor()
     String CorrelationId { get; set; }
     DateTimeOffset CreatedAt { get; set; }
@@ -320,7 +56,7 @@
     Guid ReservationId { get; set; }
     DecisionDetailResultDto Result { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionDetailResultDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionDetailResultDto
     .ctor()
     Nullable`1 ApprovalExpiresAt { get; set; }
     DepositDto Deposit { get; set; }
@@ -330,12 +66,12 @@
     DecisionStatus Status { get; set; }
     DecisionStatus StrategyStatus { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionRecommendationDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionRecommendationDto
     .ctor()
     String Description { get; set; }
     RecommendationType Type { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionRequestDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionRequestDto
     .ctor()
     Guid BranchId { get; set; }
     String BranchTimeZone { get; set; }
@@ -349,7 +85,7 @@
     Guid ReservationId { get; set; }
     Decimal TotalPrice { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionResultDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DecisionResultDto
     .ctor()
     Nullable`1 ApprovalExpiresAt { get; set; }
     Guid DecisionId { get; set; }
@@ -365,18 +101,18 @@
     String StrategyName { get; set; }
     String StrategyVersion { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DemandDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DemandDto
     .ctor()
     Decimal OccupancyRate { get; set; }
     Int32 WaitlistCount { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DepositDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.DepositDto
     .ctor()
     Decimal Amount { get; set; }
     String Currency { get; set; }
     Decimal Rate { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.ExecutionDetailDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.ExecutionDetailDto
     .ctor()
     Boolean CacheHit { get; set; }
     Int32 ExecutionTimeMs { get; set; }
@@ -386,7 +122,7 @@
     String StrategyName { get; set; }
     String StrategyVersion { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.ReservationItemDto
+[class] Shared.DecisionContractSDK.DTOs.Decisions.ReservationItemDto
     .ctor()
     DateTimeOffset EndTime { get; set; }
     Decimal Price { get; set; }
@@ -394,18 +130,18 @@
     Guid ResourceTypeId { get; set; }
     DateTimeOffset StartTime { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideDepositDto
+[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideDepositDto
     .ctor()
     Nullable`1 Amount { get; set; }
     Nullable`1 Rate { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideRequestDto
+[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideRequestDto
     .ctor()
     OverrideAction Action { get; set; }
     OverrideDepositDto Deposit { get; set; }
     String Reason { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideResponseDto
+[class] Shared.DecisionContractSDK.DTOs.Governance.OverrideResponseDto
     .ctor()
     OverrideAction Action { get; set; }
     String ActorId { get; set; }
@@ -414,12 +150,12 @@
     DateTimeOffset OverriddenAt { get; set; }
     String Reason { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Governance.PendingApprovalCustomerDto
+[class] Shared.DecisionContractSDK.DTOs.Governance.PendingApprovalCustomerDto
     .ctor()
     Boolean IsGuest { get; set; }
     CustomerTier Tier { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Governance.PendingApprovalItemDto
+[class] Shared.DecisionContractSDK.DTOs.Governance.PendingApprovalItemDto
     .ctor()
     DateTimeOffset ApprovalExpiresAt { get; set; }
     Guid BranchId { get; set; }
@@ -433,38 +169,38 @@
     Guid ReservationId { get; set; }
     Decimal TotalPrice { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Mappings.DecisionRequestMapping
+[class] Shared.DecisionContractSDK.DTOs.Mappings.DecisionRequestMapping
     Reservation ToDomain(DecisionRequestDto request)
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Outcomes.OutcomeRequestDto
+[class] Shared.DecisionContractSDK.DTOs.Outcomes.OutcomeRequestDto
     .ctor()
     DateTimeOffset OccurredAt { get; set; }
     DecisionOutcome Outcome { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.DTOs.Outcomes.OutcomeResponseDto
+[class] Shared.DecisionContractSDK.DTOs.Outcomes.OutcomeResponseDto
     .ctor()
     Guid DecisionId { get; set; }
     DateTimeOffset OccurredAt { get; set; }
     DecisionOutcome Outcome { get; set; }
     DateTimeOffset ReportedAt { get; set; }
 
-[class] Shared.DecisionContractSDK.V2.Decisions.DecisionContext
+[class] Shared.DecisionContractSDK.Decisions.DecisionContext
     .ctor(DateTimeOffset evaluatedAtUtc, BranchCalendar calendar)
     BranchCalendar Calendar { get; }
     DateTimeOffset EvaluatedAtUtc { get; }
 
-[class] Shared.DecisionContractSDK.V2.Decisions.DecisionRecommendation
+[class] Shared.DecisionContractSDK.Decisions.DecisionRecommendation
     .ctor(RecommendationType type, String description)
     String Description { get; }
     RecommendationType Type { get; }
 
-[class] Shared.DecisionContractSDK.V2.Decisions.StrategyCachePolicy
+[class] Shared.DecisionContractSDK.Decisions.StrategyCachePolicy
     StrategyCachePolicy Disabled { get; }
     Boolean IsEnabled { get; }
     Nullable`1 Ttl { get; }
     StrategyCachePolicy Enabled(TimeSpan ttl)
 
-[class] Shared.DecisionContractSDK.V2.Decisions.StrategyDecision
+[class] Shared.DecisionContractSDK.Decisions.StrategyDecision
     Nullable`1 DepositRate { get; }
     String ReasonCode { get; }
     IReadOnlyList`1 Reasons { get; }
@@ -474,12 +210,12 @@
     StrategyDecision Reject(String reasonCode, IReadOnlyList`1 reasons)
     StrategyDecision RequireApproval(String reasonCode, IReadOnlyList`1 reasons, IReadOnlyList`1 recommendations)
 
-[class] Shared.DecisionContractSDK.V2.Domain.BranchCalendar
+[class] Shared.DecisionContractSDK.Domain.BranchCalendar
     .ctor(IEnumerable`1 peakWindows)
     IReadOnlyList`1 PeakWindows { get; }
     Boolean IsPeak(Reservation reservation)
 
-[class] Shared.DecisionContractSDK.V2.Domain.CustomerHistory
+[class] Shared.DecisionContractSDK.Domain.CustomerHistory
     .ctor(Int32 completedCount, Int32 noShowCount, Int32 cancelledCount, Int32 lateCancelledCount, Int32 paymentExpiredCount, Nullable`1 lastCompletedAt)
     Int32 CancelledCount { get; }
     Int32 CompletedCount { get; }
@@ -488,7 +224,7 @@
     Int32 NoShowCount { get; }
     Int32 PaymentExpiredCount { get; }
 
-[class] Shared.DecisionContractSDK.V2.Domain.CustomerProfile
+[class] Shared.DecisionContractSDK.Domain.CustomerProfile
     .ctor(Boolean isGuest, Nullable`1 customerId, CustomerTier tier, Nullable`1 memberSince, CustomerHistory history)
     Nullable`1 CustomerId { get; }
     CustomerHistory History { get; }
@@ -496,19 +232,24 @@
     Nullable`1 MemberSince { get; }
     CustomerTier Tier { get; }
 
-[class] Shared.DecisionContractSDK.V2.Domain.DemandSnapshot
+[class] Shared.DecisionContractSDK.Domain.DemandSnapshot
     .ctor(Decimal occupancyRate, Int32 waitlistCount)
     Decimal OccupancyRate { get; }
     Int32 WaitlistCount { get; }
 
-[class] Shared.DecisionContractSDK.V2.Domain.PeakWindow
+[class] Shared.DecisionContractSDK.Domain.DomainInvariantException : Exception, ISerializable
+    .ctor(String invariantCode, String message, String fieldName)
+    String FieldName { get; }
+    String InvariantCode { get; }
+
+[class] Shared.DecisionContractSDK.Domain.PeakWindow
     .ctor(DayOfWeek day, TimeOnly start, TimeOnly end)
     DayOfWeek Day { get; }
     TimeOnly End { get; }
     TimeOnly Start { get; }
     Boolean Contains(DateTimeOffset branchLocal)
 
-[class] Shared.DecisionContractSDK.V2.Domain.Reservation
+[class] Shared.DecisionContractSDK.Domain.Reservation
     .ctor(Guid reservationId, Guid branchId, TimeZoneInfo branchTimeZone, IReadOnlyList`1 items, CustomerProfile customer, Decimal totalPrice, String currency, Channel channel, DateTimeOffset requestedAt, DemandSnapshot demand, IReadOnlyDictionary`2 metadata)
     Guid BranchId { get; }
     TimeZoneInfo BranchTimeZone { get; }
@@ -524,7 +265,7 @@
     Decimal TotalPrice { get; }
     DateTimeOffset ToBranchLocal(DateTimeOffset instant)
 
-[class] Shared.DecisionContractSDK.V2.Domain.ReservationItem
+[class] Shared.DecisionContractSDK.Domain.ReservationItem
     .ctor(Guid resourceId, Guid resourceTypeId, DateTimeOffset start, DateTimeOffset end, Decimal price)
     TimeSpan Duration { get; }
     DateTimeOffset End { get; }
@@ -533,18 +274,18 @@
     Guid ResourceTypeId { get; }
     DateTimeOffset Start { get; }
 
-[enum] Shared.DecisionContractSDK.V2.Enums.Channel : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.Channel : IComparable, IConvertible, IFormattable, ISpanFormattable
     ONLINE = 0
     WALK_IN = 1
 
-[enum] Shared.DecisionContractSDK.V2.Enums.CustomerTier : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.CustomerTier : IComparable, IConvertible, IFormattable, ISpanFormattable
     STANDARD = 0
     SILVER = 1
     GOLD = 2
     PLATINUM = 3
     DIAMOND = 4
 
-[enum] Shared.DecisionContractSDK.V2.Enums.DecisionOutcome : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.DecisionOutcome : IComparable, IConvertible, IFormattable, ISpanFormattable
     COMPLETED = 0
     NO_SHOW = 1
     CANCELLED_BY_CUSTOMER = 2
@@ -553,27 +294,27 @@
     APPROVAL_EXPIRED = 5
     REJECTED = 6
 
-[enum] Shared.DecisionContractSDK.V2.Enums.DecisionStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.DecisionStatus : IComparable, IConvertible, IFormattable, ISpanFormattable
     APPROVED = 0
     NEED_APPROVAL = 1
     REJECTED = 2
 
-[enum] Shared.DecisionContractSDK.V2.Enums.ExecutionType : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.ExecutionType : IComparable, IConvertible, IFormattable, ISpanFormattable
     AUTOMATED = 0
     FALLBACK = 1
     CACHE_HIT = 2
 
-[enum] Shared.DecisionContractSDK.V2.Enums.OverrideAction : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.OverrideAction : IComparable, IConvertible, IFormattable, ISpanFormattable
     APPROVE = 0
     REJECT = 1
 
-[enum] Shared.DecisionContractSDK.V2.Enums.RecommendationType : IComparable, IConvertible, IFormattable, ISpanFormattable
+[enum] Shared.DecisionContractSDK.Enums.RecommendationType : IComparable, IConvertible, IFormattable, ISpanFormattable
     REQUIRE_APPROVAL = 0
     ALTERNATIVE_SLOT = 1
     ALTERNATIVE_RESOURCE = 2
     PRIORITY_ESCALATION = 3
 
-[interface] Shared.DecisionContractSDK.V2.Interfaces.IReservationDecisionStrategy
+[interface] Shared.DecisionContractSDK.Interfaces.IReservationDecisionStrategy
     StrategyCachePolicy CachePolicy { get; }
     String StrategyName { get; }
     String StrategyVersion { get; }
