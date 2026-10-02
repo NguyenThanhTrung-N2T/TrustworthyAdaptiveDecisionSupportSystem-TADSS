@@ -31,13 +31,24 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<DateTimeOffset?>("ApprovalExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approval_expires_at");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
                     b.Property<bool>("CacheHit")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasDefaultValue(false)
                         .HasColumnName("cache_hit");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
@@ -45,14 +56,24 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("decision_id");
 
+                    b.Property<decimal?>("DepositAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("deposit_amount");
+
+                    b.Property<decimal?>("DepositRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("deposit_rate");
+
                     b.Property<int>("ExecutionTimeMs")
                         .HasColumnType("integer")
                         .HasColumnName("execution_time_ms");
 
                     b.Property<string>("ExecutionType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("execution_type");
 
                     b.Property<string>("FailureReason")
@@ -60,9 +81,7 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasColumnName("failure_reason");
 
                     b.Property<bool>("FallbackUsed")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasDefaultValue(false)
                         .HasColumnName("fallback_used");
 
                     b.Property<string>("IdempotencyKey")
@@ -70,32 +89,23 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("idempotency_key");
 
-                    b.Property<bool>("IsOverridden")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_overridden");
-
-                    b.Property<bool>("NeedApproval")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("need_approval");
-
-                    b.Property<string>("OverriddenBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("overridden_by");
-
-                    b.Property<string>("OverrideReason")
-                        .HasColumnType("text")
-                        .HasColumnName("override_reason");
+                    b.Property<string>("ReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reason_code");
 
                     b.Property<string>("RequestHash")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("request_hash");
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("RequestPayload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("request_payload");
 
                     b.Property<Guid>("ReservationId")
                         .HasColumnType("uuid")
@@ -106,56 +116,207 @@ namespace TADSS.Runtime.Api.Infrastructure.Data.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("response_payload");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
                     b.Property<string>("StrategyName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("strategy_name");
 
-                    b.Property<string>("StrategyVersion")
+                    b.Property<string>("StrategyStatus")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasDefaultValue("1.0.0")
+                        .HasColumnName("strategy_status");
+
+                    b.Property<string>("StrategyVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("strategy_version");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<int>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasColumnName("version");
 
                     b.HasKey("Id");
 
-                    b.HasIndex(new[] { "CreatedAt" }, "idx_decision_executions_created_at")
-                        .HasDatabaseName("idx_decision_executions_created_at");
+                    b.HasAlternateKey("DecisionId")
+                        .HasName("uq_decision_executions_decision_id");
 
-                    b.HasIndex(new[] { "CreatedAt" }, "idx_decision_executions_pending_approval")
-                        .HasDatabaseName("idx_decision_executions_pending_approval")
-                        .HasFilter("need_approval = true AND is_overridden = false");
+                    b.HasIndex(new[] { "CreatedAt" }, "idx_de_created_at")
+                        .HasDatabaseName("idx_de_created_at");
 
-                    b.HasIndex(new[] { "RequestHash" }, "idx_decision_executions_request_hash")
-                        .HasDatabaseName("idx_decision_executions_request_hash");
+                    b.HasIndex(new[] { "BranchId", "CreatedAt" }, "idx_de_pending")
+                        .HasDatabaseName("idx_de_pending")
+                        .HasFilter("status = 'NEED_APPROVAL' AND role = 'PRIMARY'");
 
-                    b.HasIndex(new[] { "ReservationId" }, "idx_decision_executions_reservation_id")
-                        .HasDatabaseName("idx_decision_executions_reservation_id");
+                    b.HasIndex(new[] { "RequestHash" }, "idx_de_request_hash")
+                        .HasDatabaseName("idx_de_request_hash");
 
-                    b.HasIndex(new[] { "DecisionId" }, "uq_decision_id")
-                        .IsUnique()
-                        .HasDatabaseName("uq_decision_id");
+                    b.HasIndex(new[] { "ReservationId", "CreatedAt" }, "idx_de_reservation_created")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("idx_de_reservation_created");
 
                     b.HasIndex(new[] { "IdempotencyKey" }, "uq_decision_idempotency_key")
                         .IsUnique()
                         .HasDatabaseName("uq_decision_idempotency_key")
-                        .HasFilter("idempotency_key IS NOT NULL");
+                        .HasFilter("idempotency_key IS NOT NULL AND role = 'PRIMARY'");
 
-                    b.ToTable("decision_executions", "tadss");
+                    b.ToTable("decision_executions", "tadss", t =>
+                        {
+                            t.HasCheckConstraint("ck_de_approval", "(status = 'NEED_APPROVAL') = (approval_expires_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_de_deposit", "(status = 'APPROVED') = (deposit_rate IS NOT NULL AND deposit_amount IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_de_deposit_amount", "deposit_amount >= 0");
+
+                            t.HasCheckConstraint("ck_de_deposit_rate", "deposit_rate BETWEEN 0 AND 1");
+
+                            t.HasCheckConstraint("ck_de_execution_time_ms", "execution_time_ms >= 0");
+
+                            t.HasCheckConstraint("ck_de_execution_type", "execution_type IN ('AUTOMATED', 'FALLBACK', 'CACHE_HIT')");
+
+                            t.HasCheckConstraint("ck_de_role", "role IN ('PRIMARY', 'SHADOW')");
+
+                            t.HasCheckConstraint("ck_de_status", "status IN ('APPROVED', 'NEED_APPROVAL', 'REJECTED')");
+                        });
+                });
+
+            modelBuilder.Entity("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOutcome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("DecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decision_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("outcome");
+
+                    b.Property<DateTimeOffset>("ReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reported_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "DecisionId" }, "uq_decision_outcomes_decision_id")
+                        .IsUnique()
+                        .HasDatabaseName("uq_decision_outcomes_decision_id");
+
+                    b.ToTable("decision_outcomes", "tadss", t =>
+                        {
+                            t.HasCheckConstraint("ck_dout_outcome", "outcome IN ('COMPLETED', 'NO_SHOW', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_STAFF', 'PAYMENT_EXPIRED', 'APPROVAL_EXPIRED', 'REJECTED')");
+                        });
+                });
+
+            modelBuilder.Entity("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decision_id");
+
+                    b.Property<decimal?>("DepositAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("deposit_amount");
+
+                    b.Property<decimal?>("DepositRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("deposit_rate");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "DecisionId" }, "uq_decision_overrides_decision_id")
+                        .IsUnique()
+                        .HasDatabaseName("uq_decision_overrides_decision_id");
+
+                    b.ToTable("decision_overrides", "tadss", t =>
+                        {
+                            t.HasCheckConstraint("ck_do_action", "action IN ('APPROVE', 'REJECT')");
+
+                            t.HasCheckConstraint("ck_do_deposit", "(action = 'APPROVE') = (deposit_rate IS NOT NULL AND deposit_amount IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_do_deposit_amount", "deposit_amount >= 0");
+
+                            t.HasCheckConstraint("ck_do_deposit_rate", "deposit_rate BETWEEN 0 AND 1");
+
+                            t.HasCheckConstraint("ck_do_reason_length", "char_length(reason) BETWEEN 5 AND 500");
+                        });
+                });
+
+            modelBuilder.Entity("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOutcome", b =>
+                {
+                    b.HasOne("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution", null)
+                        .WithOne()
+                        .HasForeignKey("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOutcome", "DecisionId")
+                        .HasPrincipalKey("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution", "DecisionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_decision_outcomes_decision_id");
+                });
+
+            modelBuilder.Entity("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOverride", b =>
+                {
+                    b.HasOne("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution", null)
+                        .WithOne()
+                        .HasForeignKey("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOverride", "DecisionId")
+                        .HasPrincipalKey("TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionExecution", "DecisionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_decision_overrides_decision_id");
                 });
 #pragma warning restore 612, 618
         }
