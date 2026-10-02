@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
-using TADSS.Runtime.Api.V2.Middlewares;
+using TADSS.Runtime.Api.Middlewares;
 
 namespace TADSS.Runtime.Api.Middlewares;
 

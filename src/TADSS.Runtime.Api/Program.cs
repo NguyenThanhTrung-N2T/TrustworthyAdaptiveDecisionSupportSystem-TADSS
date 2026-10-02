@@ -5,7 +5,7 @@ using Serilog;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.V2.Services.Strategies;
+using TADSS.Runtime.Api.Services.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 

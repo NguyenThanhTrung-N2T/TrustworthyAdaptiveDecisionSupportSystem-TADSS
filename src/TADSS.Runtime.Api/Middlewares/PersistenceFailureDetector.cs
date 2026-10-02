@@ -1,11 +1,11 @@
 using Npgsql;
-using TADSS.Runtime.Api.V2.Middlewares;
+using TADSS.Runtime.Api.Middlewares;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
 /// <summary>
 /// Nhận diện lỗi lưu trữ có thể thử lại (PostgreSQL tạm thời không khả dụng) ở bất kỳ tầng <c>InnerException</c> nào (kể cả mọi nhánh của <see cref="AggregateException"/>).
-/// Dùng chung cho handler lỗi v1 và bộ phân loại lỗi v2; EF Core/Npgsql thường bọc lỗi gốc trong
+/// Dùng chung cho handler lỗi toàn cục và bộ phân loại lỗi; EF Core/Npgsql thường bọc lỗi gốc trong
 /// <see cref="InvalidOperationException"/> hoặc <c>DbUpdateException</c>.
 /// </summary>
 public static class PersistenceFailureDetector

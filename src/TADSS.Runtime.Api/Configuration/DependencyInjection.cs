@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.V2.Configuration;
+using TADSS.Runtime.Api.Configuration;
 
 namespace TADSS.Runtime.Api.Configuration;
 
@@ -34,8 +34,8 @@ public static class DependencyInjection
                 name: "Neon-PostgreSQL",
                 tags: new[] { "ready", "db" });
 
-        // 4. Runtime v2: strategy registry, resilience, cache, audit store — nơi đăng ký duy nhất cho lõi
-        services.AddDecisionRuntimeV2(configuration);
+        // 4. Lõi runtime: strategy registry, resilience, cache, audit store — nơi đăng ký duy nhất cho lõi
+        services.AddDecisionRuntime(configuration);
 
         return services;
     }
