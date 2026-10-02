@@ -2,7 +2,7 @@ namespace Shared.DecisionContractSDK.Domain;
 
 /// <summary>
 /// Lịch cao điểm của chi nhánh — nơi duy nhất định nghĩa "giờ cao điểm", dùng chung cho router và strategy.
-/// Giá trị mặc định do runtime cấu hình (<c>Tadss:Calendar:PeakWindows</c>, gói 5.2b).
+/// Giá trị mặc định do runtime cấu hình (<c>Tadss:Calendar:PeakWindows</c>).
 /// </summary>
 public sealed class BranchCalendar
 {

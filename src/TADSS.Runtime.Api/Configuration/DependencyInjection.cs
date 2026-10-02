@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Shared.DecisionContractSDK.Common;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.Configuration;
 
 namespace TADSS.Runtime.Api.Configuration;
 

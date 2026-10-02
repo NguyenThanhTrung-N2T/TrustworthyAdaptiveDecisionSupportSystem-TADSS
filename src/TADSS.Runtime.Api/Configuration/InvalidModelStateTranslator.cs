@@ -6,9 +6,11 @@ namespace TADSS.Runtime.Api.Configuration;
 
 /// <summary>
 /// Đường duy nhất cho lỗi giải mã/gán body của MVC (JSON hỏng, body rỗng, thiếu trường, trường lạ, enum sai, thời gian thiếu offset,
-/// kiểu sai, Content-Type lạ): chuyển <c>ModelState</c> không hợp lệ thành <see cref="ContractValidationException"/>
+/// kiểu sai): chuyển <c>ModelState</c> không hợp lệ thành <see cref="ContractValidationException"/>
 /// (<c>VALIDATION_ERROR</c>) rồi ném, để <c>GlobalExceptionHandler</c> dựng đúng một dạng RFC 7807 (kèm <c>traceId</c> = correlation id)
-/// như mọi lỗi khác thay vì để MVC tự dựng <c>ValidationProblemDetails</c>/415 có dạng riêng.
+/// như mọi lỗi khác thay vì để MVC tự dựng <c>ValidationProblemDetails</c>.
+/// Chỉ xử lý lỗi model-binding/giải mã JSON; Content-Type lạ (415) cố ý để MVC giữ mặc định
+/// (<c>UnsupportedContentTypeFilter</c> chạy trước <c>ModelStateInvalidFilter</c>), <c>traceId</c> do <c>CustomizeProblemDetails</c> bổ sung.
 /// Gắn vào <c>ApiBehaviorOptions.InvalidModelStateResponseFactory</c>.
 /// </summary>
 internal static class InvalidModelStateTranslator

@@ -1,5 +1,4 @@
 using Npgsql;
-using TADSS.Runtime.Api.Middlewares;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
