@@ -212,7 +212,7 @@ Trả chi tiết của một quyết định:
   "request": { "...": "request v2 đã chuẩn hóa (cùng hình dạng Mục 3.3)" },
   "result": { "status": "APPROVED", "strategyStatus": "NEED_APPROVAL", "deposit": { "rate": 1, "amount": 228000, "currency": "VND" },
               "reasonCode": "APPROVAL_WINDOW_UNAVAILABLE",
-              "reasons": ["Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên đơn được duyệt tự động với mức cọc 100%."],
+              "reasons": ["Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên áp dụng mức cọc 100% thay cho bước duyệt."],
               "recommendations": [], "approvalExpiresAt": null },
   "execution": { "strategyName": "...", "strategyVersion": "2.0.0", "executionType": "AUTOMATED", "executionTimeMs": 3,
                  "fallbackUsed": false, "failureReason": null, "cacheHit": false },
@@ -272,7 +272,7 @@ Mỗi quyết định có tối đa một outcome. Gửi trùng với cùng payl
 | Đã tồn tại | Giống (`request_hash` trùng) | Trả lại kết quả đã lưu, không chạy lại strategy, 200 |
 | Đã tồn tại | Khác | 409 `IDEMPOTENCY_KEY_REUSE` |
 
-Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo đảm chỉ một bản ghi; request thua đọc lại và trả kết quả của request thắng.
+Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo đảm chỉ một bản ghi; request thua đọc lại và trả kết quả của request thắng. Request sai hình thức luôn trả 400 `VALIDATION_ERROR` kể cả khi key đã từng được dùng (runtime dựng domain từ request trước khi tra idempotency, nên request sai không bao giờ được replay hay báo 409).
 
 ---
 

@@ -2,7 +2,7 @@ namespace TADSS.Runtime.Api.V2.Middlewares;
 
 /// <summary>
 /// Lưu trữ tạm thời không khả dụng (mất kết nối, timeout hoặc lỗi PostgreSQL có thể thử lại). Được map thành
-/// 503 <c>SERVICE_UNAVAILABLE</c> kèm <c>Retry-After</c>; khác với vi phạm ràng buộc hay lỗi lập trình (500).
+/// 503 <c>PERSISTENCE_UNAVAILABLE</c> kèm <c>Retry-After</c>; khác với vi phạm ràng buộc hay lỗi lập trình (500).
 /// </summary>
 public sealed class PersistenceUnavailableException : Exception
 {

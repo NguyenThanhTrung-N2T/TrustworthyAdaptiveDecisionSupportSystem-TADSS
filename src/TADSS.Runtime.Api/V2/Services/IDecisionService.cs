@@ -10,7 +10,8 @@ public interface IDecisionService
 {
     /// <summary>
     /// Đánh giá một yêu cầu đặt sân. Cùng <paramref name="idempotencyKey"/> và cùng nội dung nghiệp vụ thì trả lại đúng
-    /// response đã lưu mà không chạy lại strategy; khác nội dung thì báo xung đột.
+    /// response đã lưu mà không chạy lại strategy; khác nội dung thì báo xung đột. Request sai hình thức luôn bị từ chối
+    /// (400) kể cả khi key đã từng được dùng, vì domain được dựng từ request trước khi tra idempotency.
     /// </summary>
     /// <param name="request">Request v2 đã deserialize.</param>
     /// <param name="idempotencyKey">Khóa idempotency (1–128 ký tự, không toàn khoảng trắng); controller phải chặn trước.</param>

@@ -120,7 +120,7 @@ public sealed record StrategyDecision(
 
 ### 4.2. Thành phần runtime v2
 
-> **Tiến độ (gói 5.2b):** lõi xử lý quyết định v2 đã hiện thực và kiểm chứng bằng unit test (UT-04…UT-13), nằm tạm ở `src/TADSS.Runtime.Api/V2/` (namespace `TADSS.Runtime.Api.V2.*`) chạy song song v1; gói 5.2c dời về vị trí chuẩn khi gỡ v1. Chưa đăng ký DI, chưa có endpoint `/api/v2` và chưa có hiện thực lưu trữ (`EfDecisionAuditStore`) — các hàng dưới đây đánh dấu rõ phần đã có. Runtime v2 chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
+> **Tiến độ (gói 5.2b):** lõi xử lý quyết định v2 đã hiện thực và kiểm chứng bằng unit test (UT-04…UT-13), nằm tạm ở `src/TADSS.Runtime.Api/V2/` (namespace `TADSS.Runtime.Api.V2.*`) chạy song song v1; gói 5.2c dời về vị trí chuẩn khi gỡ v1. Mọi thành phần đã được đăng ký DI trong `AddDecisionRuntimeV2`, trừ `DecisionService` v2 và `IDecisionAuditStore` (chưa có hiện thực lưu trữ `EfDecisionAuditStore`); chưa có endpoint `/api/v2` — các hàng dưới đây đánh dấu rõ phần đã có. Runtime v2 chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
 
 | Thành phần | Trách nhiệm |
 | :--- | :--- |
@@ -167,7 +167,7 @@ Giờ cao điểm (theo giờ chi nhánh, `Tadss:Calendar:PeakWindows`): thứ H
 
 **Định tuyến mặc định** (`Tadss:Routing`): request có giờ cao điểm → `MockAlternativeDecisionStrategy`; còn lại → `DefaultDecisionStrategy`. Shadow mode tắt mặc định.
 
-**`FallbackDecisionStrategy`**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Ở runtime v2 (`FallbackDecisionPolicy`, 5.2b), khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`. Kết quả fallback không được ghi cache.
+**`FallbackDecisionStrategy`**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Ở runtime v2 (`FallbackDecisionPolicy`, 5.2b), khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`; riêng khi approval window không khả dụng thì `reasonCode` bị thay bằng `APPROVAL_WINDOW_UNAVAILABLE` (cọc 100%), nên chỉ `executionType`/`fallbackUsed` là tín hiệu đáng tin cậy. Kết quả fallback không được ghi cache.
 
 ### 4.4. Luồng xử lý `POST /api/v2/decisions`
 
