@@ -2,11 +2,10 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
-using TADSS.Runtime.Api.Common;
+using V2ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
@@ -31,7 +30,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
 
         var (statusCode, title, code) = exception switch
         {
-            Exception ex when IsPersistenceUnavailable(ex) => (StatusCodes.Status503ServiceUnavailable, "Persistence Unavailable", RuntimeErrorCodes.PersistenceUnavailable),
+            Exception ex when PersistenceFailureDetector.IsRetryable(ex) => (StatusCodes.Status503ServiceUnavailable, "Persistence Unavailable", V2ErrorCodes.PersistenceUnavailable),
             DomainInvariantException die => (StatusCodes.Status400BadRequest, "Domain Invariant Violation", die.InvariantCode),
             ContractValidationException cve => (StatusCodes.Status400BadRequest, "Contract Validation Error", cve.ErrorCode),
             IdempotencyConflictException => (StatusCodes.Status409Conflict, "Idempotency Key Reuse Conflict", ErrorCodes.IdempotencyKeyReuse),
@@ -68,6 +67,11 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             problemDetails.Extensions["retryAfterSeconds"] = 5;
         }
 
+        if (statusCode == StatusCodes.Status503ServiceUnavailable)
+        {
+            httpContext.Response.Headers.RetryAfter = "5";
+        }
+
         if (exception is DomainInvariantException domainEx && !string.IsNullOrEmpty(domainEx.FieldName))
         {
             problemDetails.Extensions["errors"] = new Dictionary<string, string[]>
@@ -88,22 +92,5 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         await httpContext.Response.WriteAsJsonAsync(problemDetails, options: (System.Text.Json.JsonSerializerOptions?)null, contentType: "application/problem+json", cancellationToken: cancellationToken);
 
         return true;
-    }
-
-    /// <summary>
-    /// Lỗi tạm thời của PostgreSQL (mất kết nối, timeout, server quá tải) ở bất kỳ tầng InnerException nào.
-    /// EF Core/Npgsql có thể bọc lỗi này trong <see cref="InvalidOperationException"/> hoặc <see cref="DbUpdateException"/>.
-    /// </summary>
-    private static bool IsPersistenceUnavailable(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is NpgsqlException { IsTransient: true })
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

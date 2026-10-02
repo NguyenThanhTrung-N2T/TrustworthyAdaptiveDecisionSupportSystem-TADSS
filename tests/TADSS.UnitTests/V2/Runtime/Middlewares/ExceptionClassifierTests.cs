@@ -1,0 +1,136 @@
+using System.Net.Sockets;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Polly.Timeout;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Domain;
+using TADSS.Runtime.Api.Middlewares;
+using TADSS.Runtime.Api.V2.Middlewares;
+using Xunit;
+using V2ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
+
+namespace TADSS.UnitTests.V2.Runtime.Middlewares;
+
+/// <summary>
+/// UT-08: <see cref="ExceptionClassifier"/> hiện thực đúng bảng map lỗi v2 (spec 4.2.3) — lỗi persistence được
+/// kiểm tra trước các nhánh khác, lỗi phía server không bao giờ thành lỗi client và không lộ message kỹ thuật.
+/// </summary>
+public class ExceptionClassifierTests
+{
+    private static PostgresException Postgres(string sqlState) =>
+        new("postgres error", "ERROR", "ERROR", sqlState);
+
+    private static NpgsqlException TransientNpgsql() =>
+        new("Failed to connect", new SocketException((int)SocketError.ConnectionRefused));
+
+    public static TheoryData<Exception, int, string, bool, int?> MappingRows => new()
+    {
+        { new ContractValidationException(V2ErrorCodes.ValidationError, "sai định dạng", "items"), 400, V2ErrorCodes.ValidationError, true, null },
+        { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, V2ErrorCodes.DomainInvariantViolation, true, null },
+        { new IdempotencyConflictException("key-01", "key dùng lại"), 409, V2ErrorCodes.IdempotencyKeyReuse, true, null },
+        { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, V2ErrorCodes.PersistenceUnavailable, false, 5 },
+        { new TimeoutRejectedException("vượt deadline"), 504, V2ErrorCodes.GatewayTimeout, false, 5 },
+        { new InvalidOperationException("lỗi nội bộ"), 500, V2ErrorCodes.InternalError, false, null },
+        { new ArgumentException("lỗi tham số"), 500, V2ErrorCodes.InternalError, false, null },
+    };
+
+    public static TheoryData<Exception> ServerSideErrors => new()
+    {
+        new InvalidOperationException("x"),
+        new ArgumentException("x"),
+        new NullReferenceException("x"),
+    };
+
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [MemberData(nameof(MappingRows))]
+    public void Classify_MappingTable_Theory(
+        Exception exception, int expectedStatus, string expectedCode, bool expectedExposeMessage, int? expectedRetryAfter)
+    {
+        var result = ExceptionClassifier.Classify(exception, requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(expectedStatus);
+        result?.Code.Should().Be(expectedCode);
+        result?.ExposeMessage.Should().Be(expectedExposeMessage);
+        result?.RetryAfterSeconds.Should().Be(expectedRetryAfter);
+        result?.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_TransientNpgsqlNestedThreeLevels_Is503()
+    {
+        var nested = new InvalidOperationException(
+            "wrapper", new DbUpdateException("save failed", TransientNpgsql()));
+
+        var result = ExceptionClassifier.Classify(nested, requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(503);
+        result?.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        result?.RetryAfterSeconds.Should().Be(5);
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [InlineData("40001")]
+    [InlineData("40P01")]
+    public void Classify_SerializationFailureAndDeadlock_Is503_Theory(string sqlState)
+    {
+        var result = ExceptionClassifier.Classify(
+            new DbUpdateException("save failed", Postgres(sqlState)), requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(503);
+        result?.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        result?.RetryAfterSeconds.Should().Be(5);
+        result?.ExposeMessage.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_UniqueViolation_IsNot503()
+    {
+        var result = ExceptionClassifier.Classify(
+            new DbUpdateException("duplicate", Postgres("23505")), requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(500);
+        result?.Code.Should().Be(V2ErrorCodes.InternalError);
+        result?.RetryAfterSeconds.Should().BeNull();
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [MemberData(nameof(ServerSideErrors))]
+    public void Classify_ServerSideErrors_NeverClientError_Theory(Exception exception)
+    {
+        var result = ExceptionClassifier.Classify(exception, requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(500);
+        result?.ExposeMessage.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_RequestAborted_ReturnsNull()
+    {
+        var result = ExceptionClassifier.Classify(new OperationCanceledException(), requestAborted: true);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_CancellationNotFromClient_Is500()
+    {
+        var result = ExceptionClassifier.Classify(new OperationCanceledException(), requestAborted: false);
+
+        result.Should().NotBeNull();
+        result?.StatusCode.Should().Be(500);
+        result?.Code.Should().Be(V2ErrorCodes.InternalError);
+    }
+}
