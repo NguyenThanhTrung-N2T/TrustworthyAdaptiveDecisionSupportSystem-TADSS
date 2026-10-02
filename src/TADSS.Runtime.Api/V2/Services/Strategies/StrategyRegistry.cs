@@ -11,6 +11,7 @@ namespace TADSS.Runtime.Api.V2.Services.Strategies;
 public sealed class StrategyRegistry : IStrategyRegistry
 {
     private readonly Dictionary<string, RegisteredStrategy> _byName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<RegisteredStrategy> _ordered = [];
     private readonly RegisteredStrategy _active;
 
     /// <summary>
@@ -39,9 +40,11 @@ public sealed class StrategyRegistry : IStrategyRegistry
                 throw new InvalidOperationException(
                     $"Trùng StrategyName '{name}' trong registry strategy v2. Tên strategy là định danh duy nhất, không được đăng ký trùng.");
             }
+
+            _ordered.Add(registered);
         }
 
-        All = _byName.Values.ToList();
+        All = _ordered.AsReadOnly();
 
         if (string.IsNullOrWhiteSpace(activeName) || !_byName.TryGetValue(activeName, out var active))
         {

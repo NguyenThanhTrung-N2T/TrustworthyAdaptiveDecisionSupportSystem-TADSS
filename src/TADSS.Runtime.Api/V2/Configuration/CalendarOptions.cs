@@ -58,9 +58,9 @@ public class PeakWindowOptions
     public const string TimeFormat = "HH:mm";
 
     /// <summary>
-    /// Ngày trong tuần.
+    /// Ngày trong tuần; bắt buộc (thiếu thì <c>CalendarOptionsValidator</c> từ chối thay vì ngầm hiểu là Chủ Nhật).
     /// </summary>
-    public DayOfWeek Day { get; set; }
+    public DayOfWeek? Day { get; set; }
 
     /// <summary>
     /// Giờ bắt đầu (tính cả), định dạng <c>HH:mm</c>.
@@ -81,15 +81,20 @@ public class PeakWindowOptions
     /// <summary>
     /// Chuyển thành <see cref="PeakWindow"/> của SDK v2.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Khi <see cref="Start"/> hoặc <see cref="End"/> không đúng định dạng.</exception>
+    /// <exception cref="InvalidOperationException">Khi <see cref="Day"/> thiếu, hoặc <see cref="Start"/>/<see cref="End"/> không đúng định dạng.</exception>
     /// <exception cref="Shared.DecisionContractSDK.Domain.DomainInvariantException">Khi khung giờ vi phạm bất biến của SDK.</exception>
     internal PeakWindow ToPeakWindow()
     {
+        if (Day is not { } day)
+        {
+            throw new InvalidOperationException("Khung giờ cao điểm thiếu Day.");
+        }
+
         if (!TryParseTime(Start, out var start) || !TryParseTime(End, out var end))
         {
             throw new InvalidOperationException($"Khung giờ cao điểm '{Start}'-'{End}' không đúng định dạng {TimeFormat}.");
         }
 
-        return new PeakWindow(Day, start, end);
+        return new PeakWindow(day, start, end);
     }
 }

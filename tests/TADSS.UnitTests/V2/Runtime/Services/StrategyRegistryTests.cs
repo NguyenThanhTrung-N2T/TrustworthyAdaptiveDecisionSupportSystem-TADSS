@@ -55,7 +55,7 @@ public class StrategyRegistryTests
     [InlineData("Foo")]
     [InlineData("")]
     [InlineData("   ")]
-    public void Constructor_UnknownActive_ThrowsListingAvailable(string active)
+    public void Constructor_UnknownActive_ThrowsListingAvailable_Theory(string active)
     {
         var act = () => Build(active, CreateDefault(), CreateMock());
 
@@ -80,7 +80,7 @@ public class StrategyRegistryTests
     [Trait("CatalogId", "UT-04")]
     [InlineData("MockAlternativeDecisionStrategy")]
     [InlineData("mockalternativedecisionstrategy")]
-    public void ResolveByName_KnownNameAnyCase_ReturnsThatStrategy(string name)
+    public void ResolveByName_KnownNameAnyCase_ReturnsThatStrategy_Theory(string name)
     {
         var registry = Build("DefaultDecisionStrategy", CreateDefault(), CreateMock());
 
@@ -95,6 +95,16 @@ public class StrategyRegistryTests
 
         registry.All.Select(registered => registered.Strategy.StrategyName)
             .Should().BeEquivalentTo("DefaultDecisionStrategy", "MockAlternativeDecisionStrategy");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-04")]
+    public void All_RegisteredInReverseAlphabeticalOrder_PreservesRegistrationOrder()
+    {
+        var registry = Build("DefaultDecisionStrategy", CreateMock(), CreateDefault());
+
+        registry.All.Select(registered => registered.Strategy.StrategyName)
+            .Should().Equal("MockAlternativeDecisionStrategy", "DefaultDecisionStrategy");
     }
 
     [Fact]

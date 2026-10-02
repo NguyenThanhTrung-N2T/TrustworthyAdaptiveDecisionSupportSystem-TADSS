@@ -231,6 +231,69 @@ public class StrategyPipelineTests
 
     [Fact]
     [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_StrategyThrowsTaskCanceledWhileCallerLive_FallbackException()
+    {
+        // F3: HttpClient timeout của strategy ném TaskCanceledException dù caller không hủy -> lỗi strategy, không phải hủy
+        var options = SmallOptions(maxRetryAttempts: 2);
+        var strategy = new DelegateStrategy((_, _, _) =>
+            Task.FromException<StrategyDecision>(new TaskCanceledException(SensitiveMessage)));
+        var pipeline = Build(options);
+
+        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+
+        outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        outcome.FallbackUsed.Should().BeTrue();
+        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
+        outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException)
+            .And.Contain(nameof(TaskCanceledException))
+            .And.NotContain(SensitiveMessage);
+        strategy.InvocationCount.Should().Be(options.MaxRetryAttempts + 1, "lỗi của strategy được retry như mọi lỗi khác");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_StrategyThrowsOperationCanceledOnceWhileCallerLive_RetriedAutomated()
+    {
+        var calls = 0;
+        var strategy = new DelegateStrategy((_, _, _) =>
+            Interlocked.Increment(ref calls) == 1
+                ? Task.FromException<StrategyDecision>(new OperationCanceledException())
+                : Task.FromResult(Approved()));
+        var pipeline = Build(SmallOptions());
+
+        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+
+        outcome.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        outcome.FallbackUsed.Should().BeFalse();
+        strategy.InvocationCount.Should().Be(2);
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_StrategyThrowsOperationCanceledAfterCallerCancelled_Throws()
+    {
+        // Caller đã hủy rồi strategy mới ném OCE (không dùng token): vẫn là hủy, không retry và không fallback
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+        var strategy = new DelegateStrategy(async (_, _, _) =>
+        {
+            started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cts.Token).ContinueWith(_ => { }, TaskScheduler.Default);
+            throw new OperationCanceledException();
+        });
+        var pipeline = Build(SmallOptions(innerTimeoutMs: 30_000, outerTimeoutMs: 60_000));
+
+        var execution = pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), cts.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cts.CancelAsync();
+
+        await execution.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
+        strategy.InvocationCount.Should().Be(1, "hủy từ caller không được retry hay fallback");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
     public async Task ExecuteAsync_OuterTimeoutElapses_ThrowsTimeoutRejected()
     {
         // Outer nhỏ hơn hẳn Inner nên Outer luôn hết hạn trước; Outer nằm ngoài Fallback nên lỗi lan ra (504 ở Task 10)

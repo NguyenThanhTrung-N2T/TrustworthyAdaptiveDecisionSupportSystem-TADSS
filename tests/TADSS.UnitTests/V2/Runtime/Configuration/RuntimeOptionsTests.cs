@@ -87,7 +87,7 @@ public class RuntimeOptionsTests
     [InlineData("60", "30")]
     [InlineData("0", "720")]
     [InlineData("-5", "720")]
-    public void Validate_InvalidItemLimits_FailsWithP01(string min, string max)
+    public void Validate_InvalidItemLimits_FailsWithP01_Theory(string min, string max)
     {
         using var provider = BuildProvider(InMemory(
             ("Tadss:Validation:MinItemMinutes", min),
@@ -103,7 +103,7 @@ public class RuntimeOptionsTests
     [InlineData("0", "120")]
     [InlineData("-1", "120")]
     [InlineData("30", "-1")]
-    public void Validate_InvalidApprovalOptions_Fails(string window, string lead)
+    public void Validate_InvalidApprovalOptions_Fails_Theory(string window, string lead)
     {
         using var provider = BuildProvider(InMemory(
             ("Tadss:Approval:WindowMinutes", window),
@@ -149,6 +149,19 @@ public class RuntimeOptionsTests
         var act = () => provider.GetRequiredService<BranchCalendar>();
 
         act.Should().Throw<OptionsValidationException>().WithMessage("*PeakWindows[1]*");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-05")]
+    public void Validate_PeakWindowMissingDay_FailsInsteadOfBindingSunday()
+    {
+        using var provider = BuildProvider(InMemory(
+            ("Tadss:Calendar:PeakWindows:0:Start", "17:00"),
+            ("Tadss:Calendar:PeakWindows:0:End", "21:00")));
+
+        var act = () => provider.GetRequiredService<BranchCalendar>();
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*PeakWindows[0].Day*");
     }
 
     [Fact]

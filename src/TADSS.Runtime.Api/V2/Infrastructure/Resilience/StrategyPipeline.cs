@@ -94,8 +94,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
         // 2. Fallback: timeout / lỗi / circuit mở của strategy -> quyết định NEED_APPROVAL; hủy từ caller không bị bắt
         builder.AddFallback(new FallbackStrategyOptions<StrategyExecutionOutcome>
         {
-            ShouldHandle = new PredicateBuilder<StrategyExecutionOutcome>()
-                .Handle<Exception>(exception => exception is not OperationCanceledException),
+            ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: true)),
             FallbackAction = args =>
             {
                 var outcome = CreateFallbackOutcome(args.Outcome.Exception);
@@ -116,7 +115,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
                 MaxRetryAttempts = _options.MaxRetryAttempts,
                 Delay = TimeSpan.FromMilliseconds(_options.RetryBaseDelayMs),
                 BackoffType = DelayBackoffType.Constant,
-                ShouldHandle = new PredicateBuilder<StrategyExecutionOutcome>().Handle<Exception>(IsStrategyFailure),
+                ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: false)),
                 OnRetry = args =>
                 {
                     _logger.LogWarning(
@@ -136,7 +135,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
             SamplingDuration = TimeSpan.FromSeconds(_options.CircuitBreakerSamplingSeconds),
             MinimumThroughput = _options.CircuitBreakerMinimumThroughput,
             BreakDuration = TimeSpan.FromSeconds(_options.CircuitBreakerBreakDurationSeconds),
-            ShouldHandle = new PredicateBuilder<StrategyExecutionOutcome>().Handle<Exception>(IsStrategyFailure),
+            ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: false)),
             OnOpened = args =>
             {
                 _logger.LogError("Circuit breaker strategy v2 MỞ trong {BreakDuration}s do tỷ lệ lỗi vượt ngưỡng.", args.BreakDuration.TotalSeconds);
@@ -168,9 +167,27 @@ public sealed class StrategyPipeline : IStrategyPipeline
         return builder.Build();
     }
 
-    /// <summary>Lỗi do strategy (hoặc Inner timeout) mới tính vào retry/breaker; circuit mở và hủy thì không.</summary>
-    private static bool IsStrategyFailure(Exception exception) =>
-        exception is not BrokenCircuitException and not OperationCanceledException;
+    /// <summary>
+    /// Phân biệt lỗi của strategy với hủy từ phía hệ thống. <see cref="OperationCanceledException"/> chỉ là lỗi của strategy
+    /// khi token của lớp đang xét <b>chưa</b> bị hủy (vd. HttpClient timeout trong strategy ném <c>TaskCanceledException</c> — F3);
+    /// token này là token của lớp Polly bao ngoài nên đã gộp cả hủy của caller và Outer timeout, hai trường hợp đó vẫn lan ra.
+    /// Circuit mở (<see cref="BrokenCircuitException"/>) chỉ được fallback bắt, không tính vào retry/breaker.
+    /// </summary>
+    private static bool IsFailure(Outcome<StrategyExecutionOutcome> outcome, ResilienceContext context, bool includeBrokenCircuit)
+    {
+        var exception = outcome.Exception;
+        if (exception is null)
+        {
+            return false;
+        }
+
+        if (exception is OperationCanceledException)
+        {
+            return !context.CancellationToken.IsCancellationRequested;
+        }
+
+        return includeBrokenCircuit || exception is not BrokenCircuitException;
+    }
 
     private StrategyExecutionOutcome CreateFallbackOutcome(Exception? exception)
     {

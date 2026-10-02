@@ -190,7 +190,7 @@ public class ApprovalWindowPolicyTests
     [Theory]
     [Trait("CatalogId", "UT-10")]
     [MemberData(nameof(InvariantCases))]
-    public void Apply_AllPaths_SatisfyInv7(int kind, int startOffsetMinutes)
+    public void Apply_AllPaths_SatisfyInv7_Theory(int kind, int startOffsetMinutes)
     {
         var decision = kind switch
         {
@@ -215,7 +215,7 @@ public class ApprovalWindowPolicyTests
         result.StrategyStatus.Should().Be(DecisionStatus.NEED_APPROVAL);
         result.DepositRate.Should().Be(1m);
         result.ReasonCode.Should().Be(ReasonCodes.ApprovalWindowUnavailable);
-        result.Reasons.Should().ContainSingle().Which.Should().NotBeNullOrWhiteSpace();
+        result.Reasons.Should().Equal("Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên áp dụng mức cọc 100% thay cho bước duyệt.");
         result.Recommendations.Should().BeEmpty();
         result.ApprovalExpiresAt.Should().BeNull();
         result.WindowUnavailable.Should().BeTrue();

@@ -37,7 +37,7 @@ public sealed record ApprovalWindowResult(
 public sealed class ApprovalWindowPolicy
 {
     private const string WindowUnavailableReason =
-        "Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên đơn được duyệt tự động với mức cọc 100%.";
+        "Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên áp dụng mức cọc 100% thay cho bước duyệt.";
 
     private readonly TimeSpan _window;
     private readonly TimeSpan _minLead;

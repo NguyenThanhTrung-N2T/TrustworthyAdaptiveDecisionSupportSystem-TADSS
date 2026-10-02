@@ -69,6 +69,11 @@ public sealed class CalendarOptionsValidator : IValidateOptions<CalendarOptions>
             }
 
             var failuresBefore = failures.Count;
+            if (window.Day is null)
+            {
+                failures.Add($"{location}.Day là bắt buộc (Monday…Sunday).");
+            }
+
             if (!PeakWindowOptions.TryParseTime(window.Start, out _))
             {
                 failures.Add($"{location}.Start '{window.Start}' không đúng định dạng {PeakWindowOptions.TimeFormat}.");
