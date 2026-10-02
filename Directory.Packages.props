@@ -5,11 +5,9 @@
   <ItemGroup>
     <!-- Database & Infrastructure Packages -->
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11" />
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="8.0.2" />
     <PackageVersion Include="Polly.Core" Version="8.4.2" />
-    <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="StackExchange.Redis" Version="2.8.16" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     

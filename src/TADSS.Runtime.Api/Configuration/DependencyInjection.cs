@@ -1,15 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Shared.DecisionContractSDK.Interfaces;
-using StackExchange.Redis;
-using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.Services;
 using TADSS.Runtime.Api.V2.Configuration;
-using TADSS.Strategies.Default;
-using TADSS.Strategies.MockAlternative;
 
 namespace TADSS.Runtime.Api.Configuration;
 
@@ -41,52 +34,7 @@ public static class DependencyInjection
                 name: "Neon-PostgreSQL",
                 tags: new[] { "ready", "db" });
 
-        // 4. Decision Strategies & Strategy Resolver (Singleton, Stateless)
-        services.Configure<StrategyOptions>(configuration.GetSection(StrategyOptions.SectionName));
-        services.AddSingleton<IReservationDecisionStrategy, DefaultDecisionStrategy>();
-        services.AddSingleton<IReservationDecisionStrategy, MockAlternativeDecisionStrategy>();
-        services.AddSingleton<IStrategyResolver, StrategyResolver>();
-
-        // 5. Resilience Pipeline & Fallback Strategy
-        services.Configure<ResilienceOptions>(configuration.GetSection(ResilienceOptions.SectionName));
-        services.AddSingleton<FallbackDecisionStrategy>();
-        services.AddSingleton<IDecisionResiliencePipeline, DecisionResiliencePipeline>();
-
-        // 5. Distributed & In-Memory Caching Services (Task 4.3)
-        services.AddMemoryCache();
-        services.Configure<TadssCacheOptions>(configuration.GetSection(TadssCacheOptions.SectionName));
-
-        services.AddSingleton<IConnectionMultiplexer>(sp =>
-        {
-            var cacheOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TadssCacheOptions>>().Value;
-            var redisConfig = StackExchange.Redis.ConfigurationOptions.Parse(cacheOptions.RedisConnectionString);
-            redisConfig.AbortOnConnectFail = false;
-            var isPlaceholderHost = cacheOptions.RedisConnectionString.Contains("your-redis-host", StringComparison.OrdinalIgnoreCase);
-            redisConfig.ConnectTimeout = isPlaceholderHost
-                ? cacheOptions.RedisTimeoutMs
-                : Math.Max(cacheOptions.RedisTimeoutMs, 3000);
-            redisConfig.SyncTimeout = cacheOptions.RedisTimeoutMs;
-            redisConfig.AsyncTimeout = cacheOptions.RedisTimeoutMs;
-            return StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig);
-        });
-
-        services.AddSingleton<MemoryDecisionCacheService>();
-        services.AddSingleton<RedisDecisionCacheService>();
-        services.AddSingleton<IDecisionCacheService>(sp =>
-        {
-            var memoryCache = sp.GetRequiredService<MemoryDecisionCacheService>();
-            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TadssCacheOptions>>();
-            var logger = sp.GetRequiredService<ILogger<ResilientDecisionCacheService>>();
-            var useRedis = string.Equals(options.Value.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
-            var redisCache = useRedis ? sp.GetService<RedisDecisionCacheService>() : null;
-            return new ResilientDecisionCacheService(memoryCache, options, logger, redisCache);
-        });
-
-        // 6. In-Process Synchronous Event Dispatcher (MediatR Append-Only Audit Trail) & Decision Application Services
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
-        services.AddScoped<IDecisionService, DecisionService>();
-
-        // 7. Runtime v2 (song song v1; endpoint ở gói 5.2c)
+        // 4. Runtime v2: strategy registry, resilience, cache, audit store — nơi đăng ký duy nhất cho lõi
         services.AddDecisionRuntimeV2(configuration);
 
         return services;

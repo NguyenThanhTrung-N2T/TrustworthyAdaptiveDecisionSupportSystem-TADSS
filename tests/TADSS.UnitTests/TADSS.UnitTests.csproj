@@ -10,12 +10,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
     <ProjectReference Include="..\..\src\TADSS.Runtime.Api\TADSS.Runtime.Api.csproj" />
-    <ProjectReference Include="..\TADSS.BenchmarkRunner\TADSS.BenchmarkRunner.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

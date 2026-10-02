@@ -1,14 +1,15 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
-using V2ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
+using TADSS.Runtime.Api.V2.Middlewares;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
+/// <summary>
+/// Chuyển exception chưa xử lý thành phản hồi RFC 7807 theo bảng map lỗi v2 (spec 4.2.3) qua <see cref="ExceptionClassifier"/>.
+/// Chỉ trả <c>Exception.Message</c> khi lỗi do request (<see cref="ErrorClassification.ExposeMessage"/>); lỗi hạ tầng luôn dùng câu chung theo mã.
+/// </summary>
 public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
@@ -17,80 +18,68 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         CancellationToken cancellationToken)
     {
         var traceId = httpContext.TraceIdentifier;
+        var classification = ExceptionClassifier.Classify(exception, httpContext.RequestAborted.IsCancellationRequested);
 
-        // Caller Cancellation (Client aborted/closed connection)
-        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        // Caller Cancellation (Client aborted/closed connection): không còn ai đọc response
+        if (classification is null)
         {
             logger.LogInformation("Request was canceled by caller. TraceId: {TraceId}, Path: {Path}", traceId, httpContext.Request.Path);
             return true;
         }
 
-        logger.LogError(exception, "Unhandled exception occurred. TraceId: {TraceId}, Message: {Message}", 
-            traceId, exception.Message);
-
-        var (statusCode, title, code) = exception switch
+        if (classification.StatusCode >= StatusCodes.Status500InternalServerError)
         {
-            Exception ex when PersistenceFailureDetector.IsRetryable(ex) => (StatusCodes.Status503ServiceUnavailable, "Persistence Unavailable", V2ErrorCodes.PersistenceUnavailable),
-            DomainInvariantException die => (StatusCodes.Status400BadRequest, "Domain Invariant Violation", die.InvariantCode),
-            ContractValidationException cve => (StatusCodes.Status400BadRequest, "Contract Validation Error", cve.ErrorCode),
-            IdempotencyConflictException => (StatusCodes.Status409Conflict, "Idempotency Key Reuse Conflict", ErrorCodes.IdempotencyKeyReuse),
-            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", ErrorCodes.Conflict),
-            InvalidOperationException => (StatusCodes.Status400BadRequest, "Invalid Operation", ErrorCodes.BadRequest),
-            ArgumentException => (StatusCodes.Status400BadRequest, "Invalid Request Argument", ErrorCodes.ValidationError),
-            KeyNotFoundException => (StatusCodes.Status404NotFound, "Resource Not Found", ErrorCodes.NotFound),
-            TimeoutRejectedException or TimeoutException or OperationCanceledException => (StatusCodes.Status504GatewayTimeout, "Gateway Timeout", ErrorCodes.GatewayTimeout),
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", ErrorCodes.InternalError)
-        };
-
-        var detail = statusCode switch
+            logger.LogError(exception, "Request failed with {StatusCode} {Code}. TraceId: {TraceId}, Path: {Path}",
+                classification.StatusCode, classification.Code, traceId, httpContext.Request.Path);
+        }
+        else
         {
-            StatusCodes.Status500InternalServerError => "An unexpected internal server error occurred.",
-            StatusCodes.Status503ServiceUnavailable => "Decision audit storage is temporarily unavailable. Please retry later.",
-            _ when exception is DbUpdateConcurrencyException => "The target decision record was modified concurrently by another request. Please refresh and retry.",
-            _ => exception.Message
-        };
+            logger.LogWarning("Request rejected with {StatusCode} {Code}. TraceId: {TraceId}, Path: {Path}, Message: {Message}",
+                classification.StatusCode, classification.Code, traceId, httpContext.Request.Path, exception.Message);
+        }
 
         var problemDetails = new ProblemDetails
         {
-            Status = statusCode,
-            Title = title,
-            Detail = detail,
+            Status = classification.StatusCode,
+            Title = classification.Title,
+            Detail = classification.ExposeMessage ? exception.Message : GenericDetail(classification.StatusCode),
             Instance = httpContext.Request.Path,
-            Type = $"https://tadss.smashcourt.vn/errors/{code.ToLowerInvariant().Replace('_', '-')}"
+            Type = $"https://tadss.smashcourt.vn/errors/{classification.Code.ToLowerInvariant().Replace('_', '-')}"
         };
 
-        problemDetails.Extensions["code"] = code;
+        problemDetails.Extensions["code"] = classification.Code;
         problemDetails.Extensions["traceId"] = traceId;
 
-        if (statusCode is StatusCodes.Status504GatewayTimeout or StatusCodes.Status503ServiceUnavailable)
+        if (classification.RetryAfterSeconds is { } retryAfterSeconds)
         {
-            problemDetails.Extensions["retryAfterSeconds"] = 5;
+            problemDetails.Extensions["retryAfterSeconds"] = retryAfterSeconds;
+            httpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        if (statusCode == StatusCodes.Status503ServiceUnavailable)
+        var errors = BuildFieldErrors(exception);
+        if (errors is not null)
         {
-            httpContext.Response.Headers.RetryAfter = "5";
+            problemDetails.Extensions["errors"] = errors;
         }
 
-        if (exception is DomainInvariantException domainEx && !string.IsNullOrEmpty(domainEx.FieldName))
-        {
-            problemDetails.Extensions["errors"] = new Dictionary<string, string[]>
-            {
-                [domainEx.FieldName] = new[] { domainEx.Message }
-            };
-        }
-        else if (exception is ContractValidationException contractEx && !string.IsNullOrEmpty(contractEx.FieldName))
-        {
-            problemDetails.Extensions["errors"] = new Dictionary<string, string[]>
-            {
-                [contractEx.FieldName] = new[] { contractEx.Message }
-            };
-        }
-
-        httpContext.Response.StatusCode = statusCode;
+        httpContext.Response.StatusCode = classification.StatusCode;
         httpContext.Response.ContentType = "application/problem+json";
         await httpContext.Response.WriteAsJsonAsync(problemDetails, options: (System.Text.Json.JsonSerializerOptions?)null, contentType: "application/problem+json", cancellationToken: cancellationToken);
 
         return true;
     }
+
+    private static string GenericDetail(int statusCode) => statusCode switch
+    {
+        StatusCodes.Status503ServiceUnavailable => "Decision audit storage is temporarily unavailable. Please retry later.",
+        StatusCodes.Status504GatewayTimeout => "The decision could not be completed within the allowed time. Please retry later.",
+        _ => "An unexpected internal server error occurred."
+    };
+
+    private static Dictionary<string, string[]>? BuildFieldErrors(Exception exception) => exception switch
+    {
+        DomainInvariantException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
+        ContractValidationException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
+        _ => null
+    };
 }

@@ -1,19 +1,15 @@
-using System.Net.Sockets;
-using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
-using Polly.Timeout;
-using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.Domain;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.Extensions.Logging;
+using Moq;
 using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.Services;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure;
@@ -71,15 +67,35 @@ public class MiddlewareAndInterceptorTests
 
     #region 2. AuditTimestampInterceptor Unit Tests
 
-    private static TadssDbContext CreateDbContextWithInterceptor()
+    /// <summary>
+    /// DbContext Npgsql chỉ để theo dõi thay đổi (không mở kết nối): interceptor được gọi trực tiếp thay cho <c>SaveChanges</c>,
+    /// rồi <c>AcceptAllChanges</c> mô phỏng việc lưu thành công. Không dùng EF InMemory (quy tắc G3).
+    /// </summary>
+    private static TadssDbContext CreateTrackingDbContext()
     {
-        var interceptor = new AuditTimestampInterceptor();
         var options = new DbContextOptionsBuilder<TadssDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .AddInterceptors(interceptor)
+            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused")
             .Options;
 
         return new TadssDbContext(options);
+    }
+
+    private sealed class StubEventDefinition(ILoggingOptions loggingOptions)
+        : EventDefinitionBase(loggingOptions, new EventId(1), LogLevel.Debug, "Test.Stub");
+
+    private static DbContextEventData CreateEventData(DbContext context) =>
+        new(new StubEventDefinition(Mock.Of<ILoggingOptions>()), (_, _) => string.Empty, context);
+
+    private static void SimulateSave(AuditTimestampInterceptor interceptor, DbContext context)
+    {
+        interceptor.SavingChanges(CreateEventData(context), default);
+        context.ChangeTracker.AcceptAllChanges();
+    }
+
+    private static async Task SimulateSaveAsync(AuditTimestampInterceptor interceptor, DbContext context)
+    {
+        await interceptor.SavingChangesAsync(CreateEventData(context), default);
+        context.ChangeTracker.AcceptAllChanges();
     }
 
     private static DecisionExecution CreateSampleEntity()
@@ -103,13 +119,14 @@ public class MiddlewareAndInterceptorTests
     public async Task AuditTimestampInterceptor_SaveChangesAsync_SetsTimestampsOnAddAndIncrementsVersionOnModify()
     {
         // Arrange
-        using var dbContext = CreateDbContextWithInterceptor();
+        var interceptor = new AuditTimestampInterceptor();
+        using var dbContext = CreateTrackingDbContext();
         var entity = CreateSampleEntity();
         var beforeAdd = DateTime.UtcNow.AddSeconds(-1);
 
         // Act 1: Insert (EntityState.Added)
         dbContext.DecisionExecutions.Add(entity);
-        await dbContext.SaveChangesAsync();
+        await SimulateSaveAsync(interceptor, dbContext);
 
         // Assert 1: CreatedAt and UpdatedAt set, Version remains 1
         entity.CreatedAt.Should().BeOnOrAfter(beforeAdd);
@@ -122,7 +139,7 @@ public class MiddlewareAndInterceptorTests
         entity.IsOverridden = true;
         entity.OverriddenBy = "manager-01";
         entity.OverrideReason = "Approved after manual verification";
-        await dbContext.SaveChangesAsync();
+        await SimulateSaveAsync(interceptor, dbContext);
 
         // Assert 2: CreatedAt preserved, UpdatedAt refreshed, Version incremented to 2
         entity.CreatedAt.Should().Be(initialCreatedAt);
@@ -134,159 +151,21 @@ public class MiddlewareAndInterceptorTests
     public void AuditTimestampInterceptor_SynchronousSaveChanges_AlsoUpdatesTimestampsAndIncrementsVersion()
     {
         // Arrange
-        using var dbContext = CreateDbContextWithInterceptor();
+        var interceptor = new AuditTimestampInterceptor();
+        using var dbContext = CreateTrackingDbContext();
         var entity = CreateSampleEntity();
 
         // Act 1: Synchronous SaveChanges on Add
         dbContext.DecisionExecutions.Add(entity);
-        dbContext.SaveChanges();
+        SimulateSave(interceptor, dbContext);
         entity.Version.Should().Be(1);
 
         // Act 2: Synchronous SaveChanges on Modify
         entity.IsOverridden = true;
-        dbContext.SaveChanges();
+        SimulateSave(interceptor, dbContext);
 
         // Assert
         entity.Version.Should().Be(2);
-    }
-
-    #endregion
-
-    #region 3. GlobalExceptionHandler Unit Tests
-
-    private static async Task<(int StatusCode, JsonElement Body)> ExecuteExceptionHandlerAsync(
-        Exception exception,
-        bool cancelRequestAborted = false)
-    {
-        var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
-        var context = new DefaultHttpContext
-        {
-            TraceIdentifier = "trace-unit-test-001"
-        };
-        context.Request.Path = "/api/v1/decisions";
-        using var bodyStream = new MemoryStream();
-        context.Response.Body = bodyStream;
-
-        using var cts = new CancellationTokenSource();
-        if (cancelRequestAborted)
-        {
-            cts.Cancel();
-            context.RequestAborted = cts.Token;
-        }
-
-        var handled = await handler.TryHandleAsync(context, exception, CancellationToken.None);
-        handled.Should().BeTrue();
-
-        if (bodyStream.Length == 0)
-        {
-            return (context.Response.StatusCode, default);
-        }
-
-        bodyStream.Position = 0;
-        using var doc = await JsonDocument.ParseAsync(bodyStream);
-        return (context.Response.StatusCode, doc.RootElement.Clone());
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_DbUpdateConcurrencyException_Returns409ConflictWithStandardErrorCode()
-    {
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(
-            new DbUpdateConcurrencyException("Simulated optimistic concurrency violation"));
-
-        statusCode.Should().Be(StatusCodes.Status409Conflict);
-        body.GetProperty("status").GetInt32().Should().Be(409);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
-        body.GetProperty("traceId").GetString().Should().Be("trace-unit-test-001");
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_IdempotencyConflictException_Returns409IdempotencyKeyReuse()
-    {
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(
-            new IdempotencyConflictException("key-01", "Key reused with different payload"));
-
-        statusCode.Should().Be(StatusCodes.Status409Conflict);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.IdempotencyKeyReuse);
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_DomainInvariantException_Returns400WithFieldErrors()
-    {
-        var ex = new DomainInvariantException(
-            ErrorCodes.InvalidScheduleRange,
-            "EndTime must be greater than StartTime.",
-            "EndTime");
-
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(ex);
-
-        statusCode.Should().Be(StatusCodes.Status400BadRequest);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.InvalidScheduleRange);
-        body.GetProperty("errors").GetProperty("EndTime")[0].GetString()
-            .Should().Contain("EndTime must be greater than StartTime");
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_TimeoutRejectedException_Returns504WithRetryAfterSeconds()
-    {
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(
-            new TimeoutRejectedException("Outer 500ms budget exceeded"));
-
-        statusCode.Should().Be(StatusCodes.Status504GatewayTimeout);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.GatewayTimeout);
-        body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(5);
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_CallerCancellation_ReturnsTrueWithoutWritingProblemDetailsBody()
-    {
-        var (_, body) = await ExecuteExceptionHandlerAsync(
-            new OperationCanceledException("Client disconnected"),
-            cancelRequestAborted: true);
-
-        body.ValueKind.Should().Be(JsonValueKind.Undefined);
-    }
-
-    [Fact]
-    public async Task GlobalExceptionHandler_UnhandledException_Returns500WithSanitizedMessage()
-    {
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(
-            new Exception("Sensitive internal SQL stack trace"));
-
-        statusCode.Should().Be(StatusCodes.Status500InternalServerError);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.InternalError);
-        body.GetProperty("detail").GetString().Should().Be("An unexpected internal server error occurred.");
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-08")]
-    public async Task GlobalExceptionHandler_TransientNpgsqlFailureWrappedByEfCore_Returns503PersistenceUnavailable()
-    {
-        // Npgsql execution strategy mặc định bọc lỗi kết nối tạm thời trong InvalidOperationException
-        var connectionFailure = new NpgsqlException(
-            "Failed to connect to 10.0.0.5:5432",
-            new SocketException((int)SocketError.ConnectionRefused));
-        var wrapped = new InvalidOperationException(
-            "An exception has been raised that is likely due to a transient failure.", connectionFailure);
-
-        var (statusCode, body) = await ExecuteExceptionHandlerAsync(wrapped);
-
-        statusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        body.GetProperty("code").GetString().Should().Be(RuntimeErrorCodes.PersistenceUnavailable);
-        body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(5);
-        body.GetProperty("detail").GetString().Should().NotContain("10.0.0.5");
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-08")]
-    public async Task GlobalExceptionHandler_NonTransientPostgresError_DoesNotMapTo503()
-    {
-        var uniqueViolation = new DbUpdateException(
-            "Unique violation",
-            new PostgresException("duplicate key value", "ERROR", "ERROR", "23505"));
-
-        var (statusCode, _) = await ExecuteExceptionHandlerAsync(uniqueViolation);
-
-        statusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
 
     #endregion

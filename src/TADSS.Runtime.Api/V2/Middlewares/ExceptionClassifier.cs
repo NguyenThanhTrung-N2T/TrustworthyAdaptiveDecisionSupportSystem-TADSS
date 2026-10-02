@@ -10,7 +10,7 @@ namespace TADSS.Runtime.Api.V2.Middlewares;
 /// Phân loại exception thành phản hồi lỗi v2 theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.
 /// Lỗi persistence được kiểm tra trước mọi nhánh khác để lỗi hạ tầng bị bọc trong exception khác vẫn thành 503.
 /// <see cref="ContractValidationException"/> chỉ được mang mã <c>VALIDATION_ERROR</c> hoặc <c>MISSING_HEADER</c> ra wire (tập đóng).
-/// Việc gắn vào <c>GlobalExceptionHandler</c> thuộc gói 5.2c (B-10).
+/// Được <c>GlobalExceptionHandler</c> dùng để dựng phản hồi lỗi.
 /// </summary>
 public static class ExceptionClassifier
 {

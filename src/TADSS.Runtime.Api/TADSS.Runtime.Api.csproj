@@ -22,7 +22,6 @@
     </PackageReference>
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
     <PackageReference Include="Polly.Core" />
-    <PackageReference Include="MediatR" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
 

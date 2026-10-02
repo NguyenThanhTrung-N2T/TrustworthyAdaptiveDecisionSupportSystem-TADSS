@@ -13,7 +13,6 @@ dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS
 dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS.IntegrationTests"   # cần Docker (Testcontainers)
 docker compose up -d --build                                            # môi trường E-LOCAL tự chứa; dừng + xóa dữ liệu: docker compose down -v
 dotnet run --project src/TADSS.Runtime.Api                              # http://localhost:5296/swagger
-dotnet run --project tests/TADSS.BenchmarkRunner -c Release            # benchmark nghiên cứu — chạy lâu, chỉ khi được yêu cầu
 ```
 CI: restore → build Release → unit test → integration test (Testcontainers) → Docker build. Nhánh làm việc chính: `develop`.
 

@@ -2,11 +2,8 @@ using System.Reflection;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
-using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
-using TADSS.Runtime.Api.Services;
 using TADSS.Runtime.Api.V2.Configuration;
 using Xunit;
 
@@ -28,15 +25,9 @@ public class RuntimeV2LayeringTests
     private static readonly HashSet<Type> AllowedSharedSdkTypes =
         [typeof(DomainInvariantException), typeof(ContractValidationException)];
 
-    /// <summary>Kiểu runtime v1 bị cấm (Global Constraints của gói 5.2b).</summary>
+    /// <summary>Kiểu runtime v1 còn lại bị cấm (các kiểu dịch vụ/cache/pipeline v1 đã bị xóa ở 5.2c Task 2; EF v1 sẽ thay ở Task 5).</summary>
     private static readonly HashSet<Type> ForbiddenRuntimeV1Types =
     [
-        typeof(IDecisionService), typeof(DecisionService),
-        typeof(IDecisionCacheService), typeof(MemoryDecisionCacheService),
-        typeof(RedisDecisionCacheService), typeof(ResilientDecisionCacheService),
-        typeof(IDecisionResiliencePipeline), typeof(DecisionResiliencePipeline),
-        typeof(DecisionExecutionOutcome), typeof(FallbackDecisionStrategy),
-        typeof(IStrategyResolver), typeof(StrategyResolver),
         typeof(TadssDbContext), typeof(DecisionExecution),
     ];
 
