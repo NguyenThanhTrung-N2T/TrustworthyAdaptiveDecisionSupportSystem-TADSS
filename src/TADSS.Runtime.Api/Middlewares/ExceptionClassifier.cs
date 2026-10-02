@@ -47,6 +47,8 @@ public static class ExceptionClassifier
                 StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "Validation Error", ExposeMessage: true, null),
             DomainInvariantException => new ErrorClassification(
                 StatusCodes.Status400BadRequest, ErrorCodes.DomainInvariantViolation, "Domain Invariant Violation", ExposeMessage: true, null),
+            DecisionNotFoundException => new ErrorClassification(
+                StatusCodes.Status404NotFound, ErrorCodes.DecisionNotFound, "Decision Not Found", ExposeMessage: true, null),
             IdempotencyConflictException => new ErrorClassification(
                 StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, null),
             TimeoutRejectedException => new ErrorClassification(

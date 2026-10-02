@@ -78,6 +78,20 @@ public class ExceptionClassifierTests
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_DecisionNotFound_Is404()
+    {
+        var result = ExceptionClassifier.Classify(new DecisionNotFoundException(Guid.NewGuid()), requestAborted: false);
+
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(404);
+        classification.Code.Should().Be(ErrorCodes.DecisionNotFound);
+        classification.ExposeMessage.Should().BeTrue();
+        classification.RetryAfterSeconds.Should().BeNull();
+        classification.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
     [Theory]
     [Trait("CatalogId", "UT-08")]
     [InlineData(ErrorCodes.InternalError)]

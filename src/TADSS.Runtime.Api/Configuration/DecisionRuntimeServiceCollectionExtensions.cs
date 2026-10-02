@@ -6,6 +6,7 @@ using StackExchange.Redis;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Runtime.Api.Services;
 using TADSS.Runtime.Api.Services.Decisions;
 using TADSS.Runtime.Api.Services.Strategies;
 
@@ -86,6 +87,9 @@ public static class DecisionRuntimeServiceCollectionExtensions
         // Bộ ghép response + bản ghi audit; kho audit scoped vì dùng TadssDbContext của scope (request)
         services.AddSingleton<DecisionResponseComposer>();
         services.AddScoped<IDecisionAuditStore, EfDecisionAuditStore>();
+
+        // Tra cứu chi tiết quyết định chỉ đọc qua kho audit nên cùng vòng đời scoped với kho
+        services.AddScoped<IDecisionQueryService, DecisionQueryService>();
 
         return services;
     }
