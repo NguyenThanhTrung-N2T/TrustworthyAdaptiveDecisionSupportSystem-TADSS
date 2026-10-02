@@ -66,6 +66,13 @@ public class BranchCalendarTests
         new BranchCalendar([]).IsPeak(V2TestData.CreateReservation()).Should().BeFalse();
     }
 
+    [Fact]
+    [Trait("CatalogId", "UT-05")]
+    public void PeakWindows_AnyCalendar_IsNotWritableArray()
+    {
+        V2TestData.StandardCalendar().PeakWindows.Should().NotBeAssignableTo<PeakWindow[]>("downcast sang mảng sẽ cho phép ghi đè lịch");
+    }
+
     [Theory]
     [Trait("CatalogId", "UT-05")]
     [InlineData(17, 17)]

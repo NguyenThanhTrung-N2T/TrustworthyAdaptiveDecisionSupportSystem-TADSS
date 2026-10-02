@@ -147,6 +147,20 @@ public class DecisionRequestMappingTests
 
     [Fact]
     [Trait("CatalogId", "UT-02")]
+    public void ToDomain_NullMetadataValue_ThrowsContractValidation()
+    {
+        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root =>
+            V2Samples.Object(root["metadata"])["promotionCode"] = null));
+
+        var act = () => dto.ToDomain();
+
+        var exception = act.Should().Throw<ContractValidationException>().Which;
+        exception.ErrorCode.Should().Be("INVALID_METADATA");
+        exception.FieldName.Should().Be("metadata");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
     public void ToDomain_NullCurrency_ThrowsDomainInvariant()
     {
         var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root["currency"] = null));

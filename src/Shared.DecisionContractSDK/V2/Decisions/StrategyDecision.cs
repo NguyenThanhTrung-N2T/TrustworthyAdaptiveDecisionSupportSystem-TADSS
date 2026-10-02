@@ -43,11 +43,21 @@ public sealed class StrategyDecision
         ArgumentNullException.ThrowIfNull(reasons);
         ArgumentNullException.ThrowIfNull(recommendations);
 
+        if (reasons.Any(reason => reason is null))
+        {
+            throw new DomainInvariantException("INVALID_REASONS", "Reasons must not contain null elements.", nameof(Reasons));
+        }
+
+        if (recommendations.Any(recommendation => recommendation is null))
+        {
+            throw new DomainInvariantException("INVALID_RECOMMENDATIONS", "Recommendations must not contain null elements.", nameof(Recommendations));
+        }
+
         Status = status;
         DepositRate = depositRate;
         ReasonCode = reasonCode;
-        Reasons = reasons.ToArray();
-        Recommendations = recommendations.ToArray();
+        Reasons = Array.AsReadOnly(reasons.ToArray());
+        Recommendations = Array.AsReadOnly(recommendations.ToArray());
     }
 
     /// <summary>Duyệt với tỷ lệ cọc <paramref name="depositRate"/>.</summary>

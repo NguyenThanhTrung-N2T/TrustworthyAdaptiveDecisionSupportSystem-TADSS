@@ -21,7 +21,7 @@ public sealed class BranchCalendar
             throw new ArgumentException("Peak windows must not contain null elements.", nameof(peakWindows));
         }
 
-        PeakWindows = windows;
+        PeakWindows = Array.AsReadOnly(windows);
     }
 
     /// <summary>

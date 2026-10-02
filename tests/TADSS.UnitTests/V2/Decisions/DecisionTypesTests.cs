@@ -67,6 +67,60 @@ public class DecisionTypesTests
 
     [Theory]
     [Trait("CatalogId", "UT-01")]
+    [InlineData(DecisionStatus.APPROVED)]
+    [InlineData(DecisionStatus.NEED_APPROVAL)]
+    [InlineData(DecisionStatus.REJECTED)]
+    public void Factory_NullReasonElement_ThrowsInvalidReasons(DecisionStatus status)
+    {
+        // Cast không kiểm tra null nên mảng kết quả giữ phần tử null mà không cần toán tử '!'
+        var reasons = new string?[] { "lý do", null }.Cast<string>().ToArray();
+
+        var act = () => Create(status, reasons);
+
+        var exception = act.Should().Throw<DomainInvariantException>().Which;
+        exception.InvariantCode.Should().Be("INVALID_REASONS");
+        exception.FieldName.Should().Be(nameof(StrategyDecision.Reasons));
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-01")]
+    public void RequireApproval_NullRecommendationElement_ThrowsInvalidRecommendations()
+    {
+        var recommendations = new DecisionRecommendation?[] { new(RecommendationType.REQUIRE_APPROVAL, "Manager xem xét."), null }
+            .Cast<DecisionRecommendation>()
+            .ToArray();
+
+        var act = () => StrategyDecision.RequireApproval("HIGH_VALUE_REVIEW", ["lý do"], recommendations);
+
+        var exception = act.Should().Throw<DomainInvariantException>().Which;
+        exception.InvariantCode.Should().Be("INVALID_RECOMMENDATIONS");
+        exception.FieldName.Should().Be(nameof(StrategyDecision.Recommendations));
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-01")]
+    [InlineData(DecisionStatus.APPROVED)]
+    [InlineData(DecisionStatus.NEED_APPROVAL)]
+    [InlineData(DecisionStatus.REJECTED)]
+    public void Reasons_AnyDecision_IsNotWritableArray(DecisionStatus status)
+    {
+        var decision = Create(status, ["lý do"]);
+
+        decision.Reasons.Should().NotBeAssignableTo<string[]>("downcast sang mảng sẽ cho phép ghi đè nội dung bất biến");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-01")]
+    public void Recommendations_RequireApproval_IsNotWritableArray()
+    {
+        var decision = StrategyDecision.RequireApproval(
+            "HIGH_VALUE_REVIEW", ["lý do"], [new DecisionRecommendation(RecommendationType.REQUIRE_APPROVAL, "Manager xem xét.")]);
+
+        decision.Recommendations.Should().NotBeAssignableTo<DecisionRecommendation[]>("downcast sang mảng sẽ cho phép ghi đè nội dung bất biến");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-01")]
     [InlineData(0)]
     [InlineData(65)]
     public void Factory_ReasonCodeLengthOutOfRange_ThrowsInvalidReasonCode(int length)
@@ -159,4 +213,12 @@ public class DecisionTypesTests
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    private static StrategyDecision Create(DecisionStatus status, IReadOnlyList<string> reasons) => status switch
+    {
+        DecisionStatus.APPROVED => StrategyDecision.Approve(0.5m, "TIER_DEPOSIT", reasons),
+        DecisionStatus.NEED_APPROVAL => StrategyDecision.RequireApproval("HIGH_VALUE_REVIEW", reasons),
+        DecisionStatus.REJECTED => StrategyDecision.Reject("POLICY_REJECT", reasons),
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+    };
 }

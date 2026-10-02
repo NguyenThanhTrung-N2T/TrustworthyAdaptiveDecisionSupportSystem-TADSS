@@ -123,6 +123,9 @@ public class DecisionWireContractTests
     [InlineData("2026-11-18")]
     [InlineData("18/11/2026 09:15")]
     [InlineData("2026-11-18T09:15:00+0700")]
+    [InlineData("2026-11-18T09:15:00+07:00\n")]
+    [InlineData("2026-11-18T02:15:00Z\n")]
+    [InlineData("٢٠٢٦-11-18T09:15:00+07:00")]
     public void Request_RequestedAtWithoutExplicitOffset_ThrowsJsonException(string requestedAt)
     {
         var json = V2Samples.MutateRequest(root => root["requestedAt"] = requestedAt);

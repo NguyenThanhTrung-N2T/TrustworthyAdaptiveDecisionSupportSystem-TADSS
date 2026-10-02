@@ -131,6 +131,30 @@ public class DecisionSchemaTests
 
     [Theory]
     [Trait("CatalogId", "CT-01")]
+    [InlineData("approved-with-expiry", "/approvalExpiresAt")]
+    [InlineData("rejected-with-expiry", "/approvalExpiresAt")]
+    [InlineData("deposit-rate-above-one", "/deposit")]
+    public void ResultSchema_ExpiryOrDepositRateOutOfContract_IsRejectedForThatField(string caseName, string expectedLocation)
+    {
+        var json = V2Samples.MutateResult(root =>
+        {
+            switch (caseName)
+            {
+                case "approved-with-expiry": root["approvalExpiresAt"] = "2026-11-18T02:45:00Z"; break;
+                case "rejected-with-expiry": root["status"] = "REJECTED"; root["deposit"] = null; root["approvalExpiresAt"] = "2026-11-18T02:45:00Z"; break;
+                case "deposit-rate-above-one": V2Samples.Object(root["deposit"])["rate"] = 1.5; break;
+                default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
+            }
+        });
+
+        var results = ContractSchemas.Evaluate(ResultSchema, json);
+
+        results.IsValid.Should().BeFalse();
+        ContractSchemas.Describe(results).Should().Contain(expectedLocation, "ca phải bị từ chối đúng ở trường vi phạm, không phải lỗi cú pháp khác");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "CT-01")]
     [InlineData("start-without-offset")]
     [InlineData("end-without-offset")]
     [InlineData("requested-at-without-offset")]

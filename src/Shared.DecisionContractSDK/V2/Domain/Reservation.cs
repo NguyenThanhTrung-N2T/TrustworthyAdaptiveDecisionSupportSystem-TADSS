@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.V2.Enums;
@@ -14,7 +15,7 @@ public sealed class Reservation
     /// <summary>Số item tối đa của một reservation.</summary>
     public const int MaxItems = 20;
 
-    private static readonly Regex CurrencyPattern = new("^[A-Z]{3}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex CurrencyPattern = new(@"^[A-Z]{3}\z", RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>Định danh đơn phía client (SmashCourt: <c>bookingId</c>).</summary>
     public Guid ReservationId { get; }
@@ -115,16 +116,16 @@ public sealed class Reservation
         ReservationId = reservationId;
         BranchId = branchId;
         BranchTimeZone = branchTimeZone;
-        Items = items.ToArray();
+        Items = Array.AsReadOnly(items.ToArray());
         Customer = customer;
         TotalPrice = totalPrice;
         Currency = currency;
         Channel = channel;
         RequestedAt = requestedAt;
         Demand = demand;
-        Metadata = metadata is null
+        Metadata = new ReadOnlyDictionary<string, string>(metadata is null
             ? new Dictionary<string, string>(StringComparer.Ordinal)
-            : new Dictionary<string, string>(metadata, StringComparer.Ordinal);
+            : new Dictionary<string, string>(metadata, StringComparer.Ordinal));
         EarliestStart = Items.Min(item => item.Start);
     }
 

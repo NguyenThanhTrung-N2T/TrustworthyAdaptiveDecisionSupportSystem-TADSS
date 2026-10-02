@@ -2,7 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Shared.DecisionContractSDK.V2.Common;
+using Shared.DecisionContractSDK.V2.DTOs.Decisions;
 using Shared.DecisionContractSDK.V2.Enums;
+using TADSS.UnitTests.V2.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.V2.Common;
@@ -98,6 +100,69 @@ public class WireEnumTests
         parsed.Channel.Should().Be(Channel.ONLINE);
         withExtra.Should().Throw<JsonException>();
         withNumericString.Should().Throw<JsonException>();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void Options_IsStrictAboutPropertyCaseAndNumbers()
+    {
+        // Options là bản đã MakeReadOnly: ghi nhận giá trị thực tế đang áp dụng
+        TadssJson.Options.PropertyNameCaseInsensitive.Should().BeFalse();
+        TadssJson.Options.NumberHandling.Should().Be(JsonNumberHandling.Strict);
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void Apply_AspNetWebOptions_StillAcceptsValidRequest()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        TadssJson.Apply(options);
+
+        var dto = JsonSerializer.Deserialize<DecisionRequestDto>(V2Samples.RequestJson, options);
+
+        V2Samples.Required(dto).TotalPrice.Should().Be(228_000m);
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-02")]
+    [InlineData("property-wrong-case")]
+    [InlineData("price-as-string")]
+    [InlineData("channel-lowercase")]
+    [InlineData("channel-number")]
+    [InlineData("channel-numeric-string")]
+    public void Apply_AspNetWebOptions_RejectsLooseRequestPayloads(string caseName)
+    {
+        // JsonSerializerDefaults.Web bật sẵn PropertyNameCaseInsensitive và AllowReadingFromString
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        TadssJson.Apply(options);
+        var json = V2Samples.MutateRequest(root =>
+        {
+            switch (caseName)
+            {
+                case "property-wrong-case": root.Remove("totalPrice"); root["TotalPrice"] = 228000; break;
+                case "price-as-string": root["totalPrice"] = "228000"; break;
+                case "channel-lowercase": root["channel"] = "online"; break;
+                case "channel-number": root["channel"] = 1; break;
+                case "channel-numeric-string": root["channel"] = "1"; break;
+                default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
+            }
+        });
+
+        var act = () => JsonSerializer.Deserialize<DecisionRequestDto>(json, options);
+
+        act.Should().Throw<JsonException>();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void Apply_OptionsWithGlobalEnumConverter_ThrowsInvalidOperation()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+
+        var act = () => TadssJson.Apply(options);
+
+        act.Should().Throw<InvalidOperationException>();
     }
 
     private sealed class ChannelProbe

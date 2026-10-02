@@ -12,7 +12,7 @@ public static class DecisionRequestMapping
 {
     /// <summary>Dựng <see cref="Reservation"/> từ request v2.</summary>
     /// <param name="request">Request đã deserialize.</param>
-    /// <exception cref="ContractValidationException">Khi múi giờ không phải mã IANA, danh sách item có phần tử null hoặc thiếu thông tin khách.</exception>
+    /// <exception cref="ContractValidationException">Khi múi giờ không phải mã IANA, danh sách item có phần tử null, thiếu thông tin khách hoặc metadata có giá trị null.</exception>
     public static Reservation ToDomain(this DecisionRequestDto request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -27,6 +27,11 @@ public static class DecisionRequestMapping
         if (request.Customer is null)
         {
             throw new ContractValidationException("INVALID_CUSTOMER", "customer must not be null.", "customer");
+        }
+
+        if (request.Metadata is not null && request.Metadata.Any(entry => entry.Value is null))
+        {
+            throw new ContractValidationException("INVALID_METADATA", "metadata values must not be null.", "metadata");
         }
 
         var items = request.Items

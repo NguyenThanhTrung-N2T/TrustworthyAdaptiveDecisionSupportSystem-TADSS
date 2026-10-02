@@ -104,6 +104,7 @@ public class ReservationTests
     [InlineData("VNDX")]
     [InlineData("")]
     [InlineData("V1D")]
+    [InlineData("VND\n")]
     public void Constructor_InvalidCurrency_ThrowsInvalidCurrency(string currency)
     {
         var act = () => V2TestData.CreateReservation(currency: currency);
@@ -132,6 +133,16 @@ public class ReservationTests
 
         withMetadata.Metadata["promotionCode"].Should().Be("WINTER");
         withoutMetadata.Metadata.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-01")]
+    public void Items_AndMetadata_AreNotWritableCollections()
+    {
+        var reservation = V2TestData.CreateReservation(metadata: new Dictionary<string, string> { ["promotionCode"] = "WINTER" });
+
+        reservation.Items.Should().NotBeAssignableTo<ReservationItem[]>("downcast sang mảng sẽ cho phép ghi đè item");
+        reservation.Metadata.Should().NotBeAssignableTo<Dictionary<string, string>>("downcast sang Dictionary sẽ cho phép ghi đè metadata");
     }
 
     [Fact]
