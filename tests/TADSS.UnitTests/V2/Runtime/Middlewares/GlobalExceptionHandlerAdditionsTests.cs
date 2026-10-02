@@ -57,7 +57,7 @@ public class GlobalExceptionHandlerAdditionsTests
     [Trait("CatalogId", "UT-08")]
     [InlineData("40P01")]
     [InlineData("40001")]
-    public async Task Handler_DeadlockSqlState_Returns503(string sqlState)
+    public async Task Handler_DeadlockSqlState_Returns503_Theory(string sqlState)
     {
         var (context, body) = await HandleAsync(new PostgresException("deadlock detected", "ERROR", "ERROR", sqlState));
 

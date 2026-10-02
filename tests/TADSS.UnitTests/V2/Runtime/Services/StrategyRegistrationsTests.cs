@@ -89,7 +89,7 @@ public class StrategyRegistrationsTests
     [InlineData("NoShowReviewThreshold", "0")]
     [InlineData("HighValueThreshold", "-1")]
     [InlineData("CacheTtlMinutes", "-5")]
-    public void CreateDefault_InvalidOptions_Throws(string key, string value)
+    public void CreateDefault_InvalidOptions_Throws_Theory(string key, string value)
     {
         var act = () => StrategyRegistrations.CreateDefault(
             Config(($"Tadss:Strategies:Default:{key}", value)), V2TestData.StandardCalendar());
@@ -104,7 +104,7 @@ public class StrategyRegistrationsTests
     [InlineData("PeakDepositRate", "2")]
     [InlineData("OffPeakDepositRate", "-0.1")]
     [InlineData("CacheTtlMinutes", "-1")]
-    public void CreateMockAlternative_InvalidOptions_Throws(string key, string value)
+    public void CreateMockAlternative_InvalidOptions_Throws_Theory(string key, string value)
     {
         var act = () => StrategyRegistrations.CreateMockAlternative(
             Config(($"Tadss:Strategies:MockAlternative:{key}", value)), V2TestData.StandardCalendar());

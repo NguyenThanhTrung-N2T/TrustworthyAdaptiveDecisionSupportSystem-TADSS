@@ -111,7 +111,7 @@ public class OptionsFingerprintTests
     [Trait("CatalogId", "UT-13")]
     [InlineData("Default")]
     [InlineData("MockAlternative")]
-    public void Fingerprint_CalendarChanged_Differs(string strategy)
+    public void Fingerprint_CalendarChanged_Differs_Theory(string strategy)
     {
         var configuration = Config();
         var baseline = Create(strategy, configuration, Calendar((DayOfWeek.Monday, 17, 21)));
@@ -126,7 +126,7 @@ public class OptionsFingerprintTests
     [Trait("CatalogId", "UT-13")]
     [InlineData("Default")]
     [InlineData("MockAlternative")]
-    public void Fingerprint_CalendarOrder_Irrelevant(string strategy)
+    public void Fingerprint_CalendarOrder_Irrelevant_Theory(string strategy)
     {
         var configuration = Config();
         var forward = Calendar((DayOfWeek.Monday, 17, 21), (DayOfWeek.Saturday, 8, 21), (DayOfWeek.Sunday, 8, 21));
@@ -139,7 +139,7 @@ public class OptionsFingerprintTests
     [Trait("CatalogId", "UT-13")]
     [InlineData("Default")]
     [InlineData("MockAlternative")]
-    public void Fingerprint_Format_Is16LowercaseHex(string strategy)
+    public void Fingerprint_Format_Is16LowercaseHex_Theory(string strategy)
     {
         Create(strategy, Config()).Should().MatchRegex("^[0-9a-f]{16}$");
     }
@@ -148,7 +148,7 @@ public class OptionsFingerprintTests
     [Trait("CatalogId", "UT-13")]
     [InlineData("Default")]
     [InlineData("MockAlternative")]
-    public void Fingerprint_EquivalentDecimalScale_Same(string strategy)
+    public void Fingerprint_EquivalentDecimalScale_Same_Theory(string strategy)
     {
         var plain = Create(strategy, Config(($"Tadss:Strategies:{strategy}:HighValueThreshold", "3000000")));
         var scaled = Create(strategy, Config(($"Tadss:Strategies:{strategy}:HighValueThreshold", "3000000.00")));
@@ -191,7 +191,7 @@ public class OptionsFingerprintTests
     [InlineData("1.0", "1")]
     [InlineData("0.00", "0")]
     [InlineData("-0.0", "0")]
-    public void Add_Decimal_DropsInsignificantTrailingZeros(string left, string right)
+    public void Add_Decimal_DropsInsignificantTrailingZeros_Theory(string left, string right)
     {
         var a = new OptionsFingerprintBuilder();
         a.Add("X", decimal.Parse(left, CultureInfo.InvariantCulture));

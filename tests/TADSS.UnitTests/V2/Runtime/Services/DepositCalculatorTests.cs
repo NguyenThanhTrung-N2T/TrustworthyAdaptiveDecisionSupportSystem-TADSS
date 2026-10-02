@@ -117,7 +117,7 @@ public class DepositCalculatorTests
     [InlineData(0.5, 228_000, "")]
     [InlineData(0.5, 228_000, "VN1")]
     [InlineData(0.5, 228_000, "VN\n")]
-    public void Calculate_InvalidInputs_Throws(double rate, double totalPrice, string currency)
+    public void Calculate_InvalidInputs_Throws_Theory(double rate, double totalPrice, string currency)
     {
         var act = () => _calculator.Calculate((decimal)totalPrice, (decimal)rate, currency);
 

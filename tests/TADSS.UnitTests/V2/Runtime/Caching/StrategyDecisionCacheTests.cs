@@ -110,7 +110,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
     [Theory]
     [Trait("CatalogId", "UT-13")]
     [MemberData(nameof(AllStatuses))]
-    public async Task SetThenGet_RedisProvider_RoundTripsViaJson(string status)
+    public async Task SetThenGet_RedisProvider_RoundTripsViaJson_Theory(string status)
     {
         var redis = new RedisFake();
         var cache = CreateCache("Redis", fallbackToMemory: false, redis.Multiplexer.Object, instanceName: "khac:");
@@ -420,7 +420,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
     [Trait("CatalogId", "UT-13")]
     [InlineData("Memory")]
     [InlineData("Redis")]
-    public async Task Get_MissingKey_ReturnsNull(string provider)
+    public async Task Get_MissingKey_ReturnsNull_Theory(string provider)
     {
         var redis = new RedisFake();
         var cache = CreateCache(provider, fallbackToMemory: true, redis.Multiplexer.Object);
@@ -435,7 +435,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
     [Trait("CatalogId", "UT-13")]
     [InlineData("")]
     [InlineData("  ")]
-    public async Task GetAndSet_BlankKey_Throws(string key)
+    public async Task GetAndSet_BlankKey_Throws_Theory(string key)
     {
         var cache = CreateCache();
 
@@ -450,7 +450,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
     [Trait("CatalogId", "UT-13")]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task Set_NonPositiveTtl_Throws(int minutes)
+    public async Task Set_NonPositiveTtl_Throws_Theory(int minutes)
     {
         var cache = CreateCache();
 

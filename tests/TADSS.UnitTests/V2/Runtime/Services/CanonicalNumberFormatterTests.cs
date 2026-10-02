@@ -27,7 +27,7 @@ public class CanonicalNumberFormatterTests
     [InlineData("1E+2", "100")]
     [InlineData("1.2300", "1.23")]
     [InlineData("-3.10", "-3.1")]
-    public void Format_EdgeValues_AreCanonical(string literal, string expected)
+    public void Format_EdgeValues_AreCanonical_Theory(string literal, string expected)
     {
         var value = decimal.Parse(literal, NumberStyles.Float, CultureInfo.InvariantCulture);
 
@@ -41,7 +41,7 @@ public class CanonicalNumberFormatterTests
     [InlineData("228000.00", "228000")]
     [InlineData("0.50", "0.5")]
     [InlineData("1E+2", "100")]
-    public void FingerprintBuilder_Decimal_UsesSharedCanonicalText(string literal, string expectedText)
+    public void FingerprintBuilder_Decimal_UsesSharedCanonicalText_Theory(string literal, string expectedText)
     {
         var value = decimal.Parse(literal, NumberStyles.Float, CultureInfo.InvariantCulture);
         var builder = new OptionsFingerprintBuilder();

@@ -120,7 +120,7 @@ public class RequestHasherTests
     [InlineData("fr-FR")]
     [InlineData("ar-SA")]
     [InlineData("")]
-    public void ComputeHash_DifferentCultures_SameHash(string cultureName)
+    public void ComputeHash_DifferentCultures_SameHash_Theory(string cultureName)
     {
         var originalCulture = CultureInfo.CurrentCulture;
         var originalUiCulture = CultureInfo.CurrentUICulture;
@@ -160,7 +160,7 @@ public class RequestHasherTests
     [InlineData("100", "1E+2")]
     [InlineData("0.5", "5E-1")]
     [InlineData("12345.678", "12345.67800")]
-    public void ComputeHash_DecimalScale_SameHash(string left, string right)
+    public void ComputeHash_DecimalScale_SameHash_Theory(string left, string right)
     {
         Hash(WithTotalPrice(left)).Should().Be(Hash(WithTotalPrice(right)));
     }
@@ -171,7 +171,7 @@ public class RequestHasherTests
     [InlineData("0.5", "5")]
     [InlineData("0", "0.01")]
     [InlineData("1.05", "1.5")]
-    public void ComputeHash_DecimalDifferentValue_DifferentHash(string left, string right)
+    public void ComputeHash_DecimalDifferentValue_DifferentHash_Theory(string left, string right)
     {
         Hash(WithTotalPrice(left)).Should().NotBe(Hash(WithTotalPrice(right)));
     }
