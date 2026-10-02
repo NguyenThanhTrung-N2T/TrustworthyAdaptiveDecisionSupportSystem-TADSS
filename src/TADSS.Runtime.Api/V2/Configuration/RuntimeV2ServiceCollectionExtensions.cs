@@ -82,6 +82,9 @@ public static class RuntimeV2ServiceCollectionExtensions
                 useRedis ? sp.GetService<IConnectionMultiplexer>() : null);
         });
 
+        // Bộ ghép response + bản ghi audit. IDecisionAuditStore chưa đăng ký ở 5.2b (B-09): EfDecisionAuditStore thuộc 5.2c
+        services.AddSingleton<DecisionResponseComposer>();
+
         return services;
     }
 }
