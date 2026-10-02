@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using TADSS.Runtime.Api.Infrastructure.Data;
-using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Configuration;
 
@@ -10,31 +9,26 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. Interceptor quản lý Timestamp
-        services.AddSingleton<AuditTimestampInterceptor>();
-
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        // 2. DbContext với DI Interceptor
-        services.AddDbContext<TadssDbContext>((sp, options) =>
+        // 1. DbContext: thời gian audit do DecisionService gán, không có interceptor ghi timestamp
+        services.AddDbContext<TadssDbContext>(options =>
         {
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {
                 npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "tadss");
             });
-
-            options.AddInterceptors(sp.GetRequiredService<AuditTimestampInterceptor>());
         });
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
 
-        // 3. Health Checks có phân nhóm Tags (Liveness / Readiness)
+        // 2. Health Checks có phân nhóm Tags (Liveness / Readiness)
         services.AddHealthChecks()
             .AddNpgSql(
                 connectionString: connectionString ?? string.Empty,
                 name: "Neon-PostgreSQL",
                 tags: new[] { "ready", "db" });
 
-        // 4. Lõi runtime: strategy registry, resilience, cache, audit store — nơi đăng ký duy nhất cho lõi
+        // 3. Lõi runtime: strategy registry, resilience, cache, audit store — nơi đăng ký duy nhất cho lõi
         services.AddDecisionRuntime(configuration);
 
         return services;

@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
-using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
 
 namespace TADSS.IntegrationTests;
 
@@ -43,16 +42,15 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// Thay đăng ký DbContext của app bằng Npgsql trỏ tới <paramref name="connectionString"/>,
-    /// giữ <see cref="AuditTimestampInterceptor"/> và thêm interceptor riêng của test nếu có.
+    /// và thêm interceptor riêng của test nếu có.
     /// </summary>
     public static void ReplaceDbContext(IServiceCollection services, string connectionString, params IInterceptor[] additionalInterceptors)
     {
         services.RemoveAll<DbContextOptions<TadssDbContext>>();
-        services.AddDbContext<TadssDbContext>((sp, options) =>
+        services.AddDbContext<TadssDbContext>(options =>
         {
             options.UseNpgsql(connectionString,
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "tadss"));
-            options.AddInterceptors(sp.GetRequiredService<AuditTimestampInterceptor>());
             options.AddInterceptors(additionalInterceptors);
         });
     }

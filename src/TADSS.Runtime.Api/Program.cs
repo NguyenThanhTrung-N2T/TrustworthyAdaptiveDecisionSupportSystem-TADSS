@@ -25,6 +25,8 @@ app.Services.GetRequiredService<IStrategyRegistry>();
 // Tự áp migration khi khởi động — chỉ bật ở E-LOCAL (docker compose); Neon/staging giữ mặc định false
 if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.ApplyMigrationsOnStartup)
 {
+    app.Logger.LogWarning(
+        "Tadss:Database:ApplyMigrationsOnStartup đang bật: tự áp migration khi khởi động chỉ dùng cho E-LOCAL, không bật cho Neon/staging.");
     using var migrationScope = app.Services.CreateScope();
     await migrationScope.ServiceProvider.GetRequiredService<TadssDbContext>().Database.MigrateAsync();
 }
