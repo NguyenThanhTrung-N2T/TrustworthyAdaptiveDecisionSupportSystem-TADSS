@@ -7,6 +7,7 @@ using TADSS.Runtime.Api.Infrastructure.Data.Interceptors;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Services;
+using TADSS.Runtime.Api.V2.Configuration;
 using TADSS.Strategies.Default;
 using TADSS.Strategies.MockAlternative;
 
@@ -84,6 +85,9 @@ public static class DependencyInjection
         // 6. In-Process Synchronous Event Dispatcher (MediatR Append-Only Audit Trail) & Decision Application Services
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
         services.AddScoped<IDecisionService, DecisionService>();
+
+        // 7. Runtime v2 (song song v1; endpoint ở gói 5.2c)
+        services.AddDecisionRuntimeV2(configuration);
 
         return services;
     }
