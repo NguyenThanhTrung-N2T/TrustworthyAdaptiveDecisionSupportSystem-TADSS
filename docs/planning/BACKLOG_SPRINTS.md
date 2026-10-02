@@ -44,8 +44,8 @@
 
 | Mã | Task | Tuần | Test case liên quan |
 |:---|:---|:---:|:---|
-| T5.1 | Contract v2: OpenAPI v2, JSON schema v2 (`docs/contracts/schemas/v2/`), DTO v2 trong SDK, public API baseline v2 (theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md)) | W07 | CT-01, CT-02, UT-02 |
-| T5.2 | Domain v2: nhiều sân/booking, khách vãng lai, lịch sử khách, thời gian `DateTimeOffset` + múi giờ chi nhánh | W07–W08 | UT-01, UT-05 |
+| T5.1 | Contract v2: OpenAPI v2, JSON schema v2 (`docs/contracts/schemas/v2/`), DTO v2 trong SDK, public API baseline v2 (theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md)). *Tiến độ: gói 5.2a xong — SDK v2 + strategies v2 song song v1, chưa nối runtime* | W07 | CT-01, CT-02, UT-02 |
+| T5.2 | Domain v2: nhiều sân/booking, khách vãng lai, lịch sử khách, thời gian `DateTimeOffset` + múi giờ chi nhánh. *Tiến độ: gói 5.2a xong — SDK v2 + strategies v2 song song v1, chưa nối runtime (unit test 475 → 695)* | W07–W08 | UT-01, UT-05 |
 | T5.3 | Migration DB v2: `decision_executions` bất biến (trigger), `decision_overrides`, `decision_outcomes`, snapshot request, `branch_id`, `approval_expires_at`, `role` | W07–W08 | IT-05, IT-15 |
 | T5.4 | Strategies v2: `DefaultDecisionStrategy` 2.0.0 (cọc theo hạng), `MockAlternativeDecisionStrategy` 2.0.0 (cọc theo khung giờ), tham số qua options | W08 | UT-03, UT-05 |
 | T5.5 | Override v2 (APPROVE kèm mức cọc / REJECT, `X-Actor-Id`, chống ghi đè đồng thời bằng `UNIQUE(decision_id)`), outcome endpoint | W08 | IT-06, IT-07, IT-08, IT-10 |
