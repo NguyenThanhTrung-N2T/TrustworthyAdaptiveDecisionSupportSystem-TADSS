@@ -1,8 +1,12 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.V2.Domain;
+using StackExchange.Redis;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Runtime.Api.V2.Infrastructure.Caching;
 using TADSS.Runtime.Api.V2.Infrastructure.Resilience;
 using TADSS.Runtime.Api.V2.Services.Decisions;
 using TADSS.Runtime.Api.V2.Services.Strategies;
@@ -61,6 +65,22 @@ public static class RuntimeV2ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceOptionsValidator>();
         services.AddSingleton<IStrategyPipeline, StrategyPipeline>();
+
+        // Cache StrategyDecision (không cache response) dùng chung section Tadss:Cache với v1; tự đủ phụ thuộc nên
+        // đăng ký IMemoryCache/options ở đây (đăng ký lại cùng loại với v1 là vô hại). Multiplexer Redis do v1 đăng ký
+        // (AbortOnConnectFail = false) và chỉ được resolve khi Provider = Redis; không có thì cache chỉ dùng memory.
+        services.AddMemoryCache();
+        services.AddOptions<TadssCacheOptions>().Bind(configuration.GetSection(TadssCacheOptions.SectionName));
+        services.AddSingleton<IStrategyDecisionCache>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<TadssCacheOptions>>();
+            var useRedis = string.Equals(options.Value.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
+            return new StrategyDecisionCache(
+                sp.GetRequiredService<IMemoryCache>(),
+                options,
+                sp.GetRequiredService<ILogger<StrategyDecisionCache>>(),
+                useRedis ? sp.GetService<IConnectionMultiplexer>() : null);
+        });
 
         return services;
     }
