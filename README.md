@@ -4,7 +4,7 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (01/10/2026):** Phase 1–4 hoàn thành trên contract v1 (Milestone 4: 510 test pass; sau khi gỡ module chuẩn hóa dataset ở Phase R còn 473 unit + 27 integration test, khi đó integration test chạy với EF Core InMemory). **Phase R — Re-baseline** đã đóng Gate MR (01/10/2026, tag `phase4-baseline`); **Phase 5** hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử) đã xong:** integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy), đã gỡ InMemory khỏi integration test; hiện có **475 unit + 32 integration test**. Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (02/10/2026):** Phase 1–4 hoàn thành trên contract v1 (hồ sơ lịch sử). **Phase R — Re-baseline** đã đóng Gate MR (01/10/2026, tag `phase4-baseline`); **Phase 5** hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử) và 5.2a–5.2c (SDK v2, lõi runtime v2, chuyển hẳn sang v2) đã xong:** v1 đã gỡ khỏi mã; endpoint `POST /api/v2/decisions` và `GET /api/v2/decisions/{decisionId}`; migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); hiện có **965 unit + 121 integration test**. Chưa có: `X-Api-Key`, override, outcome, hàng chờ duyệt (gói 5.3). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -22,13 +22,12 @@ Chi tiết và contract v2: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contract
 
 | Project | Vai trò |
 | :--- | :--- |
-| `src/Shared.DecisionContractSDK` | Hợp đồng dùng chung: `Reservation` (rich domain model), DTO, enum, `IReservationDecisionStrategy`; chỉ phụ thuộc BCL |
-| `src/TADSS.Runtime.Api` | Web API, `DecisionService`, `StrategyResolver`, pipeline Polly v8, cache Redis/`IMemoryCache`, audit PostgreSQL (schema `tadss`) |
+| `src/Shared.DecisionContractSDK` | Hợp đồng dùng chung v2 (`2.0.0-draft`): `Reservation` (rich domain model), DTO, enum, `StrategyDecision`/`DecisionContext`, `IReservationDecisionStrategy`; chỉ phụ thuộc BCL |
+| `src/TADSS.Runtime.Api` | Web API v2, `DecisionService`, `DecisionQueryService`, `IStrategyRegistry`, pipeline Polly v8, cache `StrategyDecision` Redis/`IMemoryCache`, audit PostgreSQL (schema `tadss`) |
 | `src/TADSS.Strategies.Default` | `DefaultDecisionStrategy` |
 | `src/TADSS.Strategies.MockAlternative` | `MockAlternativeDecisionStrategy` |
-| `tests/TADSS.UnitTests` | Domain, contract, service, strategy, hạ tầng, kiểm thử kiến trúc |
-| `tests/TADSS.IntegrationTests` | API qua `WebApplicationFactory` trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy): idempotency, cache, tiêm lỗi, governance, migration |
-| `tests/TADSS.BenchmarkRunner` | Micro-benchmark phòng lab Phase 4 (lưu trữ — không dùng làm minh chứng SLA) |
+| `tests/TADSS.UnitTests` | Domain, contract (gồm drift OpenAPI), controller, service, strategy, hạ tầng, kiểm thử kiến trúc |
+| `tests/TADSS.IntegrationTests` | API qua `WebApplicationFactory` trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy): endpoint, idempotency, cache, persistence, tiêm lỗi, migration |
 
 Kiến trúc chi tiết: [`docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md).
 
@@ -37,7 +36,7 @@ Kiến trúc chi tiết: [`docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION
 ## Công nghệ
 
 - **.NET 8**, ASP.NET Core Web API, EF Core 8 + Npgsql, PostgreSQL 16
-- **Polly 8.4**, StackExchange.Redis 2.8, MediatR 12, Serilog 8
+- **Polly 8.4**, StackExchange.Redis 2.8, Swashbuckle 6.6, Serilog 8
 - Kiểm thử hiện tại: xUnit 2.5.3, FluentAssertions 6.12.1, Moq 4.20, `Microsoft.AspNetCore.Mvc.Testing` 8.0, Testcontainers (PostgreSQL 16.15, Redis 7.4, Toxiproxy 2.12.0)
 - Bổ sung ở Phase 5: OpenTelemetry + `grafana/otel-lgtm`, Schemathesis, Stryker.NET, k6 (xem [`docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md))
 
@@ -50,7 +49,7 @@ Phiên bản package khai báo tập trung trong `Directory.Packages.props`.
 ```bash
 dotnet restore TADSS.slnx
 dotnet build TADSS.slnx -c Release --warnaserror        # bắt buộc 0 warning
-dotnet test  TADSS.slnx -c Release --no-build -m:1       # 475 unit + 32 integration; integration cần Docker Desktop đang chạy
+dotnet test  TADSS.slnx -c Release --no-build -m:1       # 965 unit + 121 integration; integration cần Docker Desktop đang chạy
 dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296/swagger
 ```
 

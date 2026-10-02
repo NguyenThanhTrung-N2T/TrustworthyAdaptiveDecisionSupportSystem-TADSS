@@ -1,6 +1,6 @@
 # ĐẶC TẢ KIẾN TRÚC PHẦN MỀM TADSS (SAS) — v2.0
 
-> **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc solution, thành phần runtime, strategy và luồng xử lý — gồm **hiện trạng v1** (đã chạy) và **mục tiêu v2** (Phase 5). Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Schema DB: [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](RESILIENCE_AND_FAULT_TAXONOMY.md).
+> **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc solution, thành phần runtime, strategy và luồng xử lý — gồm **hiện trạng sau gói 5.2c** (v2 là phiên bản duy nhất; v1 đã gỡ) và **mục tiêu v2** còn lại của Phase 5. Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Schema DB: [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](RESILIENCE_AND_FAULT_TAXONOMY.md).
 
 ---
 
@@ -39,57 +39,44 @@ flowchart LR
 
 ```text
 src/
-├── Shared.DecisionContractSDK/        # Hợp đồng dùng chung — chỉ BCL, 0 NuGet
-│   ├── Common/                        # ApiResponse, PagedResult, ErrorCodes, ContractValidationException
-│   ├── Domain/                        # Reservation (aggregate root) + value objects + DomainInvariantException
-│   ├── DTOs/{Decisions,Governance,Mappings}/
-│   ├── Enums/                         # DecisionStatus, ExecutionType, PaymentStatus, BookingPriority, RecommendationType, ReasonCode
+├── Shared.DecisionContractSDK/        # Hợp đồng dùng chung v2 — chỉ BCL, 0 NuGet (README.md mô tả cây)
+│   ├── Common/                        # ErrorCodes, ReasonCodes, PagedResult, TadssJson, converter JSON, ContractValidationException
+│   ├── Decisions/                     # StrategyDecision, DecisionContext, StrategyCachePolicy, DecisionRecommendation
+│   ├── Domain/                        # Reservation (aggregate root), ReservationItem, CustomerProfile, CustomerHistory, DemandSnapshot, BranchCalendar, PeakWindow + DomainInvariantException
+│   ├── DTOs/{Decisions,Governance,Outcomes,Mappings}/
+│   ├── Enums/                         # Channel, CustomerTier, DecisionStatus, ExecutionType, RecommendationType, OverrideAction, DecisionOutcome
 │   └── Interfaces/                    # IReservationDecisionStrategy
 ├── TADSS.Runtime.Api/
-│   ├── Controllers/                   # DecisionsController
-│   ├── Services/                      # DecisionService, StrategyResolver, RequestHasher
-│   ├── Middlewares/                   # CorrelationIdMiddleware, GlobalExceptionHandler
-│   ├── Configuration/                 # DependencyInjection, *Options, RequiredHeaderOperationFilter
+│   ├── Common/                        # HttpHeaderNames
+│   ├── Controllers/                   # DecisionsController (POST + GET /api/v2/decisions)
+│   ├── Services/                      # DecisionService, DecisionQueryService, RequestHasher, CanonicalNumberFormatter
+│   │   ├── Decisions/                 # DecisionResponseComposer, ApprovalWindowPolicy, DepositCalculator, ItemDurationPolicy
+│   │   └── Strategies/                # StrategyRegistry, StrategyRegistrations, OptionsFingerprintBuilder
+│   ├── Middlewares/                   # CorrelationIdMiddleware, GlobalExceptionHandler, ExceptionClassifier, PersistenceFailureDetector, exception types
+│   ├── Configuration/                 # DependencyInjection, DecisionRuntimeServiceCollectionExtensions, *Options + validators, Swagger filters
 │   └── Infrastructure/
-│       ├── Data/                      # TadssDbContext, Entities, Configurations, Interceptors, Auditing (MediatR handlers), Migrations
-│       ├── Resilience/                # DecisionResiliencePipeline, FallbackDecisionStrategy, ResilienceOptions
-│       └── Caching/                   # Redis/Memory/ResilientDecisionCacheService, CacheKeyBuilder
+│       ├── Data/                      # TadssDbContext, Entities, Configurations, EfDecisionAuditStore, DecisionAuditMapper, Migrations
+│       ├── Resilience/                # StrategyPipeline, FallbackDecisionPolicy, ResilienceOptions(+Validator)
+│       └── Caching/                   # StrategyDecisionCache (Redis + memory), StrategyDecisionCacheKey
 ├── TADSS.Strategies.Default/          # DefaultDecisionStrategy — chỉ phụ thuộc SDK
 └── TADSS.Strategies.MockAlternative/  # MockAlternativeDecisionStrategy — chỉ phụ thuộc SDK
 tests/
-├── TADSS.UnitTests/                   # Domain, Contracts, Services, Strategies, Infrastructure, Architecture
-├── TADSS.IntegrationTests/            # API qua WebApplicationFactory trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy)
-└── TADSS.BenchmarkRunner/             # Micro-benchmark lab Phase 4 (lưu trữ)
+├── TADSS.UnitTests/                   # Common, Contracts, Controllers, Configuration, Decisions, Domain, Services, Strategies, Infrastructure, Middlewares, Architecture, TestData, TestDoubles
+└── TADSS.IntegrationTests/            # API qua WebApplicationFactory trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy): Migrations, Persistence, FaultInjection, endpoint/idempotency/cache
 ```
 
 Health check: `/health/live`, `/health/ready` (PostgreSQL), `/health` — khai báo trong `Program.cs`.
 
 ---
 
-## 3. HIỆN TRẠNG v1 (đang chạy)
+## 3. v1 — ĐÃ GỠ Ở GÓI 5.2c
 
-| Thành phần | Vị trí | Trách nhiệm |
-| :--- | :--- | :--- |
-| `DecisionsController` | `Controllers/` | 4 endpoint `/api/v1/decisions` |
-| `DecisionService` | `Services/` | Idempotency → chọn strategy → cache → map DTO sang domain → pipeline → ghi cache → ghi audit |
-| `StrategyResolver` | `Services/` | Đăng ký strategy qua DI vào `Dictionary` theo tên (không phân biệt hoa thường); strategy hoạt động lấy từ `Tadss:Strategy:ActiveStrategyName` khi khởi động |
-| `DecisionResiliencePipeline` | `Infrastructure/Resilience/` | Pipeline Polly v8 (singleton, nên trạng thái circuit dùng chung giữa các request) |
-| `FallbackDecisionStrategy` | `Infrastructure/Resilience/` | Trả `NEED_APPROVAL` tất định |
-| `ResilientDecisionCacheService` | `Infrastructure/Caching/` | Đọc Redis trước; lỗi hoặc miss → đọc `IMemoryCache`; ghi cả hai |
-| `RequestHasher` | `Services/` | Object canonical thứ tự cố định → SHA-256 |
-| `DecisionEvaluatedAuditNotificationHandler`, `DecisionOverriddenAuditNotificationHandler` | `Infrastructure/Data/Auditing/` | Ghi audit đồng bộ qua MediatR |
-| `CorrelationIdMiddleware`, `GlobalExceptionHandler` | `Middlewares/` | Correlation id; lỗi RFC 7807 |
+Runtime v1 (`/api/v1/decisions`, `StrategyResolver`, `DecisionResiliencePipeline`, `FallbackDecisionStrategy`, `ResilientDecisionCacheService`, handler audit qua MediatR, `AuditTimestampInterceptor`), SDK v1 và `TADSS.BenchmarkRunner` không còn trong mã. Hồ sơ v1 giữ nguyên trong `docs/contracts/CONTRACT_V1_FREEZE.md`, `API_CONTRACT_V1.md`, `openapi-v1.yaml` và `docs/research/benchmarks/`. Test `NoLegacyV1Tests` (UT-09) khóa việc không còn namespace/thư mục `V2`, kiểu v1 đã gỡ và MediatR.
 
-**Hạn chế đã ghi nhận (được khắc phục ở v2):**
+**Hạn chế của v1 và trạng thái sau 5.2c:**
 
-- Strategy chọn một lần lúc khởi động; đổi strategy phải restart; thêm strategy phải sửa `DependencyInjection.cs` và tham chiếu project.
-- Strategy tự sinh `DecisionId`, `ExecutionTimeMs`, `EvaluatedAt` — trách nhiệm của runtime bị rò sang strategy.
-- `MockAlternativeDecisionStrategy.IsPeakHour` so sánh trên giờ UTC.
-- `RequestHasher` gọi `ToUniversalTime()` trên `DateTime` không có Kind → phụ thuộc múi giờ máy chủ.
-- Key cache chứa `reservationId` và `customerId` → chỉ hit khi đánh giá lại đúng cùng đơn; TTL 24 giờ có thể trả kết quả cũ với strategy phụ thuộc thời gian; Redis lỗi thì mọi request chờ hết `RedisTimeoutMs`.
-- Inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken`.
-- `InvalidOperationException` và `ArgumentException` đều bị map thành 400, che lỗi phía server.
-- Không có xác thực; `overriddenBy` do client tự khai.
+- Đã khắc phục ở v2: strategy chọn một lần lúc khởi động (nay `IStrategyRegistry`, định tuyến theo request ở 5.4); strategy tự sinh `DecisionId`/`ExecutionTimeMs`/`EvaluatedAt` (nay thuộc runtime); `IsPeakHour` theo UTC (nay theo `branchTimeZone` + `Tadss:Calendar`); `request_hash` phụ thuộc múi giờ máy chủ (INV-3); key cache chứa `reservationId`/`customerId` (nay key theo hash request); `InvalidOperationException`/`ArgumentException` đều thành 400 (nay `ExceptionClassifier`).
+- Còn mở: không có xác thực `X-Api-Key` (gói 5.3); inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken` (`IsolatedStrategyInvoker`, 5.4); Redis lỗi thì lần gọi cache chờ tới `RedisTimeoutMs` (circuit breaker + metric `bypass`, 5.4).
 
 ---
 
@@ -120,13 +107,13 @@ public sealed record StrategyDecision(
 
 ### 4.2. Thành phần runtime v2
 
-> **Tiến độ (gói 5.2b):** lõi xử lý quyết định v2 đã hiện thực và kiểm chứng bằng unit test (UT-04…UT-13), nằm tạm ở `src/TADSS.Runtime.Api/V2/` (namespace `TADSS.Runtime.Api.V2.*`) chạy song song v1; gói 5.2c dời về vị trí chuẩn khi gỡ v1. Mọi thành phần đã được đăng ký DI trong `AddDecisionRuntimeV2`, trừ `DecisionService` v2 và `IDecisionAuditStore` (chưa có hiện thực lưu trữ `EfDecisionAuditStore`); chưa có endpoint `/api/v2` — các hàng dưới đây đánh dấu rõ phần đã có. Runtime v2 chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
+> **Tiến độ (sau gói 5.2c):** v2 là runtime duy nhất, nằm ở vị trí chuẩn của Mục 2 (đã dời khỏi thư mục `V2/`, mọi thành phần đăng ký trong `AddDecisionRuntime`). Hiện thực và có test: `DecisionService`, `DecisionQueryService`, `EfDecisionAuditStore`, `StrategyPipeline`, `StrategyDecisionCache`, `ExceptionClassifier` nối vào `GlobalExceptionHandler`, `DecisionsController` (`POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`). Chưa có: xác thực `X-Api-Key`, override, outcome, hàng chờ (5.3), `StrategyRouter`/`ShadowExecutor`/`IsolatedStrategyInvoker`/breaker Redis (5.4) — các hàng dưới đây đánh dấu rõ phần đã có. Runtime chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
 
 | Thành phần | Trách nhiệm |
 | :--- | :--- |
-| `ApiKeyAuthenticationHandler` | Xác thực `X-Api-Key`; gắn client id vào log/trace |
-| `DecisionService` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response. *Đã hiện thực (5.2b)*: một mốc `nowUtc` từ `TimeProvider` cho cả lần đánh giá; lỗi cache chỉ là miss; lỗi ghi audit lan ra (fail-closed, INV-10); chọn strategy tạm bằng `IStrategyRegistry.ResolveActive()` cho tới khi có `StrategyRouter` (5.4) |
-| `IDecisionAuditStore` | Hợp đồng lưu audit `decision_executions` theo use case của `DecisionService`: `FindPrimaryByIdempotencyKeyAsync`, `InsertExecutionAsync` (append-only; tranh chấp `uq_decision_idempotency_key` trả bản đã thắng; lỗi tạm thời → `PersistenceUnavailableException` → 503). Hiện thực EF Core ở 5.2c; `GetDecisionDetailAsync` thêm ở 5.2c, pending/override/outcome ở 5.3 |
+| `ApiKeyAuthenticationHandler` | Xác thực `X-Api-Key`; gắn client id vào log/trace. *Chưa hiện thực — gói 5.3* |
+| `DecisionService` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response. *Đã hiện thực (5.2b, đăng ký DI và nối controller ở 5.2c)*: một mốc `nowUtc` từ `TimeProvider` (cắt về µs) cho cả lần đánh giá; lỗi cache chỉ là miss; lỗi ghi audit lan ra (fail-closed, INV-10); chọn strategy tạm bằng `IStrategyRegistry.ResolveActive()` cho tới khi có `StrategyRouter` (5.4) |
+| `IDecisionAuditStore` | Hợp đồng lưu audit `decision_executions` theo use case của `DecisionService`: `FindPrimaryByIdempotencyKeyAsync`, `InsertExecutionAsync` (append-only; tranh chấp `uq_decision_idempotency_key` trả bản đã thắng; lỗi tạm thời → `PersistenceUnavailableException` → 503). *Đã hiện thực (5.2c)* bằng `EfDecisionAuditStore` (EF Core, scoped; có `GetDecisionDetailAsync` cho `DecisionQueryService`); pending/override/outcome thêm ở 5.3 |
 | `DecisionResponseComposer` | Ghép `DecisionResultDto` và `DecisionExecutionRecord` từ cùng một nguồn (response ⇔ `response_payload`); áp approval window và quy đổi cọc; `CACHE_HIT` sinh `decisionId`/`created_at` mới |
 | `StrategyRouter` (`Tadss:Routing`) | Chọn strategy theo từng request dựa trên quy tắc cấu hình (ví dụ giờ cao điểm → `MockAlternativeDecisionStrategy`; mặc định → `DefaultDecisionStrategy`); reload cấu hình không cần restart |
 | `ShadowExecutor` (`Tadss:Shadow`) | Chạy strategy ứng viên song song sau khi có kết quả chính; lưu bản ghi `SHADOW`; không ảnh hưởng response và độ trễ trả về |
@@ -135,12 +122,12 @@ public sealed record StrategyDecision(
 | `ApprovalWindowPolicy` (`Tadss:Approval`) | Tính `approvalExpiresAt`; đổi `NEED_APPROVAL` → `APPROVED` 100% khi không còn cửa sổ duyệt (`reasonCode` = `APPROVAL_WINDOW_UNAVAILABLE`, `reasons` là một câu giải thích, kết quả gốc của strategy giữ ở `strategy_status`). *Đã hiện thực (5.2b)* |
 | `DepositCalculator` | `amount = round(totalPrice × rate)` theo đơn vị tiền tệ. *Đã hiện thực (5.2b)*; quy đổi `amount → rate` cho override thêm ở 5.3 |
 | `DecisionCacheService` | Chỉ cache khi strategy khai báo `Enabled`; key gồm hash request + tên/phiên bản strategy; circuit breaker cho Redis. *Đã hiện thực (5.2b) là `IStrategyDecisionCache`*: chỉ lưu `StrategyDecision` (không lưu response — mỗi lần cache hit nhận `decisionId` mới), chỉ ghi kết quả `AUTOMATED` (không ghi fallback), key `tadss:v2:{tên}:{phiên bản}:{optionsFingerprint}:{request_hash}` (fingerprint của mọi strategy gồm cả lịch cao điểm `Tadss:Calendar`), hai tầng Redis/memory, lỗi cache chỉ là miss. Circuit breaker Redis và metric `bypass` thuộc 5.4 |
-| `ExceptionClassifier` | Bảng map exception → HTTP/`code` v2 (INTEGRATION_SPEC §3.8; lỗi PostgreSQL tạm thời `40001`/`40P01`/transient → 503 kèm `Retry-After`). *Đã hiện thực thành hàm thuần (5.2b)* nhưng chỉ kích hoạt trong `GlobalExceptionHandler` ở 5.2c khi gỡ v1; phần phát hiện lỗi persistence có thể thử lại (`PersistenceFailureDetector`) đã dùng chung cho v1 |
+| `ExceptionClassifier` | Bảng map exception → HTTP/`code` v2 (INTEGRATION_SPEC §3.8; lỗi PostgreSQL tạm thời `40001`/`40P01`/transient → 503 kèm `Retry-After`). *Đã hiện thực thành hàm thuần (5.2b) và là nguồn duy nhất của `GlobalExceptionHandler` (5.2c)*; gồm `MISSING_HEADER` (header thiếu), `DECISION_NOT_FOUND` (404) và `PersistenceFailureDetector` (duyệt cả `AggregateException`). 415 do MVC trả mặc định, không đi qua bảng này |
 | `OverrideService`, `OutcomeService` | Ghi `decision_overrides`, `decision_outcomes`; xử lý idempotency và xung đột |
 | `PendingApprovalQuery` | Truy vấn hàng chờ theo Mục B.5 của DECISION_PERSISTENCE_INVARIANTS |
 | OpenTelemetry | Trace (ASP.NET Core, HttpClient, Npgsql, Redis), metric, log (Serilog → OTLP) |
 
-**MediatR bị gỡ ở gói 5.2c** cùng với v1 (D-02): ghi audit v2 là lời gọi đồng bộ qua `IDecisionAuditStore`, không còn handler `*AuditNotificationHandler` (Mục 3). Ở 5.2b `DecisionService` v2 chưa được đăng ký DI (chưa có hiện thực `IDecisionAuditStore`), v1 vẫn chạy nguyên vẹn.
+**MediatR đã gỡ ở gói 5.2c** cùng với v1 (D-02): ghi audit là lời gọi đồng bộ qua `IDecisionAuditStore`, không còn handler `*AuditNotificationHandler`. `created_at` do `DecisionService` gán, không còn interceptor.
 
 ### 4.3. Strategy v2 (tham số mặc định, chỉnh qua cấu hình)
 

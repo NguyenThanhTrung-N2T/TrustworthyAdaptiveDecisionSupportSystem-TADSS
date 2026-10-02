@@ -105,7 +105,8 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 
 ### 3.1. Quy ước chung
 
-- Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/` khi hiện thực T5.1).
+- Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/`: `decision-request`, `decision-result`, `decision-detail`). Tài liệu OpenAPI [`openapi-v2.yaml`](openapi-v2.yaml) được **sinh từ mã** và có test chống lệch (CT-01); khi hai bên khác nhau, JSON schema viết tay là nguồn chuẩn.
+- **Phạm vi đã hiện thực (gói 5.2c):** chỉ `POST /api/v2/decisions` (3.3) và `GET /api/v2/decisions/{decisionId}` (3.4). `pending-approvals`, `override`, `outcome` (3.5–3.7) và xác thực `X-Api-Key` thuộc gói 5.3; các mục đó vẫn là đặc tả, chưa có endpoint.
 - Thời gian dùng ISO 8601 **kèm offset** (`2026-11-20T18:00:00+07:00`). Mọi quy tắc theo khung giờ được tính theo `branchTimeZone` (IANA, ví dụ `Asia/Ho_Chi_Minh`).
 - Tiền là số thập phân, đơn vị theo `currency` (SmashCourt: `VND`).
 - Thời gian thiếu offset (ví dụ `2026-11-20T18:00:00`) bị từ chối với 400 `VALIDATION_ERROR` — không suy múi giờ từ máy chủ.
@@ -115,10 +116,10 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 
 | Header | Bắt buộc | Mô tả |
 | :--- | :---: | :--- |
-| `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client |
+| `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client. **Chưa kiểm tra ở 5.2c** (gói 5.3) — chưa expose ra mạng ngoài trước khi có xác thực |
 | `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá) hoặc `{decisionId}:{action}` (override) |
 | `X-Actor-Id` | `POST /override` | Định danh Manager do SmashCourt lấy từ JWT đã xác thực |
-| `X-Correlation-ID` | Tùy chọn | Được echo lại trong response và gắn vào log, trace, audit |
+| `X-Correlation-ID` | Tùy chọn | Được echo lại trong response và gắn vào log, trace, audit. Giá trị rỗng/khoảng trắng hoặc dài hơn 128 ký tự bị bỏ qua: server cấp một GUID mới (không từ chối request) |
 
 ### 3.3. `POST /api/v2/decisions`
 
@@ -255,11 +256,12 @@ Mỗi quyết định có tối đa một outcome. Gửi trùng với cùng payl
 
 | HTTP | `code` | Khi nào |
 | :---: | :--- | :--- |
-| 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header sai |
-| 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key` |
-| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` |
+| 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header sai (kể cả body không giải mã được; `X-Idempotency-Key` dài hơn 128 ký tự → `VALIDATION_ERROR`) |
+| 415 | *(không có `code`)* | `Content-Type` không phải JSON. Do MVC trả mặc định, ngoài bộ mã của contract: body `application/problem+json` chuẩn không có trường `code`; `traceId` vẫn là correlation id |
+| 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key` (chưa hiện thực — gói 5.3) |
+| 404 | `DECISION_NOT_FOUND` | Không có `decisionId`. `decisionId` không phải GUID thì route không khớp → 404 mặc định của framework (không có `code`) |
 | 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác |
-| 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái |
+| 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái (chưa hiện thực — gói 5.3, cùng override/outcome) |
 | 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
 | 504 | `GATEWAY_TIMEOUT` | Vượt deadline toàn cục |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |

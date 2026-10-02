@@ -6,9 +6,11 @@
 
 ---
 
-## A. HIỆN TRẠNG v1 (Phase 1–4, đang chạy)
+## A. v1 (Phase 1–4) — ĐÃ GỠ Ở GÓI 5.2c
 
-Một bảng `tadss.decision_executions` (20 cột) gồm hai phần:
+> Mục này chỉ là hồ sơ lịch sử. Bảng v1 và mọi mã dùng nó đã bị gỡ: migration `20261002101457_DecisionPersistenceV2` **xóa** bảng `tadss.decision_executions` v1 (kể cả dữ liệu) rồi tạo ba bảng v2 ở Mục B; `Down` dựng lại bảng v1 rỗng. Migration chưa được áp lên Neon (việc người dùng quyết định riêng).
+
+Bảng v1 là một bảng `tadss.decision_executions` (20 cột) gồm hai phần:
 
 - **Snapshot máy:** `decision_id`, `reservation_id`, `strategy_name`, `strategy_version`, `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `need_approval`, `request_hash`, `response_payload` (jsonb), `created_at`.
 - **Metadata quản trị (được UPDATE khi override):** `is_overridden`, `overridden_by`, `override_reason`, `version` (concurrency token), `updated_at`.
@@ -22,11 +24,20 @@ Ràng buộc: `UNIQUE(decision_id)`; unique partial index `uq_decision_idempoten
 3. Không lưu input của quyết định (chỉ lưu hash), nên không replay được và không dùng làm dữ liệu cho Khóa luận.
 4. Không có `branch_id` để lọc hàng chờ; mỗi lần đánh giá lại cùng reservation sinh thêm một mục chờ.
 
-Thiết kế v2 dưới đây khắc phục các hạn chế trên (hiện thực ở task T5.3 — Phase 5). Dữ liệu v1 trong schema `tadss` chỉ là dữ liệu kiểm thử nên migration v2 được phép tạo lại bảng; việc tạo/áp dụng migration chỉ thực hiện khi nhóm xác nhận.
+Thiết kế v2 ở Mục B khắc phục các hạn chế trên. Dữ liệu v1 trong schema `tadss` chỉ là dữ liệu kiểm thử nên migration v2 tạo lại bảng thay vì chuyển đổi.
 
 ---
 
 ## B. THIẾT KẾ v2
+
+> **Trạng thái (gói 5.2c):** B.1–B.4 **đã hiện thực** bằng migration `20261002101457_DecisionPersistenceV2` (EF entity/configuration trong `Infrastructure/Data/`, trigger và hàm viết bằng SQL trong migration) và có test trên PostgreSQL thật (IT-05, IT-15). Hiện chỉ `decision_executions` được ghi bởi mã (`EfDecisionAuditStore`: tìm theo idempotency key, chèn, đọc chi tiết); `decision_overrides`, `decision_outcomes` và truy vấn hàng chờ B.5 chưa có mã ghi/đọc ở runtime — thuộc gói 5.3.
+>
+> **Ghi chú hiện thực:**
+> - Tên ràng buộc do migration đặt (DDL dưới đây khai báo CHECK không tên): `ck_de_{role,status,deposit_rate,deposit_amount,execution_type,execution_time_ms,deposit,approval}`, `ck_do_{action,deposit_rate,deposit_amount,reason_length,deposit}`, `ck_dout_outcome`; unique `uq_decision_executions_decision_id`, `uq_decision_overrides_decision_id`, `uq_decision_outcomes_decision_id`; FK `fk_decision_overrides_decision_id`, `fk_decision_outcomes_decision_id` (NO ACTION).
+> - `numeric(5,4)`: mức cọc chỉ được lưu tối đa 4 chữ số thập phân. Thay vì để PostgreSQL làm tròn âm thầm, cấu hình strategy (`Validate()`) từ chối tỷ lệ có hơn 4 chữ số và `DecisionResponseComposer` ném lỗi (không ghi audit) nếu kết quả `APPROVED` có tỷ lệ vượt quá 4 chữ số. `0.50000` vẫn hợp lệ (so theo giá trị).
+> - `timestamptz` có độ phân giải microsecond: `DecisionService` lấy thời điểm từ `TimeProvider` một lần rồi cắt về bội số 10 tick (µs) để giá trị trả về/băm/ghi khớp giá trị đọc lại. Npgsql chỉ nhận `DateTimeOffset` offset 0 cho `timestamptz`; mapper không chuẩn hóa offset nên offset khác 0 là lỗi lập trình.
+> - `jsonb` chuẩn hóa văn bản (khoảng trắng, thứ tự khóa) khi lưu: `request_payload`/`response_payload` đọc lại tương đương về JSON nhưng không bảo đảm giống từng byte với chuỗi đã ghi (số giữ nguyên chữ số thập phân).
+> - `TRUNCATE` thường lên `decision_executions` bị PostgreSQL từ chối ở bước kiểm tra FK (SQLSTATE `0A000`) trước khi trigger chạy; `TRUNCATE ... CASCADE` và `TRUNCATE` lên hai bảng còn lại đi qua trigger `*_no_truncate` (P0001).
 
 ### B.1. Bảng `tadss.decision_executions` — bất biến
 
@@ -151,8 +162,10 @@ LIMIT @pageSize OFFSET @offset;
 | **INV-6** | Mỗi quyết định có tối đa một outcome | `UNIQUE(decision_id)` | IT-10 |
 | **INV-7** | `APPROVED` ⇔ có mức cọc; `NEED_APPROVAL` ⇔ có hạn duyệt | CHECK `ck_de_deposit`, `ck_de_approval` | IT-01, UT-10 |
 | **INV-8** | Bản ghi `SHADOW` không ảnh hưởng response và không vào hàng chờ | Lọc `role = 'PRIMARY'` | IT-12 |
-| **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC | `AuditTimestampInterceptor` | IT-01 |
+| **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC (offset 0, độ phân giải µs) | `DecisionService` gán từ `TimeProvider`; không còn interceptor (đã gỡ ở 5.2c) và không có `DEFAULT now()` ở DB | UT-01 (mapper), IT-01, IT-05 |
 | **INV-10** | Request trả về thành công khi và chỉ khi bản ghi audit đã được lưu (fail-closed) | Ghi đồng bộ trước khi trả response | FI-08, SC3 |
+
+**Trạng thái sau gói 5.2c:** INV-1, INV-2, INV-3, INV-4, INV-7, INV-9, INV-10 có test khóa đang xanh (IT-01…IT-05, UT-06, UT-11, FI-08). INV-5, INV-6: mới có phần DB (`UNIQUE`, CHECK, FK — test IT-05); phần kiểm tra ở ứng dụng và IT-06…IT-10 thuộc gói 5.3. INV-8: ràng buộc DB (`uq_decision_idempotency_key` chỉ áp cho `PRIMARY`, test IT-05) và `Find` lọc `role = 'PRIMARY'` đã có; chưa có đường ghi `SHADOW` và IT-12 thuộc gói 5.4.
 
 ### C.1. Định danh
 

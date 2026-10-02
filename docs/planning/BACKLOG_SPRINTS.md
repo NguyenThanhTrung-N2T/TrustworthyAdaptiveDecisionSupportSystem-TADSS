@@ -44,14 +44,14 @@
 
 | Mã | Task | Tuần | Test case liên quan |
 |:---|:---|:---:|:---|
-| T5.1 | Contract v2: OpenAPI v2, JSON schema v2 (`docs/contracts/schemas/v2/`), DTO v2 trong SDK, public API baseline v2 (theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md)). *Tiến độ: gói 5.2a xong — SDK v2 + strategies v2 song song v1, chưa nối runtime* | W07 | CT-01, CT-02, UT-02 |
-| T5.2 | Domain v2: nhiều sân/booking, khách vãng lai, lịch sử khách, thời gian `DateTimeOffset` + múi giờ chi nhánh. *Tiến độ: gói 5.2a xong — SDK v2 + strategies v2 song song v1, chưa nối runtime (unit test 475 → 695)* | W07–W08 | UT-01, UT-05 |
-| T5.3 | Migration DB v2: `decision_executions` bất biến (trigger), `decision_overrides`, `decision_outcomes`, snapshot request, `branch_id`, `approval_expires_at`, `role` | W07–W08 | IT-05, IT-15 |
-| T5.4 | Strategies v2: `DefaultDecisionStrategy` 2.0.0 (cọc theo hạng), `MockAlternativeDecisionStrategy` 2.0.0 (cọc theo khung giờ), tham số qua options | W08 | UT-03, UT-05 |
-| T5.5 | Override v2 (APPROVE kèm mức cọc / REJECT, `X-Actor-Id`, chống ghi đè đồng thời bằng `UNIQUE(decision_id)`), outcome endpoint | W08 | IT-06, IT-07, IT-08, IT-10 |
+| T5.1 | Contract v2: OpenAPI v2, JSON schema v2 (`docs/contracts/schemas/v2/`), DTO v2 trong SDK, public API baseline v2 (theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md)). *Tiến độ: ✅ gói 5.2a–5.2c — SDK v2 ở namespace gốc (v1 đã gỡ), JSON schema v2 (`decision-request`, `decision-result`, `decision-detail`), `openapi-v2.yaml` sinh từ mã (`2.0.0-draft`, có test chống lệch), baseline public API nháp v2 (44 kiểu); còn chờ người dùng review bản nháp và đóng băng ở M5 (T5.21)* | W07 | CT-01, CT-02, UT-02 |
+| T5.2 | Domain v2: nhiều sân/booking, khách vãng lai, lịch sử khách, thời gian `DateTimeOffset` + múi giờ chi nhánh. *Tiến độ: ✅ gói 5.2a–5.2c — domain v2 là domain duy nhất của SDK và đã nối vào runtime* | W07–W08 | UT-01, UT-05 |
+| T5.3 | Migration DB v2: `decision_executions` bất biến (trigger), `decision_overrides`, `decision_outcomes`, snapshot request, `branch_id`, `approval_expires_at`, `role`. *Tiến độ: ✅ gói 5.2c — migration `20261002101457_DecisionPersistenceV2` (xóa bảng v1, tạo 3 bảng + 6 trigger; `Down` khôi phục v1) kiểm chứng trên PostgreSQL thật; **chưa áp lên Neon** (chờ người dùng)* | W07–W08 | IT-05, IT-15 |
+| T5.4 | Strategies v2: `DefaultDecisionStrategy` 2.0.0 (cọc theo hạng), `MockAlternativeDecisionStrategy` 2.0.0 (cọc theo khung giờ), tham số qua options. *Tiến độ: ✅ gói 5.2a–5.2c — strategies v2 là bản duy nhất, chạy qua `POST /api/v2/decisions`* | W08 | UT-03, UT-05 |
+| T5.5 | Override v2 (APPROVE kèm mức cọc / REJECT, `X-Actor-Id`, chống ghi đè đồng thời bằng `UNIQUE(decision_id)`), outcome endpoint. *Tiến độ: chưa làm (gói 5.3); bảng và ràng buộc DB đã có từ 5.2c* | W08 | IT-06, IT-07, IT-08, IT-10 |
 | T5.6 | Hàng chờ duyệt: chỉ bản mới nhất của mỗi reservation, lọc `branchId`, loại bản hết hạn, partial index | W08 | IT-09 |
-| T5.7 | Xác thực service-to-service bằng `X-Api-Key`; sửa map exception (lỗi server không thành 400). *Tiến độ: `PersistenceFailureDetector` và header `Retry-After` (503, SqlState `40001`/`40P01`) đã chạy thật trong `GlobalExceptionHandler` v1 từ gói 5.2b (kiểm chứng bằng UT-08); chỉ việc kích hoạt `ExceptionClassifier` (bảng map lỗi v2) chờ gói 5.2c; `X-Api-Key` chưa làm* | W08 | IT-11, UT-08 |
-| T5.8 | `RequestHasher` độc lập múi giờ máy chủ; canonical hóa theo contract v2. *Tiến độ: xong `RequestHasher` v2 ở gói 5.2b (canonical theo contract v2, `items` sắp xếp tất định, không phụ thuộc múi giờ máy chủ; UT-06); chưa nối endpoint (5.2c)* | W08 | UT-06 |
+| T5.7 | Xác thực service-to-service bằng `X-Api-Key`; sửa map exception (lỗi server không thành 400). *Tiến độ: phần map lỗi ✅ gói 5.2c — `ExceptionClassifier` là nguồn duy nhất của `GlobalExceptionHandler` (503 + `Retry-After` cho `40001`/`40P01`/lỗi tạm thời, `MISSING_HEADER`, `DECISION_NOT_FOUND`, lỗi server không còn thành 400; UT-08, FI-08); `X-Api-Key` chưa làm (gói 5.3)* | W08 | IT-11, UT-08 |
+| T5.8 | `RequestHasher` độc lập múi giờ máy chủ; canonical hóa theo contract v2. *Tiến độ: ✅ `RequestHasher` v2 ở gói 5.2b (canonical theo contract v2, `items` sắp xếp tất định, không phụ thuộc múi giờ máy chủ; UT-06), đã nối endpoint ở gói 5.2c* | W08 | UT-06 |
 | T5.9 | Định tuyến strategy theo từng request (`Tadss:Routing`) + shadow mode | W09 | UT-04, IT-12, IT-14 |
 | T5.10 | Cách ly timeout cho strategy không hợp tác (không tôn trọng `CancellationToken`) | W09 | FI-05 |
 | T5.11 | Chính sách cache do strategy khai báo (bật/tắt, TTL) + circuit breaker cho Redis | W09 | IT-13, FI-06, FI-07 |
@@ -60,7 +60,7 @@
 
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
-| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration |
+| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration; sau gói 5.2c: 965 unit + 121 integration |
 | T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | ✅ (gói 5.1) `docker compose up -d --build` một lệnh; môi trường E-LOCAL tự chứa |
 | T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) | W09 | Dashboard JSON lưu trong repo |
 | T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) | W09 | Script chạy ma trận FI |
