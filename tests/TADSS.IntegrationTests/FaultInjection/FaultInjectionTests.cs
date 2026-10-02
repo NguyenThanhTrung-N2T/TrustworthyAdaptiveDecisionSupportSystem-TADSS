@@ -498,7 +498,7 @@ public class FaultInjectionTests : IntegrationTestBase
                 services.Configure<ResilienceOptions>(opts =>
                 {
                     opts.InnerTimeoutMs = 2000;
-                    opts.OuterTimeoutMs = 5000;
+                    opts.OuterTimeoutMs = 7000; // Ngân sách 2000 x 3 + 30 x 2 = 6060 ms phải <= Outer (ResilienceOptionsValidator)
                 });
             });
         });

@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.V2.Domain;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Runtime.Api.V2.Infrastructure.Resilience;
 using TADSS.Runtime.Api.V2.Services.Decisions;
 using TADSS.Runtime.Api.V2.Services.Strategies;
 
@@ -51,6 +53,14 @@ public static class RuntimeV2ServiceCollectionExtensions
         services.AddSingleton(sp => StrategyRegistrations.CreateDefault(configuration, sp.GetRequiredService<BranchCalendar>()));
         services.AddSingleton(sp => StrategyRegistrations.CreateMockAlternative(configuration, sp.GetRequiredService<BranchCalendar>()));
         services.AddSingleton<IStrategyRegistry, StrategyRegistry>();
+
+        // Cấu hình chịu lỗi dùng chung section Tadss:Resilience với v1: kiểm tra ngân sách thời gian khi khởi động
+        // (áp dụng cho cả v1). Pipeline v2 là singleton riêng, không chia sẻ circuit breaker với v1.
+        services.AddOptions<ResilienceOptions>()
+            .Bind(configuration.GetSection(ResilienceOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceOptionsValidator>();
+        services.AddSingleton<IStrategyPipeline, StrategyPipeline>();
 
         return services;
     }
