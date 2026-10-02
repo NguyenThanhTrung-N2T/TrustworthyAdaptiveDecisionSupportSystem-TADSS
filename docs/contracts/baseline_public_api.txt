@@ -291,6 +291,32 @@
     JsonSerializerOptions Options { get; }
     Void Apply(JsonSerializerOptions options)
 
+[class] Shared.DecisionContractSDK.V2.Decisions.DecisionContext
+    .ctor(DateTimeOffset evaluatedAtUtc, BranchCalendar calendar)
+    BranchCalendar Calendar { get; }
+    DateTimeOffset EvaluatedAtUtc { get; }
+
+[class] Shared.DecisionContractSDK.V2.Decisions.DecisionRecommendation
+    .ctor(RecommendationType type, String description)
+    String Description { get; }
+    RecommendationType Type { get; }
+
+[class] Shared.DecisionContractSDK.V2.Decisions.StrategyCachePolicy
+    StrategyCachePolicy Disabled { get; }
+    Boolean IsEnabled { get; }
+    Nullable`1 Ttl { get; }
+    StrategyCachePolicy Enabled(TimeSpan ttl)
+
+[class] Shared.DecisionContractSDK.V2.Decisions.StrategyDecision
+    Nullable`1 DepositRate { get; }
+    String ReasonCode { get; }
+    IReadOnlyList`1 Reasons { get; }
+    IReadOnlyList`1 Recommendations { get; }
+    DecisionStatus Status { get; }
+    StrategyDecision Approve(Decimal depositRate, String reasonCode, IReadOnlyList`1 reasons)
+    StrategyDecision Reject(String reasonCode, IReadOnlyList`1 reasons)
+    StrategyDecision RequireApproval(String reasonCode, IReadOnlyList`1 reasons, IReadOnlyList`1 recommendations)
+
 [class] Shared.DecisionContractSDK.V2.Domain.BranchCalendar
     .ctor(IEnumerable`1 peakWindows)
     IReadOnlyList`1 PeakWindows { get; }
@@ -389,3 +415,9 @@
     ALTERNATIVE_SLOT = 1
     ALTERNATIVE_RESOURCE = 2
     PRIORITY_ESCALATION = 3
+
+[interface] Shared.DecisionContractSDK.V2.Interfaces.IReservationDecisionStrategy
+    StrategyCachePolicy CachePolicy { get; }
+    String StrategyName { get; }
+    String StrategyVersion { get; }
+    Task`1 EvaluateAsync(Reservation reservation, DecisionContext context, CancellationToken cancellationToken)

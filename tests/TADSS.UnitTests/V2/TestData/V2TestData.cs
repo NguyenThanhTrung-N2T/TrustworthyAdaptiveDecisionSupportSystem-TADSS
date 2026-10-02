@@ -1,3 +1,4 @@
+using Shared.DecisionContractSDK.V2.Decisions;
 using Shared.DecisionContractSDK.V2.Domain;
 using Shared.DecisionContractSDK.V2.Enums;
 
@@ -22,6 +23,10 @@ internal static class V2TestData
             .Select(day => new PeakWindow(day, new TimeOnly(8, 0), new TimeOnly(21, 0)));
         return new BranchCalendar(weekdays.Concat(weekend));
     }
+
+    /// <summary>Ngữ cảnh đánh giá; mặc định 18/11/2026 02:15:00Z với lịch cao điểm chuẩn.</summary>
+    public static DecisionContext CreateContext(DateTimeOffset? evaluatedAtUtc = null, BranchCalendar? calendar = null) =>
+        new(evaluatedAtUtc ?? new DateTimeOffset(2026, 11, 18, 2, 15, 0, TimeSpan.Zero), calendar ?? StandardCalendar());
 
     public static ReservationItem CreateItem(DateTimeOffset start, double hours = 2, decimal price = 240_000m) =>
         new(Guid.NewGuid(), Guid.NewGuid(), start, start.AddHours(hours), price);
