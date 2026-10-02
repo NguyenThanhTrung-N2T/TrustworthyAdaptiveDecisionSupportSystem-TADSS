@@ -120,20 +120,27 @@ public sealed record StrategyDecision(
 
 ### 4.2. Thành phần runtime v2
 
+> **Tiến độ (gói 5.2b):** lõi xử lý quyết định v2 đã hiện thực và kiểm chứng bằng unit test (UT-04…UT-13), nằm tạm ở `src/TADSS.Runtime.Api/V2/` (namespace `TADSS.Runtime.Api.V2.*`) chạy song song v1; gói 5.2c dời về vị trí chuẩn khi gỡ v1. Chưa đăng ký DI, chưa có endpoint `/api/v2` và chưa có hiện thực lưu trữ (`EfDecisionAuditStore`) — các hàng dưới đây đánh dấu rõ phần đã có. Runtime v2 chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
+
 | Thành phần | Trách nhiệm |
 | :--- | :--- |
 | `ApiKeyAuthenticationHandler` | Xác thực `X-Api-Key`; gắn client id vào log/trace |
-| `DecisionService` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response |
+| `DecisionService` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response. *Đã hiện thực (5.2b)*: một mốc `nowUtc` từ `TimeProvider` cho cả lần đánh giá; lỗi cache chỉ là miss; lỗi ghi audit lan ra (fail-closed, INV-10); chọn strategy tạm bằng `IStrategyRegistry.ResolveActive()` cho tới khi có `StrategyRouter` (5.4) |
+| `IDecisionAuditStore` | Hợp đồng lưu audit `decision_executions` theo use case của `DecisionService`: `FindPrimaryByIdempotencyKeyAsync`, `InsertExecutionAsync` (append-only; tranh chấp `uq_decision_idempotency_key` trả bản đã thắng; lỗi tạm thời → `PersistenceUnavailableException` → 503). Hiện thực EF Core ở 5.2c; `GetDecisionDetailAsync` thêm ở 5.2c, pending/override/outcome ở 5.3 |
+| `DecisionResponseComposer` | Ghép `DecisionResultDto` và `DecisionExecutionRecord` từ cùng một nguồn (response ⇔ `response_payload`); áp approval window và quy đổi cọc; `CACHE_HIT` sinh `decisionId`/`created_at` mới |
 | `StrategyRouter` (`Tadss:Routing`) | Chọn strategy theo từng request dựa trên quy tắc cấu hình (ví dụ giờ cao điểm → `MockAlternativeDecisionStrategy`; mặc định → `DefaultDecisionStrategy`); reload cấu hình không cần restart |
 | `ShadowExecutor` (`Tadss:Shadow`) | Chạy strategy ứng viên song song sau khi có kết quả chính; lưu bản ghi `SHADOW`; không ảnh hưởng response và độ trễ trả về |
 | `IsolatedStrategyInvoker` | Thực thi strategy sao cho timeout cắt được cả strategy không hợp tác |
-| `DecisionResiliencePipeline` | Giữ nguyên cấu hình Polly v8 |
-| `ApprovalWindowPolicy` (`Tadss:Approval`) | Tính `approvalExpiresAt`; đổi `NEED_APPROVAL` → `APPROVED` 100% khi không còn cửa sổ duyệt |
-| `DepositCalculator` | `amount = round(totalPrice × rate)` theo đơn vị tiền tệ |
-| `DecisionCacheService` | Chỉ cache khi strategy khai báo `Enabled`; key gồm hash request + tên/phiên bản strategy; circuit breaker cho Redis |
+| `DecisionResiliencePipeline` | Giữ nguyên cấu hình Polly v8. *Đã hiện thực (5.2b) là `IStrategyPipeline`/`StrategyPipeline` cho strategy v2* (cùng `ResilienceOptions`; `ResilienceOptionsValidator` kiểm tra ngân sách `OuterTimeoutMs` ≥ tổng thời gian tối đa của inner timeout + retry và chặn khởi động nếu sai); pipeline theo strategy và `IsolatedStrategyInvoker` thuộc 5.4 |
+| `ApprovalWindowPolicy` (`Tadss:Approval`) | Tính `approvalExpiresAt`; đổi `NEED_APPROVAL` → `APPROVED` 100% khi không còn cửa sổ duyệt (`reasonCode` = `APPROVAL_WINDOW_UNAVAILABLE`, `reasons` là một câu giải thích, kết quả gốc của strategy giữ ở `strategy_status`). *Đã hiện thực (5.2b)* |
+| `DepositCalculator` | `amount = round(totalPrice × rate)` theo đơn vị tiền tệ. *Đã hiện thực (5.2b)*; quy đổi `amount → rate` cho override thêm ở 5.3 |
+| `DecisionCacheService` | Chỉ cache khi strategy khai báo `Enabled`; key gồm hash request + tên/phiên bản strategy; circuit breaker cho Redis. *Đã hiện thực (5.2b) là `IStrategyDecisionCache`*: chỉ lưu `StrategyDecision` (không lưu response — mỗi lần cache hit nhận `decisionId` mới), chỉ ghi kết quả `AUTOMATED` (không ghi fallback), key `tadss:v2:{tên}:{phiên bản}:{optionsFingerprint}:{request_hash}` (fingerprint của mọi strategy gồm cả lịch cao điểm `Tadss:Calendar`), hai tầng Redis/memory, lỗi cache chỉ là miss. Circuit breaker Redis và metric `bypass` thuộc 5.4 |
+| `ExceptionClassifier` | Bảng map exception → HTTP/`code` v2 (INTEGRATION_SPEC §3.8; lỗi PostgreSQL tạm thời `40001`/`40P01`/transient → 503 kèm `Retry-After`). *Đã hiện thực thành hàm thuần (5.2b)* nhưng chỉ kích hoạt trong `GlobalExceptionHandler` ở 5.2c khi gỡ v1; phần phát hiện lỗi persistence có thể thử lại (`PersistenceFailureDetector`) đã dùng chung cho v1 |
 | `OverrideService`, `OutcomeService` | Ghi `decision_overrides`, `decision_outcomes`; xử lý idempotency và xung đột |
 | `PendingApprovalQuery` | Truy vấn hàng chờ theo Mục B.5 của DECISION_PERSISTENCE_INVARIANTS |
 | OpenTelemetry | Trace (ASP.NET Core, HttpClient, Npgsql, Redis), metric, log (Serilog → OTLP) |
+
+**MediatR bị gỡ ở gói 5.2c** cùng với v1 (D-02): ghi audit v2 là lời gọi đồng bộ qua `IDecisionAuditStore`, không còn handler `*AuditNotificationHandler` (Mục 3). Ở 5.2b `DecisionService` v2 chưa được đăng ký DI (chưa có hiện thực `IDecisionAuditStore`), v1 vẫn chạy nguyên vẹn.
 
 ### 4.3. Strategy v2 (tham số mặc định, chỉnh qua cấu hình)
 
@@ -160,7 +167,7 @@ Giờ cao điểm (theo giờ chi nhánh, `Tadss:Calendar:PeakWindows`): thứ H
 
 **Định tuyến mặc định** (`Tadss:Routing`): request có giờ cao điểm → `MockAlternativeDecisionStrategy`; còn lại → `DefaultDecisionStrategy`. Shadow mode tắt mặc định.
 
-**`FallbackDecisionStrategy`**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`).
+**`FallbackDecisionStrategy`**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Ở runtime v2 (`FallbackDecisionPolicy`, 5.2b), khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`. Kết quả fallback không được ghi cache.
 
 ### 4.4. Luồng xử lý `POST /api/v2/decisions`
 

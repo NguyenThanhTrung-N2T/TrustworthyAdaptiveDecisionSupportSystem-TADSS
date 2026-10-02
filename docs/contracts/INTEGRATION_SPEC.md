@@ -172,6 +172,8 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 | `channel` | `ONLINE` \| `WALK_IN` (đặt tại quầy) — trùng tên với `BookingSource` của SmashCourt-BE |
 | `metadata` | Tùy chọn; object chuỗi → chuỗi, không ảnh hưởng quyết định và không đưa vào `request_hash` |
 
+**Hai tầng lỗi request.** Vi phạm ràng buộc **hình thức** diễn đạt được bằng JSON schema request (thiếu trường, sai kiểu/định dạng, trường lạ, giá trị ngoài miền, số phần tử `items`, mã múi giờ, mã tiền tệ…) → 400 `VALIDATION_ERROR`. Chỉ quy tắc **ngoài schema** (`endTime > startTime`, thời lượng item theo `Tadss:Validation`) → 400 `DOMAIN_INVARIANT_VIOLATION`. Cùng một vi phạm hình thức không bao giờ trả hai mã khác nhau.
+
 **Response 200**
 
 ```json
@@ -209,7 +211,9 @@ Trả chi tiết của một quyết định:
   "decisionId": "...", "reservationId": "...",
   "request": { "...": "request v2 đã chuẩn hóa (cùng hình dạng Mục 3.3)" },
   "result": { "status": "APPROVED", "strategyStatus": "NEED_APPROVAL", "deposit": { "rate": 1, "amount": 228000, "currency": "VND" },
-              "reasonCode": "APPROVAL_WINDOW_UNAVAILABLE", "reasons": [], "recommendations": [], "approvalExpiresAt": null },
+              "reasonCode": "APPROVAL_WINDOW_UNAVAILABLE",
+              "reasons": ["Không còn đủ thời gian để Manager duyệt trước giờ bắt đầu, nên đơn được duyệt tự động với mức cọc 100%."],
+              "recommendations": [], "approvalExpiresAt": null },
   "execution": { "strategyName": "...", "strategyVersion": "2.0.0", "executionType": "AUTOMATED", "executionTimeMs": 3,
                  "fallbackUsed": false, "failureReason": null, "cacheHit": false },
   "override": null,
@@ -256,7 +260,7 @@ Mỗi quyết định có tối đa một outcome. Gửi trùng với cùng payl
 | 404 | `DECISION_NOT_FOUND` | Không có `decisionId` |
 | 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác |
 | 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái |
-| 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed) |
+| 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
 | 504 | `GATEWAY_TIMEOUT` | Vượt deadline toàn cục |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |
 

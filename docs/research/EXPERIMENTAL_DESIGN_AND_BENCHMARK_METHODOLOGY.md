@@ -79,6 +79,9 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | UT-08 | Map exception → HTTP/`code` | Lỗi server không thành 4xx | P5 |
 | UT-09 | Kiểm thử kiến trúc: dependency purity, public API baseline v2 | Đạt | P2, P5 |
 | UT-10 | Quy tắc approval window | Đổi `NEED_APPROVAL` → `APPROVED` 100% đúng điều kiện | P5 |
+| UT-11 | Điều phối `DecisionService` bằng test double (thứ tự idempotency → cache → pipeline → approval window → audit; fail-closed; lỗi cache chỉ là miss) | Đúng thứ tự gọi; lỗi ghi audit lan ra và không có response; idempotency trả lại bản cũ hoặc 409; không gọi strategy khi request sai | P5 |
+| UT-12 | `DepositCalculator` (làm tròn theo tiền tệ, biên 0 và 1) | `amount = round(totalPrice × rate)` đúng đơn vị nhỏ nhất của từng tiền tệ, gồm biên rate 0 và 1 | P5 |
+| UT-13 | Cache v2: key (tên, phiên bản strategy, `optionsFingerprint`, `request_hash`), chính sách theo strategy, chỉ lưu `StrategyDecision`, lỗi cache bị cô lập (breaker Redis bằng test double thuộc gói 5.4) | Key đổi khi đổi tham số strategy hoặc lịch cao điểm; lỗi/payload hỏng chỉ là miss; `request_hash` và fingerprint tất định (INV-3) | P5 |
 
 ### 4.2. IT — Integration test trên hạ tầng thật (TADSS, E-TC)
 

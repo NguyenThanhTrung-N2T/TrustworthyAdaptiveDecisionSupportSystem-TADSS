@@ -50,8 +50,8 @@
 | T5.4 | Strategies v2: `DefaultDecisionStrategy` 2.0.0 (cọc theo hạng), `MockAlternativeDecisionStrategy` 2.0.0 (cọc theo khung giờ), tham số qua options | W08 | UT-03, UT-05 |
 | T5.5 | Override v2 (APPROVE kèm mức cọc / REJECT, `X-Actor-Id`, chống ghi đè đồng thời bằng `UNIQUE(decision_id)`), outcome endpoint | W08 | IT-06, IT-07, IT-08, IT-10 |
 | T5.6 | Hàng chờ duyệt: chỉ bản mới nhất của mỗi reservation, lọc `branchId`, loại bản hết hạn, partial index | W08 | IT-09 |
-| T5.7 | Xác thực service-to-service bằng `X-Api-Key`; sửa map exception (lỗi server không thành 400) | W08 | IT-11, UT-08 |
-| T5.8 | `RequestHasher` độc lập múi giờ máy chủ; canonical hóa theo contract v2 | W08 | UT-06 |
+| T5.7 | Xác thực service-to-service bằng `X-Api-Key`; sửa map exception (lỗi server không thành 400). *Tiến độ: phần map exception đã có `ExceptionClassifier` + `PersistenceFailureDetector` (503 kèm `Retry-After`, SqlState `40001`/`40P01`) kiểm chứng bằng UT-08 từ gói 5.2b, kích hoạt trong `GlobalExceptionHandler` ở 5.2c; `X-Api-Key` chưa làm* | W08 | IT-11, UT-08 |
+| T5.8 | `RequestHasher` độc lập múi giờ máy chủ; canonical hóa theo contract v2. *Tiến độ: xong `RequestHasher` v2 ở gói 5.2b (canonical theo contract v2, `items` sắp xếp tất định, không phụ thuộc múi giờ máy chủ; UT-06); chưa nối endpoint (5.2c)* | W08 | UT-06 |
 | T5.9 | Định tuyến strategy theo từng request (`Tadss:Routing`) + shadow mode | W09 | UT-04, IT-12, IT-14 |
 | T5.10 | Cách ly timeout cho strategy không hợp tác (không tôn trọng `CancellationToken`) | W09 | FI-05 |
 | T5.11 | Chính sách cache do strategy khai báo (bật/tắt, TTL) + circuit breaker cho Redis | W09 | IT-13, FI-06, FI-07 |
