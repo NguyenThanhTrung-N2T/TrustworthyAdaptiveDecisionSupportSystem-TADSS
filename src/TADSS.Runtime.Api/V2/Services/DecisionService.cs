@@ -20,7 +20,7 @@ namespace TADSS.Runtime.Api.V2.Services;
 /// → kiểm tra thời lượng item (P-01) → chọn strategy → cache → pipeline → ghi cache (chỉ <c>AUTOMATED</c>) → approval
 /// window và cọc → ghi audit đồng bộ (fail-closed, INV-10) → response.
 /// <para>
-/// Một mốc <c>nowUtc</c> duy nhất lấy từ <see cref="TimeProvider"/> cho cả lần đánh giá (B-03). Lỗi trước bước ghi audit
+/// Một mốc <c>nowUtc</c> duy nhất lấy từ <see cref="TimeProvider"/>, cắt phần dưới micro giây, cho cả lần đánh giá (B-03, C-08). Lỗi trước bước ghi audit
 /// (validation, P-01, xung đột idempotency) không ghi audit và không chạy strategy. Lỗi cache được cô lập tại đây
 /// (coi như miss / bỏ qua ghi) nên không bao giờ biến một quyết định thành công thành thất bại; chỉ hủy của chính
 /// caller được lan ra. Không đăng ký DI ở gói 5.2b (B-02); gói 5.2c đăng ký cùng <c>EfDecisionAuditStore</c>.
@@ -101,7 +101,7 @@ public sealed class DecisionService : IDecisionService
 
         _itemDurationPolicy.EnsureWithinLimits(reservation);
 
-        var nowUtc = _timeProvider.GetUtcNow().ToUniversalTime();
+        var nowUtc = TruncateToMicroseconds(_timeProvider.GetUtcNow());
         var registered = _strategyRegistry.ResolveActive();
         var strategy = registered.Strategy;
         var context = new DecisionContext(nowUtc, _calendar);
@@ -171,6 +171,16 @@ public sealed class DecisionService : IDecisionService
 
         LogDecision(composed.Record, outcome, strategy, idempotencyKey, correlationId);
         return composed.Response;
+    }
+
+    /// <summary>
+    /// Cắt phần dưới micro giây (bội số 10 tick) để mốc <c>nowUtc</c> khớp độ chính xác của cột <c>timestamptz</c>
+    /// và response replay/audit trùng từng tick với response gốc (B-03, C-08).
+    /// </summary>
+    private static DateTimeOffset TruncateToMicroseconds(DateTimeOffset value)
+    {
+        var ticks = value.UtcTicks;
+        return new DateTimeOffset(ticks - (ticks % TimeSpan.TicksPerMicrosecond), TimeSpan.Zero);
     }
 
     private static void EnsureValidIdempotencyKey(string idempotencyKey)

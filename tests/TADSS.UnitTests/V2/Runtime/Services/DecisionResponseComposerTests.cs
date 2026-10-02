@@ -188,6 +188,44 @@ public class DecisionResponseComposerTests
     }
 
     [Fact]
+    [Trait("CatalogId", "UT-10")]
+    public void Compose_ApprovedWithRateScaleOverFour_Throws()
+    {
+        var composition = CreateComposition(Scenario.ApprovedAutomated) with
+        {
+            Outcome = new StrategyExecutionOutcome(
+                StrategyDecision.Approve(0.12345m, ReasonCodes.PeakHourDeposit, ["Tỷ lệ có quá nhiều chữ số thập phân."]),
+                ExecutionType.AUTOMATED, false, null, 12)
+        };
+
+        var act = () => CreateComposer().Compose(composition);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*4 chữ số thập phân*");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-10")]
+    [InlineData("0.1234")]
+    [InlineData("0.5000")]
+    [InlineData("0.50000")]
+    [InlineData("1")]
+    public void Compose_ApprovedWithRateUpToFourDecimals_Succeeds_Theory(string rateText)
+    {
+        var rate = decimal.Parse(rateText, System.Globalization.CultureInfo.InvariantCulture);
+        var composition = CreateComposition(Scenario.ApprovedAutomated) with
+        {
+            Outcome = new StrategyExecutionOutcome(
+                StrategyDecision.Approve(rate, ReasonCodes.PeakHourDeposit, ["Tỷ lệ hợp lệ."]),
+                ExecutionType.AUTOMATED, false, null, 12)
+        };
+
+        var composed = CreateComposer().Compose(composition);
+
+        composed.Response.Status.Should().Be(DecisionStatus.APPROVED);
+        V2Samples.Required(composed.Response.Deposit).Rate.Should().Be(rate);
+    }
+
+    [Fact]
     [Trait("CatalogId", "UT-11")]
     public void Compose_Timestamps_UseNowUtc()
     {

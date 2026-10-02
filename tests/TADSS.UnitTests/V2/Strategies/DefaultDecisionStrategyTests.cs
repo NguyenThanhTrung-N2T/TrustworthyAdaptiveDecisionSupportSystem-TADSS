@@ -121,6 +121,45 @@ public class DefaultDecisionStrategyTests
     }
 
     [Theory]
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("StandardDepositRate")]
+    [InlineData("SilverDepositRate")]
+    [InlineData("GoldDepositRate")]
+    [InlineData("PremiumDepositRate")]
+    public void Validate_DepositRateWithMoreThanFourDecimals_Fails_Theory(string fieldName)
+    {
+        var options = CreateWithRate(fieldName, 0.33333m);
+
+        var act = options.Validate;
+
+        act.Should().Throw<ArgumentException>().WithMessage($"*{fieldName}*");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("StandardDepositRate")]
+    [InlineData("SilverDepositRate")]
+    [InlineData("GoldDepositRate")]
+    [InlineData("PremiumDepositRate")]
+    public void Validate_DepositRateWithFourDecimals_Passes_Theory(string fieldName)
+    {
+        var options = CreateWithRate(fieldName, 0.3333m);
+
+        var act = options.Validate;
+
+        act.Should().NotThrow();
+    }
+
+    private static DefaultStrategyOptions CreateWithRate(string fieldName, decimal rate) => fieldName switch
+    {
+        "StandardDepositRate" => new DefaultStrategyOptions { StandardDepositRate = rate },
+        "SilverDepositRate" => new DefaultStrategyOptions { SilverDepositRate = rate },
+        "GoldDepositRate" => new DefaultStrategyOptions { GoldDepositRate = rate },
+        "PremiumDepositRate" => new DefaultStrategyOptions { PremiumDepositRate = rate },
+        _ => throw new ArgumentOutOfRangeException(nameof(fieldName), fieldName, null)
+    };
+
+    [Theory]
     [Trait("CatalogId", "UT-03")]
     [InlineData("rate-above-one")]
     [InlineData("negative-threshold")]

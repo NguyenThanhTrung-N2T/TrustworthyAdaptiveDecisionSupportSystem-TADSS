@@ -54,4 +54,39 @@ public class PersistenceFailureDetectorTests
         PersistenceFailureDetector.IsRetryable(new InvalidOperationException("x", new ArgumentException("y")))
             .Should().BeFalse();
     }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void IsRetryable_AggregateWithTransientNpgsql_ReturnsTrue()
+    {
+        var transient = new NpgsqlException("connect", new SocketException((int)SocketError.ConnectionRefused));
+        var aggregate = new AggregateException(
+            new InvalidOperationException("nhánh đầu"),
+            new DbUpdateException("nhánh hai", transient));
+
+        PersistenceFailureDetector.IsRetryable(aggregate).Should().BeTrue();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void IsRetryable_AggregateWithUniqueViolation_ReturnsFalse()
+    {
+        var aggregate = new AggregateException(
+            new InvalidOperationException("nhánh đầu"),
+            new DbUpdateException("nhánh hai", new PostgresException("pg", "ERROR", "ERROR", "23505")));
+
+        PersistenceFailureDetector.IsRetryable(aggregate).Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void IsRetryable_AggregateNestedInsideWrapper_ReturnsTrue()
+    {
+        var aggregate = new AggregateException(
+            new InvalidOperationException("nhánh đầu"),
+            new PersistenceUnavailableException("mất kết nối", new TimeoutException()));
+        var wrapper = new InvalidOperationException("bọc ngoài", aggregate);
+
+        PersistenceFailureDetector.IsRetryable(wrapper).Should().BeTrue();
+    }
 }

@@ -67,24 +67,70 @@ public static class RuntimeV2ServiceCollectionExtensions
         services.AddSingleton<IStrategyPipeline, StrategyPipeline>();
 
         // Cache StrategyDecision (không cache response) dùng chung section Tadss:Cache với v1; tự đủ phụ thuộc nên
-        // đăng ký IMemoryCache/options ở đây (đăng ký lại cùng loại với v1 là vô hại). Multiplexer Redis do v1 đăng ký
-        // (AbortOnConnectFail = false) và chỉ được resolve khi Provider = Redis; không có thì cache chỉ dùng memory.
+        // đăng ký IMemoryCache/options ở đây (đăng ký lại cùng loại với v1 là vô hại). Multiplexer Redis cũng đăng ký tại đây
+        // (TryAdd: đăng ký có sẵn thắng) để cache v2 không phụ thuộc DI của v1; nó chỉ được tạo khi Provider = Redis được resolve.
         services.AddMemoryCache();
         services.AddOptions<TadssCacheOptions>().Bind(configuration.GetSection(TadssCacheOptions.SectionName));
+        services.TryAddSingleton<IConnectionMultiplexer>(sp =>
+            CreateRedisMultiplexer(sp.GetRequiredService<IOptions<TadssCacheOptions>>().Value));
         services.AddSingleton<IStrategyDecisionCache>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<TadssCacheOptions>>();
+            var logger = sp.GetRequiredService<ILogger<StrategyDecisionCache>>();
             var useRedis = string.Equals(options.Value.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
             return new StrategyDecisionCache(
                 sp.GetRequiredService<IMemoryCache>(),
                 options,
-                sp.GetRequiredService<ILogger<StrategyDecisionCache>>(),
-                useRedis ? sp.GetService<IConnectionMultiplexer>() : null);
+                logger,
+                useRedis ? ResolveRedisOrWarn(sp, logger) : null);
         });
 
         // Bộ ghép response + bản ghi audit. IDecisionAuditStore chưa đăng ký ở 5.2b (B-09): EfDecisionAuditStore thuộc 5.2c
         services.AddSingleton<DecisionResponseComposer>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Tạo multiplexer Redis theo cùng quy tắc của cache v1: parse chuỗi kết nối, <c>AbortOnConnectFail = false</c> (host
+    /// không với tới thì multiplexer vẫn dựng được ở trạng thái ngắt kết nối), timeout thao tác theo <c>RedisTimeoutMs</c>,
+    /// timeout kết nối tối thiểu 3000 ms trừ khi host còn là placeholder của template cấu hình.
+    /// </summary>
+    private static IConnectionMultiplexer CreateRedisMultiplexer(TadssCacheOptions cacheOptions)
+    {
+        var redisConfig = ConfigurationOptions.Parse(cacheOptions.RedisConnectionString);
+        redisConfig.AbortOnConnectFail = false;
+        var isPlaceholderHost = cacheOptions.RedisConnectionString.Contains("your-redis-host", StringComparison.OrdinalIgnoreCase);
+        redisConfig.ConnectTimeout = isPlaceholderHost
+            ? cacheOptions.RedisTimeoutMs
+            : Math.Max(cacheOptions.RedisTimeoutMs, 3000);
+        redisConfig.SyncTimeout = cacheOptions.RedisTimeoutMs;
+        redisConfig.AsyncTimeout = cacheOptions.RedisTimeoutMs;
+        return ConnectionMultiplexer.Connect(redisConfig);
+    }
+
+    /// <summary>
+    /// Lấy multiplexer khi <c>Provider = Redis</c>; không lấy được thì ghi một Warning rồi để cache chỉ dùng memory (không ném).
+    /// Không ghi message của exception vì chuỗi kết nối có thể chứa mật khẩu.
+    /// </summary>
+    private static IConnectionMultiplexer? ResolveRedisOrWarn(IServiceProvider services, ILogger<StrategyDecisionCache> logger)
+    {
+        try
+        {
+            var multiplexer = services.GetService<IConnectionMultiplexer>();
+            if (multiplexer is null)
+            {
+                logger.LogWarning("Provider = Redis nhưng không có IConnectionMultiplexer; cache quyết định v2 chỉ dùng memory.");
+            }
+
+            return multiplexer;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                "Provider = Redis nhưng không tạo được kết nối Redis ({ExceptionType}); cache quyết định v2 chỉ dùng memory.",
+                ex.GetType().Name);
+            return null;
+        }
     }
 }

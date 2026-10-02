@@ -9,6 +9,7 @@ namespace TADSS.Runtime.Api.V2.Middlewares;
 /// <summary>
 /// Phân loại exception thành phản hồi lỗi v2 theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.
 /// Lỗi persistence được kiểm tra trước mọi nhánh khác để lỗi hạ tầng bị bọc trong exception khác vẫn thành 503.
+/// <see cref="ContractValidationException"/> chỉ được mang mã <c>VALIDATION_ERROR</c> hoặc <c>MISSING_HEADER</c> ra wire (tập đóng).
 /// Việc gắn vào <c>GlobalExceptionHandler</c> thuộc gói 5.2c (B-10).
 /// </summary>
 public static class ExceptionClassifier
@@ -40,6 +41,9 @@ public static class ExceptionClassifier
 
         return exception switch
         {
+            ContractValidationException { ErrorCode: ErrorCodes.MissingHeader } => new ErrorClassification(
+                StatusCodes.Status400BadRequest, ErrorCodes.MissingHeader, "Missing Header", ExposeMessage: true, null),
+            // Tập mã đóng: ErrorCode lạ của ContractValidationException (kể cả INTERNAL_ERROR) luôn là VALIDATION_ERROR
             ContractValidationException => new ErrorClassification(
                 StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "Validation Error", ExposeMessage: true, null),
             DomainInvariantException => new ErrorClassification(

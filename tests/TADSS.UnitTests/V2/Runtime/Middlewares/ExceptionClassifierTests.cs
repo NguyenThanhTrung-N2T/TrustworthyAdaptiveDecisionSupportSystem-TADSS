@@ -66,6 +66,39 @@ public class ExceptionClassifierTests
 
     [Fact]
     [Trait("CatalogId", "UT-08")]
+    public void Classify_ContractValidationWithMissingHeaderCode_Is400MissingHeader()
+    {
+        var result = ExceptionClassifier.Classify(
+            new ContractValidationException(V2ErrorCodes.MissingHeader, "thiếu header Idempotency-Key", "Idempotency-Key"),
+            requestAborted: false);
+
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(400);
+        classification.Code.Should().Be(V2ErrorCodes.MissingHeader);
+        classification.ExposeMessage.Should().BeTrue();
+        classification.RetryAfterSeconds.Should().BeNull();
+        classification.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [InlineData(V2ErrorCodes.InternalError)]
+    [InlineData("INVALID_BOOKING_PRIORITY")]
+    [InlineData("")]
+    [InlineData("missing_header")]
+    public void Classify_ContractValidationWithUnknownCode_FallsBackToValidationError(string errorCode)
+    {
+        var result = ExceptionClassifier.Classify(
+            new ContractValidationException(errorCode, "sai hợp đồng", "field"), requestAborted: false);
+
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(400);
+        classification.Code.Should().Be(V2ErrorCodes.ValidationError);
+        classification.ExposeMessage.Should().BeTrue();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
     public void Classify_TransientNpgsqlNestedThreeLevels_Is503()
     {
         var nested = new InvalidOperationException(

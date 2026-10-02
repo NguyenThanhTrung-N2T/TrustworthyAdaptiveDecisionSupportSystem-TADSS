@@ -6,6 +6,9 @@ namespace TADSS.Strategies.Default.V2;
 /// </summary>
 public sealed class DefaultStrategyOptions
 {
+    /// <summary>Số chữ số thập phân tối đa của tỷ lệ cọc (khớp giới hạn của runtime khi ghép response, C-09).</summary>
+    private const int MaxRateDecimals = 4;
+
     /// <summary>Tổng tiền từ ngưỡng này trở lên cần Manager duyệt (đơn vị theo tiền tệ của request).</summary>
     public decimal HighValueThreshold { get; init; } = 2_000_000m;
 
@@ -51,6 +54,11 @@ public sealed class DefaultStrategyOptions
             if (rate is < 0m or > 1m)
             {
                 throw new ArgumentException($"{name} phải trong [0, 1].", name);
+            }
+
+            if (decimal.Round(rate, MaxRateDecimals) != rate)
+            {
+                throw new ArgumentException($"{name} không được có quá {MaxRateDecimals} chữ số thập phân.", name);
             }
         }
 

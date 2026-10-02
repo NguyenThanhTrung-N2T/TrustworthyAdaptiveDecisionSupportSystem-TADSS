@@ -532,6 +532,56 @@ public class DecisionServiceTests
 
     [Fact]
     [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_NowWithSubMicrosecondTicks_IsTruncatedConsistently()
+    {
+        // 123_456_789 tick lẻ 9 tick (0,9 µs): giá trị cắt phải là bội số của 10 tick và dùng nhất quán ở mọi nơi (B-03)
+        var rawNow = Now.AddTicks(123_456_789);
+        var truncatedNow = Now.AddTicks(123_456_780);
+        var strategy = ApproveStrategy();
+        var fixture = new Fixture(new RegisteredStrategy(strategy, StrategyFingerprint), now: rawNow);
+
+        var response = await fixture.EvaluateAsync(Request());
+
+        V2Samples.Required(strategy.LastContext).EvaluatedAtUtc.Should().Be(truncatedNow);
+        response.EvaluatedAt.Should().Be(truncatedNow);
+        var record = fixture.Store.Records.Should().ContainSingle().Subject;
+        record.CreatedAt.Should().Be(truncatedNow);
+        (record.CreatedAt.UtcTicks % 10).Should().Be(0);
+        Deserialize(record.ResponsePayload).EvaluatedAt.Should().Be(truncatedNow);
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_NeedApprovalWithSubMicrosecondTicks_ApprovalWindowUsesTruncatedNow()
+    {
+        var rawNow = Now.AddTicks(123_456_789);
+        var truncatedNow = Now.AddTicks(123_456_780);
+        var strategy = new RegisteredStrategy(NeedApprovalStrategy(), StrategyFingerprint);
+        var fixture = new Fixture(strategy, now: rawNow);
+
+        var response = await fixture.EvaluateAsync(Request());
+
+        response.ApprovalExpiresAt.Should().Be(truncatedNow.AddMinutes(30));
+        fixture.Store.Records.Should().ContainSingle().Which.ApprovalExpiresAt.Should().Be(truncatedNow.AddMinutes(30));
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-10")]
+    public async Task EvaluateAsync_ApprovedWithRateScaleOverFour_ThrowsWithoutPersisting()
+    {
+        var strategy = new DelegateStrategy(
+            (_, _, _) => Task.FromResult(StrategyDecision.Approve(0.12345m, ReasonCodes.PeakHourDeposit, ["Tỷ lệ lẻ."])));
+        var fixture = new Fixture(new RegisteredStrategy(strategy, StrategyFingerprint));
+
+        var act = () => fixture.EvaluateAsync(Request());
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.Store.InsertCount.Should().Be(0);
+        fixture.Store.Records.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
     public async Task EvaluateAsync_PersistedRecord_MatchesSpecColumns()
     {
         var fixture = new Fixture();

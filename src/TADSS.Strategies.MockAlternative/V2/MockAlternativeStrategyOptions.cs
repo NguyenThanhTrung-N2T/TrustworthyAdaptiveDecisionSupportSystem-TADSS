@@ -6,6 +6,9 @@ namespace TADSS.Strategies.MockAlternative.V2;
 /// </summary>
 public sealed class MockAlternativeStrategyOptions
 {
+    /// <summary>Số chữ số thập phân tối đa của tỷ lệ cọc (khớp giới hạn của runtime khi ghép response, C-09).</summary>
+    private const int MaxRateDecimals = 4;
+
     /// <summary>Tổng tiền từ ngưỡng này trở lên vào giờ cao điểm cần Manager duyệt.</summary>
     public decimal HighValueThreshold { get; init; } = 1_500_000m;
 
@@ -34,6 +37,18 @@ public sealed class MockAlternativeStrategyOptions
         if (OffPeakDepositRate is < 0m or > 1m)
         {
             throw new ArgumentException("OffPeakDepositRate phải trong [0, 1].", nameof(OffPeakDepositRate));
+        }
+
+        foreach (var (name, rate) in new[]
+                 {
+                     (nameof(PeakDepositRate), PeakDepositRate),
+                     (nameof(OffPeakDepositRate), OffPeakDepositRate)
+                 })
+        {
+            if (decimal.Round(rate, MaxRateDecimals) != rate)
+            {
+                throw new ArgumentException($"{name} không được có quá {MaxRateDecimals} chữ số thập phân.", name);
+            }
         }
 
         if (CacheTtlMinutes < 0)

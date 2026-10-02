@@ -49,6 +49,9 @@ public sealed record ComposedDecision(DecisionResultDto Response, DecisionExecut
 /// </summary>
 public sealed class DecisionResponseComposer
 {
+    /// <summary>Số chữ số thập phân tối đa của tỷ lệ cọc (C-09).</summary>
+    public const int MaxRateDecimals = 4;
+
     private readonly DepositCalculator _depositCalculator;
     private readonly ApprovalWindowPolicy _approvalWindowPolicy;
 
@@ -81,7 +84,7 @@ public sealed class DecisionResponseComposer
         var deposit = window.Status == DecisionStatus.APPROVED
             ? _depositCalculator.Calculate(
                 reservation.TotalPrice,
-                window.DepositRate ?? throw new InvalidOperationException("Quyết định APPROVED phải có tỷ lệ cọc."),
+                EnsureRepresentableRate(window.DepositRate ?? throw new InvalidOperationException("Quyết định APPROVED phải có tỷ lệ cọc.")),
                 reservation.Currency)
             : null;
 
@@ -140,5 +143,21 @@ public sealed class DecisionResponseComposer
             CreatedAt: nowUtc);
 
         return new ComposedDecision(response, record);
+    }
+
+    /// <summary>
+    /// Tỷ lệ cọc đi ra wire tối đa <see cref="MaxRateDecimals"/> chữ số thập phân (C-09). Strategy trả tỷ lệ nhiều chữ số hơn
+    /// là lỗi lập trình/cấu hình: ném lỗi để không ghi audit thay vì làm tròn âm thầm làm lệch tỷ lệ so với quyết định.
+    /// </summary>
+    private static decimal EnsureRepresentableRate(decimal rate)
+    {
+        if (decimal.Round(rate, MaxRateDecimals) != rate)
+        {
+            throw new InvalidOperationException(
+                $"Tỷ lệ cọc {rate.ToString(System.Globalization.CultureInfo.InvariantCulture)} có quá {MaxRateDecimals} chữ số thập phân; " +
+                $"quyết định APPROVED chỉ được mang tỷ lệ tối đa {MaxRateDecimals} chữ số thập phân.");
+        }
+
+        return rate;
     }
 }

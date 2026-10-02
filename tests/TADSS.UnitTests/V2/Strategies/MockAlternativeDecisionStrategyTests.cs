@@ -92,6 +92,39 @@ public class MockAlternativeDecisionStrategyTests
     }
 
     [Theory]
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("PeakDepositRate")]
+    [InlineData("OffPeakDepositRate")]
+    public void Validate_DepositRateWithMoreThanFourDecimals_Fails_Theory(string fieldName)
+    {
+        var options = CreateWithRate(fieldName, 0.33333m);
+
+        var act = options.Validate;
+
+        act.Should().Throw<ArgumentException>().WithMessage($"*{fieldName}*");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("PeakDepositRate")]
+    [InlineData("OffPeakDepositRate")]
+    public void Validate_DepositRateWithFourDecimals_Passes_Theory(string fieldName)
+    {
+        var options = CreateWithRate(fieldName, 0.3333m);
+
+        var act = options.Validate;
+
+        act.Should().NotThrow();
+    }
+
+    private static MockAlternativeStrategyOptions CreateWithRate(string fieldName, decimal rate) => fieldName switch
+    {
+        "PeakDepositRate" => new MockAlternativeStrategyOptions { PeakDepositRate = rate },
+        "OffPeakDepositRate" => new MockAlternativeStrategyOptions { OffPeakDepositRate = rate },
+        _ => throw new ArgumentOutOfRangeException(nameof(fieldName), fieldName, null)
+    };
+
+    [Theory]
     [Trait("CatalogId", "UT-03")]
     [InlineData("peak-rate-above-one")]
     [InlineData("negative-threshold")]
