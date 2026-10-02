@@ -5,7 +5,7 @@
 | **Phạm vi** | Phase 5 (W07–W10, 12/10 – 08/11/2026), phần việc của SV1 trong repo `TADSS-Runtime` (Epic 5A, 5B). Epic 5C của SV2 chỉ nêu ranh giới ở Mục 7 |
 | **Branch** | `feat/phase-5-contract-v2-test-infra` (tách từ `develop` tại `f50b158`) |
 | **Ngày lập** | 01/10/2026 |
-| **Trạng thái** | Đã duyệt 01/10/2026 (gồm P-01, P-02, D-06, D-09); cập nhật cùng ngày theo review: P-02 dùng `WALK_IN`, bổ sung Mục 6.1 |
+| **Trạng thái** | Đã duyệt 01/10/2026 (gồm P-01, P-02, D-06, D-09); cập nhật cùng ngày theo review: P-02 dùng `WALK_IN`, bổ sung Mục 6.1. Cập nhật 02/10/2026: P-03 (Clean Architecture nhiều project, thay quyết định "không tách project" ở 4.2.4), P-04 (bổ sung bảo mật, minh chứng scale, dashboard bắt buộc, rà soát tài liệu) |
 
 > **Vai trò của tài liệu:** mô tả **cách hiện thực** Phase 5 — cấu trúc mã, thứ tự chuyển đổi, cách dựng hạ tầng kiểm thử. Tài liệu **không** lặp lại đặc tả "cái gì"; nguồn sở hữu của từng chủ đề:
 >
@@ -14,7 +14,7 @@
 > - Thành phần runtime v2, bảng quyết định strategy, metric: [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](../docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md) Mục 4
 > - Miền lỗi và ma trận ngữ nghĩa lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md)
 > - Danh mục test case, KPI, môi trường: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md)
-> - Evidence Pack, D1–D6: [`DATASET_SCHEMA_SPECIFICATION_V1.md`](../docs/research/DATASET_SCHEMA_SPECIFICATION_V1.md)
+> - Evidence Pack, D1–D6: [`DATASET_SCHEMA_SPECIFICATION.md`](../docs/research/DATASET_SCHEMA_SPECIFICATION.md)
 > - Task, lịch, gate: [`BACKLOG_SPRINTS.md`](../docs/planning/BACKLOG_SPRINTS.md), [`MASTER_EXECUTION_PLAN.md`](../docs/planning/MASTER_EXECUTION_PLAN.md)
 >
 > Khi spec này và tài liệu sở hữu lệch nhau, tài liệu sở hữu thắng; nếu spec phát hiện tài liệu sở hữu thiếu/sai, sửa tài liệu sở hữu (Mục 9).
@@ -43,6 +43,18 @@
 | **P-01** | Giới hạn thời lượng item (30 phút – 12 giờ) chuyển từ **bất biến SDK** sang **chính sách kiểm tra của runtime** cấu hình được (`Tadss:Validation:MinItemMinutes = 30`, `MaxItemMinutes = 720`). SDK chỉ giữ bất biến `endTime > startTime`. Wire không đổi; INTEGRATION_SPEC ghi rõ giá trị mặc định. Cấu hình được kiểm tra khi khởi động (`ValidateOnStart`): `0 < MinItemMinutes ≤ MaxItemMinutes`, sai → app không khởi động | PT-01 (Hotel Booking Demand, lưu trú nhiều đêm) không chạy được mà không sửa SDK — mâu thuẫn tiêu chí "git diff rỗng" |
 | **P-02** | `channel` là enum `ONLINE` \| `WALK_IN` (đặt tại quầy), trùng tên với `BookingSource` của SmashCourt-BE; dùng nhất quán ở JSON schema, OpenAPI, DTO, domain, routing (`When.Channels`), audit và test | INTEGRATION_SPEC chưa định nghĩa tập giá trị → JSON schema v2 không chặt được; dùng đúng từ vựng của hệ thống nguồn để BE không phải dịch giá trị |
 
+### 1.2. Mục tiêu cuối Phase 5 và quyết định bổ sung (duyệt 02/10/2026)
+
+**Mục tiêu cuối Phase 5** (trước khi tích hợp vào SmashCourt ở Phase 6):
+
+1. TADSS chạy ổn định với đủ chức năng v2; tài liệu đồng bộ với mã; mã, test và minh chứng kiểm thử (Evidence Pack, trx theo `CatalogId`, mutation, FI, metric/trace, dashboard) đạt chất lượng cao nhất có thể đo được.
+2. Kiến trúc theo Clean Architecture: phụ thuộc hướng vào trong, được compiler và test kiến trúc khóa; mã đạt SOLID, không hardcode giá trị cấu hình được, xử lý lỗi một đường, luồng request qua các tầng được đặc tả và khóa bằng test; có các cơ chế bảo mật và khả năng mở rộng ngang (nhiều instance).
+
+| Mã | Quyết định | Lý do |
+| :--- | :--- | :--- |
+| **P-03** | **Clean Architecture nhiều project** (thay câu "không tách thêm project" của 4.2.4 bản 02/10 trước đó): `Shared.DecisionContractSDK` (Domain + contract) ← `TADSS.Application` ← `TADSS.Infrastructure` ← `TADSS.Runtime.Api` (Presentation + composition root); Strategies giữ là plugin chỉ phụ thuộc SDK. Thực hiện ở 5.2d (Mục 4.2.4) | Ranh giới tầng do compiler cưỡng chế, không chỉ dựa vào quy ước; sửa các phụ thuộc ngược hiện có (port nằm trong `Infrastructure/`, exception nghiệp vụ nằm trong `Middlewares/`) |
+| **P-04** | Bổ sung vào các gói còn lại: gói bảo mật (Mục 4.3.2, 5.3); minh chứng scale nhiều instance (Mục 4.4, 4.5 — 5.4/5.5); dashboard Grafana **bắt buộc** (5.5); rà soát toàn bộ tài liệu (Mục 4.7, 5.7) | Đạt mục tiêu 1: hệ thống đủ an toàn để expose, chứng minh được khả năng scale và theo dõi được trước khi tích hợp |
+
 ---
 
 ## 2. VẤN ĐỀ v1 PHÁT HIỆN KHI PHÂN TÍCH (bổ sung cho Mục 3 SOFTWARE_ARCHITECTURE_SPECIFICATION)
@@ -65,12 +77,12 @@
 | Gói | Nội dung | Task | Tuần | Test case xây dựng | Điều kiện xong (DoD) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **5.1** Nền móng kiểm thử | Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy), chuyển 27 IT v1 sang container, gỡ EF InMemory khỏi IT, compose E-LOCAL, CI | T5.12, T5.13 | W07 (có thể bắt đầu sớm vì Gate MR đóng 01/10) | IT-15, FI-08, UT-08 (lỗi persistence), UT-09 (không còn InMemory trong IT); hạ tầng cho FI-06…09 | 27 IT xanh trên container ở local + CI; `docker compose up` một lệnh; V-1, V-8 đã sửa |
-| **5.2** Contract & lõi v2 (5.2a, 5.2b, 5.2c — Mục 4.2.0) | SDK v2, strategies v2, `DecisionService` v2, approval window, quy đổi cọc, `RequestHasher` v2, `IDecisionAuditStore`, migration v2, `POST/GET /api/v2/decisions`, map lỗi, gỡ v1 + BenchmarkRunner | T5.1, T5.2, T5.3, T5.4, T5.8, một phần T5.7 | W07–W08 | UT-01…03, 05, 06, 08…12, CT-01, CT-02, IT-01…05, IT-15 | Không còn kiểu/endpoint v1; baseline nháp v2 (D-06) |
-| **5.3** Quản trị & bảo mật | Override v2, outcome, hàng chờ, `X-Api-Key`, `X-Actor-Id`; expose qua ngrok (E-NGROK, Mục 4.3.1) | T5.5, T5.6, T5.7, T5.30 | W08 | IT-06…11, NG-1…NG-5 | 4 endpoint quản trị đúng INTEGRATION_SPEC §3.5–3.8; NG-1…NG-3, NG-5 đạt tự động; NG-4 do người dùng chạy bằng token ngrok của mình |
-| **5.4** Runtime thích ứng | Routing theo request, pipeline theo strategy, cách ly strategy không hợp tác, chính sách cache + breaker Redis, shadow | T5.9, T5.10, T5.11 | W09 | UT-04, UT-07, UT-13, IT-12…14, FI-01…05 | FI-05 đạt; shadow (kể cả khi lỗi) không đổi response và bản ghi PRIMARY |
-| **5.5** Observability & công cụ chứng minh | OpenTelemetry, dashboard Grafana, ma trận FI trên Toxiproxy, Schemathesis, Stryker + ReportGenerator | T5.14…T5.17 | W09 | FI-06…10, CT-03, MT-01…03 | FI-01…10 tự động; metric + trace xuất được; mutation ≥ 70% (dashboard không chặn gói) |
+| **5.2** Contract & lõi v2 (5.2a, 5.2b, 5.2c, 5.2d — Mục 4.2.0) | SDK v2, strategies v2, `DecisionService` v2, approval window, quy đổi cọc, `RequestHasher` v2, `IDecisionAuditStore`, migration v2, `POST/GET /api/v2/decisions`, map lỗi, gỡ v1 + BenchmarkRunner | T5.1, T5.2, T5.3, T5.4, T5.8, một phần T5.7 | W07–W08 | UT-01…03, 05, 06, 08…12, 14, CT-01, CT-02, IT-01…05, IT-15 | Không còn kiểu/endpoint v1; baseline nháp v2 (D-06); solution theo Clean Architecture nhiều project, mã đạt SOLID (Mục 4.2.4, P-03) |
+| **5.3** Quản trị & bảo mật | Override v2, outcome, hàng chờ, `X-Api-Key`, `X-Actor-Id`; gói bảo mật (Mục 4.3.2); expose qua ngrok (E-NGROK, Mục 4.3.1) | T5.5, T5.6, T5.7, T5.30 | W08 | IT-06…11, NG-1…NG-5, SEC-1…SEC-7 | 4 endpoint quản trị đúng INTEGRATION_SPEC §3.5–3.8; SEC-1…SEC-7 đạt; NG-1…NG-3, NG-5 đạt tự động; NG-4 do người dùng chạy bằng token ngrok của mình |
+| **5.4** Runtime thích ứng | Routing theo request, pipeline theo strategy, cách ly strategy không hợp tác, chính sách cache + breaker Redis, shadow, idempotency/cache giữa nhiều instance | T5.9, T5.10, T5.11 | W09 | UT-04, UT-07, UT-13, IT-12…14, FI-01…05, SC-1 | FI-05 đạt; shadow (kể cả khi lỗi) không đổi response và bản ghi PRIMARY; SC-1 đạt |
+| **5.5** Observability & công cụ chứng minh | OpenTelemetry, dashboard Grafana, ma trận FI trên Toxiproxy, Schemathesis, Stryker + ReportGenerator, chạy nhiều replica trong compose | T5.14…T5.17 | W09 | FI-06…10, CT-03, MT-01…03, OB-1…OB-3, SC-2, SC-3 | FI-01…10 tự động; metric + trace xuất được; mutation ≥ 70%; dashboard đạt OB-1…OB-3 (**bắt buộc**, P-04); SC-2, SC-3 đạt |
 | **5.6** Minh chứng dữ liệu | Replay 215 booking, adapter Hotel Booking Demand, Evidence Pack builder, notebook | T5.18…T5.20 | W10 | RP-01, RP-02, PT-01, PT-02 | Evidence Pack mẫu qua EV-1…EV-5 |
-| **5.7** Đóng băng M5 | Chạy toàn danh mục TADSS, đóng băng contract v2, chốt API BE ↔ FE, staging | T5.21…T5.23 | W10 | — | Gate M5 |
+| **5.7** Đóng băng M5 | Rà soát toàn bộ tài liệu, chạy toàn danh mục TADSS, đóng băng contract v2, chốt API BE ↔ FE, staging | T5.21…T5.23 | W10 | DOC-1…DOC-4 | DOC-1…DOC-4 đạt; Gate M5 |
 
 Phụ thuộc: 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 → 5.7. Gói 5.5 phần OpenTelemetry có thể làm song song với 5.4. Mỗi gói có một implementation plan riêng, viết khi tới lượt.
 
@@ -120,6 +132,7 @@ Compose tự chứa mạng riêng để `docker compose up` chạy được trê
 | **5.2a** SDK v2 + strategies v2 | Kiểu SDK v2 (4.2.1), JSON schema v2 cho request/result, hai strategy v2 (4.2.2) | UT-01, UT-02, UT-03, UT-05, CT-01 (phần schema) | 5.1 |
 | **5.2b** Lõi runtime v2 | `ApprovalWindowPolicy`, `DepositCalculator`, `RequestHasher` v2, cache v2, `IDecisionAuditStore` (interface), `DecisionService` v2, pipeline cho strategy v2, map lỗi, kiểm tra cấu hình P-01 | UT-04 (resolver), UT-06, UT-07, UT-08, UT-10, UT-11, UT-12, UT-13 | 5.2a |
 | **5.2c** Chuyển hẳn sang v2 | Migration v2, `EfDecisionAuditStore`, `POST/GET /api/v2/decisions`, gỡ v1 (gồm MediatR, BenchmarkRunner, EF InMemory), viết lại integration test sang v2, đổi namespace V2 về gốc, `openapi-v2.yaml`, baseline nháp v2 | IT-01…05, IT-13, IT-15, CT-01, CT-02, FI-08 | 5.2b |
+| **5.2d** Clean Architecture và SOLID | Tách `TADSS.Runtime.Api` thành `TADSS.Application`, `TADSS.Infrastructure`, `TADSS.Runtime.Api` (P-03); kiểm toán SOLID, tách trách nhiệm, bỏ hardcode, đặc tả và khóa luồng request qua các tầng, bộ test kiến trúc, viết lại skill `tadss-architecture` (Mục 4.2.4). Không đổi hành vi, không đổi wire, không đổi bề mặt public của SDK | UT-14 (kiến trúc, mới); toàn bộ test hiện có giữ nguyên | 5.2c |
 
 **Cùng tồn tại v1/v2 (D-07):** trong 5.2a–5.2b, kiểu v2 nằm ở namespace tạm `Shared.DecisionContractSDK.V2.*` (thư mục `src/Shared.DecisionContractSDK/V2/`); strategy v2 ở `TADSS.Strategies.{Name}.V2`; runtime v2 ở thư mục con riêng; test v2 ở `tests/TADSS.UnitTests/V2/`. `DomainInvariantException` và `ContractValidationException` của v1 được dùng lại, không nhân bản. Ở 5.2c, sau khi xóa v1, đổi namespace hàng loạt về gốc (`Shared.DecisionContractSDK.*`, `TADSS.Strategies.{Name}`) đúng cây ở 4.2.1. Migration v2 tạo lại bảng `decision_executions` nên v1 hỏng ngay khi áp migration — vì vậy migration, endpoint v2 và gỡ v1 nằm cùng 5.2c.
 
@@ -200,6 +213,8 @@ public interface IReservationDecisionStrategy
 | `IDecisionAuditStore` + `EfDecisionAuditStore` | `Infrastructure/Data/` | Mọi đọc/ghi 3 bảng audit; dịch lỗi PostgreSQL thành exception nghiệp vụ. Interface theo use case, xem dưới bảng |
 | `PersistenceUnavailableException`, `IdempotencyConflictException`, `DecisionStateConflictException` | `Middlewares/` | Exception có ngữ nghĩa cho `GlobalExceptionHandler` |
 
+Cột "Vị trí" là cây thư mục sau 5.2c (một project `TADSS.Runtime.Api`). Từ 5.2d, vị trí đích theo bảng ánh xạ ở Mục 4.2.4; trách nhiệm không đổi.
+
 **`IDecisionAuditStore` theo use case:** mỗi method ứng với một nhu cầu của service, không có `Add/Update/Delete/Find` chung chung, không trả `IQueryable` hay `DbContext`. Không có method sửa/xóa (append-only, INV-4).
 
 | Method | Dùng bởi |
@@ -235,6 +250,68 @@ Message trả về cho 4xx lấy từ exception nghiệp vụ do TADSS tạo; kh
 **Migration v2** (D-05): một migration EF tạo bảng theo DECISION_PERSISTENCE_INVARIANTS Mục B; trigger và hàm `tadss.reject_mutation()` viết bằng `migrationBuilder.Sql`. Migration chứa thao tác tường minh (`DropTable` bảng v1, `CreateTable`, `CreateIndex`, ràng buộc, hàm, trigger) để lịch sử migration phản ánh đúng quá trình thay đổi schema; không xóa và dựng lại cả schema, không dùng `EnsureDeleted/EnsureCreated`. IT-15 (cùng test của gói 5.1, không phụ thuộc schema cụ thể) áp migration lên DB trống và kiểm tra model không còn thay đổi chưa tạo migration (EF Core 8: `IMigrationsModelDiffer.HasDifferences`).
 
 **Gỡ v1:** controller v1, DTO/domain v1, `Infrastructure/Data/Auditing/` (MediatR), package `MediatR`, `Microsoft.EntityFrameworkCore.InMemory`, `BenchmarkRunner` (D-09), `Consumer/SmashCourtConsumerReferenceTests` (BE không reference SDK; CT-04 nằm ở SmashCourt-BE).
+
+#### 4.2.4. Gói con 5.2d — Clean Architecture và SOLID (duyệt 02/10/2026, cập nhật theo P-03)
+
+**Bối cảnh.** Sau 5.2c chỉ còn code v2 nhưng hướng phụ thuộc còn ngược: port `IDecisionAuditStore` và các record nằm trong `Infrastructure/Data`, nên use case phụ thuộc hạ tầng; exception nghiệp vụ (`DecisionNotFoundException`, `PersistenceUnavailableException`…) nằm trong `Middlewares/`, nên service và store tham chiếu ngược lên tầng HTTP; `Configuration/` gộp options, Swagger filter và composition root; quy ước chỉ nằm trong skill, không có test khóa. Gói này đưa solution về Clean Architecture nhiều project (P-03) **mà không đổi hành vi**.
+
+**Solution đích:**
+
+```text
+src/
+  Shared.DecisionContractSDK/  Domain + contract dùng chung (chỉ BCL). Không đổi — baseline v2.0.0-draft giữ nguyên
+  TADSS.Strategies.{Name}/     Plugin strategy, chỉ phụ thuộc SDK. Không đổi
+  TADSS.Application/           Use case, port (interface ra ngoài), exception nghiệp vụ, options của chính sách, AddApplication()
+  TADSS.Infrastructure/        Adapter: PostgreSQL (EF Core, Npgsql, migration), cache Redis/Memory, pipeline Polly; (5.5) telemetry; AddInfrastructure(IConfiguration)
+  TADSS.Runtime.Api/           Presentation + composition root: controller, middleware, ánh xạ lỗi → ProblemDetails, OpenAPI, Program.cs
+tests/
+  TADSS.UnitTests/             thư mục con theo project: Sdk/, Strategies/, Application/, Infrastructure/, Api/, Architecture/
+  TADSS.IntegrationTests/      giữ nguyên vai trò
+```
+
+**Quy tắc phụ thuộc** (compiler cưỡng chế qua `ProjectReference`; UT-14 khóa thêm phần compiler không bắt được):
+
+| Project | Được phụ thuộc | Cấm |
+| :--- | :--- | :--- |
+| `Shared.DecisionContractSDK` | BCL | mọi project và NuGet (UT-09, có sẵn) |
+| `TADSS.Strategies.*` | SDK | mọi thứ khác (UT-09, có sẵn) |
+| `TADSS.Application` | SDK; `Microsoft.Extensions.{DependencyInjection,Logging,Options}.Abstractions` (hoặc gói `Options` nếu cần `IValidateOptions`) | Infrastructure, Runtime.Api, Strategies, ASP.NET Core, EF Core, Npgsql, StackExchange.Redis, Polly |
+| `TADSS.Infrastructure` | Application, SDK, EF Core/Npgsql, StackExchange.Redis, Polly, `Microsoft.Extensions.*` | Runtime.Api, ASP.NET Core MVC |
+| `TADSS.Runtime.Api` | Application, Infrastructure, Strategies, ASP.NET Core | Controller và middleware không dùng kiểu của `TADSS.Infrastructure`; chỉ composition root (`Program.cs`, `DependencyInjection/`) được tham chiếu Infrastructure |
+
+**Ánh xạ từ cây sau 5.2c** (tên thư mục con chốt trong plan; bảng này chốt project đích):
+
+| Hiện tại | Project đích |
+| :--- | :--- |
+| `Services/DecisionService`, `DecisionQueryService`, `RequestHasher`, `Services/Decisions/*` (`ApprovalWindowPolicy`, `DepositCalculator`, `DecisionResponseComposer`) | Application |
+| `Services/Strategies/*` (registry, `RegisteredStrategy`, options fingerprint) | Application |
+| `IDecisionAuditStore` + record (`DecisionExecutionRecord`, `DecisionDetailRecord`…), interface cache và pipeline, `CachedStrategyDecision` | Application (port) |
+| `DecisionNotFoundException`, `IdempotencyConflictException`, `PersistenceUnavailableException` (và `DecisionStateConflictException` ở 5.3) | Application (`Exceptions/`) — `ContractValidationException`, `DomainInvariantException` ở SDK giữ nguyên |
+| `Infrastructure/Data/*` (DbContext, entity, configuration, migration, `EfDecisionAuditStore`, mapper, `PersistenceFailureDetector`), `Infrastructure/Caching/*`, `Infrastructure/Resilience/*` (hiện thực) | Infrastructure |
+| `Controllers/`, `Middlewares/` (correlation id, `GlobalExceptionHandler`, `ExceptionClassifier`), `InvalidModelStateTranslator`, Swagger filter | Runtime.Api |
+| `Configuration/DependencyInjection.cs`, `DecisionRuntimeServiceCollectionExtensions` | Tách: `AddApplication()`, `AddInfrastructure(IConfiguration)`, `AddPresentation()`; `Program.cs` chỉ gọi ba hàm này và cấu hình pipeline |
+| `{X}Options` + validator | Project sở hữu chính sách đó, thư mục `Options/` |
+
+**Migration chuyển sang `TADSS.Infrastructure`:** giữ nguyên ID của cả 4 migration (3 v1 + `DecisionPersistenceV2`) để `__EFMigrationsHistory` trên Neon vẫn khớp; cấu hình `MigrationsAssembly`; lệnh `dotnet ef` đổi thành `--project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api` (ghi vào README/skill). IT-15 phải xanh sau khi chuyển. Không tạo migration mới.
+
+**Nguyên tắc mã (điều kiện xong của gói):**
+
+- **SOLID:** `DecisionService` chỉ điều phối — phần "đọc cache → pipeline → ghi cache" tách thành thành phần riêng; `IDecisionAuditStore` chia theo use case (ghi quyết định / đọc quyết định; 5.3 thêm port quản trị) để không phình; port do Application định nghĩa, Infrastructure hiện thực (DIP); thêm strategy = thêm project + một dòng đăng ký (OCP). Interface chỉ thêm ở ranh giới thật (I/O, thời gian, nhiều hiện thực); hàm thuần (`DepositCalculator`, `ApprovalWindowPolicy`, `RequestHasher`…) giữ lớp cụ thể.
+- **Không hardcode:** giá trị vận hành điều chỉnh được (giây `Retry-After`, timeout, TTL, tiền tố key cache, tên/nhãn health check…) nằm trong `Options` có validator và `ValidateOnStart`. Hằng số chỉ dành cho giá trị do contract cố định (tên header, mã lỗi, giới hạn 128 ký tự theo INTEGRATION_SPEC) và mỗi hằng chỉ định nghĩa ở một nơi. Kết quả kiểm toán hardcode là một bảng trong plan.
+- **Xử lý lỗi một đường:** exception hạ tầng được dịch thành exception của Application ngay tại adapter; Presentation chỉ ánh xạ exception của Application/SDK → ProblemDetails; không `catch` nuốt lỗi; log có cấu trúc kèm correlation id.
+- **Luồng request qua các tầng:** đặc tả trong SOFTWARE_ARCHITECTURE_SPECIFICATION Mục 4.4 (sơ đồ tuần tự từ Kestrel → middleware → controller → use case → port → adapter → response, gồm cả nhánh lỗi). Thứ tự middleware cố định, khóa bằng test.
+
+**Việc làm:**
+
+1. **Kiểm toán** SOLID và hardcode từng lớp của Runtime.Api, SDK, Strategies; kết quả là bảng `file → vấn đề → cách sửa → project đích` trong plan 5.2d.
+2. **Tách project** theo bảng ánh xạ; cập nhật `TADSS.slnx`, Dockerfile, CI, `InternalsVisibleTo`, `Compile Link` của IT.
+3. **Tách trách nhiệm, bỏ hardcode, gom exception và options** theo nguyên tắc trên; mỗi kiểu một file; namespace khớp `project + thư mục`; không còn kiểu/namespace tên "V2".
+4. **Tài liệu:** SOFTWARE_ARCHITECTURE_SPECIFICATION Mục 2 (cấu trúc 5 project, quy tắc phụ thuộc) và 4.4 (luồng request); một ADR mới ghi P-03; viết lại skill `tadss-architecture`, `TADSS-Runtime/CLAUDE.md` và bảng project ở `CLAUDE.md` gốc thành bảng "thứ cần tạo → project/thư mục → tên" đầy đủ như BE.
+5. **UT-14 — test kiến trúc khóa quy ước:** đồ thị tham chiếu giữa các assembly đúng bảng quy tắc; Application không tham chiếu assembly hạ tầng; controller/middleware không dùng kiểu của Infrastructure; namespace khớp `project + thư mục`; không còn kiểu/namespace tên "V2"; mỗi kiểu public một file; `Options` chỉ ở thư mục `Options/` của project sở hữu; exception nghiệp vụ chỉ ở `Exceptions/`; thứ tự middleware; trần kích thước lớp (ngưỡng chốt trong plan).
+
+**Việc mang từ review cuối 5.2c:** đổi tên entity `DecisionOutcome` (trùng enum SDK) và tên health check "Neon-PostgreSQL" — 5.2d (chỉ đổi tên, không đổi hành vi). Fail-fast khi thiếu connection string, đọc payload audit bằng options nới lỏng (tránh 500 với bản ghi cũ khi DTO thêm trường trước M5), log 503 giả khi client hủy trong pha SQL — 5.3 (đổi hành vi, có test).
+
+**Ràng buộc:** mỗi bước refactor chạy đủ unit + integration test; `baseline_public_api.txt` không đổi (không đổi tên kiểu/namespace SDK); không đổi wire, schema, mã lỗi, migration ID; commit di chuyển/tách tách khỏi commit đổi mã, diff mỗi bước không lẫn thay đổi hành vi.
 
 ### 4.3. Gói 5.3 — Quản trị & bảo mật
 
@@ -284,9 +361,25 @@ Chuỗi kết nối Neon chỉ nằm trong `.env` của người dùng (không c
 
 **Phía SmashCourt-BE (ghi vào T6.x, không làm ở TADSS):** `Tadss:BaseUrl` trỏ URL ngrok; HttpClient của `TadssClient` gửi `X-Api-Key` và header `ngrok-skip-browser-warning: true` như `FastApiClient` đang làm. URL ngrok bản miễn phí đổi mỗi lần chạy nên dùng `NGROK_DOMAIN` cố định hoặc cập nhật cấu hình BE.
 
+#### 4.3.2. Gói bảo mật (P-04, cùng T5.7)
+
+Mọi giới hạn lấy từ `Tadss:Security:*` có validator; middleware đặt trong `TADSS.Runtime.Api/Middlewares/`; thứ tự trong pipeline: forwarded headers → correlation id → exception handler → security headers → giới hạn kích thước → xác thực API key → rate limiting → routing (khóa bằng test thứ tự middleware của UT-14).
+
+| Mã | Cơ chế | Kiểm chứng |
+| :--- | :--- | :--- |
+| SEC-1 | **Rate limiting** bằng `RateLimiter` có sẵn của ASP.NET Core 8, phân vùng theo `clientId` của API key (token bucket; cấu hình `PermitLimit`, `ReplenishmentPeriod`, `QueueLimit = 0`); vượt ngưỡng → 429 problem+json `code = RATE_LIMITED` kèm `Retry-After`. `/health/*` không bị giới hạn | IT: vượt ngưỡng → 429 đúng dạng; hai client khác nhau không ảnh hưởng nhau |
+| SEC-2 | **Giới hạn kích thước request:** `MaxRequestBodySize` (mặc định 64 KB, cấu hình được); vượt → 413 problem+json `code = PAYLOAD_TOO_LARGE`, không gọi service | IT: body vượt giới hạn → 413; body sát giới hạn → xử lý bình thường |
+| SEC-3 | **Security headers** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` cho `/api/*`; HSTS ngoài `Development`/`Testing`; tắt header `Server` của Kestrel | IT: header có mặt ở 200, 4xx, 5xx |
+| SEC-4 | **Fail-closed khi khởi động:** ngoài `Development`/`Testing`, thiếu API key (NG-2) hoặc thiếu connection string → app không khởi động, message không chứa giá trị bí mật | Test khởi động host với cấu hình thiếu → lỗi validate options |
+| SEC-5 | **Health tách live/ready:** `/health/live` chỉ kiểm tra process; `/health/ready` kiểm tra PostgreSQL (bắt buộc, lỗi → 503) và Redis (lỗi → `Degraded`, vẫn 200 vì cache có fallback); response không lộ chuỗi kết nối hay message hạ tầng | IT: PostgreSQL bị ngắt qua Toxiproxy → ready 503, live 200 |
+| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER app` của image .NET 8), stage runtime không chứa SDK, không copy file bí mật; compose không bind cổng `0.0.0.0` ở profile expose (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root |
+| SEC-7 | **Chuỗi cung ứng:** CI chạy `dotnet list package --vulnerable --include-transitive`, có lỗ hổng mức High/Critical → job đỏ; `RestorePackagesWithLockFile` + `packages.lock.json` cho restore tái lập; Dependabot cho NuGet, Docker và GitHub Actions; log không bao giờ ghi giá trị `X-Api-Key` | Job CI; test log: request có `X-Api-Key` không để lại giá trị khóa trong log |
+
+`RATE_LIMITED` và `PAYLOAD_TOO_LARGE` là mã lỗi bổ sung vào INTEGRATION_SPEC §3.8 (contract v2 còn là bản nháp đến M5, người dùng đã duyệt bổ sung ở P-04); JSON schema lỗi và `openapi-v2.yaml` cập nhật cùng gói.
+
 ### 4.4. Gói 5.4 — Runtime thích ứng
 
-**Routing** (`Services/Routing/`, `Tadss:Routing`, đọc qua `IOptionsMonitor`):
+**Routing** (`TADSS.Application/Routing/`, `Tadss:Routing`, đọc qua `IOptionsMonitor`):
 
 ```json
 "Routing": {
@@ -303,7 +396,7 @@ Chuỗi kết nối Neon chỉ nằm trong `.env` của người dùng (không c
 
 **Pipeline theo strategy** (sửa V-2): `ResiliencePipelineProvider` tạo và giữ một pipeline Polly cho mỗi `StrategyName`; cấu hình `Tadss:Resilience` giữ nguyên.
 
-**Tiêm lỗi strategy:** `FaultInjectionStrategyDecorator` đặt tại `src/TADSS.Runtime.Api/Infrastructure/Testing/`, **chỉ** được đăng ký khi `ASPNETCORE_ENVIRONMENT=Testing` và `Tadss:Testing:FaultInjection:Enabled=true`; hồ sơ lỗi (trễ, ném lỗi, bỏ qua token, bận CPU) chọn qua cấu hình. Nằm trong app vì FI-02 phải bật được trong `docker compose` cho LT-03. Test kiến trúc: môi trường `Production` không đăng ký decorator.
+**Tiêm lỗi strategy:** `FaultInjectionStrategyDecorator` đặt tại `src/TADSS.Infrastructure/Testing/`, **chỉ** được đăng ký khi `ASPNETCORE_ENVIRONMENT=Testing` và `Tadss:Testing:FaultInjection:Enabled=true`; hồ sơ lỗi (trễ, ném lỗi, bỏ qua token, bận CPU) chọn qua cấu hình. Nằm trong app vì FI-02 phải bật được trong `docker compose` cho LT-03. Test kiến trúc: môi trường `Production` không đăng ký decorator.
 
 **Cách ly strategy không hợp tác** (`IsolatedStrategyInvoker`, FI-05): gọi strategy qua `Task.Run`, chờ bằng `task.WaitAsync(cancellationToken)` → inner timeout cắt được cả strategy bỏ qua token hoặc chạy đồng bộ; task bị bỏ rơi được quan sát lỗi để không sinh `UnobservedTaskException`, và được đếm bằng metric `tadss.strategy.abandoned`. Giới hạn: CPU của task bị bỏ rơi vẫn bị tiêu thụ đến khi nó tự kết thúc — ghi vào Mục 8 tài liệu giao thức đánh giá. Cách phát biểu trong báo cáo: TADSS **giới hạn thời gian chờ** của request và cô lập luồng request khỏi strategy không hợp tác; TADSS **không dừng được** strategy đó.
 
@@ -311,10 +404,17 @@ Chuỗi kết nối Neon chỉ nằm trong `.env` của người dùng (không c
 
 **Shadow** (`Tadss:Shadow`: `Enabled`, `Strategy`, `SampleRate`): sau khi bản ghi PRIMARY đã lưu, đưa công việc vào `Channel<ShadowWorkItem>` có giới hạn (đầy thì bỏ, đếm metric); `ShadowExecutionWorker` (`BackgroundService`) chạy strategy ứng viên qua pipeline của chính nó và ghi bản ghi `role = SHADOW` (không idempotency key, không cache, không approval window ảnh hưởng response). IT-12 chờ bản ghi SHADOW bằng polling có timeout, và có thêm trường hợp strategy shadow ném lỗi/treo: response PRIMARY giống hệt khi tắt shadow, bản ghi PRIMARY vẫn được lưu và không bị hoàn tác; lỗi shadow chỉ thể hiện ở bản ghi SHADOW (`FALLBACK`) hoặc metric.
 
+**Nhiều instance (SC-1, P-04):** runtime không giữ trạng thái request trong bộ nhớ ngoài cache L1 và trạng thái breaker. IT dựng **hai host** dùng chung PostgreSQL và Redis của Testcontainers: 50 request song song cùng key chia đều cho hai host → đúng 1 bản ghi, mọi response giống nhau; key cache ghi ở host A được host B đọc (`CACHE_HIT`); request hợp lệ ở host B khi host A đang mở breaker vẫn chạy strategy bình thường.
+
 ### 4.5. Gói 5.5 — Observability & công cụ chứng minh
 
-- **OpenTelemetry** (`Configuration/TelemetryConfiguration.cs`): `OpenTelemetry.Extensions.Hosting`, `Exporter.OpenTelemetryProtocol`, `Instrumentation.AspNetCore`, `Instrumentation.Http`, `Npgsql.OpenTelemetry` **8.0.x** (khớp Npgsql 8; bản 10.x không tương thích). Redis: span tự tạo quanh lời gọi cache (instrumentation chính thức chỉ có bản prerelease). Meter `TADSS.Runtime` với các metric ở SOFTWARE_ARCHITECTURE_SPECIFICATION 4.5. Serilog thêm sink `Serilog.Sinks.OpenTelemetry`. Tắt được bằng cấu hình; khi không có collector app vẫn chạy bình thường.
-- **Dashboard:** `docker/grafana/dashboards/tadss-runtime.json` + provisioning trong `docker/grafana/provisioning/`. Dashboard là minh chứng trực quan phụ trợ: thiếu thời gian thì không chặn gói. Bắt buộc là FI tự động, metric và trace.
+- **OpenTelemetry** (`TADSS.Infrastructure/Telemetry/`, đăng ký qua `AddInfrastructure`): `OpenTelemetry.Extensions.Hosting`, `Exporter.OpenTelemetryProtocol`, `Instrumentation.AspNetCore`, `Instrumentation.Http`, `Npgsql.OpenTelemetry` **8.0.x** (khớp Npgsql 8; bản 10.x không tương thích). Redis: span tự tạo quanh lời gọi cache (instrumentation chính thức chỉ có bản prerelease). Meter `TADSS.Runtime` với các metric ở SOFTWARE_ARCHITECTURE_SPECIFICATION 4.5. Serilog thêm sink `Serilog.Sinks.OpenTelemetry`. Tắt được bằng cấu hình; khi không có collector app vẫn chạy bình thường.
+- **Dashboard (bắt buộc, P-04):** `docker/grafana/dashboards/tadss-runtime.json` + provisioning trong `docker/grafana/provisioning/`. Panel tối thiểu: tốc độ request và độ trễ p50/p95/p99 theo endpoint; tỉ lệ `status` (APPROVED/NEED_APPROVAL/REJECTED) và `executionType`; tỉ lệ fallback theo `failureReason`; cache hit/miss/bypass; trạng thái breaker theo strategy; số 503/504 theo nguyên nhân; độ trễ strategy; số request theo `service.instance.id`.
+  - **OB-1:** test tự động đọc file dashboard, mọi metric được tham chiếu tồn tại trong danh sách tên metric khai báo tại một nơi trong mã (Meter `TADSS.Runtime`).
+  - **OB-2:** `docker compose` dựng Grafana, dashboard tự nạp qua provisioning (kiểm bằng HTTP API của Grafana trong script).
+  - **OB-3:** sau một lượt FI-02/FI-08 trên E-LOCAL, ảnh chụp dashboard thể hiện fallback và 503 được lưu vào Evidence Pack.
+- **Chạy nhiều replica (SC-2):** profile compose `scale` chạy 2 replica `tadss-runtime` sau reverse proxy (image ghim tag) dùng chung PostgreSQL/Redis; một lượt k6 ngắn qua proxy → không có 5xx ngoài kịch bản, idempotency giữ đúng, dashboard tách được theo `service.instance.id`.
+- **Giới hạn scale (SC-3):** SOFTWARE_ARCHITECTURE_SPECIFICATION ghi rõ thành phần theo instance (breaker, rate limit SEC-1, cache L1 fallback) và thành phần dùng chung (PostgreSQL, Redis), hệ quả khi scale ngang và hướng mở rộng (rate limit phân tán) — không hiện thực ở Phase 5.
 - **FI-01…FI-10** là test xUnit (`tests/TADSS.IntegrationTests/FaultInjection/`), chạy trên Testcontainers + Toxiproxy, có trong CI. Ở E-LOCAL, `tools/chaos/run-fi.sh` bật/tắt toxic qua API Toxiproxy để chụp dashboard và ghi `chaos_log` (D3).
 - **Schemathesis** (CT-03): `tools/contract/run-schemathesis.sh` chạy image Docker chính thức trên `openapi-v2.yaml` với `X-Api-Key` lấy từ biến môi trường.
 - **Stryker.NET** (MT-01…03): `.config/dotnet-tools.json` khai báo `dotnet-stryker` và `dotnet-reportgenerator-globaltool`; mỗi project đích có `stryker-config.json` với `thresholds.break = 70`; MT-03 giới hạn `mutate` vào `Services/**`, `Infrastructure/Resilience/**`. Báo cáo HTML xuất vào thư mục kết quả của lượt chạy, không commit (trừ Evidence Pack cuối).
@@ -336,7 +436,16 @@ Test trx gom theo `CatalogId` (D-10) là một nguồn `raw/` của Evidence Pac
 
 ### 4.7. Gói 5.7 — Đóng băng M5
 
-Chạy toàn bộ danh mục TADSS trên E-TC và E-LOCAL; tạo Evidence Pack thử; đóng băng v2 (baseline public API, `openapi-v2.yaml`, `schemas/v2/`) theo quy trình CONTRACT_V1_FREEZE Mục 6; gỡ ghi chú "bản nháp" khỏi INTEGRATION_SPEC; chốt API contract SmashCourt BE ↔ FE (T5.22) và môi trường staging (T5.23) trong MASTER_EXECUTION_PLAN.
+**Rà soát tài liệu (P-04), làm trước khi đóng băng:**
+
+| Mã | Kiểm chứng |
+| :--- | :--- |
+| DOC-1 | Kiểm kê toàn bộ `docs/**`, `README.md`, `CLAUDE.md`: mỗi file thuộc nhóm **hiện hành** (sở hữu một chủ đề, khớp mã) hoặc **lịch sử** (banner đầu file: đóng băng/hồ sơ, ngày, tài liệu thay thế). Bảng kiểm kê đặt ở `docs/README.md` |
+| DOC-2 | Tài liệu hiện hành không còn mô tả như hiện tại những thứ đã gỡ (endpoint v1, MediatR, BenchmarkRunner, EF InMemory, `AuditTimestampInterceptor`…): script grep trong CI, danh sách file lịch sử được miễn trừ |
+| DOC-3 | Mọi link nội bộ trong markdown trỏ tới file/anchor tồn tại: job CI |
+| DOC-4 | Bảng cấu hình `Tadss:*` trong tài liệu vận hành khớp các `Options` của mã: test so danh sách section/khóa |
+
+Chạy toàn bộ danh mục TADSS trên E-TC và E-LOCAL; tạo Evidence Pack thử; đóng băng v2 (baseline public API, `openapi-v2.yaml`, `schemas/v2/`) theo quy tắc quản lý phiên bản ở INTEGRATION_SPEC Mục 6; gỡ ghi chú "bản nháp" khỏi INTEGRATION_SPEC; chốt API contract SmashCourt BE ↔ FE (T5.22) và môi trường staging (T5.23) trong MASTER_EXECUTION_PLAN.
 
 ---
 
@@ -386,6 +495,12 @@ Chạy toàn bộ danh mục TADSS trên E-TC và E-LOCAL; tạo Evidence Pack t
 | Public API SDK chỉ đổi có chủ đích | CT-02 + quy trình D-06 | có sẵn |
 | Không tự áp migration lên Neon | IT-15 (cờ `ApplyMigrationsOnStartup` mặc định `false`) | 5.1 |
 | Cấu hình sai làm app không khởi động (`MinItemMinutes ≤ MaxItemMinutes`, quy tắc routing) | UT-01, UT-04 | 5.2, 5.4 |
+| Phụ thuộc hướng vào trong: Application không tham chiếu Infrastructure/Runtime.Api/assembly hạ tầng; controller và middleware không dùng kiểu Infrastructure | Compiler (`ProjectReference`) + UT-14 | 5.2d |
+| Thứ tự middleware cố định (gồm các middleware bảo mật) | UT-14 | 5.2d, 5.3 |
+| Ngoài `Development`/`Testing`, thiếu API key hoặc connection string → app không khởi động | NG-2, SEC-4 | 5.3 |
+| Idempotency và cache đúng giữa nhiều instance | SC-1 | 5.4 |
+| Dashboard chỉ tham chiếu metric có thật | OB-1 | 5.5 |
+| Tài liệu hiện hành không mô tả thứ đã gỡ; link nội bộ hợp lệ | DOC-2, DOC-3 | 5.7 |
 
 **Số lượng test chỉ là chỉ số phụ**, dùng để theo dõi việc chuyển đổi. Báo cáo cuối gói và Evidence Pack trình bày: độ phủ danh mục (mã nào đạt, mã nào chưa), bảng 6.1, kịch bản FI đã chạy, mutation score.
 
@@ -429,3 +544,8 @@ Chạy toàn bộ danh mục TADSS trên E-TC và E-LOCAL; tạo Evidence Pack t
 | `BACKLOG_SPRINTS.md` | Trạng thái task theo gói; T5.30 (E-NGROK) | Mỗi gói; 5.3 |
 | `README.md`, `.env.example` | Mục "Expose qua ngrok" (hai chế độ database, biến môi trường, NG-4) | 5.3 |
 | `INTEGRATION_SPEC.md` | Ghi chú triển khai: `X-Api-Key`, `Tadss:BaseUrl` qua ngrok, header `ngrok-skip-browser-warning` | 5.3 |
+| `SOFTWARE_ARCHITECTURE_SPECIFICATION.md`, `ARCHITECTURE_DECISION_RECORDS.md` | Mục 2: solution 5 project và quy tắc phụ thuộc; Mục 4.4: luồng request qua các tầng (gồm nhánh lỗi); ADR mới ghi P-03 | 5.2d |
+| Skill `tadss-architecture`, `TADSS-Runtime/CLAUDE.md`, `CLAUDE.md` gốc | Bảng "thứ cần tạo → project/thư mục → tên"; lệnh `dotnet ef` mới | 5.2d |
+| `EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | Mã mới SEC-1…7, SC-1…3, OB-1…3, DOC-1…4; UT-14 theo P-03 | 5.2d (UT-14), 5.3–5.7 |
+| `INTEGRATION_SPEC.md` §3.8, schema lỗi, `openapi-v2.yaml` | `RATE_LIMITED` (429), `PAYLOAD_TOO_LARGE` (413), security headers | 5.3 |
+| `docs/README.md` | Bảng kiểm kê tài liệu hiện hành/lịch sử (DOC-1) | 5.7 |
