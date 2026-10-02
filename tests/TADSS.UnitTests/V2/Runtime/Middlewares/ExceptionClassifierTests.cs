@@ -21,6 +21,12 @@ public class ExceptionClassifierTests
     private static PostgresException Postgres(string sqlState) =>
         new("postgres error", "ERROR", "ERROR", sqlState);
 
+    private static ErrorClassification Require(ErrorClassification? result)
+    {
+        result.Should().NotBeNull("exception phải được phân loại thành một phản hồi lỗi");
+        return result ?? throw new InvalidOperationException("Classify trả null ngoài dự kiến.");
+    }
+
     private static NpgsqlException TransientNpgsql() =>
         new("Failed to connect", new SocketException((int)SocketError.ConnectionRefused));
 
@@ -50,12 +56,12 @@ public class ExceptionClassifierTests
     {
         var result = ExceptionClassifier.Classify(exception, requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(expectedStatus);
-        result?.Code.Should().Be(expectedCode);
-        result?.ExposeMessage.Should().Be(expectedExposeMessage);
-        result?.RetryAfterSeconds.Should().Be(expectedRetryAfter);
-        result?.Title.Should().NotBeNullOrWhiteSpace();
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(expectedStatus);
+        classification.Code.Should().Be(expectedCode);
+        classification.ExposeMessage.Should().Be(expectedExposeMessage);
+        classification.RetryAfterSeconds.Should().Be(expectedRetryAfter);
+        classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -67,10 +73,10 @@ public class ExceptionClassifierTests
 
         var result = ExceptionClassifier.Classify(nested, requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(503);
-        result?.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
-        result?.RetryAfterSeconds.Should().Be(5);
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(503);
+        classification.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        classification.RetryAfterSeconds.Should().Be(5);
     }
 
     [Theory]
@@ -82,11 +88,11 @@ public class ExceptionClassifierTests
         var result = ExceptionClassifier.Classify(
             new DbUpdateException("save failed", Postgres(sqlState)), requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(503);
-        result?.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
-        result?.RetryAfterSeconds.Should().Be(5);
-        result?.ExposeMessage.Should().BeFalse();
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(503);
+        classification.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        classification.RetryAfterSeconds.Should().Be(5);
+        classification.ExposeMessage.Should().BeFalse();
     }
 
     [Fact]
@@ -96,10 +102,10 @@ public class ExceptionClassifierTests
         var result = ExceptionClassifier.Classify(
             new DbUpdateException("duplicate", Postgres("23505")), requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(500);
-        result?.Code.Should().Be(V2ErrorCodes.InternalError);
-        result?.RetryAfterSeconds.Should().BeNull();
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(500);
+        classification.Code.Should().Be(V2ErrorCodes.InternalError);
+        classification.RetryAfterSeconds.Should().BeNull();
     }
 
     [Theory]
@@ -109,9 +115,9 @@ public class ExceptionClassifierTests
     {
         var result = ExceptionClassifier.Classify(exception, requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(500);
-        result?.ExposeMessage.Should().BeFalse();
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(500);
+        classification.ExposeMessage.Should().BeFalse();
     }
 
     [Fact]
@@ -129,8 +135,8 @@ public class ExceptionClassifierTests
     {
         var result = ExceptionClassifier.Classify(new OperationCanceledException(), requestAborted: false);
 
-        result.Should().NotBeNull();
-        result?.StatusCode.Should().Be(500);
-        result?.Code.Should().Be(V2ErrorCodes.InternalError);
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(500);
+        classification.Code.Should().Be(V2ErrorCodes.InternalError);
     }
 }
