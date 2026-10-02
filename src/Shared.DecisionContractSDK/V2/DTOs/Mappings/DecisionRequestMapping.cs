@@ -12,7 +12,7 @@ public static class DecisionRequestMapping
 {
     /// <summary>Dựng <see cref="Reservation"/> từ request v2.</summary>
     /// <param name="request">Request đã deserialize.</param>
-    /// <exception cref="ContractValidationException">Khi múi giờ không phải mã IANA hoặc danh sách item có phần tử null.</exception>
+    /// <exception cref="ContractValidationException">Khi múi giờ không phải mã IANA, danh sách item có phần tử null hoặc thiếu thông tin khách.</exception>
     public static Reservation ToDomain(this DecisionRequestDto request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -22,6 +22,11 @@ public static class DecisionRequestMapping
         if (request.Items is null || request.Items.Any(item => item is null))
         {
             throw new ContractValidationException("INVALID_ITEMS", "items must be a non-null array without null elements.", "items");
+        }
+
+        if (request.Customer is null)
+        {
+            throw new ContractValidationException("INVALID_CUSTOMER", "customer must not be null.", "customer");
         }
 
         var items = request.Items

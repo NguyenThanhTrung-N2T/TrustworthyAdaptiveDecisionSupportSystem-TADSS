@@ -9,7 +9,7 @@ internal static class ContractSchemas
 {
     private static readonly ConcurrentDictionary<string, JsonSchema> Cache = new(StringComparer.Ordinal);
 
-    public static EvaluationResults Evaluate(string schemaFile, string json)
+    public static EvaluationResults Evaluate(string schemaFile, string json, bool requireFormatValidation = true)
     {
         var schema = Cache.GetOrAdd(schemaFile, file =>
             JsonSchema.FromText(File.ReadAllText(RepositoryPaths.Resolve("docs", "contracts", "schemas", "v2", file))));
@@ -18,7 +18,7 @@ internal static class ContractSchemas
         return schema.Evaluate(instance, new EvaluationOptions
         {
             OutputFormat = OutputFormat.List,
-            RequireFormatValidation = true
+            RequireFormatValidation = requireFormatValidation
         });
     }
 

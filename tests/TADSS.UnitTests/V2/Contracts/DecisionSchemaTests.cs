@@ -128,4 +128,43 @@ public class DecisionSchemaTests
 
         ContractSchemas.Evaluate(ResultSchema, json).IsValid.Should().BeFalse();
     }
+
+    [Theory]
+    [Trait("CatalogId", "CT-01")]
+    [InlineData("start-without-offset")]
+    [InlineData("end-without-offset")]
+    [InlineData("requested-at-without-offset")]
+    [InlineData("member-since-without-offset")]
+    [InlineData("last-completed-without-offset")]
+    [InlineData("requested-at-numeric-offset")]
+    public void RequestSchema_DateTimeWithoutExplicitOffset_IsRejectedEvenWithoutFormatAssertion(string caseName)
+    {
+        var json = V2Samples.MutateRequest(root =>
+        {
+            var item = V2Samples.Object(root["items"]?[0]);
+            var customer = V2Samples.Object(root["customer"]);
+            var history = V2Samples.Object(customer["history"]);
+            switch (caseName)
+            {
+                case "start-without-offset": item["startTime"] = "2026-11-20T18:00:00"; break;
+                case "end-without-offset": item["endTime"] = "2026-11-20T20:00:00"; break;
+                case "requested-at-without-offset": root["requestedAt"] = "2026-11-18T09:15:00"; break;
+                case "member-since-without-offset": customer["memberSince"] = "2025-03-14T08:00:00"; break;
+                case "last-completed-without-offset": history["lastCompletedAt"] = "2026-11-02T20:00:00"; break;
+                case "requested-at-numeric-offset": root["requestedAt"] = "2026-11-18T09:15:00+0700"; break;
+                default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
+            }
+        });
+
+        ContractSchemas.Evaluate(RequestSchema, json, requireFormatValidation: false).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "CT-01")]
+    public void RequestSchema_IntegrationSpecSample_IsValidWithoutFormatAssertion()
+    {
+        var results = ContractSchemas.Evaluate(RequestSchema, V2Samples.RequestJson, requireFormatValidation: false);
+
+        results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
+    }
 }

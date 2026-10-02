@@ -110,4 +110,49 @@ public class DecisionRequestMappingTests
         V2Samples.Required(reservation.Customer.History).LateCancelledCount.Should().Be(0);
         V2Samples.Required(reservation.Customer.History).PaymentExpiredCount.Should().Be(0);
     }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void ToDomain_NullCustomer_ThrowsContractValidation()
+    {
+        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root["customer"] = null));
+
+        var act = () => dto.ToDomain();
+
+        act.Should().Throw<ContractValidationException>().Which.ErrorCode.Should().Be("INVALID_CUSTOMER");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void ToDomain_NullItemsArray_ThrowsContractValidation()
+    {
+        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root["items"] = null));
+
+        var act = () => dto.ToDomain();
+
+        act.Should().Throw<ContractValidationException>().Which.ErrorCode.Should().Be("INVALID_ITEMS");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void ToDomain_NullItemElement_ThrowsContractValidation()
+    {
+        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root =>
+            V2Samples.Object(root)["items"] = new System.Text.Json.Nodes.JsonArray(null, null)));
+
+        var act = () => dto.ToDomain();
+
+        act.Should().Throw<ContractValidationException>().Which.ErrorCode.Should().Be("INVALID_ITEMS");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void ToDomain_NullCurrency_ThrowsDomainInvariant()
+    {
+        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root["currency"] = null));
+
+        var act = () => dto.ToDomain();
+
+        act.Should().Throw<DomainInvariantException>().Which.InvariantCode.Should().Be("INVALID_CURRENCY");
+    }
 }
