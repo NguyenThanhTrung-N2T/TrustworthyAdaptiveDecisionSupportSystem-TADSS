@@ -83,27 +83,10 @@ public class DecisionSchemaTests
 
     [Theory]
     [Trait("CatalogId", "CT-01")]
-    [InlineData("extra-root")]
-    [InlineData("start-without-offset")]
-    [InlineData("channel-lowercase")]
-    [InlineData("member-without-customer-id")]
-    [InlineData("occupancy-above-one")]
-    [InlineData("items-empty")]
+    [MemberData(nameof(RequestSchemaNegativeCases.All), MemberType = typeof(RequestSchemaNegativeCases))]
     public void RequestSchema_InvalidPayload_IsRejected(string caseName)
     {
-        var json = V2Samples.MutateRequest(root =>
-        {
-            switch (caseName)
-            {
-                case "extra-root": root["unexpected"] = 1; break;
-                case "start-without-offset": V2Samples.Object(root["items"]?[0])["startTime"] = "2026-11-20T18:00:00"; break;
-                case "channel-lowercase": root["channel"] = "online"; break;
-                case "member-without-customer-id": V2Samples.Object(root["customer"]).Remove("customerId"); break;
-                case "occupancy-above-one": V2Samples.Object(root["demand"])["occupancyRate"] = 1.5; break;
-                case "items-empty": root["items"] = new System.Text.Json.Nodes.JsonArray(); break;
-                default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
-            }
-        });
+        var json = RequestSchemaNegativeCases.Json(caseName);
 
         ContractSchemas.Evaluate(RequestSchema, json).IsValid.Should().BeFalse();
     }
@@ -155,30 +138,10 @@ public class DecisionSchemaTests
 
     [Theory]
     [Trait("CatalogId", "CT-01")]
-    [InlineData("start-without-offset")]
-    [InlineData("end-without-offset")]
-    [InlineData("requested-at-without-offset")]
-    [InlineData("member-since-without-offset")]
-    [InlineData("last-completed-without-offset")]
-    [InlineData("requested-at-numeric-offset")]
+    [MemberData(nameof(RequestSchemaNegativeCases.DateTimeWithoutExplicitOffset), MemberType = typeof(RequestSchemaNegativeCases))]
     public void RequestSchema_DateTimeWithoutExplicitOffset_IsRejectedEvenWithoutFormatAssertion(string caseName)
     {
-        var json = V2Samples.MutateRequest(root =>
-        {
-            var item = V2Samples.Object(root["items"]?[0]);
-            var customer = V2Samples.Object(root["customer"]);
-            var history = V2Samples.Object(customer["history"]);
-            switch (caseName)
-            {
-                case "start-without-offset": item["startTime"] = "2026-11-20T18:00:00"; break;
-                case "end-without-offset": item["endTime"] = "2026-11-20T20:00:00"; break;
-                case "requested-at-without-offset": root["requestedAt"] = "2026-11-18T09:15:00"; break;
-                case "member-since-without-offset": customer["memberSince"] = "2025-03-14T08:00:00"; break;
-                case "last-completed-without-offset": history["lastCompletedAt"] = "2026-11-02T20:00:00"; break;
-                case "requested-at-numeric-offset": root["requestedAt"] = "2026-11-18T09:15:00+0700"; break;
-                default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
-            }
-        });
+        var json = RequestSchemaNegativeCases.Json(caseName);
 
         ContractSchemas.Evaluate(RequestSchema, json, requireFormatValidation: false).IsValid.Should().BeFalse();
     }

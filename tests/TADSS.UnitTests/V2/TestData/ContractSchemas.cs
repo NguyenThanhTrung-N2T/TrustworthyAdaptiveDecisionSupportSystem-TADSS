@@ -9,17 +9,25 @@ internal static class ContractSchemas
 {
     private static readonly ConcurrentDictionary<string, JsonSchema> Cache = new(StringComparer.Ordinal);
 
+    // JsonSchema.Net đăng ký $id vào registry toàn cục ở lần đánh giá đầu; các class test chạy song song cùng gọi
+    // lần đầu sẽ ném "Overwriting registered schemas is not permitted", nên đánh giá được tuần tự hóa.
+    private static readonly object EvaluationLock = new();
+
     public static EvaluationResults Evaluate(string schemaFile, string json, bool requireFormatValidation = true)
     {
-        var schema = Cache.GetOrAdd(schemaFile, file =>
-            JsonSchema.FromText(File.ReadAllText(RepositoryPaths.Resolve("docs", "contracts", "schemas", "v2", file))));
         var instance = JsonSerializer.Deserialize<JsonElement>(json);
 
-        return schema.Evaluate(instance, new EvaluationOptions
+        lock (EvaluationLock)
         {
-            OutputFormat = OutputFormat.List,
-            RequireFormatValidation = requireFormatValidation
-        });
+            var schema = Cache.GetOrAdd(schemaFile, file =>
+                JsonSchema.FromText(File.ReadAllText(RepositoryPaths.Resolve("docs", "contracts", "schemas", "v2", file))));
+
+            return schema.Evaluate(instance, new EvaluationOptions
+            {
+                OutputFormat = OutputFormat.List,
+                RequireFormatValidation = requireFormatValidation
+            });
+        }
     }
 
     /// <summary>Mô tả lỗi để hiển thị khi assertion thất bại.</summary>

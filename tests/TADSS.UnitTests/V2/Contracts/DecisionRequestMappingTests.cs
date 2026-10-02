@@ -9,8 +9,9 @@ using Xunit;
 namespace TADSS.UnitTests.V2.Contracts;
 
 /// <summary>
-/// UT-02: ánh xạ <c>DecisionRequestDto</c> → <c>Reservation</c> — múi giờ phải là IANA (lỗi định dạng →
-/// <see cref="ContractValidationException"/>), vi phạm bất biến → <see cref="DomainInvariantException"/>.
+/// UT-02: ánh xạ <c>DecisionRequestDto</c> → <c>Reservation</c> — vi phạm hình thức mà schema diễn đạt được (múi giờ không
+/// phải IANA, khách vãng lai kèm customerId, currency sai...) → <see cref="ContractValidationException"/> (B-06);
+/// vi phạm ngoài schema (khoảng thời gian item) → <see cref="DomainInvariantException"/>.
 /// </summary>
 public class DecisionRequestMappingTests
 {
@@ -66,7 +67,7 @@ public class DecisionRequestMappingTests
 
     [Fact]
     [Trait("CatalogId", "UT-02")]
-    public void ToDomain_GuestWithCustomerId_ThrowsDomainInvariant()
+    public void ToDomain_GuestWithCustomerId_ThrowsContractValidation()
     {
         var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root =>
         {
@@ -77,7 +78,9 @@ public class DecisionRequestMappingTests
 
         var act = () => dto.ToDomain();
 
-        act.Should().Throw<DomainInvariantException>().Which.InvariantCode.Should().Be("GUEST_WITH_CUSTOMER_ID");
+        var exception = act.Should().Throw<ContractValidationException>().Which;
+        exception.ErrorCode.Should().Be("INVALID_CUSTOMER");
+        exception.FieldName.Should().Be("customer.customerId");
     }
 
     [Fact]
@@ -161,12 +164,14 @@ public class DecisionRequestMappingTests
 
     [Fact]
     [Trait("CatalogId", "UT-02")]
-    public void ToDomain_NullCurrency_ThrowsDomainInvariant()
+    public void ToDomain_NullCurrency_ThrowsContractValidation()
     {
         var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root["currency"] = null));
 
         var act = () => dto.ToDomain();
 
-        act.Should().Throw<DomainInvariantException>().Which.InvariantCode.Should().Be("INVALID_CURRENCY");
+        var exception = act.Should().Throw<ContractValidationException>().Which;
+        exception.ErrorCode.Should().Be("INVALID_CURRENCY");
+        exception.FieldName.Should().Be("currency");
     }
 }
