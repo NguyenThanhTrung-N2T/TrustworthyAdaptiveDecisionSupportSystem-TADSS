@@ -291,6 +291,65 @@
     JsonSerializerOptions Options { get; }
     Void Apply(JsonSerializerOptions options)
 
+[class] Shared.DecisionContractSDK.V2.Domain.BranchCalendar
+    .ctor(IEnumerable`1 peakWindows)
+    IReadOnlyList`1 PeakWindows { get; }
+    Boolean IsPeak(Reservation reservation)
+
+[class] Shared.DecisionContractSDK.V2.Domain.CustomerHistory
+    .ctor(Int32 completedCount, Int32 noShowCount, Int32 cancelledCount, Int32 lateCancelledCount, Int32 paymentExpiredCount, Nullable`1 lastCompletedAt)
+    Int32 CancelledCount { get; }
+    Int32 CompletedCount { get; }
+    Nullable`1 LastCompletedAt { get; }
+    Int32 LateCancelledCount { get; }
+    Int32 NoShowCount { get; }
+    Int32 PaymentExpiredCount { get; }
+
+[class] Shared.DecisionContractSDK.V2.Domain.CustomerProfile
+    .ctor(Boolean isGuest, Nullable`1 customerId, CustomerTier tier, Nullable`1 memberSince, CustomerHistory history)
+    Nullable`1 CustomerId { get; }
+    CustomerHistory History { get; }
+    Boolean IsGuest { get; }
+    Nullable`1 MemberSince { get; }
+    CustomerTier Tier { get; }
+
+[class] Shared.DecisionContractSDK.V2.Domain.DemandSnapshot
+    .ctor(Decimal occupancyRate, Int32 waitlistCount)
+    Decimal OccupancyRate { get; }
+    Int32 WaitlistCount { get; }
+
+[class] Shared.DecisionContractSDK.V2.Domain.PeakWindow
+    .ctor(DayOfWeek day, TimeOnly start, TimeOnly end)
+    DayOfWeek Day { get; }
+    TimeOnly End { get; }
+    TimeOnly Start { get; }
+    Boolean Contains(DateTimeOffset branchLocal)
+
+[class] Shared.DecisionContractSDK.V2.Domain.Reservation
+    .ctor(Guid reservationId, Guid branchId, TimeZoneInfo branchTimeZone, IReadOnlyList`1 items, CustomerProfile customer, Decimal totalPrice, String currency, Channel channel, DateTimeOffset requestedAt, DemandSnapshot demand, IReadOnlyDictionary`2 metadata)
+    Guid BranchId { get; }
+    TimeZoneInfo BranchTimeZone { get; }
+    Channel Channel { get; }
+    String Currency { get; }
+    CustomerProfile Customer { get; }
+    DemandSnapshot Demand { get; }
+    DateTimeOffset EarliestStart { get; }
+    IReadOnlyList`1 Items { get; }
+    IReadOnlyDictionary`2 Metadata { get; }
+    DateTimeOffset RequestedAt { get; }
+    Guid ReservationId { get; }
+    Decimal TotalPrice { get; }
+    DateTimeOffset ToBranchLocal(DateTimeOffset instant)
+
+[class] Shared.DecisionContractSDK.V2.Domain.ReservationItem
+    .ctor(Guid resourceId, Guid resourceTypeId, DateTimeOffset start, DateTimeOffset end, Decimal price)
+    TimeSpan Duration { get; }
+    DateTimeOffset End { get; }
+    Decimal Price { get; }
+    Guid ResourceId { get; }
+    Guid ResourceTypeId { get; }
+    DateTimeOffset Start { get; }
+
 [enum] Shared.DecisionContractSDK.V2.Enums.Channel : IComparable, IConvertible, IFormattable, ISpanFormattable
     ONLINE = 0
     WALK_IN = 1
