@@ -18,6 +18,9 @@ public class DecisionsController(IDecisionService decisionService, IDecisionQuer
     /// <summary>Độ dài tối đa của <c>X-Idempotency-Key</c> (INTEGRATION_SPEC §2).</summary>
     public const int MaxIdempotencyKeyLength = 128;
 
+    /// <summary>Media type của mọi phản hồi lỗi (RFC 7807), dùng cho tài liệu OpenAPI.</summary>
+    private const string ProblemContentType = "application/problem+json";
+
     /// <summary>
     /// Đánh giá một yêu cầu đặt sân (<c>POST /api/v2/decisions</c>). Gửi lại cùng <c>X-Idempotency-Key</c> và cùng nội dung thì trả
     /// lại đúng response đã lưu.
@@ -33,13 +36,13 @@ public class DecisionsController(IDecisionService decisionService, IDecisionQuer
     /// <response code="504">Quá thời gian xử lý (<c>GATEWAY_TIMEOUT</c>), kèm <c>Retry-After</c>.</response>
     /// <response code="500">Lỗi nội bộ (<c>INTERNAL_ERROR</c>).</response>
     [HttpPost]
-    [ProducesResponseType(typeof(DecisionResultDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status415UnsupportedMediaType)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status504GatewayTimeout)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(DecisionResultDto), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status415UnsupportedMediaType, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status504GatewayTimeout, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemContentType)]
     public async Task<ActionResult<DecisionResultDto>> EvaluateAsync(
         [FromBody] DecisionRequestDto request,
         CancellationToken cancellationToken)
@@ -77,10 +80,10 @@ public class DecisionsController(IDecisionService decisionService, IDecisionQuer
     /// <response code="503">Lưu trữ tạm thời không khả dụng (<c>PERSISTENCE_UNAVAILABLE</c>), kèm <c>Retry-After</c>.</response>
     /// <response code="500">Lỗi nội bộ (<c>INTERNAL_ERROR</c>).</response>
     [HttpGet("{decisionId:guid}")]
-    [ProducesResponseType(typeof(DecisionDetailDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(DecisionDetailDto), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable, ProblemContentType)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, ProblemContentType)]
     public async Task<ActionResult<DecisionDetailDto>> GetAsync(Guid decisionId, CancellationToken cancellationToken)
     {
         var detail = await decisionQueryService.GetDetailAsync(decisionId, cancellationToken);

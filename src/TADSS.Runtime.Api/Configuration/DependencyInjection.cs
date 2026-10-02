@@ -56,7 +56,7 @@ public static class DependencyInjection
             c.SwaggerDoc("v2", new Microsoft.OpenApi.Models.OpenApiInfo
             {
                 Title = "TADSS Decision Runtime API",
-                Version = "v2",
+                Version = "2.0.0-draft",
                 Description = "Decision Runtime của TADSS cho SmashCourt: đánh giá quyết định đặt sân (POST /api/v2/decisions) và tra cứu chi tiết quyết định (GET /api/v2/decisions/{decisionId}). Contract v2: INTEGRATION_SPEC."
             });
 
@@ -78,6 +78,10 @@ public static class DependencyInjection
 
             // Register operation filter for contract-defined headers
             c.OperationFilter<RequiredHeaderOperationFilter>();
+
+            // problem+json của contract mang thêm code/traceId...; chuẩn hóa xuống dòng để openapi-v2.yaml sinh ổn định giữa các máy
+            c.SchemaFilter<ProblemDetailsSchemaFilter>();
+            c.DocumentFilter<LineEndingDocumentFilter>();
         });
 
         return services;
