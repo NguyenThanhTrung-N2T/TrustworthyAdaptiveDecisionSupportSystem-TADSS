@@ -17,6 +17,9 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
 {
     public const string EnvironmentName = "Testing";
 
+    /// <summary>Timeout thao tác Redis của host thử nghiệm (ms); rộng hơn mặc định để tránh miss giả khi máy tải nặng.</summary>
+    public const int RedisTimeoutMs = 2000;
+
     private readonly string _connectionString;
     private readonly string _redisConnectionString;
 
@@ -36,6 +39,10 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
             {
                 options.Provider = "Redis";
                 options.RedisConnectionString = _redisConnectionString;
+                // CACHE_HIT chỉ được đến từ Redis thật: không có đường lùi sang memory cache
+                options.EnableFallbackToMemory = false;
+                // 150 ms mặc định dễ làm một lần đọc Redis thành "miss" khi máy chạy test đang tải nặng, khiến test cache chập chờn
+                options.RedisTimeoutMs = RedisTimeoutMs;
             });
         });
     }

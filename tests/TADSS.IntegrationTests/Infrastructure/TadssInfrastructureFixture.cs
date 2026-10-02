@@ -31,6 +31,7 @@ public sealed class TadssInfrastructureFixture : IAsyncLifetime
     private readonly RedisContainer _redis;
     private readonly ToxiproxyContainer _toxiproxy;
     private ToxiproxyControl? _toxiproxyControl;
+    private ConnectionMultiplexer? _redisAdmin;
 
     public TadssInfrastructureFixture()
     {
@@ -52,6 +53,13 @@ public sealed class TadssInfrastructureFixture : IAsyncLifetime
 
     /// <summary>Chuỗi kết nối Redis (host:port) trỏ thẳng tới container.</summary>
     public string RedisConnectionString => _redis.GetConnectionString();
+
+    /// <summary>
+    /// Kết nối quản trị (<c>AllowAdmin</c>) thẳng tới Redis của container, dùng để dọn dữ liệu giữa các test và đọc key/giá trị mà
+    /// cache của app đã ghi. Container chỉ phục vụ test nên được phép <c>FLUSHALL</c>.
+    /// </summary>
+    public IConnectionMultiplexer RedisAdmin =>
+        _redisAdmin ?? throw new InvalidOperationException("Redis admin chỉ dùng được sau InitializeAsync.");
 
     /// <summary>Điều khiển Toxiproxy để tiêm lỗi mạng tới PostgreSQL/Redis.</summary>
     public ToxiproxyControl Toxiproxy =>
@@ -82,6 +90,10 @@ public sealed class TadssInfrastructureFixture : IAsyncLifetime
         await _toxiproxyControl.CreateProxyAsync(RedisProxy, RedisProxyPort, "redis:6379");
         await VerifyProxiedPathsAsync();
 
+        var redisAdminOptions = ConfigurationOptions.Parse(RedisConnectionString);
+        redisAdminOptions.AllowAdmin = true;
+        _redisAdmin = await ConnectionMultiplexer.ConnectAsync(redisAdminOptions);
+
         await ExecuteAdminAsync($"CREATE DATABASE {TemplateDatabase}");
 
         var options = new DbContextOptionsBuilder<TadssDbContext>()
@@ -96,6 +108,15 @@ public sealed class TadssInfrastructureFixture : IAsyncLifetime
 
         // CREATE DATABASE ... TEMPLATE yêu cầu không còn kết nối nào tới database mẫu
         NpgsqlConnection.ClearAllPools();
+    }
+
+    /// <summary>Xóa mọi key trong Redis của container để cache không rò rỉ giữa các test.</summary>
+    public async Task FlushRedisAsync()
+    {
+        foreach (var endpoint in RedisAdmin.GetEndPoints())
+        {
+            await RedisAdmin.GetServer(endpoint).FlushAllDatabasesAsync();
+        }
     }
 
     /// <summary>Tạo database mới (mặc định nhân bản từ mẫu đã migrate) và trả về tên database.</summary>
@@ -163,6 +184,11 @@ public sealed class TadssInfrastructureFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _toxiproxyControl?.Dispose();
+        if (_redisAdmin is not null)
+        {
+            await _redisAdmin.DisposeAsync();
+        }
+
         await _toxiproxy.DisposeAsync();
         await _redis.DisposeAsync();
         await _postgres.DisposeAsync();

@@ -57,6 +57,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     public virtual async Task InitializeAsync()
     {
+        // Container Redis dùng chung cả lượt chạy: dọn trước mỗi test để CACHE_HIT không đến từ test khác
+        await Infrastructure.FlushRedisAsync();
         DatabaseName = await CreateAdditionalDatabaseAsync();
         ConnectionString = Infrastructure.BuildConnectionString(DatabaseName);
         _factory = new TadssWebApplicationFactory(ConnectionString, Infrastructure.RedisConnectionString);
