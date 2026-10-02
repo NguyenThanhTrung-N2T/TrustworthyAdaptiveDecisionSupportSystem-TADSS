@@ -33,6 +33,14 @@ public static class DecisionRequests
         root["totalPrice"] = HighValueTotalPrice;
     });
 
+    /// <summary>Request mẫu nhưng item duy nhất bắt đầu tại <paramref name="start"/> và kéo dài 2 giờ (dùng khi test chạy bằng đồng hồ thật và cần giờ bắt đầu ở tương lai).</summary>
+    public static string StartingAt(DateTimeOffset start) => Mutated(root =>
+    {
+        var item = V2Samples.Object(root["items"]?[0]);
+        item["startTime"] = Format(start);
+        item["endTime"] = Format(start.AddHours(2));
+    });
+
     /// <summary>Định dạng instant thành chuỗi ISO 8601 có offset +07:00 tường minh, theo yêu cầu của schema.</summary>
     public static string Format(DateTimeOffset value) =>
         value.ToOffset(VietnamOffset).ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture);

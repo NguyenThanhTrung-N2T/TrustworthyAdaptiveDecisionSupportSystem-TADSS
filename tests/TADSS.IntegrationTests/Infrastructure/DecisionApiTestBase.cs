@@ -43,6 +43,21 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
     /// <summary>Đồng hồ của host test; tiến thời gian bằng <see cref="FakeTimeProvider.Advance"/>.</summary>
     protected FakeTimeProvider Clock { get; } = new(InitialInstant);
 
+    /// <summary>
+    /// <c>true</c> (mặc định) thì host dùng <see cref="Clock"/> đóng băng; lớp dẫn xuất trả <c>false</c> để host chạy bằng đồng hồ thật
+    /// (<see cref="TimeProvider.System"/>). Đồng hồ đóng băng cũng đóng băng timer của Polly (timeout, retry delay, break duration)
+    /// nên test chịu lỗi dựa vào timeout/breaker phải dùng đồng hồ thật.
+    /// </summary>
+    protected virtual bool UseFakeClock => true;
+
+    /// <summary>
+    /// Điểm mở rộng để lớp dẫn xuất thay thêm DI của host test (C-10) sau khi đồng hồ và registry mặc định đã được thay. Mặc định không làm gì.
+    /// Được gọi khi host được dựng (lần truy cập <see cref="Host"/>/<see cref="Api"/> đầu tiên), không phải lúc <see cref="InitializeAsync"/>.
+    /// </summary>
+    protected virtual void ConfigureHostServices(IServiceCollection services)
+    {
+    }
+
     /// <summary>Registry strategy của host test (đếm lần chạy, ghi đè chính sách cache).</summary>
     protected ProbeStrategyRegistry Strategies =>
         (ProbeStrategyRegistry)Host.Services.GetRequiredService<IStrategyRegistry>();
@@ -60,12 +75,17 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
         await base.InitializeAsync();
         _host = CreateFactory(builder => builder.ConfigureTestServices(services =>
         {
-            services.RemoveAll<TimeProvider>();
-            services.AddSingleton<TimeProvider>(Clock);
+            if (UseFakeClock)
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(Clock);
+            }
 
             services.RemoveAll<IStrategyRegistry>();
             services.AddSingleton<IStrategyRegistry>(sp =>
                 new ProbeStrategyRegistry(ActivatorUtilities.CreateInstance<StrategyRegistry>(sp)));
+
+            ConfigureHostServices(services);
         }));
     }
 
