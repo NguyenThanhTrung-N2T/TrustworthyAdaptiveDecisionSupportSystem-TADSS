@@ -6,8 +6,8 @@ using TADSS.Runtime.Api.Common;
 namespace TADSS.Runtime.Api.Configuration;
 
 /// <summary>
-/// OpenAPI operation filter to document required and optional headers
-/// according to API_CONTRACT_V1.md specifications.
+/// OpenAPI operation filter mô tả header của contract v2 (INTEGRATION_SPEC §2):
+/// <c>X-Idempotency-Key</c> bắt buộc ở <c>POST /api/v2/decisions</c>, <c>X-Correlation-ID</c> tùy chọn ở mọi endpoint.
 /// </summary>
 public class RequiredHeaderOperationFilter : IOperationFilter
 {
@@ -18,9 +18,9 @@ public class RequiredHeaderOperationFilter : IOperationFilter
         var httpMethod = context.ApiDescription.HttpMethod?.ToUpperInvariant();
         var relativePath = context.ApiDescription.RelativePath?.TrimStart('/');
 
-        // 1. X-Idempotency-Key: Required for POST /api/v1/decisions (EvaluateDecision)
+        // 1. X-Idempotency-Key: bắt buộc cho POST /api/v2/decisions (EvaluateAsync)
         var isEvaluateDecision = string.Equals(httpMethod, "POST", StringComparison.OrdinalIgnoreCase) &&
-                                 string.Equals(relativePath, "api/v1/decisions", StringComparison.OrdinalIgnoreCase);
+                                 string.Equals(relativePath, "api/v2/decisions", StringComparison.OrdinalIgnoreCase);
 
         if (isEvaluateDecision)
         {

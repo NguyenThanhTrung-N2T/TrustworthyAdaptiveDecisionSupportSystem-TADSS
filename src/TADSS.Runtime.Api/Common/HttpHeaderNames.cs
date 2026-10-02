@@ -10,7 +10,4 @@ public static class HttpHeaderNames
 
     /// <summary>Optional canonical correlation identifier for end-to-end distributed tracing.</summary>
     public const string CorrelationId = "X-Correlation-ID";
-
-    /// <summary>Canonical decision identifier header returned on successful evaluation.</summary>
-    public const string DecisionId = "X-Decision-ID";
 }

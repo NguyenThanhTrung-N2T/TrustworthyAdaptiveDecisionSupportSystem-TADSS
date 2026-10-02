@@ -11,8 +11,8 @@ using Xunit;
 namespace TADSS.UnitTests.Services;
 
 /// <summary>
-/// UT-10: <c>AddDecisionRuntime</c> đăng ký <see cref="IDecisionQueryService"/> là <see cref="DecisionQueryService"/> với
-/// vòng đời scoped (cùng scope dùng chung một instance, khác scope thì khác instance) vì phụ thuộc kho audit scoped.
+/// UT-10: <c>AddDecisionRuntime</c> đăng ký <see cref="IDecisionQueryService"/> (<see cref="DecisionQueryService"/>) và
+/// <see cref="IDecisionService"/> (<see cref="DecisionService"/>) với vòng đời scoped (cùng scope dùng chung một instance, khác scope thì khác instance) vì phụ thuộc kho audit scoped.
 /// </summary>
 public class DecisionQueryServiceRegistrationTests
 {
@@ -40,6 +40,24 @@ public class DecisionQueryServiceRegistrationTests
         var second = secondScope.ServiceProvider.GetRequiredService<IDecisionQueryService>();
 
         first.Should().BeOfType<DecisionQueryService>();
+        sameScope.Should().BeSameAs(first);
+        second.Should().NotBeSameAs(first);
+    }
+
+    /// <summary>Resolve được <see cref="IDecisionService"/> (kéo theo kho audit scoped, strategy, pipeline, cache singleton) với vòng đời scoped.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-10")]
+    public void AddDecisionRuntime_RegistersDecisionServiceAsScoped()
+    {
+        using var host = BuildHost();
+
+        using var firstScope = host.Services.CreateScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<IDecisionService>();
+        var sameScope = firstScope.ServiceProvider.GetRequiredService<IDecisionService>();
+        using var secondScope = host.Services.CreateScope();
+        var second = secondScope.ServiceProvider.GetRequiredService<IDecisionService>();
+
+        first.Should().BeOfType<DecisionService>();
         sameScope.Should().BeSameAs(first);
         second.Should().NotBeSameAs(first);
     }

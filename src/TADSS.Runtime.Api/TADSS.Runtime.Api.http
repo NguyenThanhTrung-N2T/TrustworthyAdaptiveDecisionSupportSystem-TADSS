@@ -1,6 +1,51 @@
 @TADSS.Runtime.Api_HostAddress = http://localhost:5296
+@idempotencyKey = booking-0001
+@decisionId = 0f9c7e5a-0000-4000-8000-00000000d001
 
-GET {{TADSS.Runtime.Api_HostAddress}}/weatherforecast/
+### Đánh giá quyết định đặt sân (INTEGRATION_SPEC §3.3). Cùng X-Idempotency-Key + cùng nội dung thì trả lại response đã lưu.
+POST {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions
+Content-Type: application/json
+X-Idempotency-Key: {{idempotencyKey}}
+X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544
+
+{
+  "reservationId": "5b0a6f0e-7c0d-4a0e-9a64-0c2e7f1b9a11",
+  "branchId": "1f2e3d4c-0000-4000-8000-000000000001",
+  "branchTimeZone": "Asia/Ho_Chi_Minh",
+  "items": [
+    {
+      "resourceId": "c0a8012e-0000-4000-8000-0000000000aa",
+      "resourceTypeId": "c0a8012e-0000-4000-8000-0000000000bb",
+      "startTime": "2026-11-20T18:00:00+07:00",
+      "endTime": "2026-11-20T20:00:00+07:00",
+      "price": 240000
+    }
+  ],
+  "customer": {
+    "customerId": "9d3f1c2a-0000-4000-8000-000000000123",
+    "isGuest": false,
+    "tier": "GOLD",
+    "memberSince": "2025-03-14T08:00:00+07:00",
+    "history": {
+      "completedCount": 12,
+      "noShowCount": 1,
+      "cancelledCount": 2,
+      "lateCancelledCount": 1,
+      "paymentExpiredCount": 0,
+      "lastCompletedAt": "2026-11-02T20:00:00+07:00"
+    }
+  },
+  "totalPrice": 228000,
+  "currency": "VND",
+  "channel": "ONLINE",
+  "demand": { "occupancyRate": 0.75, "waitlistCount": 2 },
+  "requestedAt": "2026-11-18T09:15:00+07:00",
+  "metadata": { "promotionCode": "WINTER" }
+}
+
+### Chi tiết quyết định (INTEGRATION_SPEC §3.4): thay decisionId bằng giá trị trả về từ lệnh POST ở trên.
+GET {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions/{{decisionId}}
 Accept: application/json
+X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544
 
 ###

@@ -88,6 +88,9 @@ public static class DecisionRuntimeServiceCollectionExtensions
         services.AddSingleton<DecisionResponseComposer>();
         services.AddScoped<IDecisionAuditStore, EfDecisionAuditStore>();
 
+        // Điều phối đánh giá quyết định: scoped vì phụ thuộc kho audit scoped (strategy/pipeline/cache vẫn singleton)
+        services.AddScoped<IDecisionService, DecisionService>();
+
         // Tra cứu chi tiết quyết định chỉ đọc qua kho audit nên cùng vòng đời scoped với kho
         services.AddScoped<IDecisionQueryService, DecisionQueryService>();
 

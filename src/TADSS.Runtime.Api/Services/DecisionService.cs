@@ -23,7 +23,7 @@ namespace TADSS.Runtime.Api.Services;
 /// Một mốc <c>nowUtc</c> duy nhất lấy từ <see cref="TimeProvider"/>, cắt phần dưới micro giây, cho cả lần đánh giá (B-03, C-08). Lỗi trước bước ghi audit
 /// (validation, P-01, xung đột idempotency) không ghi audit và không chạy strategy. Lỗi cache được cô lập tại đây
 /// (coi như miss / bỏ qua ghi) nên không bao giờ biến một quyết định thành công thành thất bại; chỉ hủy của chính
-/// caller được lan ra. Không đăng ký DI ở gói 5.2b (B-02); gói 5.2c đăng ký cùng <c>EfDecisionAuditStore</c>.
+/// caller được lan ra. Đăng ký scoped trong <c>AddDecisionRuntime</c> cùng <c>EfDecisionAuditStore</c>.
 /// </para>
 /// </summary>
 public sealed class DecisionService : IDecisionService
