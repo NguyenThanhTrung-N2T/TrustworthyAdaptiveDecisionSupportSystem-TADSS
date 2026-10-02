@@ -11,18 +11,22 @@ namespace TADSS.UnitTests.V2.Runtime.TestDoubles;
 internal sealed class DelegateStrategy : IReservationDecisionStrategy
 {
     private readonly Func<Reservation, DecisionContext, CancellationToken, Task<StrategyDecision>> _behavior;
+    private readonly StrategyCachePolicy _cachePolicy;
     private int _invocationCount;
 
-    public DelegateStrategy(Func<Reservation, DecisionContext, CancellationToken, Task<StrategyDecision>> behavior)
+    public DelegateStrategy(
+        Func<Reservation, DecisionContext, CancellationToken, Task<StrategyDecision>> behavior,
+        StrategyCachePolicy? cachePolicy = null)
     {
         _behavior = behavior;
+        _cachePolicy = cachePolicy ?? StrategyCachePolicy.Disabled;
     }
 
     public string StrategyName => "DelegateStrategy";
 
     public string StrategyVersion => "2.0.0";
 
-    public StrategyCachePolicy CachePolicy => StrategyCachePolicy.Disabled;
+    public StrategyCachePolicy CachePolicy => _cachePolicy;
 
     /// <summary>Số lần <see cref="EvaluateAsync"/> đã được gọi.</summary>
     public int InvocationCount => Volatile.Read(ref _invocationCount);
