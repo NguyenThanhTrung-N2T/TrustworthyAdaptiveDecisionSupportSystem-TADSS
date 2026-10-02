@@ -291,6 +291,163 @@
     JsonSerializerOptions Options { get; }
     Void Apply(JsonSerializerOptions options)
 
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.CustomerDto
+    .ctor()
+    Nullable`1 CustomerId { get; set; }
+    CustomerHistoryDto History { get; set; }
+    Boolean IsGuest { get; set; }
+    Nullable`1 MemberSince { get; set; }
+    CustomerTier Tier { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.CustomerHistoryDto
+    .ctor()
+    Int32 CancelledCount { get; set; }
+    Int32 CompletedCount { get; set; }
+    Nullable`1 LastCompletedAt { get; set; }
+    Int32 LateCancelledCount { get; set; }
+    Int32 NoShowCount { get; set; }
+    Int32 PaymentExpiredCount { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionDetailDto
+    .ctor()
+    String CorrelationId { get; set; }
+    DateTimeOffset CreatedAt { get; set; }
+    Guid DecisionId { get; set; }
+    ExecutionDetailDto Execution { get; set; }
+    OutcomeResponseDto Outcome { get; set; }
+    OverrideResponseDto Override { get; set; }
+    DecisionRequestDto Request { get; set; }
+    Guid ReservationId { get; set; }
+    DecisionDetailResultDto Result { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionDetailResultDto
+    .ctor()
+    Nullable`1 ApprovalExpiresAt { get; set; }
+    DepositDto Deposit { get; set; }
+    String ReasonCode { get; set; }
+    IReadOnlyList`1 Reasons { get; set; }
+    IReadOnlyList`1 Recommendations { get; set; }
+    DecisionStatus Status { get; set; }
+    DecisionStatus StrategyStatus { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionRecommendationDto
+    .ctor()
+    String Description { get; set; }
+    RecommendationType Type { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionRequestDto
+    .ctor()
+    Guid BranchId { get; set; }
+    String BranchTimeZone { get; set; }
+    Channel Channel { get; set; }
+    String Currency { get; set; }
+    CustomerDto Customer { get; set; }
+    DemandDto Demand { get; set; }
+    IReadOnlyList`1 Items { get; set; }
+    IReadOnlyDictionary`2 Metadata { get; set; }
+    DateTimeOffset RequestedAt { get; set; }
+    Guid ReservationId { get; set; }
+    Decimal TotalPrice { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DecisionResultDto
+    .ctor()
+    Nullable`1 ApprovalExpiresAt { get; set; }
+    Guid DecisionId { get; set; }
+    DepositDto Deposit { get; set; }
+    DateTimeOffset EvaluatedAt { get; set; }
+    ExecutionType ExecutionType { get; set; }
+    Boolean FallbackUsed { get; set; }
+    String ReasonCode { get; set; }
+    IReadOnlyList`1 Reasons { get; set; }
+    IReadOnlyList`1 Recommendations { get; set; }
+    Guid ReservationId { get; set; }
+    DecisionStatus Status { get; set; }
+    String StrategyName { get; set; }
+    String StrategyVersion { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DemandDto
+    .ctor()
+    Decimal OccupancyRate { get; set; }
+    Int32 WaitlistCount { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.DepositDto
+    .ctor()
+    Decimal Amount { get; set; }
+    String Currency { get; set; }
+    Decimal Rate { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.ExecutionDetailDto
+    .ctor()
+    Boolean CacheHit { get; set; }
+    Int32 ExecutionTimeMs { get; set; }
+    ExecutionType ExecutionType { get; set; }
+    String FailureReason { get; set; }
+    Boolean FallbackUsed { get; set; }
+    String StrategyName { get; set; }
+    String StrategyVersion { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Decisions.ReservationItemDto
+    .ctor()
+    DateTimeOffset EndTime { get; set; }
+    Decimal Price { get; set; }
+    Guid ResourceId { get; set; }
+    Guid ResourceTypeId { get; set; }
+    DateTimeOffset StartTime { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideDepositDto
+    .ctor()
+    Nullable`1 Amount { get; set; }
+    Nullable`1 Rate { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideRequestDto
+    .ctor()
+    OverrideAction Action { get; set; }
+    OverrideDepositDto Deposit { get; set; }
+    String Reason { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Governance.OverrideResponseDto
+    .ctor()
+    OverrideAction Action { get; set; }
+    String ActorId { get; set; }
+    Guid DecisionId { get; set; }
+    DepositDto Deposit { get; set; }
+    DateTimeOffset OverriddenAt { get; set; }
+    String Reason { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Governance.PendingApprovalCustomerDto
+    .ctor()
+    Boolean IsGuest { get; set; }
+    CustomerTier Tier { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Governance.PendingApprovalItemDto
+    .ctor()
+    DateTimeOffset ApprovalExpiresAt { get; set; }
+    Guid BranchId { get; set; }
+    DateTimeOffset CreatedAt { get; set; }
+    String Currency { get; set; }
+    PendingApprovalCustomerDto Customer { get; set; }
+    Guid DecisionId { get; set; }
+    DateTimeOffset EarliestStart { get; set; }
+    Boolean FallbackUsed { get; set; }
+    String ReasonCode { get; set; }
+    Guid ReservationId { get; set; }
+    Decimal TotalPrice { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Mappings.DecisionRequestMapping
+    Reservation ToDomain(DecisionRequestDto request)
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Outcomes.OutcomeRequestDto
+    .ctor()
+    DateTimeOffset OccurredAt { get; set; }
+    DecisionOutcome Outcome { get; set; }
+
+[class] Shared.DecisionContractSDK.V2.DTOs.Outcomes.OutcomeResponseDto
+    .ctor()
+    Guid DecisionId { get; set; }
+    DateTimeOffset OccurredAt { get; set; }
+    DecisionOutcome Outcome { get; set; }
+    DateTimeOffset ReportedAt { get; set; }
+
 [class] Shared.DecisionContractSDK.V2.Decisions.DecisionContext
     .ctor(DateTimeOffset evaluatedAtUtc, BranchCalendar calendar)
     BranchCalendar Calendar { get; }
