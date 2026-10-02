@@ -15,8 +15,8 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Caching;
 
 /// <summary>
-/// UT-13: nối DI của cache v2 trong <c>AddDecisionRuntime</c> — <see cref="IStrategyDecisionCache"/> là singleton,
-/// tự đủ phụ thuộc (không cần v1 đăng ký <c>IMemoryCache</c>/<c>TadssCacheOptions</c>), dùng multiplexer Redis nếu có và
+/// UT-13: nối DI của cache trong <c>AddDecisionRuntime</c> — <see cref="IStrategyDecisionCache"/> là singleton,
+/// tự đăng ký đủ phụ thuộc (<c>IMemoryCache</c>, <c>TadssCacheOptions</c>), dùng multiplexer Redis nếu có và
 /// chỉ khi <c>Provider = Redis</c> (không kết nối Redis khi dùng provider Memory).
 /// </summary>
 public class StrategyDecisionCacheRegistrationTests

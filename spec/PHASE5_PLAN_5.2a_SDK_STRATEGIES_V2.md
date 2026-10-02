@@ -26,7 +26,7 @@
 
 ## Chuẩn bị (người dùng thực hiện, trước Task 1)
 
-1. Commit hai file spec đang staged nhưng chưa vào commit `19b33a5` cùng các tài liệu đã sửa trong phiên thiết kế 5.2: `spec/PHASE5_DESIGN_SPEC.md`, `spec/PHASE5_PLAN_5.1_TEST_FOUNDATION.md`, `spec/PHASE5_PLAN_5.2a_SDK_STRATEGIES_V2.md`, `docs/contracts/INTEGRATION_SPEC.md`, `docs/architecture/DECISION_PERSISTENCE_INVARIANTS.md`, `docs/research/DATASET_SCHEMA_SPECIFICATION_V1.md`. Gợi ý: `docs(spec): thiết kế gói 5.2 (chia 5.2a–c, tín hiệu SmashCourt, wire v2) và plan 5.2a`.
+1. Commit hai file spec đang staged nhưng chưa vào commit `19b33a5` cùng các tài liệu đã sửa trong phiên thiết kế 5.2: `spec/PHASE5_DESIGN_SPEC.md`, `spec/PHASE5_PLAN_5.1_TEST_FOUNDATION.md`, `spec/PHASE5_PLAN_5.2a_SDK_STRATEGIES_V2.md`, `docs/contracts/INTEGRATION_SPEC.md`, `docs/architecture/DECISION_PERSISTENCE_INVARIANTS.md`, `docs/research/DATASET_SCHEMA_SPECIFICATION.md`. Gợi ý: `docs(spec): thiết kế gói 5.2 (chia 5.2a–c, tín hiệu SmashCourt, wire v2) và plan 5.2a`.
 2. Cập nhật `develop` cục bộ theo remote (5.1 đã merge) và tạo nhánh `feat/phase-5.2a-sdk-strategies-v2` từ `develop` (D-08). Agent chỉ chạy các lệnh git này khi người dùng cho phép.
 
 ## Cấu trúc file

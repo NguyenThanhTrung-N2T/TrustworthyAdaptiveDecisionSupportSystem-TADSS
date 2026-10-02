@@ -3,7 +3,7 @@
 | | |
 | :--- | :--- |
 | **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (08/11/2026) |
-| **Thay thế** | Contract v1.0.0 ([`API_CONTRACT_V1.md`](API_CONTRACT_V1.md)) — v1 không có consumer thực tế nên đã được gỡ ở gói 5.2c (chuyển hẳn sang v2); v2 vẫn đóng băng ở M5 |
+| **Thay thế** | Contract v1.0.0 (Phase 1–4, chưa có consumer) — đã gỡ khỏi mã và tài liệu; tra lại qua tag git `phase4-baseline` |
 | **Consumer** | `SmashCourt-BE` (Phase 6); adapter Hotel Booking Demand (kiểm chứng độc lập domain) |
 | **Sở hữu** | Tài liệu này là nguồn duy nhất về contract v2 và luồng tích hợp. Bất biến lưu trữ: [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) |
 
@@ -334,6 +334,8 @@ TADSS dùng schema `tadss` trên cùng máy chủ PostgreSQL với SmashCourt. C
 
 ## 6. QUẢN LÝ PHIÊN BẢN
 
-- Contract v1.0.0 (Milestone 2) giữ nguyên trong `API_CONTRACT_V1.md`, `openapi-v1.yaml`, `schemas/` làm hồ sơ lịch sử.
-- Contract v2.0.0 đóng băng tại M5 với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK. Sau khi đóng băng, mọi thay đổi wire phải qua quy trình tại Mục 6 của [`CONTRACT_V1_FREEZE.md`](CONTRACT_V1_FREEZE.md).
-- Endpoint `/api/v1` và toàn bộ mã v1 đã được gỡ ở gói 5.2c (chuyển hẳn sang v2) vì chưa có consumer nào tích hợp v1; `NoLegacyV1Tests` khóa việc này. Việc đóng băng v2 vẫn diễn ra ở M5.
+- Contract v2.0.0 là phiên bản duy nhất; đóng băng tại M5 với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK (`baseline_public_api.txt`).
+- **Sau khi đóng băng** (mọi schema đều `additionalProperties: false`, nên thêm cả trường tùy chọn cũng làm client kiểm tra chặt từ chối):
+  - **Được phép trong `2.x.y`:** cải tiến nội bộ SDK/runtime không đổi wire JSON (hiệu năng, sửa lỗi, XML doc); thêm `reasonCode` mới — consumer phải xử lý `reasonCode` như chuỗi và không lỗi khi gặp mã lạ.
+  - **Bắt buộc lên phiên bản lớn mới:** thêm/xóa/đổi tên/đổi kiểu trường, đổi ràng buộc, đổi tập giá trị enum. Phiên bản mới có route riêng (`/api/v3`), thư mục schema riêng (`schemas/v3/`), baseline public API riêng; phiên bản cũ chạy song song trong thời gian chuyển đổi nếu đã có consumer.
+- Contract v1.0.0 (Phase 1–4) không còn trong repo; tra lại qua tag git `phase4-baseline`.

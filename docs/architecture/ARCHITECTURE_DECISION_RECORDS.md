@@ -42,6 +42,7 @@ Tóm tắt (chi tiết trong file riêng):
 - **Bối cảnh:** v1 không biểu diễn được số cọc, nhiều sân, khách vãng lai, chi nhánh, danh tính Manager, kết quả thực tế; chính sách đóng băng v1 không cho thêm trường.
 - **Quyết định:** phát hành v2.0.0 (`/api/v2`) theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md); v1 được giữ làm hồ sơ và gỡ endpoint khi v2 đóng băng vì chưa có consumer.
 - **Hệ quả:** cập nhật SDK, JSON schema, public API baseline; viết lại strategies.
+- **Cập nhật 02/10/2026:** endpoint, mã và toàn bộ hồ sơ v1 (contract, OpenAPI, schema, số đo Milestone 2, benchmark Tuần 8) đã gỡ khỏi repo ở Phase 5 (gói 5.2c và đợt dọn sau đó); tra lại qua tag git `phase4-baseline`.
 
 ## ADR-008: Audit bất biến ba bảng + trigger
 
@@ -70,4 +71,4 @@ Tóm tắt (chi tiết trong file riêng):
 
 - **Bối cảnh:** giảng viên yêu cầu minh chứng bằng dữ liệu chạy thật; dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn do job tự sinh).
 - **Quyết định:** ba nguồn dữ liệu, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt (hình dạng input thực tế), dataset công khai Hotel Booking Demand (độc lập domain), pilot UAT với người dùng thật (luồng tích hợp, khả dụng). Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
-- **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION_V1.md`](../research/DATASET_SCHEMA_SPECIFICATION_V1.md).
+- **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md).

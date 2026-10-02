@@ -1,6 +1,6 @@
 # ĐẶC TẢ KIẾN TRÚC PHẦN MỀM TADSS (SAS) — v2.0
 
-> **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc solution, thành phần runtime, strategy và luồng xử lý — gồm **hiện trạng sau gói 5.2c** (v2 là phiên bản duy nhất; v1 đã gỡ) và **mục tiêu v2** còn lại của Phase 5. Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Schema DB: [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](RESILIENCE_AND_FAULT_TAXONOMY.md).
+> **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc solution, thành phần runtime, strategy và luồng xử lý — gồm **hiện trạng sau gói 5.2c** (v2 là phiên bản duy nhất) và **mục tiêu v2** còn lại của Phase 5. Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Schema DB: [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](RESILIENCE_AND_FAULT_TAXONOMY.md).
 
 ---
 
@@ -69,14 +69,14 @@ Health check: `/health/live`, `/health/ready` (PostgreSQL), `/health` — khai b
 
 ---
 
-## 3. v1 — ĐÃ GỠ Ở GÓI 5.2c
+## 3. HẠN CHẾ CÒN MỞ (sau gói 5.2c)
 
-Runtime v1 (`/api/v1/decisions`, `StrategyResolver`, `DecisionResiliencePipeline`, `FallbackDecisionStrategy`, `ResilientDecisionCacheService`, handler audit qua MediatR, `AuditTimestampInterceptor`), SDK v1 và `TADSS.BenchmarkRunner` không còn trong mã. Hồ sơ v1 giữ nguyên trong `docs/contracts/CONTRACT_V1_FREEZE.md`, `API_CONTRACT_V1.md`, `openapi-v1.yaml` và `docs/research/benchmarks/`. Test `NoLegacyV1Tests` (UT-09) khóa việc không còn namespace/thư mục `V2`, kiểu v1 đã gỡ và MediatR.
+- Chưa có xác thực `X-Api-Key` (gói 5.3) — chưa được expose ra mạng ngoài.
+- Inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken` (`IsolatedStrategyInvoker`, 5.4).
+- Redis lỗi thì mỗi lần gọi cache chờ tới `RedisTimeoutMs` (circuit breaker + metric `bypass`, 5.4).
+- Chọn strategy theo cấu hình toàn cục `Tadss:Strategy:ActiveStrategyName`; định tuyến theo request thuộc 5.4.
 
-**Hạn chế của v1 và trạng thái sau 5.2c:**
-
-- Đã khắc phục ở v2: strategy chọn một lần lúc khởi động (nay `IStrategyRegistry`, định tuyến theo request ở 5.4); strategy tự sinh `DecisionId`/`ExecutionTimeMs`/`EvaluatedAt` (nay thuộc runtime); `IsPeakHour` theo UTC (nay theo `branchTimeZone` + `Tadss:Calendar`); `request_hash` phụ thuộc múi giờ máy chủ (INV-3); key cache chứa `reservationId`/`customerId` (nay key theo hash request); `InvalidOperationException`/`ArgumentException` đều thành 400 (nay `ExceptionClassifier`).
-- Còn mở: không có xác thực `X-Api-Key` (gói 5.3); inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken` (`IsolatedStrategyInvoker`, 5.4); Redis lỗi thì lần gọi cache chờ tới `RedisTimeoutMs` (circuit breaker + metric `bypass`, 5.4).
+Test `NoLegacyV1Tests` (UT-09) chặn việc đưa lại kiểu, namespace hoặc package của phiên bản cũ.
 
 ---
 
@@ -107,7 +107,7 @@ public sealed record StrategyDecision(
 
 ### 4.2. Thành phần runtime v2
 
-> **Tiến độ (sau gói 5.2c):** v2 là runtime duy nhất, nằm ở vị trí chuẩn của Mục 2 (đã dời khỏi thư mục `V2/`, mọi thành phần đăng ký trong `AddDecisionRuntime`). Hiện thực và có test: `DecisionService`, `DecisionQueryService`, `EfDecisionAuditStore`, `StrategyPipeline`, `StrategyDecisionCache`, `ExceptionClassifier` nối vào `GlobalExceptionHandler`, `DecisionsController` (`POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`). Chưa có: xác thực `X-Api-Key`, override, outcome, hàng chờ (5.3), `StrategyRouter`/`ShadowExecutor`/`IsolatedStrategyInvoker`/breaker Redis (5.4) — các hàng dưới đây đánh dấu rõ phần đã có. Runtime chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
+> **Tiến độ (sau gói 5.2c):** v2 là runtime duy nhất, nằm ở vị trí chuẩn của Mục 2 (mọi thành phần đăng ký trong `AddDecisionRuntime`). Hiện thực và có test: `DecisionService`, `DecisionQueryService`, `EfDecisionAuditStore`, `StrategyPipeline`, `StrategyDecisionCache`, `ExceptionClassifier` nối vào `GlobalExceptionHandler`, `DecisionsController` (`POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`). Chưa có: xác thực `X-Api-Key`, override, outcome, hàng chờ (5.3), `StrategyRouter`/`ShadowExecutor`/`IsolatedStrategyInvoker`/breaker Redis (5.4) — các hàng dưới đây đánh dấu rõ phần đã có. Runtime chỉ dùng kiểu SDK v2 và mọi thời gian lấy từ `TimeProvider` (không gọi đồng hồ hệ thống trực tiếp).
 
 | Thành phần | Trách nhiệm |
 | :--- | :--- |
@@ -118,16 +118,16 @@ public sealed record StrategyDecision(
 | `StrategyRouter` (`Tadss:Routing`) | Chọn strategy theo từng request dựa trên quy tắc cấu hình (ví dụ giờ cao điểm → `MockAlternativeDecisionStrategy`; mặc định → `DefaultDecisionStrategy`); reload cấu hình không cần restart |
 | `ShadowExecutor` (`Tadss:Shadow`) | Chạy strategy ứng viên song song sau khi có kết quả chính; lưu bản ghi `SHADOW`; không ảnh hưởng response và độ trễ trả về |
 | `IsolatedStrategyInvoker` | Thực thi strategy sao cho timeout cắt được cả strategy không hợp tác |
-| `DecisionResiliencePipeline` | Giữ nguyên cấu hình Polly v8. *Đã hiện thực (5.2b) là `IStrategyPipeline`/`StrategyPipeline` cho strategy v2* (cùng `ResilienceOptions`; `ResilienceOptionsValidator` kiểm tra ngân sách `OuterTimeoutMs` ≥ tổng thời gian tối đa của inner timeout + retry và chặn khởi động nếu sai); pipeline theo strategy và `IsolatedStrategyInvoker` thuộc 5.4 |
+| `IStrategyPipeline` / `StrategyPipeline` | Pipeline Polly v8 quanh lời gọi strategy (outer timeout → fallback → retry → circuit breaker → inner timeout). *Đã hiện thực (5.2b)* (`ResilienceOptions`; `ResilienceOptionsValidator` kiểm tra ngân sách `OuterTimeoutMs` ≥ tổng thời gian tối đa của inner timeout + retry và chặn khởi động nếu sai); pipeline theo strategy và `IsolatedStrategyInvoker` thuộc 5.4 |
 | `ApprovalWindowPolicy` (`Tadss:Approval`) | Tính `approvalExpiresAt`; đổi `NEED_APPROVAL` → `APPROVED` 100% khi không còn cửa sổ duyệt (`reasonCode` = `APPROVAL_WINDOW_UNAVAILABLE`, `reasons` là một câu giải thích, kết quả gốc của strategy giữ ở `strategy_status`). *Đã hiện thực (5.2b)* |
 | `DepositCalculator` | `amount = round(totalPrice × rate)` theo đơn vị tiền tệ. *Đã hiện thực (5.2b)*; quy đổi `amount → rate` cho override thêm ở 5.3 |
-| `DecisionCacheService` | Chỉ cache khi strategy khai báo `Enabled`; key gồm hash request + tên/phiên bản strategy; circuit breaker cho Redis. *Đã hiện thực (5.2b) là `IStrategyDecisionCache`*: chỉ lưu `StrategyDecision` (không lưu response — mỗi lần cache hit nhận `decisionId` mới), chỉ ghi kết quả `AUTOMATED` (không ghi fallback), key `tadss:v2:{tên}:{phiên bản}:{optionsFingerprint}:{request_hash}` (fingerprint của mọi strategy gồm cả lịch cao điểm `Tadss:Calendar`), hai tầng Redis/memory, lỗi cache chỉ là miss. Circuit breaker Redis và metric `bypass` thuộc 5.4 |
+| `IStrategyDecisionCache` / `StrategyDecisionCache` | Chỉ cache khi strategy khai báo `Enabled`; key gồm hash request + tên/phiên bản strategy; circuit breaker cho Redis. *Đã hiện thực (5.2b)*: chỉ lưu `StrategyDecision` (không lưu response — mỗi lần cache hit nhận `decisionId` mới), chỉ ghi kết quả `AUTOMATED` (không ghi fallback), key `tadss:v2:{tên}:{phiên bản}:{optionsFingerprint}:{request_hash}` (fingerprint của mọi strategy gồm cả lịch cao điểm `Tadss:Calendar`), hai tầng Redis/memory, lỗi cache chỉ là miss. Circuit breaker Redis và metric `bypass` thuộc 5.4 |
 | `ExceptionClassifier` | Bảng map exception → HTTP/`code` v2 (INTEGRATION_SPEC §3.8; lỗi PostgreSQL tạm thời `40001`/`40P01`/transient → 503 kèm `Retry-After`). *Đã hiện thực thành hàm thuần (5.2b) và là nguồn duy nhất của `GlobalExceptionHandler` (5.2c)*; gồm `MISSING_HEADER` (header thiếu), `DECISION_NOT_FOUND` (404) và `PersistenceFailureDetector` (duyệt cả `AggregateException`). 415 do MVC trả mặc định, không đi qua bảng này |
 | `OverrideService`, `OutcomeService` | Ghi `decision_overrides`, `decision_outcomes`; xử lý idempotency và xung đột |
 | `PendingApprovalQuery` | Truy vấn hàng chờ theo Mục B.5 của DECISION_PERSISTENCE_INVARIANTS |
 | OpenTelemetry | Trace (ASP.NET Core, HttpClient, Npgsql, Redis), metric, log (Serilog → OTLP) |
 
-**MediatR đã gỡ ở gói 5.2c** cùng với v1 (D-02): ghi audit là lời gọi đồng bộ qua `IDecisionAuditStore`, không còn handler `*AuditNotificationHandler`. `created_at` do `DecisionService` gán, không còn interceptor.
+Ghi audit là lời gọi đồng bộ qua `IDecisionAuditStore` (không qua message bus, D-02); `created_at` do `DecisionService` gán từ `TimeProvider`.
 
 ### 4.3. Strategy v2 (tham số mặc định, chỉnh qua cấu hình)
 
@@ -154,7 +154,7 @@ Giờ cao điểm (theo giờ chi nhánh, `Tadss:Calendar:PeakWindows`): thứ H
 
 **Định tuyến mặc định** (`Tadss:Routing`): request có giờ cao điểm → `MockAlternativeDecisionStrategy`; còn lại → `DefaultDecisionStrategy`. Shadow mode tắt mặc định.
 
-**`FallbackDecisionStrategy`**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Ở runtime v2 (`FallbackDecisionPolicy`, 5.2b), khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`; riêng khi approval window không khả dụng thì `reasonCode` bị thay bằng `APPROVAL_WINDOW_UNAVAILABLE` (cọc 100%), nên chỉ `executionType`/`fallbackUsed` là tín hiệu đáng tin cậy. Kết quả fallback không được ghi cache.
+**Fallback (`FallbackDecisionPolicy`)**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`; riêng khi approval window không khả dụng thì `reasonCode` bị thay bằng `APPROVAL_WINDOW_UNAVAILABLE` (cọc 100%), nên chỉ `executionType`/`fallbackUsed` là tín hiệu đáng tin cậy. Kết quả fallback không được ghi cache.
 
 ### 4.4. Luồng xử lý `POST /api/v2/decisions`
 

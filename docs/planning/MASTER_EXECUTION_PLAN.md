@@ -112,7 +112,7 @@ gantt
 ### ✅ Phase 2 — Decision Contract SDK v1 (W03, thực tế 13/09 – 18/09)
 
 - **Đã làm:** `Reservation` (rich domain model) và value objects, DTO, enum, `IReservationDecisionStrategy`; 7 JSON schema; snapshot 32 public type (`baseline_public_api.txt`); kiểm thử kiến trúc (dependency purity, public API surface).
-- **Milestone 2:** contract v1.0.0 đóng băng ([`CONTRACT_V1_FREEZE.md`](../contracts/CONTRACT_V1_FREEZE.md)), độ bao phủ SDK 99,49%.
+- **Milestone 2:** contract v1.0.0 đóng băng, độ bao phủ SDK 99,49% (hồ sơ v1 đã gỡ khỏi repo ở Phase 5, tra lại qua tag `phase4-baseline`).
 
 ### ✅ Phase 3 — Decision Runtime Engine (W03–W04, thực tế 19/09 – 22/09)
 
@@ -123,7 +123,7 @@ gantt
 
 - **Đã làm:** pipeline Polly v8 (Outer Timeout 500ms → Fallback → Retry 2 lần/30ms → Circuit Breaker → Inner Timeout 120ms); `FallbackDecisionStrategy` trả `NEED_APPROVAL`; cache theo request-hash (Redis + `IMemoryCache`); ghi audit đồng bộ qua MediatR; bộ kiểm thử tiêm lỗi F1–F7; micro-benchmark 19 kịch bản × 4 mức tải.
 - **Milestone 4:** 510 test tự động pass (483 unit + 27 integration).
-- **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ trong Phase R vì dữ liệu sinh từ DB in-memory (xem [`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md)).
+- **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ trong Phase R vì dữ liệu sinh từ DB in-memory. Báo cáo benchmark Tuần 8 đã gỡ khỏi repo ở Phase 5, tra lại qua tag `phase4-baseline`.
 
 ### ✅ Phase R — Re-baseline (W05–W06, kế hoạch 01/10 – 11/10, Gate MR đạt 01/10)
 

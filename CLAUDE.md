@@ -25,7 +25,7 @@ CI: restore → build Release → unit test → integration test (Testcontainers
 | `tests/TADSS.UnitTests` | Common, Contracts (gồm drift OpenAPI), Controllers, Configuration, Domain, Services, Strategies, Infrastructure, Middlewares, **Architecture** (dependency purity, public API surface, `NoLegacyV1Tests`) | |
 | `tests/TADSS.IntegrationTests` | Testcontainers PostgreSQL 16 / Redis 7 / Toxiproxy: WebApplicationFactory E2E, idempotency, cache, persistence, fault injection, migration | |
 
-Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml` sinh từ mã, `schemas/v2/`, `baseline_public_api.txt`; hồ sơ v1 đóng băng: API_CONTRACT_V1, CONTRACT_V1_FREEZE, openapi-v1.yaml, schemas/*.json),
+Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml` sinh từ mã, `schemas/v2/`, `baseline_public_api.txt`),
 `docs/architecture/` (spec, ADR, resilience taxonomy), `docs/planning/`, `docs/research/`.
 
 ## Trạng thái & kế hoạch
@@ -34,7 +34,7 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
 - Danh mục test case (UT/IT/CT/MT/FI/LT/BE/FE/E2E/RP/PT/UAT) + KPI SC1–SC9: `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`.
 
 ## Điểm cần nhớ
-- 🔒 **Hồ sơ contract v1.0.0** (Milestone 2) chỉ còn là tài liệu lịch sử: không sửa `API_CONTRACT_V1.md`, `CONTRACT_V1_FREEZE.md`, `openapi-v1.yaml`, `schemas/*.json` v1. Mã v1 (SDK, runtime, `/api/v1`, BenchmarkRunner, MediatR, EF InMemory) đã gỡ ở gói 5.2c.
+- Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `Migrations/` để lịch sử migration trên Neon khớp — không xóa.
 - **Contract v2** là bản duy nhất, đặc tả tại `docs/contracts/INTEGRATION_SPEC.md`; đã hiện thực `POST /api/v2/decisions` và `GET /api/v2/decisions/{id}`.
   Thay đổi wire nằm ngoài đặc tả ⇒ dừng lại hỏi người dùng. `openapi-v2.yaml` sinh từ mã (test `OpenApiDriftTests` báo lệch; muốn cập nhật thì chép file sinh ra theo hướng dẫn trong test).
   Không sửa `baseline_public_api.txt` để test xanh — baseline v2 là bản nháp (`2.0.0-draft`), chỉ đổi có chủ đích khi đóng băng v2.

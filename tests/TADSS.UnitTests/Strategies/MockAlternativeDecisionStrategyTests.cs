@@ -11,7 +11,7 @@ namespace TADSS.UnitTests.Strategies;
 
 /// <summary>
 /// UT-03 / UT-05: bảng quyết định <c>MockAlternativeDecisionStrategy</c> 2.0.0 theo giờ cao điểm của chi nhánh
-/// (sửa lỗi v1 so sánh trên giờ UTC), ngưỡng giá trị lớn chỉ áp dụng giờ cao điểm, lịch lấy từ ngữ cảnh.
+/// (so sánh theo giờ địa phương, không theo UTC), ngưỡng giá trị lớn chỉ áp dụng giờ cao điểm, lịch lấy từ ngữ cảnh.
 /// </summary>
 public class MockAlternativeDecisionStrategyTests
 {

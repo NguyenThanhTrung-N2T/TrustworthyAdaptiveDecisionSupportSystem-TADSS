@@ -6,25 +6,14 @@
 
 ---
 
-## A. v1 (Phase 1–4) — ĐÃ GỠ Ở GÓI 5.2c
+## A. LỊCH SỬ MIGRATION
 
-> Mục này chỉ là hồ sơ lịch sử. Bảng v1 và mọi mã dùng nó đã bị gỡ: migration `20261002101457_DecisionPersistenceV2` **xóa** bảng `tadss.decision_executions` v1 (kể cả dữ liệu) rồi tạo ba bảng v2 ở Mục B; `Down` dựng lại bảng v1 rỗng. Migration chưa được áp lên Neon (việc người dùng quyết định riêng).
+| Migration | Nội dung |
+| :--- | :--- |
+| `20260912105336_InitialCreate`, `20260915152502_UpdateUniqueIndexes`, `20260930190021_AddCreatedAtIndex` | Schema của Phase 1–4 (một bảng `decision_executions`). Giữ lại chỉ để lịch sử migration khớp với database đã áp chúng (Neon); không có mã nào dùng schema này |
+| `20261002101457_DecisionPersistenceV2` | **Xóa** bảng cũ (kể cả dữ liệu — chỉ là dữ liệu kiểm thử) rồi tạo ba bảng, hàm và trigger ở Mục B; `Down` dựng lại bảng cũ rỗng. Chưa áp lên Neon (người dùng quyết định riêng) |
 
-Bảng v1 là một bảng `tadss.decision_executions` (20 cột) gồm hai phần:
-
-- **Snapshot máy:** `decision_id`, `reservation_id`, `strategy_name`, `strategy_version`, `execution_type`, `execution_time_ms`, `fallback_used`, `failure_reason`, `cache_hit`, `need_approval`, `request_hash`, `response_payload` (jsonb), `created_at`.
-- **Metadata quản trị (được UPDATE khi override):** `is_overridden`, `overridden_by`, `override_reason`, `version` (concurrency token), `updated_at`.
-
-Ràng buộc: `UNIQUE(decision_id)`; unique partial index `uq_decision_idempotency_key` (`WHERE idempotency_key IS NOT NULL`); partial index hàng chờ `WHERE need_approval AND NOT is_overridden`.
-
-**Hạn chế được ghi nhận khi re-baseline:**
-
-1. Override `UPDATE` trực tiếp lên bản ghi máy; tính bất biến chỉ là quy ước trong mã, DB không chặn.
-2. Không lưu trạng thái đích (APPROVED/REJECTED) và mức cọc của override.
-3. Không lưu input của quyết định (chỉ lưu hash), nên không replay được và không dùng làm dữ liệu cho Khóa luận.
-4. Không có `branch_id` để lọc hàng chờ; mỗi lần đánh giá lại cùng reservation sinh thêm một mục chờ.
-
-Thiết kế v2 ở Mục B khắc phục các hạn chế trên. Dữ liệu v1 trong schema `tadss` chỉ là dữ liệu kiểm thử nên migration v2 tạo lại bảng thay vì chuyển đổi.
+Thiết kế ở Mục B khắc phục các hạn chế của schema cũ: override sửa trực tiếp bản ghi máy (DB không chặn), không lưu trạng thái đích và mức cọc của override, không lưu input quyết định, không có `branch_id` cho hàng chờ.
 
 ---
 

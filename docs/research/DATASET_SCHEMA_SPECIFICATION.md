@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** định nghĩa cấu trúc Evidence Pack, các bộ dữ liệu minh chứng, quy tắc ẩn danh hóa và kiểm tra toàn vẹn. Test case và KPI tạo ra dữ liệu: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 >
-> **Thay đổi so với v1.0:** ba bộ dữ liệu v1 (`resilience_evaluation`, `latency_caching`, `governance_audit`) sinh từ EF Core InMemory và strategy giả lập đã bị gỡ trong Phase R, vì không phản ánh hành vi trên hạ tầng thật. Tên file được giữ để không phá liên kết; nội dung là đặc tả v2.0.
+> **Thay đổi so với v1.0:** ba bộ dữ liệu v1 (`resilience_evaluation`, `latency_caching`, `governance_audit`) sinh từ EF Core InMemory và strategy giả lập đã bị gỡ trong Phase R, vì không phản ánh hành vi trên hạ tầng thật. Tên file đã bỏ hậu tố `_V1` để tránh gây hiểu lầm; nội dung là đặc tả v2.0.
 
 ---
 
