@@ -7,7 +7,7 @@ namespace TADSS.UnitTests.TestDoubles;
 /// <see cref="IDecisionAuditStore"/> giả viết tay, thread-safe, trong bộ nhớ: tìm theo idempotency key của bản ghi
 /// <c>PRIMARY</c>, đếm số lần insert, có thể cấu hình ném <see cref="PersistenceUnavailableException"/> hoặc giả lập thua
 /// tranh chấp (trả một bản thắng định sẵn). Hành vi bám đúng hợp đồng của <see cref="IDecisionAuditStore"/> để Task 9
-/// kiểm tra <c>DecisionService</c> mà không cần PostgreSQL.
+/// kiểm tra <c>DecisionService</c> mà không cần PostgreSQL. Tra chi tiết theo <c>decisionId</c> (mọi role) và cho phép gài sẵn override/outcome.
 /// </summary>
 internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
 {
@@ -15,7 +15,10 @@ internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
     private readonly Dictionary<string, DecisionExecutionRecord> _primaryByKey = new(StringComparer.Ordinal);
     private readonly List<DecisionExecutionRecord> _records = [];
     private int _insertCount;
+    private readonly Dictionary<Guid, DecisionOverrideRecord> _overrides = new();
+    private readonly Dictionary<Guid, DecisionOutcomeRecord> _outcomes = new();
     private int _findCount;
+    private int _detailCount;
     private Exception? _insertFailure;
     private DecisionExecutionRecord? _simulatedWinner;
 
@@ -24,6 +27,9 @@ internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
 
     /// <summary>Số lần <see cref="FindPrimaryByIdempotencyKeyAsync"/> được gọi.</summary>
     public int FindCount => Volatile.Read(ref _findCount);
+
+    /// <summary>Số lần <see cref="GetDecisionDetailAsync"/> được gọi.</summary>
+    public int DetailCount => Volatile.Read(ref _detailCount);
 
     /// <summary>Các bản ghi đã được lưu thật (theo thứ tự ghi), không gồm bản thắng định sẵn chưa được gài vào.</summary>
     public IReadOnlyList<DecisionExecutionRecord> Records
@@ -57,6 +63,28 @@ internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
         lock (_gate)
         {
             Store(record);
+        }
+    }
+
+    /// <summary>Gài sẵn một override cho quyết định <see cref="DecisionOverrideRecord.DecisionId"/> (hiện trong <see cref="GetDecisionDetailAsync"/>).</summary>
+    public void SeedOverride(DecisionOverrideRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        lock (_gate)
+        {
+            _overrides[record.DecisionId] = record;
+        }
+    }
+
+    /// <summary>Gài sẵn một outcome cho quyết định <see cref="DecisionOutcomeRecord.DecisionId"/> (hiện trong <see cref="GetDecisionDetailAsync"/>).</summary>
+    public void SeedOutcome(DecisionOutcomeRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        lock (_gate)
+        {
+            _outcomes[record.DecisionId] = record;
         }
     }
 
@@ -126,6 +154,27 @@ internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
 
             Store(record);
             return Task.FromResult(new InsertExecutionResult(record, IsExistingWinner: false));
+        }
+    }
+
+    public Task<DecisionDetailRecord?> GetDecisionDetailAsync(Guid decisionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Interlocked.Increment(ref _detailCount);
+
+        lock (_gate)
+        {
+            // Tra theo decisionId, không lọc role (như store thật)
+            var execution = _records.FirstOrDefault(record => record.DecisionId == decisionId);
+            if (execution is null)
+            {
+                return Task.FromResult<DecisionDetailRecord?>(null);
+            }
+
+            return Task.FromResult<DecisionDetailRecord?>(new DecisionDetailRecord(
+                execution,
+                _overrides.GetValueOrDefault(decisionId),
+                _outcomes.GetValueOrDefault(decisionId)));
         }
     }
 

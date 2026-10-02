@@ -15,6 +15,7 @@ namespace TADSS.IntegrationTests.Migrations;
 public class AppendOnlyTriggerTests : IntegrationTestBase
 {
     private const string RaiseExceptionSqlState = "P0001";
+    private const string FeatureNotSupportedSqlState = "0A000";
 
     public AppendOnlyTriggerTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
@@ -41,6 +42,7 @@ public class AppendOnlyTriggerTests : IntegrationTestBase
         var exception = (await act.Should().ThrowAsync<PostgresException>()).Which;
         exception.SqlState.Should().Be(RaiseExceptionSqlState);
         exception.MessageText.Should().Contain("append-only");
+        exception.MessageText.Should().Contain(table, "thông báo của trigger nêu schema.bảng bị từ chối (kể cả TRUNCATE ... CASCADE trên decision_executions)");
         (await AuditSchemaSql.TableContentAsync(ConnectionString, table)).Should().Be(before, "dữ liệu không được đổi");
         (await AuditSchemaSql.ScalarAsync<int>(ConnectionString, $"SELECT count(*) FROM {table}")).Should().Be(1);
     }
@@ -54,7 +56,8 @@ public class AppendOnlyTriggerTests : IntegrationTestBase
         var act = () => AuditSchemaSql.ExecuteAsync(ConnectionString, "TRUNCATE TABLE tadss.decision_executions");
 
         // Bị chặn dù không CASCADE: bảng đang được override/outcome tham chiếu nên PostgreSQL từ chối trước cả trigger
-        await act.Should().ThrowAsync<PostgresException>();
+        var exception = (await act.Should().ThrowAsync<PostgresException>()).Which;
+        exception.SqlState.Should().Be(FeatureNotSupportedSqlState);
         (await AuditSchemaSql.ScalarAsync<int>(ConnectionString, $"SELECT count(*) FROM {AuditSchemaSql.Executions}")).Should().Be(1);
     }
 

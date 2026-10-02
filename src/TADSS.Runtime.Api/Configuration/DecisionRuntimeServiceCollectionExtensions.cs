@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Domain;
 using StackExchange.Redis;
 using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Services.Decisions;
 using TADSS.Runtime.Api.Services.Strategies;
@@ -82,8 +83,9 @@ public static class DecisionRuntimeServiceCollectionExtensions
                 useRedis ? ResolveRedisOrWarn(sp, logger) : null);
         });
 
-        // Bộ ghép response + bản ghi audit. IDecisionAuditStore chưa đăng ký ở 5.2b (B-09): EfDecisionAuditStore thuộc 5.2c
+        // Bộ ghép response + bản ghi audit; kho audit scoped vì dùng TadssDbContext của scope (request)
         services.AddSingleton<DecisionResponseComposer>();
+        services.AddScoped<IDecisionAuditStore, EfDecisionAuditStore>();
 
         return services;
     }

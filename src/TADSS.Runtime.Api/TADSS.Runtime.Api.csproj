@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Unit test kiểm hàm ánh xạ record ↔ entity (internal) của kho audit -->
+    <InternalsVisibleTo Include="TADSS.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
     <ProjectReference Include="..\TADSS.Strategies.Default\TADSS.Strategies.Default.csproj" />
     <ProjectReference Include="..\TADSS.Strategies.MockAlternative\TADSS.Strategies.MockAlternative.csproj" />

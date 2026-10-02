@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Services.Decisions;
 using Xunit;
 
@@ -11,7 +10,7 @@ namespace TADSS.UnitTests.Services;
 
 /// <summary>
 /// UT-10: nối DI của <see cref="DecisionResponseComposer"/> trong <c>AddDecisionRuntime</c> — composer là singleton
-/// resolve được; <see cref="IDecisionAuditStore"/> chưa được đăng ký ở 5.2b (B-09: <c>EfDecisionAuditStore</c> thuộc 5.2c).
+/// resolve được (việc đăng ký kho audit được kiểm ở <c>EfDecisionAuditStoreRegistrationTests</c>).
 /// </summary>
 public class DecisionResponseComposerRegistrationTests
 {
@@ -34,14 +33,5 @@ public class DecisionResponseComposerRegistrationTests
         var second = host.Services.GetRequiredService<DecisionResponseComposer>();
 
         first.Should().BeSameAs(second);
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-10")]
-    public void AddDecisionRuntime_DoesNotRegisterAuditStore()
-    {
-        using var host = CreateBuilder().Build();
-
-        host.Services.GetService<IDecisionAuditStore>().Should().BeNull();
     }
 }
