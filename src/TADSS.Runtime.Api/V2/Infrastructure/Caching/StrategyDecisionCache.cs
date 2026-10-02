@@ -2,8 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Decisions;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 

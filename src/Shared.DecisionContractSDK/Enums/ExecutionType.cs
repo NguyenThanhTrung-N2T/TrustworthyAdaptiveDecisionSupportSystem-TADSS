@@ -1,22 +1,21 @@
+using System.Text.Json.Serialization;
+using Shared.DecisionContractSDK.Common;
+
 namespace Shared.DecisionContractSDK.Enums;
 
 /// <summary>
-/// Hình thức thực thi ra quyết định.
+/// Cách quyết định được tạo ra.
+/// Trên wire là chuỗi đúng tên thành viên; số, chuỗi số và chữ thường bị từ chối.
 /// </summary>
+[JsonConverter(typeof(StrictEnumConverterFactory))]
 public enum ExecutionType
 {
-    /// <summary>
-    /// Quyết định được đánh giá tự động bởi Strategy Engine.
-    /// </summary>
+    /// <summary>Strategy chạy và trả kết quả trong ngân sách thời gian.</summary>
     AUTOMATED = 0,
 
-    /// <summary>
-    /// Quyết định được sinh ra từ chiến lược an toàn Fallback do timeout hoặc lỗi.
-    /// </summary>
+    /// <summary>Strategy lỗi, timeout hoặc circuit mở; dùng FallbackDecisionStrategy.</summary>
     FALLBACK = 1,
 
-    /// <summary>
-    /// Quyết định được trích xuất từ bộ nhớ đệm Idempotency Cache.
-    /// </summary>
+    /// <summary>Dùng lại StrategyDecision đã cache.</summary>
     CACHE_HIT = 2
 }

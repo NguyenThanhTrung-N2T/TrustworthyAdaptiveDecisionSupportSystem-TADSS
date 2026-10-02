@@ -17,7 +17,7 @@ public class RuntimeV2LayeringTests
 {
     private const string RuntimeV2Namespace = "TADSS.Runtime.Api.V2";
     private const string SdkRoot = "Shared.DecisionContractSDK.";
-    private const string SdkV2Root = "Shared.DecisionContractSDK.V2";
+    private const string SdkV2Root = "Shared.DecisionContractSDK";
 
     private static readonly string[] SdkV1Namespaces =
         ["Domain", "DTOs", "Enums", "Interfaces", "Common"];

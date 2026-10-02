@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.DTOs.Decisions;
 
 namespace TADSS.UnitTests.V2.TestData;
 

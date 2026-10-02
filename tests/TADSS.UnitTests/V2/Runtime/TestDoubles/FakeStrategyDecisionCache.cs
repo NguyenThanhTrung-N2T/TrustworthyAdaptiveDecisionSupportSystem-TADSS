@@ -1,4 +1,4 @@
-using Shared.DecisionContractSDK.V2.Decisions;
+using Shared.DecisionContractSDK.Decisions;
 using TADSS.Runtime.Api.V2.Infrastructure.Caching;
 
 namespace TADSS.UnitTests.V2.Runtime.TestDoubles;

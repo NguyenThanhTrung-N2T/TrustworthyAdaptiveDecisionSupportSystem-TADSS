@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
-using DomainInvariantException = Shared.DecisionContractSDK.Domain.DomainInvariantException;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.V2.Configuration;
 using TADSS.Runtime.Api.V2.Services.Decisions;
 using TADSS.UnitTests.V2.TestData;

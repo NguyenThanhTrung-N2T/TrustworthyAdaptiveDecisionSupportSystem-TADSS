@@ -1,4 +1,4 @@
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Enums;
 
 namespace TADSS.Runtime.Api.V2.Infrastructure.Data;
 

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 
 namespace TADSS.Runtime.Api.V2.Services.Strategies;
 

@@ -1,75 +1,80 @@
 using System.Text.Json.Serialization;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Enums;
 
 namespace Shared.DecisionContractSDK.DTOs.Decisions;
 
 /// <summary>
-/// Kết quả thẩm định quyết định tự động trả về từ TADSS Engine.
+/// Response 200 của <c>POST /api/v2/decisions</c> (INTEGRATION_SPEC §3.3).
+/// <see cref="Deposit"/> có ⇔ <see cref="DecisionStatus.APPROVED"/>; <see cref="ApprovalExpiresAt"/> có ⇔
+/// <see cref="DecisionStatus.NEED_APPROVAL"/> (INV-7). Hai trường này luôn xuất hiện trên wire, có thể là <c>null</c>.
 /// </summary>
-public class DecisionResultDto
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class DecisionResultDto
 {
-    /// <summary>
-    /// Định danh duy nhất của quyết định vừa được thẩm định.
-    /// </summary>
-    [JsonPropertyName("decisionId")]
-    public Guid DecisionId { get; set; }
+    /// <summary>Định danh quyết định do runtime cấp.</summary>
+    public required Guid DecisionId { get; init; }
 
-    /// <summary>
-    /// Định danh đơn đặt sân tương ứng.
-    /// </summary>
-    [JsonPropertyName("reservationId")]
-    public Guid ReservationId { get; set; }
+    /// <summary>Định danh đơn phía client.</summary>
+    public required Guid ReservationId { get; init; }
 
-    /// <summary>
-    /// Trạng thái kết quả quyết định (APPROVED, REJECTED, NEED_APPROVAL).
-    /// </summary>
-    [JsonPropertyName("status")]
-    public string Status { get; set; } = string.Empty;
+    /// <summary>Trạng thái quyết định.</summary>
+    public required DecisionStatus Status { get; init; }
 
-    /// <summary>
-    /// Tên chiến lược ra quyết định đã áp dụng.
-    /// </summary>
-    [JsonPropertyName("strategyName")]
-    public string StrategyName { get; set; } = string.Empty;
+    /// <summary>Mức cọc; chỉ có khi <see cref="DecisionStatus.APPROVED"/>.</summary>
+    public required DepositDto? Deposit { get; init; }
 
-    /// <summary>
-    /// Phiên bản của chiến lược ra quyết định.
-    /// </summary>
-    [JsonPropertyName("strategyVersion")]
-    public string StrategyVersion { get; set; } = "1.0.0";
+    /// <summary>Tên strategy đã chạy.</summary>
+    public required string StrategyName { get; init; }
 
-    /// <summary>
-    /// Thời gian thực thi thuật toán thẩm định (ms).
-    /// </summary>
-    [JsonPropertyName("executionTimeMs")]
-    public int ExecutionTimeMs { get; set; }
+    /// <summary>Phiên bản strategy.</summary>
+    public required string StrategyVersion { get; init; }
 
-    /// <summary>
-    /// Cờ cho biết có phải dùng cơ chế Fallback an toàn hay không.
-    /// </summary>
-    [JsonPropertyName("fallbackUsed")]
-    public bool FallbackUsed { get; set; }
+    /// <summary>Cách quyết định được tạo ra.</summary>
+    public required ExecutionType ExecutionType { get; init; }
 
-    /// <summary>
-    /// Lý do chính giải thích cho quyết định (Machine-readable reason code).
-    /// </summary>
-    [JsonPropertyName("primaryReason")]
-    public string PrimaryReason { get; set; } = string.Empty;
+    /// <summary>Có dùng fallback.</summary>
+    public required bool FallbackUsed { get; init; }
 
-    /// <summary>
-    /// Danh sách các lý do chi tiết giải thích cho quyết định.
-    /// </summary>
-    [JsonPropertyName("reasons")]
-    public List<string> Reasons { get; set; } = [];
+    /// <summary>Mã lý do.</summary>
+    public required string ReasonCode { get; init; }
 
-    /// <summary>
-    /// Danh sách các đề xuất thay thế hoặc khuyến nghị tối ưu (nếu có).
-    /// </summary>
-    [JsonPropertyName("recommendations")]
-    public List<DecisionRecommendationDto> Recommendations { get; set; } = [];
+    /// <summary>Lý do cho người đọc.</summary>
+    public required IReadOnlyList<string> Reasons { get; init; }
 
-    /// <summary>
-    /// Thời điểm hoàn tất thẩm định quyết định (UTC).
-    /// </summary>
-    [JsonPropertyName("evaluatedAt")]
-    public DateTime EvaluatedAt { get; set; }
+    /// <summary>Khuyến nghị kèm theo.</summary>
+    public required IReadOnlyList<DecisionRecommendationDto> Recommendations { get; init; }
+
+    /// <summary>Hạn duyệt; chỉ có khi <see cref="DecisionStatus.NEED_APPROVAL"/>.</summary>
+    [JsonConverter(typeof(OffsetDateTimeConverter))]
+    public required DateTimeOffset? ApprovalExpiresAt { get; init; }
+
+    /// <summary>Thời điểm đánh giá.</summary>
+    [JsonConverter(typeof(OffsetDateTimeConverter))]
+    public required DateTimeOffset EvaluatedAt { get; init; }
+}
+
+/// <summary>Mức cọc đã quy đổi: <c>amount = round(totalPrice × rate)</c> theo số chữ số thập phân của tiền tệ.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class DepositDto
+{
+    /// <summary>Tỷ lệ cọc trong <c>[0, 1]</c>.</summary>
+    public required decimal Rate { get; init; }
+
+    /// <summary>Số tiền cọc.</summary>
+    public required decimal Amount { get; init; }
+
+    /// <summary>Mã tiền tệ ISO 4217.</summary>
+    public required string Currency { get; init; }
+}
+
+/// <summary>Khuyến nghị kèm quyết định trên wire: <c>{ type, description }</c>.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class DecisionRecommendationDto
+{
+    /// <summary>Loại khuyến nghị.</summary>
+    public required RecommendationType Type { get; init; }
+
+    /// <summary>Mô tả cho người đọc.</summary>
+    public required string Description { get; init; }
 }

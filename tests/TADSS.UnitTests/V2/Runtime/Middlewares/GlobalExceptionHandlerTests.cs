@@ -11,7 +11,6 @@ using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.V2.Middlewares;
 using Xunit;
-using ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
 
 namespace TADSS.UnitTests.V2.Runtime.Middlewares;
 

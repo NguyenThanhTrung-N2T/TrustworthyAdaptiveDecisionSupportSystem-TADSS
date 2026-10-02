@@ -1,132 +1,94 @@
-using System.Diagnostics;
 using System.Globalization;
 using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
-using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
 
 namespace TADSS.Strategies.Default;
 
 /// <summary>
-/// Chiến lược thẩm định đặt sân mặc định (Default Decision Strategy).
-/// Đại diện cho chính sách bảo thủ tĩnh (Conservative Deterministic Baseline Policy),
-/// đánh giá dựa trên tỷ lệ thanh toán cọc và hạng thành viên khách hàng.
+/// Strategy mặc định 2.0.0 — cọc theo hạng thành viên (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3).
+/// Không đọc đồng hồ hệ thống, không I/O, stateless và thread-safe.
 /// </summary>
-public class DefaultDecisionStrategy : IReservationDecisionStrategy
+public sealed class DefaultDecisionStrategy : IReservationDecisionStrategy
 {
-    /// <summary>
-    /// Tên định danh duy nhất của chiến lược trong registry.
-    /// </summary>
-    public string StrategyName => "DefaultDecisionStrategy";
+    private readonly DefaultStrategyOptions _options;
 
-    /// <summary>
-    /// Phiên bản của chiến lược thẩm định (SemVer).
-    /// </summary>
-    public string StrategyVersion => "1.0.0";
+    /// <summary>Khởi tạo strategy với tham số đã kiểm tra.</summary>
+    /// <param name="options">Tham số strategy.</param>
+    /// <exception cref="ArgumentException">Khi tham số không hợp lệ.</exception>
+    public DefaultDecisionStrategy(DefaultStrategyOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
 
-    /// <summary>
-    /// Đánh giá yêu cầu đặt sân và đưa ra kết quả quyết định cùng khuyến nghị.
-    /// </summary>
-    /// <param name="reservation">Thực thể đặt sân (Rich Domain Model) đã qua xác thực bất biến.</param>
-    /// <param name="cancellationToken">Token hủy thao tác bất đồng bộ.</param>
-    /// <returns>Đối tượng kết quả thẩm định quyết định <see cref="DecisionResultDto"/>.</returns>
-    public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
+        _options = options;
+        CachePolicy = options.CacheTtlMinutes > 0
+            ? StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(options.CacheTtlMinutes))
+            : StrategyCachePolicy.Disabled;
+    }
+
+    /// <inheritdoc />
+    public string StrategyName => nameof(DefaultDecisionStrategy);
+
+    /// <inheritdoc />
+    public string StrategyVersion => "2.0.0";
+
+    /// <inheritdoc />
+    public StrategyCachePolicy CachePolicy { get; }
+
+    /// <inheritdoc />
+    public Task<StrategyDecision> EvaluateAsync(Reservation reservation, DecisionContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var stopwatch = Stopwatch.StartNew();
-
-        var reasons = new List<string>();
-        var recommendations = new List<DecisionRecommendationDto>();
-        string status;
-        string primaryReason;
-
-        // 1. Khách hàng đã thanh toán 100% chi phí
-        if (reservation.Payment.IsFullyPaid)
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.ApprovedPaidInFull;
-            reasons.Add("Khách hàng đã thanh toán 100% chi phí đặt sân.");
-            reasons.Add("Khung giờ và sân đáp ứng đầy đủ điều kiện vận hành.");
-        }
-        // 2. Khách VIP, Diamond, Platinum hoặc Gold với mức cọc hợp lệ
-        else if (IsTierMatch(reservation.Customer.Tier, "VIP") ||
-                 IsTierMatch(reservation.Customer.Tier, "DIAMOND") ||
-                 IsTierMatch(reservation.Customer.Tier, "PLATINUM"))
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.AutoApprovedTierEligible;
-            reasons.Add("Khách hàng hạng cao cấp (Diamond / Platinum / VIP) được hưởng chính sách phê duyệt ưu tiên.");
-        }
-        else if ((IsTierMatch(reservation.Customer.Tier, "GOLD") || IsTierMatch(reservation.Customer.Tier, "VÀNG")) && reservation.Payment.DepositPercentage >= 30m)
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.AutoApprovedTierEligible;
-            reasons.Add($"Khách hàng hạng Gold đáp ứng chính sách cọc tối thiểu 30% (hiện tại: {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%).");
-        }
-        // 3. Đơn giá trị cao cần xem xét
-        else if (reservation.Payment.TotalPrice >= 2_000_000m && reservation.Payment.DepositPercentage < 50m)
-        {
-            status = DecisionStatus.NEED_APPROVAL.ToString();
-            primaryReason = ErrorCodes.ManualReviewHighValue;
-            reasons.Add($"Đơn đặt sân giá trị cao ({reservation.Payment.TotalPrice.ToString("N0", CultureInfo.InvariantCulture)} VND) có mức cọc dưới 50%. Cần quản lý phê duyệt.");
-            recommendations.Add(new DecisionRecommendationDto
-            {
-                Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                Description = "Yêu cầu khách hàng thanh toán thêm cọc tối thiểu 50% để được tự động phê duyệt.",
-                SuggestedPrice = reservation.Payment.TotalPrice,
-                ConfidenceScore = 0.95
-            });
-        }
-        // 4. Đơn tiêu chuẩn cọc >= 50%
-        else if (reservation.Payment.DepositPercentage >= 50m)
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.ApprovedStandard;
-            reasons.Add($"Mức cọc tiêu chuẩn {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}% hợp lệ.");
-        }
-        // 5. Không thỏa mãn bất kỳ tiêu chí giảm cọc nào -> Mặc định yêu cầu thanh toán 100% (NeedApproval)
-        else
-        {
-            status = DecisionStatus.NEED_APPROVAL.ToString();
-            primaryReason = ErrorCodes.DepositBelowThreshold;
-            var requiredDeposit = reservation.Payment.TotalPrice;
-            var shortage = requiredDeposit - reservation.Payment.DepositAmount;
-
-            reasons.Add($"Mức cọc hiện tại ({reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%) không thỏa mãn các tiêu chí giảm cọc tự động theo hạng thành viên ({reservation.Customer.Tier}). Mặc định đưa về mức yêu cầu thanh toán 100% hoặc cần Quản lý xét duyệt.");
-            recommendations.Add(new DecisionRecommendationDto
-            {
-                Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND để đạt mức mặc định 100% chi phí đặt sân.",
-                SuggestedPrice = reservation.Payment.TotalPrice,
-                ConfidenceScore = 1.0
-            });
-        }
-
-        stopwatch.Stop();
-
-        var result = new DecisionResultDto
-        {
-            DecisionId = Guid.NewGuid(),
-            ReservationId = reservation.ReservationId,
-            Status = status,
-            StrategyName = StrategyName,
-            StrategyVersion = StrategyVersion,
-            ExecutionTimeMs = (int)stopwatch.ElapsedMilliseconds,
-            FallbackUsed = false,
-            PrimaryReason = primaryReason,
-            Reasons = reasons,
-            Recommendations = recommendations,
-            EvaluatedAt = DateTime.UtcNow
-        };
-
-        return Task.FromResult(result);
+        return Task.FromResult(Decide(reservation));
     }
 
-    private static bool IsTierMatch(string? currentTier, string targetTier)
+    private StrategyDecision Decide(Reservation reservation)
     {
-        if (string.IsNullOrWhiteSpace(currentTier)) return false;
-        return string.Equals(currentTier.Trim(), targetTier, StringComparison.OrdinalIgnoreCase);
+        if (reservation.TotalPrice >= _options.HighValueThreshold)
+        {
+            return StrategyDecision.RequireApproval(
+                ReasonCodes.HighValueReview,
+                [$"Giá trị đơn {FormatAmount(reservation.TotalPrice)} {reservation.Currency} đạt ngưỡng cần duyệt {FormatAmount(_options.HighValueThreshold)} {reservation.Currency}."],
+                new[] { new DecisionRecommendation(RecommendationType.REQUIRE_APPROVAL, "Manager xem xét đơn giá trị lớn và quyết định mức cọc.") });
+        }
+
+        var noShowCount = reservation.Customer.History?.NoShowCount ?? 0;
+        if (noShowCount >= _options.NoShowReviewThreshold)
+        {
+            return StrategyDecision.RequireApproval(
+                ReasonCodes.NoShowHistoryReview,
+                [$"Khách có {noShowCount} lần không đến (ngưỡng {_options.NoShowReviewThreshold})."],
+                new[] { new DecisionRecommendation(RecommendationType.REQUIRE_APPROVAL, "Manager xem xét lịch sử không đến của khách và quyết định mức cọc.") });
+        }
+
+        var (rate, segment) = ResolveTierRate(reservation.Customer);
+        return StrategyDecision.Approve(rate, ReasonCodes.TierDeposit, [$"Áp dụng cọc {FormatPercent(rate)} cho {segment}."]);
     }
+
+    private (decimal Rate, string Segment) ResolveTierRate(CustomerProfile customer)
+    {
+        if (customer.IsGuest)
+        {
+            return (_options.StandardDepositRate, "khách vãng lai");
+        }
+
+        return customer.Tier switch
+        {
+            CustomerTier.STANDARD => (_options.StandardDepositRate, "hạng STANDARD"),
+            CustomerTier.SILVER => (_options.SilverDepositRate, "hạng SILVER"),
+            CustomerTier.GOLD => (_options.GoldDepositRate, "hạng GOLD"),
+            CustomerTier.PLATINUM or CustomerTier.DIAMOND => (_options.PremiumDepositRate, $"hạng {customer.Tier}"),
+            _ => throw new ArgumentOutOfRangeException(nameof(customer), customer.Tier, "Hạng thành viên không được hỗ trợ.")
+        };
+    }
+
+    private static string FormatAmount(decimal amount) => amount.ToString("#,0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatPercent(decimal rate) => (rate * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";
 }

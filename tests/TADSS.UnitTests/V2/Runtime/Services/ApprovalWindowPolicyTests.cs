@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Decisions;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.Runtime.Api.V2.Configuration;
 using TADSS.Runtime.Api.V2.Services.Decisions;
 using Xunit;

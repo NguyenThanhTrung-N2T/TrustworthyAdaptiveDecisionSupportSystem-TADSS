@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Shared.DecisionContractSDK.V2.Decisions;
+using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
 using TADSS.Runtime.Api.V2.Configuration;
 using TADSS.Runtime.Api.V2.Infrastructure.Caching;

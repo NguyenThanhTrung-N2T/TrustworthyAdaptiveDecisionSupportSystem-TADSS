@@ -1,6 +1,6 @@
-using Shared.DecisionContractSDK.V2.Decisions;
-using Shared.DecisionContractSDK.V2.Domain;
-using Shared.DecisionContractSDK.V2.Interfaces;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.Interfaces;
 
 namespace TADSS.UnitTests.V2.Runtime.TestDoubles;
 

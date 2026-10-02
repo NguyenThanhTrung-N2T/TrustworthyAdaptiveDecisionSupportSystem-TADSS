@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.UnitTests.V2.TestData;
 using Xunit;
 

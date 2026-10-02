@@ -1,4 +1,4 @@
-using Shared.DecisionContractSDK.V2.Interfaces;
+using Shared.DecisionContractSDK.Interfaces;
 
 namespace TADSS.Runtime.Api.V2.Services.Strategies;
 

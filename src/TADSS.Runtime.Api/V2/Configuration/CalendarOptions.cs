@@ -1,5 +1,5 @@
 using System.Globalization;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 
 namespace TADSS.Runtime.Api.V2.Configuration;
 

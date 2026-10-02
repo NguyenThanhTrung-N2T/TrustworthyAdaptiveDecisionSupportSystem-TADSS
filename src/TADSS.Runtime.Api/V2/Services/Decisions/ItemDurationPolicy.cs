@@ -1,7 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Options;
-using DomainInvariantException = Shared.DecisionContractSDK.Domain.DomainInvariantException;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.V2.Configuration;
 
 namespace TADSS.Runtime.Api.V2.Services.Decisions;

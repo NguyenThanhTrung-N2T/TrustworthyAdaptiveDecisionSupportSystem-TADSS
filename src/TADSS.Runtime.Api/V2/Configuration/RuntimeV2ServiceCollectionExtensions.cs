@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 using StackExchange.Redis;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Caching;

@@ -1,6 +1,6 @@
-using Shared.DecisionContractSDK.V2.Domain;
-using TADSS.Strategies.Default.V2;
-using TADSS.Strategies.MockAlternative.V2;
+using Shared.DecisionContractSDK.Domain;
+using TADSS.Strategies.Default;
+using TADSS.Strategies.MockAlternative;
 
 namespace TADSS.Runtime.Api.V2.Services.Strategies;
 

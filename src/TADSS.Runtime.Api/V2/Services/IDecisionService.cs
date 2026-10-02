@@ -1,4 +1,4 @@
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
+using Shared.DecisionContractSDK.DTOs.Decisions;
 
 namespace TADSS.Runtime.Api.V2.Services;
 

@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Decisions;
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.V2.Configuration;
@@ -23,7 +23,6 @@ using TADSS.Runtime.Api.V2.Services.Strategies;
 using TADSS.UnitTests.V2.Runtime.TestDoubles;
 using TADSS.UnitTests.V2.TestData;
 using Xunit;
-using DomainInvariantException = Shared.DecisionContractSDK.Domain.DomainInvariantException;
 
 namespace TADSS.UnitTests.V2.Runtime.Services;
 

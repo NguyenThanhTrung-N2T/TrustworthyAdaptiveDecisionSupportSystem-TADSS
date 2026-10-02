@@ -1,6 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 using Xunit;
 
 namespace TADSS.UnitTests.V2.Architecture;
@@ -11,7 +11,7 @@ namespace TADSS.UnitTests.V2.Architecture;
 /// </summary>
 public class SdkV2LayeringTests
 {
-    private const string V2 = "Shared.DecisionContractSDK.V2.";
+    private const string V2 = "Shared.DecisionContractSDK.";
 
     [Fact]
     [Trait("CatalogId", "UT-09")]

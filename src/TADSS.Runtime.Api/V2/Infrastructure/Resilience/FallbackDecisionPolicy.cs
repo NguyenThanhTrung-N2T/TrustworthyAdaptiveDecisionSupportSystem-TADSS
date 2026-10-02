@@ -1,6 +1,6 @@
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Decisions;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Enums;
 
 namespace TADSS.Runtime.Api.V2.Infrastructure.Resilience;
 

@@ -1,9 +1,9 @@
 using System.Globalization;
 using FluentAssertions;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Domain;
-using Shared.DecisionContractSDK.V2.Enums;
-using TADSS.Strategies.MockAlternative.V2;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.Enums;
+using TADSS.Strategies.MockAlternative;
 using TADSS.UnitTests.V2.TestData;
 using Xunit;
 

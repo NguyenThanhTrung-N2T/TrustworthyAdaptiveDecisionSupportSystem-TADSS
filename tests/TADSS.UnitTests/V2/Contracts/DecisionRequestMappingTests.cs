@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
-using Shared.DecisionContractSDK.V2.DTOs.Mappings;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.DTOs.Mappings;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.UnitTests.V2.TestData;
 using Xunit;
 

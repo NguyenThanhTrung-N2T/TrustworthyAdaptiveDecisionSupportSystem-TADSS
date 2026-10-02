@@ -1,178 +1,97 @@
-using System.Diagnostics;
 using System.Globalization;
 using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
-using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
 
 namespace TADSS.Strategies.MockAlternative;
 
 /// <summary>
-/// Chiến lược thẩm định đặt sân thay thế mô phỏng (Mock Alternative Decision Strategy).
-/// <para>
-/// Triển khai chính sách trình diễn tất định có chủ đích (Deliberately Distinct Deterministic Demonstration Policy)
-/// nhằm kiểm chứng khả năng phân giải và thay thế chiến lược linh hoạt (Strategy Interchangeability) của TADSS Runtime.
-/// </para>
-/// <remarks>
-/// Đây là chiến lược phục vụ thực nghiệm đối chứng kiến trúc (Comparative Strategy Baseline), không đại diện cho quy tắc nghiệp vụ cố định duy nhất.
-/// </remarks>
+/// Strategy thay thế 2.0.0 — cọc theo khung giờ của chi nhánh (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3), dùng để
+/// đối chứng với <c>DefaultDecisionStrategy</c>. Giờ cao điểm lấy từ lịch trong <see cref="DecisionContext"/>.
+/// Không đọc đồng hồ hệ thống, không I/O, stateless và thread-safe.
 /// </summary>
-public class MockAlternativeDecisionStrategy : IReservationDecisionStrategy
+public sealed class MockAlternativeDecisionStrategy : IReservationDecisionStrategy
 {
-    /// <summary>
-    /// Tên định danh duy nhất của chiến lược trong registry.
-    /// </summary>
-    public string StrategyName => "MockAlternativeDecisionStrategy";
+    private readonly MockAlternativeStrategyOptions _options;
 
-    /// <summary>
-    /// Phiên bản của chiến lược thẩm định (SemVer).
-    /// </summary>
-    public string StrategyVersion => "1.0.0";
+    /// <summary>Khởi tạo strategy với tham số đã kiểm tra.</summary>
+    /// <param name="options">Tham số strategy.</param>
+    /// <exception cref="ArgumentException">Khi tham số không hợp lệ.</exception>
+    public MockAlternativeDecisionStrategy(MockAlternativeStrategyOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
 
-    /// <summary>
-    /// Đánh giá yêu cầu đặt sân dựa trên phân tích khung giờ cao điểm và tỷ lệ cọc linh hoạt.
-    /// </summary>
-    /// <param name="reservation">Thực thể đặt sân (Rich Domain Model) đã qua xác thực bất biến.</param>
-    /// <param name="cancellationToken">Token hủy thao tác bất đồng bộ.</param>
-    /// <returns>Đối tượng kết quả thẩm định quyết định <see cref="DecisionResultDto"/>.</returns>
-    public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
+        _options = options;
+        CachePolicy = options.CacheTtlMinutes > 0
+            ? StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(options.CacheTtlMinutes))
+            : StrategyCachePolicy.Disabled;
+    }
+
+    /// <inheritdoc />
+    public string StrategyName => nameof(MockAlternativeDecisionStrategy);
+
+    /// <inheritdoc />
+    public string StrategyVersion => "2.0.0";
+
+    /// <inheritdoc />
+    public StrategyCachePolicy CachePolicy { get; }
+
+    /// <inheritdoc />
+    public Task<StrategyDecision> EvaluateAsync(Reservation reservation, DecisionContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var stopwatch = Stopwatch.StartNew();
-
-        var reasons = new List<string>();
-        var recommendations = new List<DecisionRecommendationDto>();
-        string status;
-        string primaryReason;
-
-        // 1. Khách hàng đã thanh toán 100% chi phí
-        if (reservation.Payment.IsFullyPaid)
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.ApprovedPaidInFull;
-            reasons.Add("Khách hàng đã thanh toán 100% chi phí đặt sân.");
-            reasons.Add("Khung giờ và sân đáp ứng đầy đủ điều kiện vận hành.");
-        }
-        // 2. Khách VIP, Diamond, Platinum được hưởng chính sách phê duyệt ưu tiên
-        else if (IsTierMatch(reservation.Customer.Tier, "VIP") ||
-                 IsTierMatch(reservation.Customer.Tier, "DIAMOND") ||
-                 IsTierMatch(reservation.Customer.Tier, "PLATINUM"))
-        {
-            status = DecisionStatus.APPROVED.ToString();
-            primaryReason = ErrorCodes.AutoApprovedTierEligible;
-            reasons.Add("Khách hàng hạng cao cấp (Diamond / Platinum / VIP) được hưởng chính sách phê duyệt ưu tiên.");
-        }
-        // 3. Phân tích khung giờ cao điểm (Peak Hours)
-        else if (IsPeakHour(reservation.Schedule.StartTime))
-        {
-            if (reservation.Payment.DepositPercentage >= 50m)
-            {
-                status = DecisionStatus.APPROVED.ToString();
-                primaryReason = ErrorCodes.ApprovedStandard;
-                reasons.Add($"Khung giờ cao điểm: Mức cọc {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}% đáp ứng chính sách tối thiểu 50%.");
-            }
-            else
-            {
-                status = DecisionStatus.NEED_APPROVAL.ToString();
-                primaryReason = ErrorCodes.DepositBelowThreshold;
-                var requiredDeposit = reservation.Payment.TotalPrice * 0.5m;
-                var shortage = requiredDeposit - reservation.Payment.DepositAmount;
-
-                reasons.Add($"Khung giờ cao điểm yêu cầu mức cọc tối thiểu 50% (hiện tại: {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%). Cần quản lý xem xét.");
-
-                recommendations.Add(new DecisionRecommendationDto
-                {
-                    Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                    Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND tiền cọc để đạt mức tối thiểu 50% trong giờ cao điểm.",
-                    SuggestedPrice = reservation.Payment.TotalPrice,
-                    ConfidenceScore = 1.0
-                });
-
-                recommendations.Add(new DecisionRecommendationDto
-                {
-                    Type = RecommendationType.ALTERNATIVE_SLOT.ToString(),
-                    Description = "Gợi ý chuyển sang khung giờ thấp điểm (trước 17:00 các ngày trong tuần) để được áp dụng chính sách cọc 30%.",
-                    SuggestedPrice = reservation.Payment.TotalPrice,
-                    ConfidenceScore = 0.85
-                });
-            }
-        }
-        // 4. Khung giờ thấp điểm (Off-Peak Hours)
-        else
-        {
-            if (reservation.Payment.DepositPercentage >= 30m)
-            {
-                status = DecisionStatus.APPROVED.ToString();
-                primaryReason = ErrorCodes.ApprovedStandard;
-                reasons.Add($"Khung giờ thấp điểm: Mức cọc {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}% đáp ứng chính sách tối thiểu 30%.");
-            }
-            else
-            {
-                status = DecisionStatus.NEED_APPROVAL.ToString();
-                primaryReason = ErrorCodes.DepositBelowThreshold;
-                var requiredDeposit = reservation.Payment.TotalPrice * 0.3m;
-                var shortage = requiredDeposit - reservation.Payment.DepositAmount;
-
-                reasons.Add($"Khung giờ thấp điểm yêu cầu mức cọc tối thiểu 30% (hiện tại: {reservation.Payment.DepositPercentage.ToString("F1", CultureInfo.InvariantCulture)}%). Cần xem xét.");
-
-                recommendations.Add(new DecisionRecommendationDto
-                {
-                    Type = RecommendationType.REQUIRE_DEPOSIT.ToString(),
-                    Description = $"Yêu cầu khách hàng thanh toán bổ sung {shortage.ToString("N0", CultureInfo.InvariantCulture)} VND tiền cọc để đạt mức tối thiểu 30%.",
-                    SuggestedPrice = reservation.Payment.TotalPrice,
-                    ConfidenceScore = 1.0
-                });
-            }
-        }
-
-        stopwatch.Stop();
-
-        var result = new DecisionResultDto
-        {
-            DecisionId = Guid.NewGuid(),
-            ReservationId = reservation.ReservationId,
-            Status = status,
-            StrategyName = StrategyName,
-            StrategyVersion = StrategyVersion,
-            ExecutionTimeMs = (int)stopwatch.ElapsedMilliseconds,
-            FallbackUsed = false,
-            PrimaryReason = primaryReason,
-            Reasons = reasons,
-            Recommendations = recommendations,
-            EvaluatedAt = DateTime.UtcNow
-        };
-
-        return Task.FromResult(result);
+        return Task.FromResult(Decide(reservation, context.Calendar));
     }
 
-    /// <summary>
-    /// Kiểm tra khung giờ có phải là giờ cao điểm hay không.
-    /// <para>
-    /// Thứ 2 - Thứ 6: 17:00 - 21:00 (17h đến trước 21h).
-    /// Thứ 7 - Chủ Nhật: 08:00 - 21:00 (8h đến trước 21h).
-    /// </para>
-    /// </summary>
-    public static bool IsPeakHour(DateTime dateTime)
+    private StrategyDecision Decide(Reservation reservation, BranchCalendar calendar)
     {
-        var dayOfWeek = dateTime.DayOfWeek;
-        var timeOfDay = dateTime.TimeOfDay;
+        var isPeak = calendar.IsPeak(reservation);
+        var slot = DescribeSlot(reservation.ToBranchLocal(reservation.EarliestStart));
 
-        var isWeekend = dayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-
-        if (isWeekend)
+        if (isPeak && reservation.TotalPrice >= _options.HighValueThreshold)
         {
-            return timeOfDay >= new TimeSpan(8, 0, 0) && timeOfDay < new TimeSpan(21, 0, 0);
+            return StrategyDecision.RequireApproval(
+                ReasonCodes.HighValueReview,
+                [$"Đơn giá trị lớn ({FormatAmount(reservation.TotalPrice)} {reservation.Currency}) vào giờ cao điểm ({slot}, giờ chi nhánh)."],
+                new[]
+                {
+                    new DecisionRecommendation(RecommendationType.REQUIRE_APPROVAL, "Manager xem xét đơn giá trị lớn vào giờ cao điểm."),
+                    new DecisionRecommendation(RecommendationType.ALTERNATIVE_SLOT, "Gợi ý khách chuyển sang khung giờ thấp điểm để được cọc thấp hơn.")
+                });
         }
 
-        // Weekdays: 17:00 - 21:00
-        return timeOfDay >= new TimeSpan(17, 0, 0) && timeOfDay < new TimeSpan(21, 0, 0);
+        return isPeak
+            ? StrategyDecision.Approve(
+                _options.PeakDepositRate,
+                ReasonCodes.PeakHourDeposit,
+                [$"Khung giờ cao điểm ({slot}, giờ chi nhánh) áp dụng cọc {FormatPercent(_options.PeakDepositRate)}."])
+            : StrategyDecision.Approve(
+                _options.OffPeakDepositRate,
+                ReasonCodes.OffPeakDeposit,
+                [$"Khung giờ thấp điểm ({slot}, giờ chi nhánh) áp dụng cọc {FormatPercent(_options.OffPeakDepositRate)}."]);
     }
 
-    private static bool IsTierMatch(string? currentTier, string targetTier)
+    private static string DescribeSlot(DateTimeOffset branchLocal) =>
+        $"{branchLocal.ToString("HH:mm", CultureInfo.InvariantCulture)} {VietnameseDayName(branchLocal.DayOfWeek)}";
+
+    private static string VietnameseDayName(DayOfWeek day) => day switch
     {
-        if (string.IsNullOrWhiteSpace(currentTier)) return false;
-        return string.Equals(currentTier.Trim(), targetTier, StringComparison.OrdinalIgnoreCase);
-    }
+        DayOfWeek.Monday => "thứ Hai",
+        DayOfWeek.Tuesday => "thứ Ba",
+        DayOfWeek.Wednesday => "thứ Tư",
+        DayOfWeek.Thursday => "thứ Năm",
+        DayOfWeek.Friday => "thứ Sáu",
+        DayOfWeek.Saturday => "thứ Bảy",
+        _ => "Chủ Nhật"
+    };
+
+    private static string FormatAmount(decimal amount) => amount.ToString("#,0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatPercent(decimal rate) => (rate * 100m).ToString("0.##", CultureInfo.InvariantCulture) + "%";
 }

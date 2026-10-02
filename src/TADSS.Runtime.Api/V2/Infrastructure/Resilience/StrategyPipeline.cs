@@ -5,10 +5,10 @@ using Polly.CircuitBreaker;
 using Polly.Fallback;
 using Polly.Retry;
 using Polly.Timeout;
-using Shared.DecisionContractSDK.V2.Decisions;
-using Shared.DecisionContractSDK.V2.Domain;
-using Shared.DecisionContractSDK.V2.Enums;
-using Shared.DecisionContractSDK.V2.Interfaces;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.Enums;
+using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
 
 namespace TADSS.Runtime.Api.V2.Infrastructure.Resilience;

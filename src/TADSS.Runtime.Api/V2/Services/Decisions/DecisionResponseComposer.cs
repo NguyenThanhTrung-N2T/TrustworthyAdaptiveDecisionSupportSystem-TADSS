@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Domain;
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Domain;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.Runtime.Api.V2.Infrastructure.Data;
 using TADSS.Runtime.Api.V2.Infrastructure.Resilience;
 using TADSS.Runtime.Api.V2.Services.Strategies;

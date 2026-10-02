@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Shared.DecisionContractSDK.V2.DTOs.Decisions;
+using Shared.DecisionContractSDK.DTOs.Decisions;
 
 namespace TADSS.Runtime.Api.V2.Services;
 

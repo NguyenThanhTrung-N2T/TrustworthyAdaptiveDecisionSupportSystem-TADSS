@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Shared.DecisionContractSDK.Domain;
-using Shared.DecisionContractSDK.V2.Domain;
 using TADSS.UnitTests.V2.TestData;
 using Xunit;
 

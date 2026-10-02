@@ -8,7 +8,6 @@ using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.V2.Middlewares;
 using Xunit;
-using V2ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
 
 namespace TADSS.UnitTests.V2.Runtime.Middlewares;
 
@@ -32,13 +31,13 @@ public class ExceptionClassifierTests
 
     public static TheoryData<Exception, int, string, bool, int?> MappingRows => new()
     {
-        { new ContractValidationException(V2ErrorCodes.ValidationError, "sai định dạng", "items"), 400, V2ErrorCodes.ValidationError, true, null },
-        { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, V2ErrorCodes.DomainInvariantViolation, true, null },
-        { new IdempotencyConflictException("key-01", "key dùng lại"), 409, V2ErrorCodes.IdempotencyKeyReuse, true, null },
-        { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, V2ErrorCodes.PersistenceUnavailable, false, 5 },
-        { new TimeoutRejectedException("vượt deadline"), 504, V2ErrorCodes.GatewayTimeout, false, 5 },
-        { new InvalidOperationException("lỗi nội bộ"), 500, V2ErrorCodes.InternalError, false, null },
-        { new ArgumentException("lỗi tham số"), 500, V2ErrorCodes.InternalError, false, null },
+        { new ContractValidationException(ErrorCodes.ValidationError, "sai định dạng", "items"), 400, ErrorCodes.ValidationError, true, null },
+        { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, ErrorCodes.DomainInvariantViolation, true, null },
+        { new IdempotencyConflictException("key-01", "key dùng lại"), 409, ErrorCodes.IdempotencyKeyReuse, true, null },
+        { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, ErrorCodes.PersistenceUnavailable, false, 5 },
+        { new TimeoutRejectedException("vượt deadline"), 504, ErrorCodes.GatewayTimeout, false, 5 },
+        { new InvalidOperationException("lỗi nội bộ"), 500, ErrorCodes.InternalError, false, null },
+        { new ArgumentException("lỗi tham số"), 500, ErrorCodes.InternalError, false, null },
     };
 
     public static TheoryData<Exception> ServerSideErrors => new()
@@ -69,12 +68,12 @@ public class ExceptionClassifierTests
     public void Classify_ContractValidationWithMissingHeaderCode_Is400MissingHeader()
     {
         var result = ExceptionClassifier.Classify(
-            new ContractValidationException(V2ErrorCodes.MissingHeader, "thiếu header Idempotency-Key", "Idempotency-Key"),
+            new ContractValidationException(ErrorCodes.MissingHeader, "thiếu header Idempotency-Key", "Idempotency-Key"),
             requestAborted: false);
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(400);
-        classification.Code.Should().Be(V2ErrorCodes.MissingHeader);
+        classification.Code.Should().Be(ErrorCodes.MissingHeader);
         classification.ExposeMessage.Should().BeTrue();
         classification.RetryAfterSeconds.Should().BeNull();
         classification.Title.Should().NotBeNullOrWhiteSpace();
@@ -82,7 +81,7 @@ public class ExceptionClassifierTests
 
     [Theory]
     [Trait("CatalogId", "UT-08")]
-    [InlineData(V2ErrorCodes.InternalError)]
+    [InlineData(ErrorCodes.InternalError)]
     [InlineData("INVALID_BOOKING_PRIORITY")]
     [InlineData("")]
     [InlineData("missing_header")]
@@ -93,7 +92,7 @@ public class ExceptionClassifierTests
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(400);
-        classification.Code.Should().Be(V2ErrorCodes.ValidationError);
+        classification.Code.Should().Be(ErrorCodes.ValidationError);
         classification.ExposeMessage.Should().BeTrue();
     }
 
@@ -108,7 +107,7 @@ public class ExceptionClassifierTests
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(503);
-        classification.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        classification.Code.Should().Be(ErrorCodes.PersistenceUnavailable);
         classification.RetryAfterSeconds.Should().Be(5);
     }
 
@@ -123,7 +122,7 @@ public class ExceptionClassifierTests
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(503);
-        classification.Code.Should().Be(V2ErrorCodes.PersistenceUnavailable);
+        classification.Code.Should().Be(ErrorCodes.PersistenceUnavailable);
         classification.RetryAfterSeconds.Should().Be(5);
         classification.ExposeMessage.Should().BeFalse();
     }
@@ -137,7 +136,7 @@ public class ExceptionClassifierTests
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(500);
-        classification.Code.Should().Be(V2ErrorCodes.InternalError);
+        classification.Code.Should().Be(ErrorCodes.InternalError);
         classification.RetryAfterSeconds.Should().BeNull();
     }
 
@@ -170,6 +169,6 @@ public class ExceptionClassifierTests
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(500);
-        classification.Code.Should().Be(V2ErrorCodes.InternalError);
+        classification.Code.Should().Be(ErrorCodes.InternalError);
     }
 }

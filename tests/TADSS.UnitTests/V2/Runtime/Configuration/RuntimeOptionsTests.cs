@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.V2.Domain;
+using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.V2.Configuration;
 using TADSS.Runtime.Api.V2.Services.Decisions;
 using TADSS.UnitTests.V2.TestData;

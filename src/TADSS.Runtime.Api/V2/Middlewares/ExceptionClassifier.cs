@@ -2,7 +2,6 @@ using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.Middlewares;
-using ErrorCodes = Shared.DecisionContractSDK.V2.Common.ErrorCodes;
 
 namespace TADSS.Runtime.Api.V2.Middlewares;
 

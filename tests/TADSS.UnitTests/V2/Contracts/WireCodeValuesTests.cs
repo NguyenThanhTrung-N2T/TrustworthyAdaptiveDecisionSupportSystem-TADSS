@@ -1,6 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
-using Shared.DecisionContractSDK.V2.Common;
+using Shared.DecisionContractSDK.Common;
 using Xunit;
 
 namespace TADSS.UnitTests.V2.Contracts;

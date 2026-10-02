@@ -1,4 +1,4 @@
-using Shared.DecisionContractSDK.V2.Decisions;
+using Shared.DecisionContractSDK.Decisions;
 
 namespace TADSS.Runtime.Api.V2.Infrastructure.Caching;
 

@@ -1,6 +1,6 @@
 using FluentAssertions;
-using Shared.DecisionContractSDK.V2.Common;
-using Shared.DecisionContractSDK.V2.Enums;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.Runtime.Api.V2.Infrastructure.Resilience;
 using Xunit;
 

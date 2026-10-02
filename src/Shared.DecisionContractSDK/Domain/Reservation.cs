@@ -1,246 +1,135 @@
+using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
+using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 
 namespace Shared.DecisionContractSDK.Domain;
 
 /// <summary>
-/// Aggregate Root đại diện cho một yêu cầu đặt sân trong ranh giới nghiệp vụ của TADSS Decision Engine.
-/// Đảm bảo tính bất biến (Immutable) sau khi khởi tạo và tuân thủ chặt chẽ các quy tắc Domain Invariant.
+/// Aggregate Root của một yêu cầu đánh giá v2: một hoặc nhiều item, khách, giá, tiền tệ, kênh, nhu cầu và múi giờ
+/// chi nhánh. Bất biến phổ quát được kiểm tra trong constructor (ADR-004); chính sách nghiệp vụ (thời lượng tối
+/// thiểu/tối đa) thuộc runtime (P-01).
 /// </summary>
-public class Reservation
+public sealed class Reservation
 {
-    /// <summary>
-    /// Định danh duy nhất của đơn đặt sân (Khóa chính phía ứng dụng).
-    /// </summary>
+    /// <summary>Số item tối đa của một reservation.</summary>
+    public const int MaxItems = 20;
+
+    private static readonly Regex CurrencyPattern = new(@"^[A-Z]{3}\z", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>Định danh đơn phía client (SmashCourt: <c>bookingId</c>).</summary>
     public Guid ReservationId { get; }
 
-    /// <summary>
-    /// Thông tin khách hàng thực hiện đặt sân.
-    /// </summary>
-    public CustomerInfo Customer { get; }
+    /// <summary>Định danh chi nhánh.</summary>
+    public Guid BranchId { get; }
 
-    /// <summary>
-    /// Thông tin tài nguyên sân bãi và chi nhánh.
-    /// </summary>
-    public ResourceInfo Resource { get; }
+    /// <summary>Múi giờ của chi nhánh; mọi quy tắc theo khung giờ tính theo múi giờ này.</summary>
+    public TimeZoneInfo BranchTimeZone { get; }
 
-    /// <summary>
-    /// Khung thời gian đặt sân.
-    /// </summary>
-    public ReservationSchedule Schedule { get; }
+    /// <summary>Các item (1..<see cref="MaxItems"/>), theo thứ tự client gửi.</summary>
+    public IReadOnlyList<ReservationItem> Items { get; }
 
-    /// <summary>
-    /// Chính sách và trạng thái thanh toán.
-    /// </summary>
-    public PaymentPolicy Payment { get; }
+    /// <summary>Hồ sơ khách.</summary>
+    public CustomerProfile Customer { get; }
 
-    /// <summary>
-    /// Loại hình đặt sân (ví dụ: SINGLE, RECURRING, EVENT).
-    /// </summary>
-    public string BookingType { get; }
+    /// <summary>Tổng tiền sau giảm giá, không âm; mức cọc tính trên số này.</summary>
+    public decimal TotalPrice { get; }
 
-    /// <summary>
-    /// Mức độ ưu tiên của phiên đặt sân trong ngữ cảnh thẩm định TADSS.
-    /// LƯU Ý: Đây là Request Priority, không phải Customer Loyalty Tier.
-    /// </summary>
-    public BookingPriority Priority { get; }
+    /// <summary>Mã tiền tệ ISO 4217 (3 chữ cái in hoa).</summary>
+    public string Currency { get; }
 
-    /// <summary>
-    /// Thời điểm gửi yêu cầu thẩm định (UTC).
-    /// </summary>
-    public DateTime RequestedAt { get; }
+    /// <summary>Kênh tạo booking.</summary>
+    public Channel Channel { get; }
 
-    /// <summary>
-    /// Metadata bổ sung dưới dạng key-value.
-    /// </summary>
-    public ReservationMetadata Metadata { get; }
+    /// <summary>Thời điểm client gửi yêu cầu.</summary>
+    public DateTimeOffset RequestedAt { get; }
 
-    /// <summary>
-    /// Khởi tạo một đối tượng Reservation với kiểm tra Fail-Fast Invariants toàn diện.
-    /// </summary>
+    /// <summary>Ảnh chụp nhu cầu tại khung giờ (tùy chọn).</summary>
+    public DemandSnapshot? Demand { get; }
+
+    /// <summary>Metadata không ảnh hưởng quyết định.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; }
+
+    /// <summary>Thời điểm bắt đầu sớm nhất trong các item.</summary>
+    public DateTimeOffset EarliestStart { get; }
+
+    /// <summary>Khởi tạo reservation và kiểm tra bất biến.</summary>
+    /// <param name="reservationId">Định danh đơn, khác rỗng.</param>
+    /// <param name="branchId">Định danh chi nhánh, khác rỗng.</param>
+    /// <param name="branchTimeZone">Múi giờ chi nhánh.</param>
+    /// <param name="items">1..<see cref="MaxItems"/> item, không có phần tử null.</param>
+    /// <param name="customer">Hồ sơ khách.</param>
+    /// <param name="totalPrice">Tổng tiền, không âm.</param>
+    /// <param name="currency">Mã ISO 4217 in hoa.</param>
+    /// <param name="channel">Kênh tạo booking.</param>
+    /// <param name="requestedAt">Thời điểm client gửi yêu cầu.</param>
+    /// <param name="demand">Ảnh chụp nhu cầu (tùy chọn).</param>
+    /// <param name="metadata">Metadata (tùy chọn).</param>
+    /// <exception cref="DomainInvariantException">Khi vi phạm bất biến.</exception>
     public Reservation(
         Guid reservationId,
-        CustomerInfo customer,
-        ResourceInfo resource,
-        ReservationSchedule schedule,
-        PaymentPolicy payment,
-        string? bookingType,
-        BookingPriority priority,
-        DateTime requestedAt,
-        ReservationMetadata? metadata = null)
-    {
-        var sanitizedBookingType = string.IsNullOrWhiteSpace(bookingType) ? "SINGLE" : bookingType.Trim();
-        if (sanitizedBookingType.Length > 50)
-        {
-            throw new DomainInvariantException(
-                "INVALID_BOOKING_TYPE_LENGTH",
-                "BookingType must not exceed 50 characters.",
-                nameof(BookingType));
-        }
-
-        ReservationId = reservationId;
-        Customer = customer ?? throw new ArgumentNullException(nameof(customer));
-        Resource = resource ?? throw new ArgumentNullException(nameof(resource));
-        Schedule = schedule ?? throw new ArgumentNullException(nameof(schedule));
-        Payment = payment ?? throw new ArgumentNullException(nameof(payment));
-        BookingType = sanitizedBookingType;
-        Priority = priority;
-        RequestedAt = requestedAt;
-        Metadata = metadata ?? new ReservationMetadata();
-
-        // Fail-Fast: Đảm bảo thực thể luôn ở trạng thái hợp lệ ngay sau khi khởi tạo
-        EnsureValid();
-    }
-
-    /// <summary>
-    /// Factory method hỗ trợ khởi tạo nhanh Reservation từ các kiểu dữ liệu nguyên thủy.
-    /// </summary>
-    public static Reservation Create(
-        Guid reservationId,
-        Guid customerId,
-        string? customerTier,
-        Guid courtId,
         Guid branchId,
-        Guid? courtTypeId,
-        DateTime startTime,
-        DateTime endTime,
+        TimeZoneInfo branchTimeZone,
+        IReadOnlyList<ReservationItem> items,
+        CustomerProfile customer,
         decimal totalPrice,
-        decimal depositAmount,
-        PaymentStatus paymentStatus,
-        string? bookingType,
-        BookingPriority priority,
-        DateTime requestedAt,
-        IDictionary<string, string>? metadata = null)
+        string currency,
+        Channel channel,
+        DateTimeOffset requestedAt,
+        DemandSnapshot? demand = null,
+        IReadOnlyDictionary<string, string>? metadata = null)
     {
-        var customer = new CustomerInfo(customerId, customerTier);
-        var resource = new ResourceInfo(courtId, branchId, courtTypeId);
-        var schedule = new ReservationSchedule(startTime, endTime);
-        var payment = new PaymentPolicy(totalPrice, depositAmount, paymentStatus);
+        ArgumentNullException.ThrowIfNull(branchTimeZone);
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(customer);
 
-        return new Reservation(
-            reservationId,
-            customer,
-            resource,
-            schedule,
-            payment,
-            bookingType,
-            priority,
-            requestedAt,
-            new ReservationMetadata(metadata));
-    }
-
-    /// <summary>
-    /// Kiểm tra tính hợp lệ toàn diện của toàn bộ Aggregate Root và các Value Objects trực thuộc.
-    /// </summary>
-    /// <exception cref="DomainInvariantException">Ném ra khi phát hiện bất kỳ vi phạm Invariant nào.</exception>
-    public void EnsureValid()
-    {
-        ValidateIdentity();
-        ValidateSchedule();
-        ValidatePayment();
-    }
-
-    /// <summary>
-    /// Kiểm tra tính toàn vẹn về mặt định danh của Reservation, Customer và Resource.
-    /// </summary>
-    private void ValidateIdentity()
-    {
-        if (ReservationId == Guid.Empty)
+        if (reservationId == Guid.Empty)
         {
             throw new DomainInvariantException("INVALID_RESERVATION_ID", "ReservationId must not be empty.", nameof(ReservationId));
         }
 
-        if (Customer == null || Customer.CustomerId == Guid.Empty)
+        if (branchId == Guid.Empty)
         {
-            throw new DomainInvariantException("INVALID_CUSTOMER_ID", "CustomerId must not be empty.", nameof(Customer));
+            throw new DomainInvariantException("INVALID_BRANCH_ID", "BranchId must not be empty.", nameof(BranchId));
         }
 
-        if (Resource == null || Resource.CourtId == Guid.Empty || Resource.BranchId == Guid.Empty)
+        if (items.Count is 0 or > MaxItems || items.Any(item => item is null))
         {
-            throw new DomainInvariantException("INVALID_RESOURCE_ID", "CourtId and BranchId must not be empty.", nameof(Resource));
+            throw new DomainInvariantException("INVALID_ITEM_COUNT", $"Items must contain 1..{MaxItems} non-null elements.", nameof(Items));
         }
+
+        if (totalPrice < 0)
+        {
+            throw new DomainInvariantException("INVALID_TOTAL_PRICE", "TotalPrice must be greater than or equal to 0.", nameof(TotalPrice));
+        }
+
+        if (currency is null || !CurrencyPattern.IsMatch(currency))
+        {
+            throw new DomainInvariantException("INVALID_CURRENCY", $"Currency '{currency}' must be an ISO 4217 code in upper case.", nameof(Currency));
+        }
+
+        if (!Enum.IsDefined(channel))
+        {
+            throw new DomainInvariantException("INVALID_CHANNEL", $"Channel '{channel}' is not defined.", nameof(Channel));
+        }
+
+        ReservationId = reservationId;
+        BranchId = branchId;
+        BranchTimeZone = branchTimeZone;
+        Items = Array.AsReadOnly(items.ToArray());
+        Customer = customer;
+        TotalPrice = totalPrice;
+        Currency = currency;
+        Channel = channel;
+        RequestedAt = requestedAt;
+        Demand = demand;
+        Metadata = new ReadOnlyDictionary<string, string>(metadata is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(metadata, StringComparer.Ordinal));
+        EarliestStart = Items.Min(item => item.Start);
     }
 
-    /// <summary>
-    /// Kiểm tra tính toàn vẹn về khung thời gian đặt sân.
-    /// </summary>
-    private void ValidateSchedule()
-    {
-        if (Schedule == null)
-        {
-            throw new DomainInvariantException("INVALID_SCHEDULE", "Schedule must not be null.", nameof(Schedule));
-        }
-
-        if (Schedule.EndTime <= Schedule.StartTime)
-        {
-            throw new DomainInvariantException(
-                "INVALID_SCHEDULE_RANGE",
-                $"EndTime ({Schedule.EndTime:O}) must be greater than StartTime ({Schedule.StartTime:O}).",
-                nameof(Schedule));
-        }
-
-        if (Schedule.Duration < TimeSpan.FromMinutes(30) || Schedule.Duration > TimeSpan.FromHours(12))
-        {
-            throw new DomainInvariantException(
-                "INVALID_SCHEDULE_DURATION",
-                "Reservation duration must be between 30 minutes and 12 hours.",
-                nameof(Schedule));
-        }
-    }
-
-    /// <summary>
-    /// Kiểm tra tính toàn vẹn về mặt thanh toán và tiền cọc.
-    /// </summary>
-    private void ValidatePayment()
-    {
-        if (Payment == null)
-        {
-            throw new DomainInvariantException("INVALID_PAYMENT", "Payment policy must not be null.", nameof(Payment));
-        }
-
-        if (Payment.TotalPrice < 0)
-        {
-            throw new DomainInvariantException(
-                "INVALID_TOTAL_PRICE",
-                "TotalPrice must be greater than or equal to 0.",
-                nameof(Payment.TotalPrice));
-        }
-
-        if (Payment.DepositAmount < 0 || Payment.DepositAmount > Payment.TotalPrice)
-        {
-            throw new DomainInvariantException(
-                "DEPOSIT_EXCEEDS_TOTAL_PRICE",
-                $"DepositAmount ({Payment.DepositAmount}) must be between 0 and TotalPrice ({Payment.TotalPrice}).",
-                nameof(Payment.DepositAmount));
-        }
-    }
-
-    /// <summary>
-    /// Đánh giá xem đơn đặt sân có đủ điều kiện hủy mà không phải chịu phạt tài chính hay không.
-    /// QUY ƯỚC NGHIỆP VỤ: Áp dụng Reference Baseline Policy cho mô hình sân thể thao (mặc định ít nhất 24 giờ trước giờ bắt đầu).
-    /// Tham số customWindow cho phép cấu hình linh hoạt cửa sổ hủy của từng chính sách cụ thể.
-    /// </summary>
-    /// <param name="currentUtc">Thời điểm yêu cầu hủy tính theo chuẩn UTC.</param>
-    /// <param name="customWindow">Cửa sổ thời gian hủy tùy chỉnh (Nếu null, mặc định áp dụng 24 giờ).</param>
-    /// <returns>True nếu thời điểm hủy cách giờ bắt đầu ít nhất bằng cửa sổ quy định; ngược lại trả về False.</returns>
-    public bool CanBeCancelledWithoutPenalty(DateTime currentUtc, TimeSpan? customWindow = null)
-    {
-        var window = customWindow ?? TimeSpan.FromHours(24);
-        return (Schedule.StartTime - currentUtc) >= window;
-    }
-
-    /// <summary>
-    /// Tính toán tỷ lệ tiền cọc so với tổng giá trị đơn đặt sân (Computed Property).
-    /// QUY ƯỚC NGHIỆP VỤ (Business Convention): Khi TotalPrice == 0 (đơn đặt sân miễn phí / tài trợ),
-    /// tỷ lệ cọc trả về là 1.0m (100%) đại diện cho việc nghĩa vụ thanh toán cọc đã được thỏa mãn đầy đủ.
-    /// </summary>
-    /// <returns>Tỷ lệ từ 0.0m đến 1.0m.</returns>
-    public decimal CalculateDepositRatio()
-    {
-        if (Payment.TotalPrice == 0)
-        {
-            return 1.0m;
-        }
-
-        return Payment.DepositAmount / Payment.TotalPrice;
-    }
+    /// <summary>Quy một thời điểm về giờ địa phương của chi nhánh.</summary>
+    /// <param name="instant">Thời điểm cần quy đổi.</param>
+    public DateTimeOffset ToBranchLocal(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, BranchTimeZone);
 }
