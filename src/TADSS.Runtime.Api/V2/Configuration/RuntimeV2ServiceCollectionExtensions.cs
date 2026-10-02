@@ -37,6 +37,8 @@ public static class RuntimeV2ServiceCollectionExtensions
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<CalendarOptions>>().Value.ToCalendar());
 
         services.AddSingleton<ItemDurationPolicy>();
+        services.AddSingleton<DepositCalculator>();
+        services.AddSingleton<ApprovalWindowPolicy>();
 
         return services;
     }
