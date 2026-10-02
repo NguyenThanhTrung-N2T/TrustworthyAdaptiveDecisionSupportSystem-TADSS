@@ -6,6 +6,7 @@ using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.Services;
+using TADSS.Runtime.Api.V2.Services.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,9 @@ var app = builder.Build();
 
 // Eager startup validation for StrategyResolver (fail-fast on startup if strategy config is invalid)
 app.Services.GetRequiredService<IStrategyResolver>();
+
+// Tương tự cho registry strategy v2: tham số strategy/ActiveStrategyName sai thì không khởi động
+app.Services.GetRequiredService<IStrategyRegistry>();
 
 // Tự áp migration khi khởi động — chỉ bật ở E-LOCAL (docker compose); Neon/staging giữ mặc định false
 if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.ApplyMigrationsOnStartup)

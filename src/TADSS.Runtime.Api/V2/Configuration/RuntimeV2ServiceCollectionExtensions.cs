@@ -1,6 +1,9 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Shared.DecisionContractSDK.V2.Domain;
+using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.V2.Services.Decisions;
+using TADSS.Runtime.Api.V2.Services.Strategies;
 
 namespace TADSS.Runtime.Api.V2.Configuration;
 
@@ -39,6 +42,15 @@ public static class RuntimeV2ServiceCollectionExtensions
         services.AddSingleton<ItemDurationPolicy>();
         services.AddSingleton<DepositCalculator>();
         services.AddSingleton<ApprovalWindowPolicy>();
+
+        // Strategy đang kích hoạt dùng chung section Tadss:Strategy với v1 (bind lại cùng section là vô hại)
+        services.AddOptions<StrategyOptions>().Bind(configuration.GetSection(StrategyOptions.SectionName));
+
+        // Strategy v2 dựng từ Tadss:Strategies:* + lịch cao điểm; lỗi cấu hình làm registry không dựng được
+        // (Program.cs resolve sớm nên ứng dụng không khởi động)
+        services.AddSingleton(sp => StrategyRegistrations.CreateDefault(configuration, sp.GetRequiredService<BranchCalendar>()));
+        services.AddSingleton(sp => StrategyRegistrations.CreateMockAlternative(configuration, sp.GetRequiredService<BranchCalendar>()));
+        services.AddSingleton<IStrategyRegistry, StrategyRegistry>();
 
         return services;
     }
