@@ -9,8 +9,8 @@ namespace TADSS.Runtime.Api.V2.Services.Strategies;
 /// Dựng dấu vân tay tham số (<c>optionsFingerprint</c>, spec 4.2.3, B-08) của một strategy: mỗi tham số ghi thành một
 /// dòng <c>name=value</c> theo đúng thứ tự gọi, nối bằng <c>\n</c>, băm SHA-256 và lấy 16 ký tự hex thường đầu tiên.
 /// Danh sách tham số do nơi gọi khai báo tường minh (không serialize POCO bằng reflection) nên thêm/bớt/đổi thứ tự
-/// tham số là thay đổi có chủ đích. Số được ghi theo culture bất biến và bỏ số 0 vô nghĩa (cùng quy tắc với
-/// <see cref="RequestHasher"/>), nên <c>0.50</c> và <c>0.5</c> cho cùng fingerprint.
+/// tham số là thay đổi có chủ đích. Số thập phân được ghi bằng <see cref="CanonicalNumberFormatter"/> (cùng quy tắc với
+/// <see cref="RequestHasher"/>: culture bất biến, bỏ số 0 vô nghĩa), nên <c>0.50</c> và <c>0.5</c> cho cùng fingerprint.
 /// </summary>
 public sealed class OptionsFingerprintBuilder
 {
@@ -21,7 +21,7 @@ public sealed class OptionsFingerprintBuilder
     /// <summary>
     /// Thêm một tham số thập phân.
     /// </summary>
-    public void Add(string name, decimal value) => _lines.Add($"{name}={Format(value)}");
+    public void Add(string name, decimal value) => _lines.Add($"{name}={CanonicalNumberFormatter.Format(value)}");
 
     /// <summary>
     /// Thêm một tham số nguyên.
@@ -58,18 +58,4 @@ public sealed class OptionsFingerprintBuilder
 
     private static string FormatTime(TimeOnly time) => time.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
 
-    /// <summary>
-    /// Chuỗi bất biến theo culture của số thập phân, bỏ số 0 vô nghĩa ở phần thập phân (<c>0.50</c> → <c>0.5</c>,
-    /// <c>3000000.00</c> → <c>3000000</c>, <c>0.00</c> → <c>0</c>).
-    /// </summary>
-    private static string Format(decimal value)
-    {
-        var text = value.ToString(CultureInfo.InvariantCulture);
-        if (text.Contains('.', StringComparison.Ordinal))
-        {
-            text = text.TrimEnd('0').TrimEnd('.');
-        }
-
-        return text is "-0" or "" ? "0" : text;
-    }
 }

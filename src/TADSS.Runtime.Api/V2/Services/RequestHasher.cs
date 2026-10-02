@@ -137,21 +137,8 @@ public static class RequestHasher
 
     private static string Format(int value) => value.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>
-    /// Chuỗi bất biến theo culture của số thập phân, bỏ số 0 vô nghĩa ở phần thập phân (<c>228000.00</c> → <c>228000</c>,
-    /// <c>0.50</c> → <c>0.5</c>, <c>0.00</c> → <c>0</c>). <see cref="decimal.ToString(IFormatProvider)"/> không bao giờ
-    /// dùng ký hiệu mũ nên chỉ cần cắt đuôi.
-    /// </summary>
-    private static string Format(decimal value)
-    {
-        var text = value.ToString(CultureInfo.InvariantCulture);
-        if (text.Contains('.', StringComparison.Ordinal))
-        {
-            text = text.TrimEnd('0').TrimEnd('.');
-        }
-
-        return text is "-0" or "" ? "0" : text;
-    }
+    /// <summary>Số thập phân ghi theo <see cref="CanonicalNumberFormatter"/> (quy tắc dùng chung với fingerprint strategy).</summary>
+    private static string Format(decimal value) => CanonicalNumberFormatter.Format(value);
 
     /// <summary>Item đã chuẩn hóa; <see cref="Price"/> giữ dạng số chỉ để so sánh khi sắp xếp.</summary>
     private sealed record CanonicalItem(string ResourceId, string ResourceTypeId, string StartTime, string EndTime, decimal Price);
