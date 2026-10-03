@@ -15,11 +15,34 @@
 
 Thiết kế ở Mục B khắc phục các hạn chế của schema cũ: override sửa trực tiếp bản ghi máy (DB không chặn), không lưu trạng thái đích và mức cọc của override, không lưu input quyết định, không có `branch_id` cho hàng chờ.
 
+### A.1. Vị trí mã và lệnh EF
+
+Mã persistence nằm trong project `TADSS.Infrastructure` (EF Core chỉ được dùng trong thư mục `Persistence/`); port của nó nằm ở `TADSS.Application/Abstractions/Persistence`.
+
+| Thứ | Vị trí |
+| :--- | :--- |
+| `TadssDbContext`, `EfDecisionAuditStore`, `DecisionAuditMapper`, `PersistenceFailureDetector` (internal) | `src/TADSS.Infrastructure/Persistence/` |
+| Entity: `DecisionExecutionEntity`, `DecisionOverrideEntity`, `DecisionOutcomeEntity` (hậu tố `Entity` để không trùng enum `DecisionOutcome` của SDK) | `src/TADSS.Infrastructure/Persistence/Entities/` |
+| Cấu hình ánh xạ: `DecisionExecutionConfiguration`, `DecisionOverrideConfiguration`, `DecisionOutcomeConfiguration` | `src/TADSS.Infrastructure/Persistence/Configurations/` |
+| Migration và `TadssDbContextModelSnapshot` | `src/TADSS.Infrastructure/Persistence/Migrations/` |
+
+Lệnh EF luôn chỉ rõ cả project chứa migration và project khởi động (composition root), chạy với môi trường `Testing` để không đọc cấu hình cục bộ:
+
+```bash
+# Liệt kê migration, không kết nối database
+ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect   --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+
+# Kiểm tra model và snapshot còn khớp nhau (chỉ đọc)
+ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations has-pending-model-changes   --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+```
+
+Chỉ tạo hoặc áp migration (`migrations add`, `database update`) khi có yêu cầu; `Tadss:Database:ApplyMigrationsOnStartup` được `StartupTasks` (Runtime.Api) xử lý.
+
 ---
 
 ## B. THIẾT KẾ v2
 
-> **Trạng thái (gói 5.2c):** B.1–B.4 **đã hiện thực** bằng migration `20261002101457_DecisionPersistenceV2` (EF entity/configuration trong `Infrastructure/Data/`, trigger và hàm viết bằng SQL trong migration) và có test trên PostgreSQL thật (IT-05, IT-15). Hiện chỉ `decision_executions` được ghi bởi mã (`EfDecisionAuditStore`: tìm theo idempotency key, chèn, đọc chi tiết); `decision_overrides`, `decision_outcomes` và truy vấn hàng chờ B.5 chưa có mã ghi/đọc ở runtime — thuộc gói 5.3.
+> **Trạng thái (sau gói 5.2d):** B.1–B.4 **đã hiện thực** bằng migration `20261002101457_DecisionPersistenceV2` (EF entity/configuration trong `src/TADSS.Infrastructure/Persistence/` — xem Mục A.1, trigger và hàm viết bằng SQL trong migration) và có test trên PostgreSQL thật (IT-05, IT-15). Hiện chỉ `decision_executions` được ghi bởi mã (`EfDecisionAuditStore`, hiện thực hai port `IDecisionEvaluationStore` — tìm theo idempotency key, chèn — và `IDecisionQueryStore` — đọc chi tiết); `decision_overrides`, `decision_outcomes` và truy vấn hàng chờ B.5 chưa có mã ghi/đọc ở runtime — thuộc gói 5.3.
 >
 > **Ghi chú hiện thực:**
 > - Tên ràng buộc do migration đặt (DDL dưới đây khai báo CHECK không tên): `ck_de_{role,status,deposit_rate,deposit_amount,execution_type,execution_time_ms,deposit,approval}`, `ck_do_{action,deposit_rate,deposit_amount,reason_length,deposit}`, `ck_dout_outcome`; unique `uq_decision_executions_decision_id`, `uq_decision_overrides_decision_id`, `uq_decision_outcomes_decision_id`; FK `fk_decision_overrides_decision_id`, `fk_decision_outcomes_decision_id` (NO ACTION).
@@ -151,10 +174,10 @@ LIMIT @pageSize OFFSET @offset;
 | **INV-6** | Mỗi quyết định có tối đa một outcome | `UNIQUE(decision_id)` | IT-10 |
 | **INV-7** | `APPROVED` ⇔ có mức cọc; `NEED_APPROVAL` ⇔ có hạn duyệt | CHECK `ck_de_deposit`, `ck_de_approval` | IT-01, UT-10 |
 | **INV-8** | Bản ghi `SHADOW` không ảnh hưởng response và không vào hàng chờ | Lọc `role = 'PRIMARY'` | IT-12 |
-| **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC (offset 0, độ phân giải µs) | `DecisionService` gán từ `TimeProvider`; không còn interceptor (đã gỡ ở 5.2c) và không có `DEFAULT now()` ở DB | UT-01 (mapper), IT-01, IT-05 |
+| **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC (offset 0, độ phân giải µs) | `DecisionService` gán từ `TimeProvider`; không có interceptor ghi timestamp và không có `DEFAULT now()` ở DB | UT-01 (mapper), IT-01, IT-05 |
 | **INV-10** | Request trả về thành công khi và chỉ khi bản ghi audit đã được lưu (fail-closed) | Ghi đồng bộ trước khi trả response | FI-08, SC3 |
 
-**Trạng thái sau gói 5.2c:** INV-1, INV-2, INV-3, INV-4, INV-7, INV-9, INV-10 có test khóa đang xanh (IT-01…IT-05, UT-06, UT-11, FI-08). INV-5, INV-6: mới có phần DB (`UNIQUE`, CHECK, FK — test IT-05); phần kiểm tra ở ứng dụng và IT-06…IT-10 thuộc gói 5.3. INV-8: ràng buộc DB (`uq_decision_idempotency_key` chỉ áp cho `PRIMARY`, test IT-05) và `Find` lọc `role = 'PRIMARY'` đã có; chưa có đường ghi `SHADOW` và IT-12 thuộc gói 5.4.
+**Trạng thái sau gói 5.2d:** INV-1, INV-2, INV-3, INV-4, INV-7, INV-9, INV-10 có test khóa đang xanh (IT-01…IT-05, UT-06, UT-11, FI-08). INV-5, INV-6: mới có phần DB (`UNIQUE`, CHECK, FK — test IT-05); phần kiểm tra ở ứng dụng và IT-06…IT-10 thuộc gói 5.3. INV-8: ràng buộc DB (`uq_decision_idempotency_key` chỉ áp cho `PRIMARY`, test IT-05) và `Find` lọc `role = 'PRIMARY'` đã có; chưa có đường ghi `SHADOW` và IT-12 thuộc gói 5.4.
 
 ### C.1. Định danh
 

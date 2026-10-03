@@ -13,6 +13,7 @@ dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS
 dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS.IntegrationTests"   # cần Docker (Testcontainers)
 docker compose up -d --build                                            # môi trường E-LOCAL tự chứa; dừng + xóa dữ liệu: docker compose down -v
 dotnet run --project src/TADSS.Runtime.Api                              # http://localhost:5296/swagger
+ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api   # EF chỉ đọc; migration nằm ở Infrastructure
 ```
 CI: restore → build Release → unit test → integration test (Testcontainers) → Docker build. Nhánh làm việc chính: `develop`.
 
@@ -20,9 +21,11 @@ CI: restore → build Release → unit test → integration test (Testcontainers
 | Project | Vai trò | Phụ thuộc cho phép |
 |---|---|---|
 | `src/Shared.DecisionContractSDK` | Contract v2 (v2.0.0-draft): Domain `Reservation` (rich model, invariant), DTOs (Decisions/Governance/Outcomes/Mappings), Decisions (`StrategyDecision`, `DecisionContext`), Enums, `IReservationDecisionStrategy` | chỉ BCL — 0 NuGet |
-| `src/TADSS.Runtime.Api` | Controllers, Services (DecisionService, DecisionQueryService, RequestHasher, Decisions/, Strategies/), Middlewares (ExceptionClassifier, GlobalExceptionHandler), Configuration (DependencyInjection, `AddDecisionRuntime`, Options), Infrastructure (Data + Migrations, Resilience, Caching) | SDK + Strategies |
+| `src/TADSS.Application` | Use case + port + options nghiệp vụ: `Abstractions/{Caching,Persistence,Resilience}` (port), `Common/ContractLimits`, `Decisions/` (DecisionService, DecisionQueryService, StrategyEvaluator, DecisionPayloadSerializer, composer, policies), `Exceptions/`, `Options/`, `Strategies/` (registry). `AddApplication` | SDK + `Microsoft.Extensions.*` abstraction (cấm hạ tầng/ASP.NET Core/EF/Redis/Polly) |
+| `src/TADSS.Infrastructure` | Adapter của port: `Caching/` (Redis + memory), `Options/` (Cache/Database/Resilience), `Persistence/` (TadssDbContext, EfDecisionAuditStore, Entities `*Entity`, Configurations, **Migrations**, health check), `Resilience/` (Polly pipeline, fallback). `AddInfrastructure` | Application + SDK + EF/Npgsql/Redis/Polly (cấm Runtime.Api, ASP.NET Core) |
+| `src/TADSS.Runtime.Api` | Composition root + presentation: `Program.cs` (mỏng), `Composition/` (`AddPresentation`, `AddStrategies`, `UseTadssRequestPipeline`, `StartupTasks`, `StrategyRegistrations`), `Controllers/`, `ErrorHandling/` (ExceptionClassifier), `Middlewares/`, `OpenApi/`, `Options/` (ErrorHandling) | Tất cả; chỉ `Program.cs` + `Composition/` được dùng kiểu Infrastructure |
 | `src/TADSS.Strategies.Default` / `.MockAlternative` | Mỗi project một strategy | chỉ SDK |
-| `tests/TADSS.UnitTests` | Common, Contracts (gồm drift OpenAPI), Controllers, Configuration, Domain, Services, Strategies, Infrastructure, Middlewares, **Architecture** (dependency purity, public API surface, `NoLegacyV1Tests`) | |
+| `tests/TADSS.UnitTests` | Cây mirror `src/`: `Sdk/`, `Strategies/`, `Application/`, `Infrastructure/`, `Api/` (gồm drift OpenAPI), `TestData/`, `TestDoubles/`, **`Architecture/`** (UT-14 quy tắc tầng/quy ước, dependency purity, public API surface, `NoLegacyV1Tests`) | |
 | `tests/TADSS.IntegrationTests` | Testcontainers PostgreSQL 16 / Redis 7 / Toxiproxy: WebApplicationFactory E2E, idempotency, cache, persistence, fault injection, migration | |
 
 Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml` sinh từ mã, `schemas/v2/`, `baseline_public_api.txt`),
@@ -34,7 +37,7 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
 - Danh mục test case (UT/IT/CT/MT/FI/LT/BE/FE/E2E/RP/PT/UAT) + KPI SC1–SC9: `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`.
 
 ## Điểm cần nhớ
-- Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `Migrations/` để lịch sử migration trên Neon khớp — không xóa.
+- Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `src/TADSS.Infrastructure/Persistence/Migrations/` để lịch sử migration trên Neon khớp — không xóa.
 - **Contract v2** là bản duy nhất, đặc tả tại `docs/contracts/INTEGRATION_SPEC.md`; đã hiện thực `POST /api/v2/decisions` và `GET /api/v2/decisions/{id}`.
   Thay đổi wire nằm ngoài đặc tả ⇒ dừng lại hỏi người dùng. `openapi-v2.yaml` sinh từ mã (test `OpenApiDriftTests` báo lệch; muốn cập nhật thì chép file sinh ra theo hướng dẫn trong test).
   Không sửa `baseline_public_api.txt` để test xanh — baseline v2 là bản nháp (`2.0.0-draft`), chỉ đổi có chủ đích khi đóng băng v2.
@@ -44,12 +47,12 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
   `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ compose đặt `true`.
 - Lỗi → `ExceptionClassifier` (hàm thuần) + `GlobalExceptionHandler`: mất kết nối PostgreSQL (lỗi tạm thời) → 503 `PERSISTENCE_UNAVAILABLE`; mã lỗi ở `ErrorCodes` của SDK. Audit ghi đồng bộ (fail-closed), `created_at` do `DecisionService` gán (µs, UTC) — không còn interceptor.
 - `TreatWarningsAsErrors` + XML doc bắt buộc ở SDK/Strategies; version package chỉ khai báo trong `Directory.Packages.props`.
-- Options: `{X}Options` với `SectionName = "Tadss:{X}"`; strategy active chọn qua `Tadss:Strategy:ActiveStrategyName` (định tuyến theo request thuộc 5.4).
-- Lỗi API trả RFC 7807 `ProblemDetails`; header idempotency xem `Common/HttpHeaderNames`.
+- Options: `{X}Options` với `SectionName = "Tadss:{X}"` + `{X}OptionsValidator` + `ValidateOnStart()`, đặt trong thư mục `Options/` của project sở hữu; strategy active chọn qua `Tadss:Strategy:ActiveStrategyName` (định tuyến theo request thuộc 5.4).
+- Lỗi API trả RFC 7807 `ProblemDetails`; header idempotency xem `TADSS.Runtime.Api/Common/HttpHeaderNames`; giới hạn 128 ký tự của contract ở `Application/Common/ContractLimits`.
 - Migration EF (schema `tadss`) chỉ tạo/áp dụng khi người dùng yêu cầu; `20261002101457_DecisionPersistenceV2` **xóa** bảng v1 và chưa được áp lên Neon. Không đọc/sửa `appsettings.Development.json`, `.env`.
 - Tên test: `{Method}_{Scenario}_{Expected}`, dùng FluentAssertions.
 
 ## Quy tắc làm việc
 - **Không tự ý `git commit` / `push` / `merge` / `rebase` / `reset`** — chỉ khi người dùng yêu cầu rõ ràng (xem `../.claude/rules/git-safety.md`).
 - Sửa code xong **phải** build `--warnaserror` + chạy unit test liên quan, sửa hết lỗi trước khi báo xong (skill `build-verify`).
-- Class/strategy/test mới theo skill `tadss-architecture`.
+- Class/strategy/test mới theo skill `tadss-architecture`. Ranh giới tầng và quy ước (một kiểu public/file, ≤ 250 dòng, namespace = project + thư mục, port ở `Application/Abstractions`) bị test UT-14 chặn nếu sai.
