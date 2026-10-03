@@ -27,17 +27,23 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        // 1. Cấu hình database: chuỗi kết nối đọc từ IConfiguration cuối cùng trong DI (gồm override của host test), không chụp lúc đăng ký.
+        // Thiếu hoặc sai chuỗi thì host không khởi động ở mọi môi trường (DatabaseOptionsValidator).
+        services.AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .Configure<IConfiguration>((options, finalConfiguration) =>
+                options.ConnectionString = finalConfiguration.GetConnectionString("DefaultConnection"))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptionsValidator>();
 
-        // 1. DbContext (EF Core nằm trong namespace Persistence): thời gian audit do DecisionService gán, không có interceptor ghi timestamp.
+        // 2. DbContext (EF Core nằm trong namespace Persistence): thời gian audit do DecisionService gán, không có interceptor ghi timestamp.
         // Migration nằm trong assembly Infrastructure (cùng assembly với TadssDbContext).
-        services.AddPersistenceDbContext(connectionString);
-        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+        services.AddPersistenceDbContext();
 
-        // 2. Health check có phân nhóm tag (Liveness / Readiness)
-        services.AddPersistenceHealthChecks(connectionString);
+        // 3. Health check có phân nhóm tag (Liveness / Readiness)
+        services.AddPersistenceHealthChecks();
 
-        // 3. Cấu hình chịu lỗi (section Tadss:Resilience): kiểm tra ngân sách thời gian khi khởi động.
+        // 4. Cấu hình chịu lỗi (section Tadss:Resilience): kiểm tra ngân sách thời gian khi khởi động.
         // Pipeline là singleton: circuit breaker dùng chung cho mọi request.
         services.AddOptions<ResilienceOptions>()
             .Bind(configuration.GetSection(ResilienceOptions.SectionName))
@@ -45,7 +51,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceOptionsValidator>();
         services.AddSingleton<IStrategyPipeline, StrategyPipeline>();
 
-        // 4. Cache StrategyDecision (không cache response), section Tadss:Cache; tự đủ phụ thuộc nên
+        // 5. Cache StrategyDecision (không cache response), section Tadss:Cache; tự đủ phụ thuộc nên
         // đăng ký IMemoryCache/options ở đây. Multiplexer Redis cũng đăng ký tại đây
         // (TryAdd: đăng ký có sẵn thắng); nó chỉ được tạo khi Provider = Redis được resolve.
         services.AddMemoryCache();
@@ -67,7 +73,7 @@ public static class InfrastructureServiceCollectionExtensions
                 useRedis ? RedisConnectionFactory.ResolveOrWarn(sp, logger) : null);
         });
 
-        // 5. Kho audit scoped vì dùng TadssDbContext của scope (request). Đăng ký MỘT lần; hai port (ISP) forward tới cùng instance trong scope
+        // 6. Kho audit scoped vì dùng TadssDbContext của scope (request). Đăng ký MỘT lần; hai port (ISP) forward tới cùng instance trong scope
         services.AddScoped<EfDecisionAuditStore>();
         services.AddScoped<IDecisionEvaluationStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());
         services.AddScoped<IDecisionQueryStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());

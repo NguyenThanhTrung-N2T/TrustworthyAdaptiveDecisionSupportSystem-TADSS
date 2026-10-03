@@ -31,12 +31,15 @@ public class MigrationsAssemblyTests
     public void Migrations_AssemblyIsInfrastructure_AndIdsUnchanged()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(new ConfigurationBuilder()
+        IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [TestConnectionStrings.Key] = TestConnectionStrings.Value,
             })
-            .Build());
+            .Build();
+        // Như host thật: IConfiguration có trong DI (DatabaseOptions đọc chuỗi kết nối từ đó)
+        services.AddSingleton(configuration);
+        services.AddInfrastructure(configuration);
         using var provider = services.BuildServiceProvider(validateScopes: true);
         using var scope = provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<TadssDbContext>();

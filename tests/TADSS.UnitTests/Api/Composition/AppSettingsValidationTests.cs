@@ -20,21 +20,20 @@ namespace TADSS.UnitTests.Api.Composition;
 /// UT-14: <c>appsettings.json</c> (không nạp <c>appsettings.Development.json</c>) qua mọi validator của runtime khi host khởi động,
 /// và mỗi options của Application/Infrastructure/Runtime.Api (kiểu public không lồng, tên <c>*Options</c>, có hằng <c>SectionName</c> —
 /// tìm bằng reflection, không dùng danh sách cứng) đều có đúng một <c>IValidateOptions&lt;T&gt;</c> được đăng ký cùng <c>ValidateOnStart</c>.
-/// Ngoại lệ khai báo duy nhất: <c>DatabaseOptions</c> (chỉ có một cờ <c>bool</c>, không có gì để kiểm). Options của strategy nằm ở project strategy
-/// và tự kiểm bằng <c>Validate()</c> khi dựng registry nên không thuộc quy tắc này.
+/// Không có ngoại lệ: <c>DatabaseOptions</c> cũng có validator (chuỗi kết nối). Chuỗi kết nối trong <c>appsettings.json</c> là ô giữ chỗ nên test thay bằng chuỗi test.
+/// Options của strategy nằm ở project strategy và tự kiểm bằng <c>Validate()</c> khi dựng registry nên không thuộc quy tắc này.
 /// </summary>
 public class AppSettingsValidationTests
 {
-    /// <summary>Options có <c>SectionName</c> nhưng được phép không có validator, kèm lý do.</summary>
-    private static readonly Dictionary<Type, string> OptionsWithoutValidator = new()
-    {
-        [typeof(DatabaseOptions)] = "chỉ có một bool, không có gì để kiểm",
-    };
+    /// <summary>Options có <c>SectionName</c> nhưng được phép không có validator, kèm lý do. Hiện không có ngoại lệ nào.</summary>
+    private static readonly Dictionary<Type, string> OptionsWithoutValidator = new();
 
     private static IHost BuildHost()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false);
+        // Chuỗi kết nối trong appsettings.json là ô giữ chỗ (bị DatabaseOptionsValidator từ chối): thay bằng chuỗi test
+        builder.Configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
         builder.Services.AddLogging();
         builder.Services.AddRuntimeCore(builder.Configuration);
         builder.Services.AddPresentation(builder.Configuration);
@@ -122,7 +121,8 @@ public class AppSettingsValidationTests
             .ToList();
 
         types.Should().NotBeEmpty("phải tìm thấy options có SectionName trong Application/Infrastructure/Runtime.Api, không được pass rỗng");
-        types.Should().Contain(OptionsWithoutValidator.Keys, "ngoại lệ khai báo phải còn là options có SectionName (xóa khỏi danh sách ngoại lệ nếu kiểu đã đổi)");
+        types.Where(OptionsWithoutValidator.ContainsKey).Should().BeEquivalentTo(OptionsWithoutValidator.Keys, "ngoại lệ khai báo phải còn là options có SectionName (xóa khỏi danh sách ngoại lệ nếu kiểu đã đổi)");
+        types.Should().Contain(typeof(DatabaseOptions), "DatabaseOptions có SectionName và phải được kiểm như mọi options khác");
         return types;
     }
 

@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
+using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using TADSS.Application.Decisions;
@@ -18,7 +20,7 @@ public class DecisionPayloadSerializerTests
     public static TheoryData<string> UnreadablePayloads => new()
     {
         "null",
-        "{ \"decisionId\": \"khong-phai-guid\" }",
+        "{ \"reservationId\": \"khong-phai-guid\" }",
         "{ không phải JSON"
     };
 
@@ -68,5 +70,65 @@ public class DecisionPayloadSerializerTests
         var corrupt = () => DecisionPayloadSerializer.DeserializeResponseOrNull("{ không phải JSON");
 
         corrupt.Should().Throw<JsonException>();
+    }
+
+    /// <summary>
+    /// Bản ghi cũ có trường lạ (DTO về sau bỏ trường) vẫn đọc được: trường lạ ở gốc và ở object lồng (<c>customer</c>) bị bỏ qua,
+    /// các giá trị còn lại giữ nguyên.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void DeserializeRequest_UnknownProperty_IsIgnored()
+    {
+        var json = ContractSamples.MutateRequest(root =>
+        {
+            root["truongLaOGoc"] = "x";
+            ContractSamples.Object(root["customer"])["truongLaTrongCustomer"] = 7;
+        });
+
+        var request = DecisionPayloadSerializer.DeserializeRequest(json);
+
+        request.Should().BeEquivalentTo(SampleRequest());
+    }
+
+    /// <summary>Bản ghi cũ thiếu một trường <c>required</c> (DTO thêm trường sau) vẫn đọc được; trường thiếu mang giá trị mặc định.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void DeserializeResponse_MissingRequiredProperty_UsesDefault()
+    {
+        var json = ContractSamples.MutateResult(root => root.Remove("reasonCode"));
+
+        var response = DecisionPayloadSerializer.DeserializeResponse(json);
+
+        response.ReasonCode.Should().BeNull();
+        response.Status.Should().Be(DecisionStatus.APPROVED);
+        response.StrategyName.Should().Be(SampleResponse().StrategyName);
+    }
+
+    /// <summary>Đọc nới lỏng chỉ áp cho trường lạ/thiếu: enum chữ thường và thời gian thiếu offset vẫn bị từ chối.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-02")]
+    [InlineData("status", "approved")]
+    [InlineData("evaluatedAt", "2026-11-18T02:15:00.041")]
+    public void DeserializeRequest_StrictEnumAndOffset_StillEnforced_Theory(string property, string value)
+    {
+        var json = ContractSamples.MutateResult(root => root[property] = value);
+
+        var read = () => DecisionPayloadSerializer.DeserializeResponse(json);
+
+        read.Should().Throw<JsonException>();
+    }
+
+    /// <summary>Đường ghi giữ options chặt: kết quả serialize trùng từng byte với <see cref="TadssJson.Options"/>.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-02")]
+    public void SerializeRequest_UsesStrictOptions()
+    {
+        var request = SampleRequest();
+
+        DecisionPayloadSerializer.SerializeRequest(request)
+            .Should().Be(JsonSerializer.Serialize(request, TadssJson.Options));
+        DecisionPayloadSerializer.SerializeResponse(SampleResponse())
+            .Should().Be(JsonSerializer.Serialize(SampleResponse(), TadssJson.Options));
     }
 }

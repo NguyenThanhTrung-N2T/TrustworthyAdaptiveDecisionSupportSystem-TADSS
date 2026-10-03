@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using TADSS.Infrastructure.Options;
 
 namespace TADSS.Infrastructure.Persistence;
 
@@ -11,13 +13,14 @@ internal static class PersistenceHealthChecks
     public const string Name = "postgresql";
 
     /// <summary>
-    /// Thêm health check PostgreSQL với tag <c>ready</c> và <c>db</c>.
+    /// Thêm health check PostgreSQL với tag <c>ready</c> và <c>db</c>. Chuỗi kết nối đọc từ <see cref="DatabaseOptions"/> khi health check chạy, không chụp lúc đăng ký.
     /// </summary>
-    public static IServiceCollection AddPersistenceHealthChecks(this IServiceCollection services, string? connectionString)
+    public static IServiceCollection AddPersistenceHealthChecks(this IServiceCollection services)
     {
         services.AddHealthChecks()
             .AddNpgSql(
-                connectionString: connectionString ?? string.Empty,
+                connectionStringFactory: serviceProvider =>
+                    serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString ?? string.Empty,
                 name: Name,
                 tags: new[] { "ready", "db" });
 

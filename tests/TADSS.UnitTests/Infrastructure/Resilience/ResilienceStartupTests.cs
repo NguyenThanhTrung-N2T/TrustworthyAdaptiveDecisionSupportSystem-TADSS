@@ -58,6 +58,8 @@ public class ResilienceStartupTests
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false);
+        // Chuỗi kết nối trong appsettings.json là ô giữ chỗ (bị DatabaseOptionsValidator từ chối): thay bằng chuỗi test
+        builder.Configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
         builder.Services.AddLogging();
         builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();

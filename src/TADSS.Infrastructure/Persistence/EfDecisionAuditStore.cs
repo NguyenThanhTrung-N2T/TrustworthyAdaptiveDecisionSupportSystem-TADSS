@@ -18,7 +18,8 @@ namespace TADSS.Infrastructure.Persistence;
 /// Dịch lỗi: lỗi kết nối/timeout/<c>40001</c>/<c>40P01</c> (theo <see cref="PersistenceFailureDetector.IsRetryable"/>) →
 /// <see cref="PersistenceUnavailableException"/> (thông báo không chứa chuỗi kết nối, SQL hay giá trị; exception gốc được giữ);
 /// unique <c>uq_decision_idempotency_key</c> khi insert → trả bản thắng; mọi lỗi khác (CHECK, FK, unique khác, lỗi dữ liệu) giữ nguyên
-/// exception gốc. <see cref="OperationCanceledException"/> của caller lan ra nguyên vẹn.
+/// exception gốc. <see cref="OperationCanceledException"/> của caller lan ra nguyên vẹn; lỗi có thể thử lại khi token của caller đã hủy
+/// thì thành <see cref="OperationCanceledException"/> (không phải 503).
 /// </para>
 /// </summary>
 public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQueryStore
@@ -44,19 +45,19 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
     public Task<DecisionExecutionRecord?> FindPrimaryByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(idempotencyKey);
-        return TranslateFailuresAsync(() => FindPrimaryCoreAsync(idempotencyKey, cancellationToken));
+        return Execute(() => FindPrimaryCoreAsync(idempotencyKey, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<InsertExecutionResult> InsertExecutionAsync(DecisionExecutionRecord record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
-        return TranslateFailuresAsync(() => InsertCoreAsync(record, cancellationToken));
+        return Execute(() => InsertCoreAsync(record, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<DecisionDetailRecord?> GetDecisionDetailAsync(Guid decisionId, CancellationToken cancellationToken) =>
-        TranslateFailuresAsync(() => GetDetailCoreAsync(decisionId, cancellationToken));
+        Execute(() => GetDetailCoreAsync(decisionId, cancellationToken), cancellationToken);
 
     private async Task<DecisionExecutionRecord?> FindPrimaryCoreAsync(string idempotencyKey, CancellationToken cancellationToken)
     {
@@ -121,6 +122,13 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
             row.outcome is null ? null : DecisionAuditMapper.ToRecord(row.outcome));
     }
 
+    /// <summary>
+    /// Chạy <paramref name="operation"/> qua <see cref="PersistenceFailureTranslator"/>: lỗi lưu trữ có thể thử lại thành <see cref="PersistenceUnavailableException"/>
+    /// (hoặc <see cref="OperationCanceledException"/> nếu caller đã hủy), mọi lỗi khác lan ra nguyên vẹn.
+    /// </summary>
+    private Task<T> Execute<T>(Func<Task<T>> operation, CancellationToken cancellationToken) =>
+        PersistenceFailureTranslator.ExecuteAsync(operation, _logger, cancellationToken);
+
     private void Detach(DecisionExecutionEntity entity) => _db.Entry(entity).State = EntityState.Detached;
 
     /// <summary>Đúng khi chuỗi exception chứa unique violation <c>23505</c> của đúng constraint <c>uq_decision_idempotency_key</c>.</summary>
@@ -135,24 +143,5 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Chạy <paramref name="operation"/>; lỗi lưu trữ có thể thử lại được bọc thành <see cref="PersistenceUnavailableException"/>,
-    /// còn hủy của caller và mọi lỗi khác lan ra nguyên vẹn.
-    /// </summary>
-    private async Task<T> TranslateFailuresAsync<T>(Func<Task<T>> operation)
-    {
-        try
-        {
-            return await operation();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException && PersistenceFailureDetector.IsRetryable(ex))
-        {
-            _logger.LogWarning("Kho audit tạm thời không khả dụng ({ExceptionType}).", ex.GetType().Name);
-            throw new PersistenceUnavailableException(
-                "Kho lưu trữ quyết định tạm thời không khả dụng; vui lòng thử lại sau.",
-                ex);
-        }
     }
 }

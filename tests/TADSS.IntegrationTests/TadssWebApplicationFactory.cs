@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TADSS.Infrastructure.Options;
@@ -33,6 +34,9 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(EnvironmentName);
+        // appsettings.json chỉ có chuỗi giữ chỗ (DatabaseOptionsValidator từ chối): cấp chuỗi của container qua cấu hình, như người vận hành cấp qua biến môi trường
+        builder.ConfigureAppConfiguration((_, configuration) =>
+            configuration.AddInMemoryCollection([new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", _connectionString)]));
         builder.ConfigureServices(services =>
         {
             ReplaceDbContext(services, _connectionString);

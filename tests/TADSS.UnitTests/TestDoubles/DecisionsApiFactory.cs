@@ -1,14 +1,16 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TADSS.Application.Decisions;
+using TADSS.UnitTests.TestData;
 
 namespace TADSS.UnitTests.TestDoubles;
 
 /// <summary>
 /// Host in-process của TADSS cho test HTTP không cần PostgreSQL/Redis: chạy ở môi trường <c>Testing</c> (không nạp
-/// <c>appsettings.Development.json</c>/User Secrets) và thay <see cref="IDecisionService"/>/<see cref="IDecisionQueryService"/>
+/// <c>appsettings.Development.json</c>/User Secrets) và dùng chuỗi kết nối giả (<see cref="TestConnectionStrings"/>), thay <see cref="IDecisionService"/>/<see cref="IDecisionQueryService"/>
 /// bằng double nên <c>TadssDbContext</c>, health check và multiplexer Redis không bao giờ bị chạm tới.
 /// </summary>
 public sealed class DecisionsApiFactory : WebApplicationFactory<Program>
@@ -39,6 +41,8 @@ public sealed class DecisionsApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(EnvironmentName);
+        // appsettings.json chỉ có chuỗi giữ chỗ (bị DatabaseOptionsValidator từ chối); chuỗi test không bao giờ mở kết nối
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection([TestConnectionStrings.Pair]));
         if (!UseDoubles)
         {
             return;

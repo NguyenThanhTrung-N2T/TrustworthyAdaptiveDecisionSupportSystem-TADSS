@@ -37,7 +37,10 @@ public class InfrastructureServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        services.AddInfrastructure(BuildConfiguration());
+        var configuration = BuildConfiguration();
+        // Như host thật: IConfiguration có trong DI (DatabaseOptions đọc chuỗi kết nối từ đó)
+        services.AddSingleton(configuration);
+        services.AddInfrastructure(configuration);
 
         var descriptor = services.Should().ContainSingle(d => d.ServiceType == serviceType).Subject;
         descriptor.Lifetime.Should().Be(expected);
@@ -53,7 +56,10 @@ public class InfrastructureServiceCollectionExtensionsTests
         services.AddSingleton(TimeProvider.System);
         // Đăng ký có sẵn thắng TryAdd của AddInfrastructure; nếu bị resolve thì test thất bại
         services.AddSingleton<IConnectionMultiplexer>(_ => throw new InvalidOperationException("Không được kết nối Redis khi Provider = Memory."));
-        services.AddInfrastructure(BuildConfiguration());
+        var configuration = BuildConfiguration();
+        // Như host thật: IConfiguration có trong DI (DatabaseOptions đọc chuỗi kết nối từ đó)
+        services.AddSingleton(configuration);
+        services.AddInfrastructure(configuration);
         using var provider = services.BuildServiceProvider(validateScopes: true);
 
         provider.GetRequiredService<IStrategyPipeline>().Should().BeSameAs(provider.GetRequiredService<IStrategyPipeline>());

@@ -90,7 +90,7 @@ public sealed class DecisionService : IDecisionService
 
         _itemDurationPolicy.EnsureWithinLimits(reservation);
 
-        var nowUtc = TruncateToMicroseconds(_timeProvider.GetUtcNow());
+        var nowUtc = AuditTimestamps.TruncateToMicroseconds(_timeProvider.GetUtcNow());
         var registered = _strategyRegistry.ResolveActive();
         var context = new DecisionContext(nowUtc, _calendar);
 
@@ -124,16 +124,6 @@ public sealed class DecisionService : IDecisionService
 
         _logger.LogDecisionSummary(composed.Record, evaluation.Outcome, registered.Strategy, idempotencyKey, correlationId);
         return composed.Response;
-    }
-
-    /// <summary>
-    /// Cắt phần dưới micro giây (bội số 10 tick) để mốc <c>nowUtc</c> khớp độ chính xác của cột <c>timestamptz</c>
-    /// và response replay/audit trùng từng tick với response gốc (B-03, C-08).
-    /// </summary>
-    private static DateTimeOffset TruncateToMicroseconds(DateTimeOffset value)
-    {
-        var ticks = value.UtcTicks;
-        return new DateTimeOffset(ticks - (ticks % TimeSpan.TicksPerMicrosecond), TimeSpan.Zero);
     }
 
     private static void EnsureValidIdempotencyKey(string idempotencyKey)
