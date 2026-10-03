@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.DTOs.Governance;
 using TADSS.Application.Decisions;
 using TADSS.UnitTests.Sdk.Contracts;
 
@@ -17,6 +18,9 @@ public sealed class FakeDecisionQueryService : IDecisionQueryService
     /// <summary>Hành vi hiện tại; <c>null</c> nghĩa là trả chi tiết mẫu §3.4.</summary>
     public Func<Guid, Task<DecisionDetailDto>>? Behavior { get; set; }
 
+    /// <summary>Hành vi hàng chờ duyệt; <c>null</c> nghĩa là trả trang rỗng đúng với tham số phân trang.</summary>
+    public Func<Guid, int, int, Task<PagedResult<PendingApprovalItemDto>>>? PendingBehavior { get; set; }
+
     /// <summary>Các <c>decisionId</c> đã được tra theo thứ tự.</summary>
     public IReadOnlyList<Guid> RequestedIds => _requestedIds;
 
@@ -25,6 +29,7 @@ public sealed class FakeDecisionQueryService : IDecisionQueryService
     {
         _requestedIds.Clear();
         Behavior = null;
+        PendingBehavior = null;
     }
 
     /// <summary>Chi tiết mẫu §3.4 đã deserialize.</summary>
@@ -38,4 +43,11 @@ public sealed class FakeDecisionQueryService : IDecisionQueryService
         _requestedIds.Add(decisionId);
         return Behavior is null ? Task.FromResult(SampleDetail()) : Behavior(decisionId);
     }
+
+    /// <inheritdoc />
+    public Task<PagedResult<PendingApprovalItemDto>> GetPendingApprovalsAsync(
+        Guid branchId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PendingBehavior is null
+            ? Task.FromResult(PagedResult<PendingApprovalItemDto>.Create([], page, pageSize, 0))
+            : PendingBehavior(branchId, page, pageSize);
 }

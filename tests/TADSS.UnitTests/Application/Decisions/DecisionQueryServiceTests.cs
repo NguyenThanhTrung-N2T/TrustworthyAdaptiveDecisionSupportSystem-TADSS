@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Time.Testing;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
@@ -97,7 +98,7 @@ public class DecisionQueryServiceTests
     private static (DecisionQueryService Service, FakeDecisionAuditStore Store) Create()
     {
         var store = new FakeDecisionAuditStore();
-        return (new DecisionQueryService(store), store);
+        return (new DecisionQueryService(store, new FakeTimeProvider(GovernanceTestData.Now)), store);
     }
 
     /// <summary>Bản ghi đủ trường được ánh xạ đúng từng trường, gồm strategyStatus, failureReason, cacheHit.</summary>
@@ -302,5 +303,146 @@ public class DecisionQueryServiceTests
 
         var results = ContractSchemas.Evaluate("decision-detail.schema.json", json);
         results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
+    }
+
+    private static readonly Guid PendingA = Guid.Parse("0f9c7e5a-0000-4000-8000-00000000a001");
+    private static readonly Guid PendingB = Guid.Parse("0f9c7e5a-0000-4000-8000-00000000a002");
+
+    /// <summary>
+    /// Hàng chờ dựng item từ cột bản ghi và <c>request_payload</c>: đủ 12 trường, <c>earliestStart</c> là <c>startTime</c> sớm nhất theo thời điểm
+    /// (giữ offset +07:00 của item đó), thời điểm cột trả theo UTC, kết quả bọc <see cref="PagedResult{T}"/>; chi nhánh khác và bản hết hạn không có mặt.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-15")]
+    public async Task PendingApprovals_ComposesItemsFromRecordAndPayload()
+    {
+        var (service, store) = Create();
+        var otherBranch = Guid.Parse("1f2e3d4c-0000-4000-8000-0000000000ff");
+        var createdA = GovernanceTestData.Now.AddMinutes(-3);
+        var createdB = GovernanceTestData.Now.AddMinutes(-2);
+        store.Seed(GovernanceTestData.Execution(
+            PendingA,
+            approvalExpiresAt: GovernanceTestData.Now.AddMinutes(10),
+            createdAt: createdA,
+            totalPrice: 228_000m,
+            reasonCode: "PEAK_HOUR_NEED_APPROVAL",
+            startTimes: ["2026-11-20T18:00:00+00:00", "2026-11-20T20:00:00+07:00"]));
+        store.Seed(GovernanceTestData.Execution(
+            PendingB,
+            approvalExpiresAt: GovernanceTestData.Now.AddMinutes(20),
+            createdAt: createdB,
+            totalPrice: 20.01m,
+            currency: "USD",
+            fallbackUsed: true,
+            reasonCode: "STRATEGY_TIMEOUT_FALLBACK",
+            isGuest: true,
+            tier: CustomerTier.STANDARD,
+            startTimes: ["2026-11-21T09:00:00+07:00"]));
+        store.Seed(GovernanceTestData.Execution(Guid.NewGuid(), branchId: otherBranch));
+        store.Seed(GovernanceTestData.Execution(Guid.NewGuid(), approvalExpiresAt: GovernanceTestData.Now));
+
+        var page = await service.GetPendingApprovalsAsync(GovernanceTestData.BranchId, 1, 20, CancellationToken.None);
+
+        page.Page.Should().Be(1);
+        page.PageSize.Should().Be(20);
+        page.TotalItems.Should().Be(2);
+        page.TotalPages.Should().Be(1);
+        page.Items.Should().HaveCount(2);
+        var first = page.Items[0];
+        first.DecisionId.Should().Be(PendingA);
+        first.ReservationId.Should().NotBeEmpty();
+        first.BranchId.Should().Be(GovernanceTestData.BranchId);
+        first.TotalPrice.Should().Be(228_000m);
+        first.Currency.Should().Be("VND");
+        first.EarliestStart.Should().Be(new DateTimeOffset(2026, 11, 20, 20, 0, 0, TimeSpan.FromHours(7)));
+        first.EarliestStart.Offset.Should().Be(TimeSpan.FromHours(7), "giữ offset của item sớm nhất");
+        first.Customer.IsGuest.Should().BeFalse();
+        first.Customer.Tier.Should().Be(CustomerTier.GOLD);
+        first.ReasonCode.Should().Be("PEAK_HOUR_NEED_APPROVAL");
+        first.FallbackUsed.Should().BeFalse();
+        first.ApprovalExpiresAt.Should().Be(GovernanceTestData.Now.AddMinutes(10));
+        first.ApprovalExpiresAt.Offset.Should().Be(TimeSpan.Zero);
+        first.CreatedAt.Should().Be(createdA);
+        first.CreatedAt.Offset.Should().Be(TimeSpan.Zero);
+        var second = page.Items[1];
+        second.DecisionId.Should().Be(PendingB);
+        second.TotalPrice.Should().Be(20.01m);
+        second.Currency.Should().Be("USD");
+        second.Customer.IsGuest.Should().BeTrue();
+        second.Customer.Tier.Should().Be(CustomerTier.STANDARD);
+        second.FallbackUsed.Should().BeTrue();
+        second.ReasonCode.Should().Be("STRATEGY_TIMEOUT_FALLBACK");
+        second.EarliestStart.Should().Be(new DateTimeOffset(2026, 11, 21, 9, 0, 0, TimeSpan.FromHours(7)));
+    }
+
+    /// <summary>Hàng chờ rỗng vẫn là một trang hợp lệ (không có item, tổng 0).</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-15")]
+    public async Task PendingApprovals_NoRecords_ReturnsEmptyPage()
+    {
+        var (service, _) = Create();
+
+        var page = await service.GetPendingApprovalsAsync(GovernanceTestData.BranchId, 3, 10, CancellationToken.None);
+
+        page.Items.Should().BeEmpty();
+        page.TotalItems.Should().Be(0);
+        page.Page.Should().Be(3);
+        page.PageSize.Should().Be(10);
+        page.HasNext.Should().BeFalse();
+    }
+
+    /// <summary>Mốc hạn dùng đồng hồ của service đã cắt µs: bản hết hạn đúng bằng <c>now</c> bị loại, hơn một µs thì còn.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-15")]
+    public async Task PendingApprovals_ExpiryComparedStrictlyWithClock()
+    {
+        var store = new FakeDecisionAuditStore();
+        var service = new DecisionQueryService(store, new FakeTimeProvider(GovernanceTestData.Now.AddTicks(7)));
+        store.Seed(GovernanceTestData.Execution(PendingA, approvalExpiresAt: GovernanceTestData.Now));
+        store.Seed(GovernanceTestData.Execution(PendingB, approvalExpiresAt: GovernanceTestData.Now.AddTicks(10)));
+
+        var page = await service.GetPendingApprovalsAsync(GovernanceTestData.BranchId, 1, 20, CancellationToken.None);
+
+        page.Items.Should().ContainSingle().Which.DecisionId.Should().Be(PendingB);
+    }
+
+    public static TheoryData<int, int, string> InvalidPaging => new()
+    {
+        { 0, 20, "page" },
+        { -1, 20, "page" },
+        { 1, 0, "pageSize" },
+        { 1, -5, "pageSize" },
+        { 1, 101, "pageSize" },
+    };
+
+    /// <summary>page &lt; 1 hoặc pageSize ngoài [1, 100] → 400 <c>VALIDATION_ERROR</c> đúng field, không truy vấn kho.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [MemberData(nameof(InvalidPaging))]
+    public async Task PendingApprovals_InvalidPaging_Throws400_Theory(int page, int pageSize, string expectedField)
+    {
+        var (service, store) = Create();
+
+        var act = () => service.GetPendingApprovalsAsync(GovernanceTestData.BranchId, page, pageSize, CancellationToken.None);
+
+        var exception = (await act.Should().ThrowAsync<ContractValidationException>()).Which;
+        exception.ErrorCode.Should().Be(ErrorCodes.ValidationError);
+        exception.FieldName.Should().Be(expectedField);
+        store.PendingCount.Should().Be(0);
+    }
+
+    /// <summary>Biên hợp lệ: page 1, pageSize 1 và 100 được chấp nhận.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [InlineData(1, 1)]
+    [InlineData(1, 100)]
+    public async Task PendingApprovals_BoundaryPaging_IsAccepted_Theory(int page, int pageSize)
+    {
+        var (service, store) = Create();
+
+        var result = await service.GetPendingApprovalsAsync(GovernanceTestData.BranchId, page, pageSize, CancellationToken.None);
+
+        result.PageSize.Should().Be(pageSize);
+        store.PendingCount.Should().Be(1);
     }
 }

@@ -50,6 +50,8 @@ public static class ExceptionClassifier
                 StatusCodes.Status404NotFound, ErrorCodes.DecisionNotFound, "Decision Not Found", ExposeMessage: true, HasRetryAfter: false),
             IdempotencyConflictException => new ErrorClassification(
                 StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, HasRetryAfter: false),
+            DecisionStateConflictException conflict => new ErrorClassification(
+                StatusCodes.Status409Conflict, conflict.ErrorCode, "Decision State Conflict", ExposeMessage: true, HasRetryAfter: false),
             DecisionTimeoutException => new ErrorClassification(
                 StatusCodes.Status504GatewayTimeout, ErrorCodes.GatewayTimeout, "Gateway Timeout", ExposeMessage: false, HasRetryAfter: true),
             _ => new ErrorClassification(

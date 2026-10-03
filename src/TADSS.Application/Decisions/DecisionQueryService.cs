@@ -4,14 +4,16 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.DTOs.Outcomes;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
+using TADSS.Application.Governance;
 
 namespace TADSS.Application.Decisions;
 
 /// <summary>
 /// Hiện thực <see cref="IDecisionQueryService"/>: đọc <see cref="DecisionDetailRecord"/> qua <see cref="IDecisionQueryStore"/>
 /// (không dùng DbContext) rồi dựng <see cref="DecisionDetailDto"/> theo INTEGRATION_SPEC §3.4. Phép biến đổi thuần: không đọc
-/// đồng hồ, không ghi gì, không chạy lại strategy.
+/// đồng hồ (chỉ hàng chờ dùng mốc hiện tại để loại bản hết hạn duyệt), không ghi gì, không chạy lại strategy.
 /// <para>
 /// <b>Nguồn dữ liệu:</b> <c>request</c> là <c>request_payload</c> deserialize bằng <see cref="TadssJson.Options"/>;
 /// <c>result.status</c>/<c>deposit</c>/<c>reasonCode</c>/<c>reasons</c>/<c>recommendations</c>/<c>approvalExpiresAt</c> lấy từ
@@ -24,12 +26,15 @@ namespace TADSS.Application.Decisions;
 public sealed class DecisionQueryService : IDecisionQueryService
 {
     private readonly IDecisionQueryStore _queryStore;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Khởi tạo service tra cứu.</summary>
-    /// <param name="queryStore">Kho audit (đọc chi tiết theo <c>decisionId</c>).</param>
-    public DecisionQueryService(IDecisionQueryStore queryStore)
+    /// <param name="queryStore">Kho audit (đọc chi tiết theo <c>decisionId</c> và hàng chờ duyệt).</param>
+    /// <param name="timeProvider">Đồng hồ (mốc hết hạn duyệt của hàng chờ).</param>
+    public DecisionQueryService(IDecisionQueryStore queryStore, TimeProvider timeProvider)
     {
         _queryStore = queryStore ?? throw new ArgumentNullException(nameof(queryStore));
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
     /// <inheritdoc />
@@ -67,31 +72,33 @@ public sealed class DecisionQueryService : IDecisionQueryService
                 FailureReason = execution.FailureReason,
                 CacheHit = execution.CacheHit
             },
-            Override = detail.Override is { } overrideRecord ? ToResponse(overrideRecord, request.Currency) : null,
-            Outcome = detail.Outcome is { } outcomeRecord ? ToResponse(outcomeRecord) : null,
+            Override = detail.Override is { } overrideRecord ? GovernanceResponseMapper.ToResponse(overrideRecord, request.Currency) : null,
+            Outcome = detail.Outcome is { } outcomeRecord ? GovernanceResponseMapper.ToResponse(outcomeRecord) : null,
             CreatedAt = execution.CreatedAt.ToUniversalTime(),
             CorrelationId = execution.CorrelationId
         };
     }
 
-    private static OverrideResponseDto ToResponse(DecisionOverrideRecord record, string currency) => new()
+    /// <inheritdoc />
+    public async Task<PagedResult<PendingApprovalItemDto>> GetPendingApprovalsAsync(
+        Guid branchId, int page, int pageSize, CancellationToken cancellationToken)
     {
-        DecisionId = record.DecisionId,
-        Action = record.Action,
-        // ck_do_deposit: rate và amount cùng có ⇔ APPROVE
-        Deposit = record is { DepositRate: { } rate, DepositAmount: { } amount }
-            ? new DepositDto { Rate = rate, Amount = amount, Currency = currency }
-            : null,
-        ActorId = record.ActorId,
-        Reason = record.Reason,
-        OverriddenAt = record.CreatedAt.ToUniversalTime()
-    };
+        if (page < 1)
+        {
+            throw new ContractValidationException(ErrorCodes.ValidationError, "page phải lớn hơn hoặc bằng 1.", "page");
+        }
 
-    private static OutcomeResponseDto ToResponse(DecisionOutcomeRecord record) => new()
-    {
-        DecisionId = record.DecisionId,
-        Outcome = record.Outcome,
-        OccurredAt = record.OccurredAt,
-        ReportedAt = record.ReportedAt.ToUniversalTime()
-    };
+        if (pageSize < 1 || pageSize > ContractLimits.MaxPageSize)
+        {
+            throw new ContractValidationException(
+                ErrorCodes.ValidationError, $"pageSize phải nằm trong [1, {ContractLimits.MaxPageSize}].", "pageSize");
+        }
+
+        // nowUtc (offset 0, cắt µs) cho store: Npgsql từ chối offset khác 0 và hạn duyệt cũng lưu theo µs
+        var nowUtc = AuditTimestamps.TruncateToMicroseconds(_timeProvider.GetUtcNow());
+        var result = await _queryStore.GetPendingApprovalsAsync(branchId, page, pageSize, nowUtc, cancellationToken);
+
+        var items = result.Items.Select(GovernanceResponseMapper.ToPendingItem).ToArray();
+        return PagedResult<PendingApprovalItemDto>.Create(items, page, pageSize, result.TotalItems);
+    }
 }

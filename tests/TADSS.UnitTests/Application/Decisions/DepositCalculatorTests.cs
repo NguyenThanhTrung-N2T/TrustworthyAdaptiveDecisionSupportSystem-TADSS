@@ -132,4 +132,49 @@ public class DepositCalculatorTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    public static TheoryData<string, decimal, decimal, decimal> FromAmountCases => new()
+    {
+        { "VND", 228_000m, 50_000m, 0.2193m },  // 0.219298 → 0.2193
+        { "VND", 228_000m, 228_000m, 1m },
+        { "VND", 228_000m, 0m, 0m },
+        { "VND", 0m, 0m, 0m },                  // tổng 0 thì rate 0
+        { "VND", 20_000m, 1m, 0.0001m },        // 0.00005 → AwayFromZero (banker's rounding sẽ ra 0.0000)
+        { "VND", 30_000m, 1m, 0.0000m },        // 0.0000333 → 0
+        { "VND", 3m, 1m, 0.3333m },             // 0.33333 → 0.3333
+        { "VND", 3m, 2m, 0.6667m },             // 0.66666 → 0.6667
+        { "USD", 100m, 33.33m, 0.3333m },
+    };
+
+    /// <summary>
+    /// <c>FromAmount</c>: giữ nguyên <c>amount</c>, suy ra <c>rate = round(amount / total, 4, AwayFromZero)</c>; tổng 0 + amount 0 thì rate 0.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-12")]
+    [MemberData(nameof(FromAmountCases))]
+    public void FromAmount_Theory(string currency, decimal totalPrice, decimal amount, decimal expectedRate)
+    {
+        var deposit = _calculator.FromAmount(totalPrice, amount, currency);
+
+        deposit.Rate.Should().Be(expectedRate);
+        deposit.Amount.Should().Be(amount, "amount được giữ nguyên, không làm tròn");
+        deposit.Currency.Should().Be(currency);
+    }
+
+    /// <summary><c>FromAmount</c> chặn tham số sai: amount âm/vượt tổng/nhiều chữ số thập phân hơn tiền tệ, tổng âm → lỗi ngoài miền; tiền tệ sai → lỗi đối số.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-12")]
+    [InlineData(-0.01, 228_000, "VND", typeof(ArgumentOutOfRangeException))]
+    [InlineData(1, 0, "VND", typeof(ArgumentOutOfRangeException))]
+    [InlineData(228_001, 228_000, "VND", typeof(ArgumentOutOfRangeException))]
+    [InlineData(100.5, 228_000, "VND", typeof(ArgumentOutOfRangeException))]
+    [InlineData(10.005, 228_000, "USD", typeof(ArgumentOutOfRangeException))]
+    [InlineData(5, -1, "VND", typeof(ArgumentOutOfRangeException))]
+    [InlineData(5, 228_000, "vnd", typeof(ArgumentException))]
+    public void FromAmount_InvalidInputs_Throws_Theory(double amount, double totalPrice, string currency, Type expectedException)
+    {
+        var act = () => _calculator.FromAmount((decimal)totalPrice, (decimal)amount, currency);
+
+        act.Should().Throw<ArgumentException>().Which.Should().BeOfType(expectedException);
+    }
 }

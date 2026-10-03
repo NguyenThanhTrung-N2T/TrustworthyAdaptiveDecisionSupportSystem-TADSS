@@ -3,14 +3,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Decisions;
+using TADSS.Application.Governance;
 using TADSS.Application.Options;
+using TADSS.Application.Outcomes;
 using TADSS.Application.Strategies;
 
 namespace TADSS.Application;
 
 /// <summary>
 /// Đăng ký DI cho tầng Application: options của use case (có kiểm tra khi khởi động), lịch cao điểm, policy,
-/// bộ ghép response, bộ đánh giá strategy, registry strategy và hai use case. Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
+/// bộ ghép response, bộ đánh giá strategy, registry strategy và các use case (đánh giá, tra cứu, override, outcome). Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
 /// </summary>
 public static class ApplicationServiceCollectionExtensions
 {
@@ -63,6 +65,10 @@ public static class ApplicationServiceCollectionExtensions
 
         // Tra cứu chi tiết quyết định chỉ đọc qua kho audit nên cùng vòng đời scoped với kho
         services.AddScoped<IDecisionQueryService, DecisionQueryService>();
+
+        // Override và outcome ghi qua kho quản trị scoped nên cùng vòng đời scoped
+        services.AddScoped<IOverrideService, OverrideService>();
+        services.AddScoped<IOutcomeService, OutcomeService>();
 
         return services;
     }

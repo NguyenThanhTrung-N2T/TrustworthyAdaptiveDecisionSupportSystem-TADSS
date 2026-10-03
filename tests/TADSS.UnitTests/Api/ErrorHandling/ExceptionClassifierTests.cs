@@ -93,6 +93,35 @@ public class ExceptionClassifierTests
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
+    private static readonly Guid ConflictDecisionId = Guid.Parse("0f9c7e5a-0000-4000-8000-00000000d001");
+
+    public static TheoryData<DecisionStateConflictException, string> StateConflicts => new()
+    {
+        { DecisionStateConflictException.NotPendingApproval(ConflictDecisionId), ErrorCodes.NotPendingApproval },
+        { DecisionStateConflictException.AlreadyOverridden(ConflictDecisionId), ErrorCodes.AlreadyOverridden },
+        { DecisionStateConflictException.ApprovalExpired(ConflictDecisionId), ErrorCodes.ApprovalExpired },
+        { DecisionStateConflictException.OutcomeAlreadyRecorded(ConflictDecisionId), ErrorCodes.OutcomeAlreadyRecorded },
+    };
+
+    /// <summary>Mỗi factory của <see cref="DecisionStateConflictException"/> thành 409 mang đúng mã của nó; message (chỉ có decisionId) được phép trả cho client.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [MemberData(nameof(StateConflicts))]
+    public void Classify_DecisionStateConflict_Is409WithItsCode_Theory(DecisionStateConflictException exception, string expectedCode)
+    {
+        var result = ExceptionClassifier.Classify(exception, requestAborted: false);
+
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(409);
+        classification.Code.Should().Be(expectedCode);
+        classification.ExposeMessage.Should().BeTrue();
+        classification.HasRetryAfter.Should().BeFalse();
+        classification.Title.Should().NotBeNullOrWhiteSpace();
+        exception.ErrorCode.Should().Be(expectedCode);
+        exception.DecisionId.Should().Be(ConflictDecisionId);
+        exception.Message.Should().Contain(ConflictDecisionId.ToString());
+    }
+
     [Theory]
     [Trait("CatalogId", "UT-08")]
     [InlineData(ErrorCodes.InternalError)]
