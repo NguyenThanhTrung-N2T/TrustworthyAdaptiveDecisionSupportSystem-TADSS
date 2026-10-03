@@ -18,16 +18,23 @@ public sealed class ApiKeyVerifier
 
     private readonly (string ClientId, byte[] Hash)[] _clients;
 
-    /// <summary>Chuẩn hóa mã băm cấu hình (hex, không phân biệt hoa thường) về byte một lần; mục sai hình thức bị bỏ qua (validator đã chặn lúc khởi động).</summary>
+    /// <summary>
+    /// Chuẩn hóa mã băm cấu hình (hex, không phân biệt hoa thường) về byte một lần. Mục sai hình thức làm constructor ném
+    /// <see cref="InvalidOperationException"/> (message chỉ nêu chỉ số, không chứa mã băm) thay vì âm thầm bỏ mục: bỏ mục sẽ để host chạy với ít khóa hơn cấu hình.
+    /// </summary>
     public ApiKeyVerifier(IOptions<SecurityOptions> options)
     {
         var clients = new List<(string ClientId, byte[] Hash)>();
-        foreach (var entry in options.Value.ApiKeys)
+        var apiKeys = options.Value.ApiKeys;
+        for (var i = 0; i < apiKeys.Count; i++)
         {
-            if (TryParseHash(entry.KeySha256, out var hash))
+            if (!TryParseHash(apiKeys[i].KeySha256, out var hash))
             {
-                clients.Add((entry.ClientId, hash));
+                throw new InvalidOperationException(
+                    $"{SecurityOptions.SectionName}:ApiKeys:{i}:{nameof(ApiKeyClientOptions.KeySha256)} không phải chuỗi hex 64 ký tự (SHA-256 của API key).");
             }
+
+            clients.Add((apiKeys[i].ClientId, hash));
         }
 
         _clients = clients.ToArray();

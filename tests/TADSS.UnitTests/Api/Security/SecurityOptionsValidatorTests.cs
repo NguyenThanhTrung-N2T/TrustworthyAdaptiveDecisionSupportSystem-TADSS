@@ -37,6 +37,8 @@ public class SecurityOptionsValidatorTests
         { "Staging", [Client("be", GoodHash), Client("BE", OtherHash)], false },
         { "Staging", [Client("be", GoodHash), Client("fi", GoodHash.ToUpperInvariant())], false },
         { "Staging", [Client("be", ShortHash)], false },
+        { "Staging", [Client("be", GoodHash + "\n")], false },
+        { "Staging", [Client("be\n", GoodHash)], false },
         { "Staging", [Client("be client", GoodHash)], false },
         { "Staging", [Client("", GoodHash)], false },
         { "Staging", [Client(new string('a', 65), GoodHash)], false },

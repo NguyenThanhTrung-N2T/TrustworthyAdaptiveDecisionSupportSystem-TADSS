@@ -18,10 +18,11 @@ public sealed partial class SecurityOptionsValidator(IHostEnvironment environmen
 
     private const string Prefix = SecurityOptions.SectionName + ":ApiKeys";
 
-    [GeneratedRegex("^[A-Za-z0-9._-]{1,64}$")]
+    // Dùng \A..\z thay vì ^..$: $ của .NET chấp nhận thêm một ký tự xuống dòng cuối chuỗi, lọt vào log/tag/phân vùng và làm verifier bỏ mục
+    [GeneratedRegex(@"\A[A-Za-z0-9._-]{1,64}\z")]
     private static partial Regex ClientIdPattern();
 
-    [GeneratedRegex("^[0-9a-fA-F]{64}$")]
+    [GeneratedRegex(@"\A[0-9a-fA-F]{64}\z")]
     private static partial Regex KeySha256Pattern();
 
     /// <inheritdoc />

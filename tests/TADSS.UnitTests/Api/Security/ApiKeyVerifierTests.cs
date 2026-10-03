@@ -56,6 +56,23 @@ public class ApiKeyVerifierTests
         clientId.Should().Be(expectedClientId);
     }
 
+    /// <summary>Mã băm cấu hình sai hình thức (63 ký tự, thừa ký tự xuống dòng cuối, ký tự không phải hex) làm constructor ném lỗi nêu chỉ số, không chứa mã băm; không âm thầm bỏ mục.</summary>
+    [Theory]
+    [InlineData(63, "")]
+    [InlineData(64, "\n")]
+    [InlineData(63, "g")]
+    [Trait("CatalogId", "SEC-4")]
+    public void Constructor_MalformedConfiguredHash_Throws(int hexLength, string suffix)
+    {
+        var hash = TestApiKeys.Sha256Hex(KeyA)[..hexLength] + suffix;
+        var options = MsOptions.Create(new SecurityOptions { ApiKeys = [new ApiKeyClientOptions { ClientId = "client-a", KeySha256 = hash }] });
+
+        var create = () => new ApiKeyVerifier(options);
+
+        var failure = create.Should().Throw<InvalidOperationException>().Which;
+        failure.Message.Should().Contain("Tadss:Security:ApiKeys:0:KeySha256").And.NotContain(hash[..63]);
+    }
+
     /// <summary>Cấu hình không có client nào: mọi khóa đều bị từ chối.</summary>
     [Fact]
     [Trait("CatalogId", "SEC-4")]
