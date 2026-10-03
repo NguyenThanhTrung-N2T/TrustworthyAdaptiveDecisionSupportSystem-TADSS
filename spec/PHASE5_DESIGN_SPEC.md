@@ -277,7 +277,7 @@ tests/
 | `TADSS.Strategies.*` | SDK | mọi thứ khác (UT-09, có sẵn) |
 | `TADSS.Application` | SDK; `Microsoft.Extensions.{DependencyInjection,Logging,Options}.Abstractions` (hoặc gói `Options` nếu cần `IValidateOptions`) | Infrastructure, Runtime.Api, Strategies, ASP.NET Core, EF Core, Npgsql, StackExchange.Redis, Polly |
 | `TADSS.Infrastructure` | Application, SDK, EF Core/Npgsql, StackExchange.Redis, Polly, `Microsoft.Extensions.*` | Runtime.Api, ASP.NET Core MVC |
-| `TADSS.Runtime.Api` | Application, Infrastructure, Strategies, ASP.NET Core | Controller và middleware không dùng kiểu của `TADSS.Infrastructure`; chỉ composition root (`Program.cs`, `DependencyInjection/`) được tham chiếu Infrastructure |
+| `TADSS.Runtime.Api` | Application, Infrastructure, Strategies, ASP.NET Core | Controller và middleware không dùng kiểu của `TADSS.Infrastructure`; chỉ composition root (`Program.cs`, `Composition/`) được tham chiếu Infrastructure |
 
 **Ánh xạ từ cây sau 5.2c** (tên thư mục con chốt trong plan; bảng này chốt project đích):
 
@@ -285,7 +285,7 @@ tests/
 | :--- | :--- |
 | `Services/DecisionService`, `DecisionQueryService`, `RequestHasher`, `Services/Decisions/*` (`ApprovalWindowPolicy`, `DepositCalculator`, `DecisionResponseComposer`) | Application |
 | `Services/Strategies/*` (registry, `RegisteredStrategy`, options fingerprint) | Application |
-| `IDecisionAuditStore` + record (`DecisionExecutionRecord`, `DecisionDetailRecord`…), interface cache và pipeline, `CachedStrategyDecision` | Application (port) |
+| `IDecisionAuditStore` + record (`DecisionExecutionRecord`, `DecisionDetailRecord`…), interface cache và pipeline, `StrategyDecisionCacheKey` | Application (port) — `CachedStrategyDecision` (định dạng lưu Redis) ở Infrastructure |
 | `DecisionNotFoundException`, `IdempotencyConflictException`, `PersistenceUnavailableException` (và `DecisionStateConflictException` ở 5.3) | Application (`Exceptions/`) — `ContractValidationException`, `DomainInvariantException` ở SDK giữ nguyên |
 | `Infrastructure/Data/*` (DbContext, entity, configuration, migration, `EfDecisionAuditStore`, mapper, `PersistenceFailureDetector`), `Infrastructure/Caching/*`, `Infrastructure/Resilience/*` (hiện thực) | Infrastructure |
 | `Controllers/`, `Middlewares/` (correlation id, `GlobalExceptionHandler`, `ExceptionClassifier`), `InvalidModelStateTranslator`, Swagger filter | Runtime.Api |
