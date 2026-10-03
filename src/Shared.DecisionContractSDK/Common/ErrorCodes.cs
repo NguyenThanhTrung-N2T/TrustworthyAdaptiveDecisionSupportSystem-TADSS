@@ -43,4 +43,10 @@ public static class ErrorCodes
 
     /// <summary>Lỗi không mong đợi, ẩn chi tiết kỹ thuật (500).</summary>
     public const string InternalError = "INTERNAL_ERROR";
+
+    /// <summary>Client vượt giới hạn tần suất request (429), kèm <c>Retry-After</c>.</summary>
+    public const string RateLimited = "RATE_LIMITED";
+
+    /// <summary>Body request lớn hơn giới hạn cho phép (413).</summary>
+    public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
 }

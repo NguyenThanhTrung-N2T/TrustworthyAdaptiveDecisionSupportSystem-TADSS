@@ -6,7 +6,7 @@ using Xunit;
 namespace TADSS.UnitTests.Sdk.Contracts;
 
 /// <summary>
-/// CT-02: ghim giá trị wire của <see cref="ErrorCodes"/> (INTEGRATION_SPEC §3.8, 13 mã) và <see cref="ReasonCodes"/>
+/// CT-02: ghim giá trị wire của <see cref="ErrorCodes"/> (INTEGRATION_SPEC §3.8, 15 mã) và <see cref="ReasonCodes"/>
 /// (SAS 4.3 + INTEGRATION_SPEC §1.1, 9 mã). Đếm hằng bằng reflection nên thêm hằng mới mà quên cập nhật bảng
 /// kỳ vọng sẽ làm test đỏ.
 /// </summary>
@@ -27,6 +27,8 @@ public class WireCodeValuesTests
         [nameof(ErrorCodes.PersistenceUnavailable)] = "PERSISTENCE_UNAVAILABLE",
         [nameof(ErrorCodes.GatewayTimeout)] = "GATEWAY_TIMEOUT",
         [nameof(ErrorCodes.InternalError)] = "INTERNAL_ERROR",
+        [nameof(ErrorCodes.RateLimited)] = "RATE_LIMITED",
+        [nameof(ErrorCodes.PayloadTooLarge)] = "PAYLOAD_TOO_LARGE",
     };
 
     private static readonly IReadOnlyDictionary<string, string> ExpectedReasonCodes = new Dictionary<string, string>
@@ -53,7 +55,7 @@ public class WireCodeValuesTests
     {
         var actual = ConstantsOf(typeof(ErrorCodes));
 
-        actual.Should().HaveCount(13, "INTEGRATION_SPEC §3.8 định nghĩa đúng 13 mã lỗi");
+        actual.Should().HaveCount(15, "INTEGRATION_SPEC §3.8 định nghĩa đúng 15 mã lỗi");
         actual.Should().BeEquivalentTo(ExpectedErrorCodes);
     }
 

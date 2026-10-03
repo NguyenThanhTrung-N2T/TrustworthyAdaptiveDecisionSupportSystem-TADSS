@@ -278,6 +278,8 @@ Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể c
 | 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
 | 504 | `GATEWAY_TIMEOUT` | Vượt deadline toàn cục |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |
+| 413 | `PAYLOAD_TOO_LARGE` | Body request lớn hơn giới hạn (mặc định 65536 byte, cấu hình `Tadss:Security:MaxRequestBodyBytes`). Kiểm tra trước xác thực nên request quá lớn không cần khóa vẫn nhận 413 |
+| 429 | `RATE_LIMITED` | Client vượt giới hạn tần suất request; response kèm header `Retry-After` (giây) và `retryAfterSeconds` trong body |
 
 ### 3.9. Idempotency
 
