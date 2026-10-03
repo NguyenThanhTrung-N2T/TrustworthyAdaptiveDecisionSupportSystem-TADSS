@@ -5,7 +5,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Strategies;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
 

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Shared.DecisionContractSDK.Common;
 
-namespace TADSS.Runtime.Api.Configuration;
+namespace TADSS.Runtime.Api.ErrorHandling;
 
 /// <summary>
 /// Đường duy nhất cho lỗi giải mã/gán body của MVC (JSON hỏng, body rỗng, thiếu trường, trường lạ, enum sai, thời gian thiếu offset,

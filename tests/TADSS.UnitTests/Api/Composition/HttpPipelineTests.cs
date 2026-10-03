@@ -20,7 +20,7 @@ using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
-namespace TADSS.UnitTests.Configuration;
+namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
 /// UT-02 / UT-08 / UT-09 / UT-10: pipeline HTTP của host thử nghiệm (không PostgreSQL/Redis) — cấu hình JSON v2 của MVC, tập endpoint

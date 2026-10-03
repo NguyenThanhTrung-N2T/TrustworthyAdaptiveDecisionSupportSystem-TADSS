@@ -2,7 +2,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
 
-namespace TADSS.Runtime.Api.Middlewares;
+namespace TADSS.Runtime.Api.ErrorHandling;
 
 /// <summary>
 /// Phân loại exception thành phản hồi lỗi v2 theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.

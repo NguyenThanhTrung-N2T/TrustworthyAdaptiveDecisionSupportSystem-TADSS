@@ -3,11 +3,11 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Strategies;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Services;
+namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
 /// UT-04 (spec 4.2.2): <see cref="StrategyRegistrations"/> bind tham số từ <c>Tadss:Strategies:{Default|MockAlternative}</c>

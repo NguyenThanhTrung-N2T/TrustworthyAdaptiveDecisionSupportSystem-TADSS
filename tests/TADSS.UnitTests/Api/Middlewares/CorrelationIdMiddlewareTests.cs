@@ -10,7 +10,7 @@ using TADSS.Runtime.Api.Middlewares;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
-namespace TADSS.UnitTests.Middlewares;
+namespace TADSS.UnitTests.Api.Middlewares;
 
 /// <summary>
 /// UT-08 (C-07): <see cref="CorrelationIdMiddleware"/> chỉ chấp nhận correlation id không rỗng và dài tối đa 128 ký tự;

@@ -9,7 +9,7 @@ using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
-namespace TADSS.UnitTests.Contracts;
+namespace TADSS.UnitTests.Api.OpenApi;
 
 /// <summary>
 /// CT-01 (tài liệu OpenAPI): <c>docs/contracts/openapi-v2.yaml</c> được SINH từ Swashbuckle của chính app (spec 4.2.1) và test này

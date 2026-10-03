@@ -1,7 +1,7 @@
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application;
 using TADSS.Infrastructure;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 
 namespace TADSS.Runtime.Api.Configuration;
 

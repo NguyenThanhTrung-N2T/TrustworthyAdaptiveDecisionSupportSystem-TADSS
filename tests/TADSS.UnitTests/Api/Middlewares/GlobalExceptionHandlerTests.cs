@@ -11,7 +11,7 @@ using TADSS.Application.Exceptions;
 using TADSS.Runtime.Api.Middlewares;
 using Xunit;
 
-namespace TADSS.UnitTests.Middlewares;
+namespace TADSS.UnitTests.Api.Middlewares;
 
 /// <summary>
 /// UT-08: <see cref="GlobalExceptionHandler"/> dùng <see cref="ExceptionClassifier"/> để dựng phản hồi

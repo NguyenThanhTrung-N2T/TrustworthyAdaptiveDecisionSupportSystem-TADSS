@@ -5,11 +5,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Configuration;
+namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
 /// UT-04 / UT-10: nối DI của registry strategy v2 (<c>AddDecisionRuntime</c>) và chứng minh cấu hình sai chặn khởi

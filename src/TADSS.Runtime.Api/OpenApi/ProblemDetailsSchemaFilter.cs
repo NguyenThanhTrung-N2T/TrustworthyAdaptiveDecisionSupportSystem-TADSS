@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace TADSS.Runtime.Api.Configuration;
+namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
 /// Bổ sung vào schema <see cref="ProblemDetails"/> các trường mở rộng mà <c>GlobalExceptionHandler</c> luôn/đôi khi trả trong

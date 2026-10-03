@@ -13,7 +13,7 @@ using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
-namespace TADSS.UnitTests.Controllers;
+namespace TADSS.UnitTests.Api.Controllers;
 
 /// <summary>
 /// UT-02 / UT-08 / UT-11: <c>DecisionsController</c> chỉ chuyển tiếp (spec 4.2.3) — kiểm tra qua host in-process không DB/Redis,

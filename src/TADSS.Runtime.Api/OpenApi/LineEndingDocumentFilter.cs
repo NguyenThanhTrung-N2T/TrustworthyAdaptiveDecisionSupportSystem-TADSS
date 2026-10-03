@@ -1,7 +1,7 @@
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace TADSS.Runtime.Api.Configuration;
+namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
 /// Chuẩn hóa mọi mô tả/tóm tắt lấy từ XML doc về xuống dòng <c>\n</c>: nội dung XML doc giữ nguyên kiểu xuống dòng của file nguồn

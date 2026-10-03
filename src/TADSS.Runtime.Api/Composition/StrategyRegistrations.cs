@@ -3,7 +3,7 @@ using TADSS.Application.Strategies;
 using TADSS.Strategies.Default;
 using TADSS.Strategies.MockAlternative;
 
-namespace TADSS.Runtime.Api.Services.Strategies;
+namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
 /// Dựng các strategy v2 từ cấu hình (spec 4.2.2): bind tham số từ <c>Tadss:Strategies:{Default|MockAlternative}</c>,

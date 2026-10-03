@@ -5,10 +5,10 @@ using Npgsql;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
-using TADSS.Runtime.Api.Middlewares;
+using TADSS.Runtime.Api.ErrorHandling;
 using Xunit;
 
-namespace TADSS.UnitTests.Middlewares;
+namespace TADSS.UnitTests.Api.ErrorHandling;
 
 /// <summary>
 /// UT-08: <see cref="ExceptionClassifier"/> hiện thực đúng bảng map lỗi v2 (spec 4.2.3) — lỗi persistence được

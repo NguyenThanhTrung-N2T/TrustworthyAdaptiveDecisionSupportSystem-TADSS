@@ -18,7 +18,7 @@ using TADSS.Application.Exceptions;
 using TADSS.Application.Options;
 using TADSS.Application.Strategies;
 using TADSS.Infrastructure.Resilience;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;

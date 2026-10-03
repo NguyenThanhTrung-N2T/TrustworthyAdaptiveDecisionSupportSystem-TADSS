@@ -3,7 +3,7 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using TADSS.Runtime.Api.Common;
 
-namespace TADSS.Runtime.Api.Configuration;
+namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
 /// OpenAPI operation filter mô tả header của contract v2 (INTEGRATION_SPEC §2):

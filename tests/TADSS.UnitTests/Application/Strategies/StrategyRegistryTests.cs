@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Options;
 using TADSS.Application.Strategies;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
 using MsOptions = Microsoft.Extensions.Options.Options;

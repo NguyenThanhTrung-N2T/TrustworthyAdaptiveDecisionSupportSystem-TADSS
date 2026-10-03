@@ -4,7 +4,7 @@ using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Middlewares;
 using Xunit;
 
-namespace TADSS.UnitTests.Middlewares;
+namespace TADSS.UnitTests.Api.Middlewares;
 
 /// <summary>
 /// UT-08: đường cơ bản của <see cref="CorrelationIdMiddleware"/> — giữ nguyên correlation id hợp lệ trong

@@ -1,4 +1,4 @@
-namespace TADSS.Runtime.Api.Middlewares;
+namespace TADSS.Runtime.Api.ErrorHandling;
 
 /// <summary>
 /// Kết quả phân loại một exception thành phản hồi lỗi RFC 7807 của API v2 (spec 4.2.3).
