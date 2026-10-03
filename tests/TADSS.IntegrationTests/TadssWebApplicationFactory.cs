@@ -4,8 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using TADSS.Runtime.Api.Infrastructure.Caching;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Caching;
+using TADSS.Infrastructure.Persistence;
 
 namespace TADSS.IntegrationTests;
 

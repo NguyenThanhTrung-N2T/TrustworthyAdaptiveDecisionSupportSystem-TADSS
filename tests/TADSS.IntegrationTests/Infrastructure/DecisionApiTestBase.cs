@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
 using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Common;
-using TADSS.Runtime.Api.Infrastructure.Data.Entities;
+using TADSS.Infrastructure.Persistence.Entities;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

@@ -11,8 +11,9 @@ using Shared.DecisionContractSDK.Decisions;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Strategies;
-using TADSS.Runtime.Api.Infrastructure.Data;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Infrastructure.Persistence;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

@@ -17,4 +17,14 @@
     <ProjectReference Include="..\TADSS.Application\TADSS.Application.csproj" />
     <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Adapter hạ tầng: EF Core/Npgsql, Redis, Polly, health check PostgreSQL; Microsoft.Extensions.* theo allowlist UT-14 -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
+    <PackageReference Include="Polly.Core" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
 </Project>

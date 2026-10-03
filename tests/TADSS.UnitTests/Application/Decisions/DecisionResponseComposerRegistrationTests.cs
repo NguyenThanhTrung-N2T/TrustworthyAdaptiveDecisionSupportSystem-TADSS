@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Application.Decisions;
@@ -17,7 +18,7 @@ public class DecisionResponseComposerRegistrationTests
     private static HostApplicationBuilder CreateBuilder()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Cache:Provider"] = "Memory" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Cache:Provider"] = "Memory", [TestConnectionStrings.Key] = TestConnectionStrings.Value });
         builder.Services.AddLogging();
         builder.Services.AddDecisionRuntime(builder.Configuration);
         return builder;

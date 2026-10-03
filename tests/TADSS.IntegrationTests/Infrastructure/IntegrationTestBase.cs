@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Infrastructure.Persistence;
 using Xunit;
 
 namespace TADSS.IntegrationTests.Infrastructure;

@@ -5,7 +5,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Abstractions.Resilience;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
@@ -21,7 +22,7 @@ public class ResilienceStartupTests
     private static HostApplicationBuilder CreateBuilder(params (string Key, string Value)[] values)
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.Configuration.AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)));
+        builder.Configuration.AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair));
         builder.Services.AddLogging();
         builder.Services.AddDecisionRuntime(builder.Configuration);
         return builder;

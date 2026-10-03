@@ -1,5 +1,6 @@
 using FluentAssertions;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Resilience;

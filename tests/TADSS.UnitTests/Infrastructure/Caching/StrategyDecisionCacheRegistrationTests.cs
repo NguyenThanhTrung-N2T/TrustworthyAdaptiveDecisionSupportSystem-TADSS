@@ -9,8 +9,10 @@ using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Caching;
 using TADSS.UnitTests.TestDoubles;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Caching;
@@ -27,7 +29,7 @@ public class StrategyDecisionCacheRegistrationTests
     private static HostApplicationBuilder CreateBuilder(params (string Key, string Value)[] values)
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.Configuration.AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)));
+        builder.Configuration.AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair));
         builder.Services.AddLogging();
         return builder;
     }
@@ -43,7 +45,7 @@ public class StrategyDecisionCacheRegistrationTests
         IConnectionMultiplexer? existingMultiplexer)
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)))
+            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair))
             .Build();
         var services = new ServiceCollection();
         services.AddLogging();

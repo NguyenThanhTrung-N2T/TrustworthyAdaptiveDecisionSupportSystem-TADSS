@@ -20,7 +20,7 @@ public class StrategyRegistryStartupTests
 {
     private static IConfiguration InMemory(params (string Key, string Value)[] values) =>
         new ConfigurationBuilder()
-            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)))
+            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair))
             .Build();
 
     private static ServiceProvider BuildProvider(IConfiguration configuration)
@@ -100,7 +100,7 @@ public class StrategyRegistryStartupTests
     public async Task ValidateOnStart_InvalidOptions_BlocksHostStartup()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Approval:WindowMinutes"] = "0" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Approval:WindowMinutes"] = "0", [TestConnectionStrings.Key] = TestConnectionStrings.Value });
         builder.Services.AddLogging();
         builder.Services.AddDecisionRuntime(builder.Configuration);
         using var host = builder.Build();
@@ -115,6 +115,7 @@ public class StrategyRegistryStartupTests
     public async Task ValidateOnStart_ValidOptions_HostStarts()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
+        builder.Configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
         builder.Services.AddLogging();
         builder.Services.AddDecisionRuntime(builder.Configuration);
         using var host = builder.Build();

@@ -8,8 +8,7 @@ using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Exceptions;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.IntegrationTests.Migrations;
-using TADSS.Runtime.Api.Infrastructure.Data;
-using TADSS.Runtime.Api.Middlewares;
+using TADSS.Infrastructure.Persistence;
 using Xunit;
 
 namespace TADSS.IntegrationTests.Persistence;

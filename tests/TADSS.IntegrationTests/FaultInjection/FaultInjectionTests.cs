@@ -7,7 +7,8 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Resilience;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Common;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 using Xunit;
 
 namespace TADSS.IntegrationTests.FaultInjection;

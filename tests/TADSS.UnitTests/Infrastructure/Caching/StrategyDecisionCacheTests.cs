@@ -3,11 +3,13 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TADSS.Infrastructure.Options;
+using MsOptions = Microsoft.Extensions.Options.Options;
 using Moq;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using StackExchange.Redis;
-using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Infrastructure.Caching;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
@@ -63,7 +65,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         IMemoryCache? memory = null,
         string instanceName = "tadss:")
     {
-        var options = Options.Create(new TadssCacheOptions
+        var options = MsOptions.Create(new TadssCacheOptions
         {
             Provider = provider,
             EnableFallbackToMemory = fallbackToMemory,

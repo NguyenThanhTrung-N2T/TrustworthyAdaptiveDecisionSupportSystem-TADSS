@@ -206,7 +206,7 @@ public class RuntimeOptionsTests
 
     private static IConfiguration InMemory(params (string Key, string Value)[] values) =>
         new ConfigurationBuilder()
-            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)))
+            .AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair))
             .Build();
 
     private static ServiceProvider BuildProvider(IConfiguration configuration)

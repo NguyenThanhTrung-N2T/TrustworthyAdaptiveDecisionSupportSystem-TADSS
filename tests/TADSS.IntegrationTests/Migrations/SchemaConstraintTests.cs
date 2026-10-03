@@ -4,9 +4,9 @@ using Npgsql;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.IntegrationTests.Infrastructure;
-using TADSS.Runtime.Api.Infrastructure.Data.Entities;
+using TADSS.Infrastructure.Persistence.Entities;
 using Xunit;
-using OutcomeEntity = TADSS.Runtime.Api.Infrastructure.Data.Entities.DecisionOutcome;
+using OutcomeEntity = TADSS.Infrastructure.Persistence.Entities.DecisionOutcome;
 
 namespace TADSS.IntegrationTests.Migrations;
 

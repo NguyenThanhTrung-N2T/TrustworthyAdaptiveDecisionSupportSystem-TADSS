@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using TADSS.Infrastructure.Options;
+using MsOptions = Microsoft.Extensions.Options.Options;
 using Microsoft.Extensions.Time.Testing;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Domain;
@@ -8,7 +10,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Resilience;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
@@ -42,7 +44,7 @@ public class StrategyPipelineTests
         };
 
     private static StrategyPipeline Build(ResilienceOptions options, TimeProvider? timeProvider = null) =>
-        new(Options.Create(options), timeProvider ?? TimeProvider.System, NullLogger<StrategyPipeline>.Instance);
+        new(MsOptions.Create(options), timeProvider ?? TimeProvider.System, NullLogger<StrategyPipeline>.Instance);
 
     private static StrategyDecision Approved() =>
         StrategyDecision.Approve(0.5m, ReasonCodes.TierDeposit, ["Cọc theo hạng thành viên."]);

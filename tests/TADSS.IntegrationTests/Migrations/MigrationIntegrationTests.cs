@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using TADSS.IntegrationTests.Infrastructure;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Infrastructure.Persistence;
 using Xunit;
 
 namespace TADSS.IntegrationTests.Migrations;

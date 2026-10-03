@@ -3,7 +3,7 @@ using DotNet.Testcontainers.Networks;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using StackExchange.Redis;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 using Testcontainers.Toxiproxy;

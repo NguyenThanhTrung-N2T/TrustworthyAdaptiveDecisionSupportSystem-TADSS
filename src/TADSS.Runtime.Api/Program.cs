@@ -3,8 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
 using TADSS.Application.Strategies;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Persistence;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);

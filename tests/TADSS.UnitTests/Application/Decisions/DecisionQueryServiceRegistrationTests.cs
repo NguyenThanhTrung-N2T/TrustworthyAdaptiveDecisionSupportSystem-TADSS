@@ -5,7 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Infrastructure.Persistence;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Application.Decisions;
@@ -19,7 +20,7 @@ public class DecisionQueryServiceRegistrationTests
     private static IHost BuildHost()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Cache:Provider"] = "Memory" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Cache:Provider"] = "Memory", [TestConnectionStrings.Key] = TestConnectionStrings.Value });
         builder.Services.AddLogging();
         builder.Services.AddDbContext<TadssDbContext>(options => options.UseNpgsql("Host=127.0.0.1;Port=1;Database=none"));
         builder.Services.AddDecisionRuntime(builder.Configuration);
