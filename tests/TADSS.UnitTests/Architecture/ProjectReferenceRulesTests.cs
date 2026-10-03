@@ -45,17 +45,17 @@ public class ProjectReferenceRulesTests
     ];
 
     /// <summary>
-    /// Tiền tố <c>PackageReference</c> được phép của Infrastructure: EF Core/Npgsql, Redis, Polly và
+    /// Tên gốc <c>PackageReference</c> được phép của Infrastructure (khớp đúng tên hoặc <c>tên + "."</c>): EF Core/Npgsql, Redis, Polly và
     /// <c>Microsoft.Extensions.*</c>; cấm <c>Microsoft.AspNetCore.*</c> và Swashbuckle.
     /// </summary>
-    private static readonly string[] InfrastructurePackageAllowedPrefixes =
+    private static readonly string[] InfrastructurePackageAllowedRoots =
     [
         "Microsoft.EntityFrameworkCore",
         "Npgsql",
         "AspNetCore.HealthChecks.NpgSql",
         "StackExchange.Redis",
         "Polly",
-        "Microsoft.Extensions."
+        "Microsoft.Extensions"
     ];
 
     public static TheoryData<string> SrcProjects => new()
@@ -97,8 +97,8 @@ public class ProjectReferenceRulesTests
 
         var violations = projectName == Application
             ? packages.Where(p => !ApplicationPackageAllowList.Contains(p, StringComparer.Ordinal)).ToArray()
-            : packages.Where(p => !InfrastructurePackageAllowedPrefixes
-                .Any(prefix => p.StartsWith(prefix, StringComparison.Ordinal))).ToArray();
+            : packages.Where(p => !InfrastructurePackageAllowedRoots
+                .Any(root => p.Equals(root, StringComparison.Ordinal) || p.StartsWith(root + ".", StringComparison.Ordinal))).ToArray();
 
         violations.Should().BeEmpty(
             $"{projectName} chỉ được dùng gói NuGet trong allowlist (Application: không ASP.NET Core/EF/Npgsql/Redis/Polly; "

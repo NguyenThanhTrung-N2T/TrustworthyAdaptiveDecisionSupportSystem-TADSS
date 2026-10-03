@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using TADSS.UnitTests.TestData;
 using Xunit;
@@ -5,42 +6,58 @@ using Xunit;
 namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
-/// UT-14: chỉ composition root (<c>Program.cs</c> và thư mục <c>Composition/</c>) được dùng kiểu của <c>TADSS.Infrastructure</c>;
-/// controller, middleware, error handling và OpenAPI của Runtime.Api chỉ thấy Application và SDK (spec 4.2.4).
+/// UT-14: chỉ composition root (<c>Program.cs</c> và thư mục <c>Composition/</c>) được dùng kiểu hạ tầng; controller, middleware,
+/// error handling và OpenAPI của Runtime.Api chỉ thấy Application và SDK (spec 4.2.4).
 /// </summary>
 public class CompositionRootBoundaryTests
 {
-    private const string InfrastructureNamespace = "TADSS.Infrastructure";
+    /// <summary>Namespace hạ tầng bị cấm ngoài composition root.</summary>
+    private static readonly string[] InfrastructureNamespaces =
+    [
+        "TADSS.Infrastructure",
+        "Npgsql",
+        "Polly",
+        "StackExchange.Redis",
+        "Microsoft.EntityFrameworkCore",
+    ];
 
+    /// <summary>
+    /// Nguồn Runtime.Api ngoài <c>Program.cs</c> và <c>Composition/</c> không được dùng <c>TADSS.Infrastructure</c>, Npgsql, Polly,
+    /// StackExchange.Redis hay Microsoft.EntityFrameworkCore. Khớp theo dòng <c>using</c> hoặc tên đầy đủ trong mã đã bỏ comment
+    /// (không khớp chuỗi trần, nên comment nhắc tới Npgsql/Polly không làm test đỏ). Đây cũng là test UT-14
+    /// <c>ApiOutsideCompositionRoot_UsesNoInfrastructureTypes</c> của plan 5.2d (mở rộng test cũ của Task 5).
+    /// </summary>
     [Fact]
     [Trait("CatalogId", "UT-14")]
-    public void Program_HasNoInfrastructureUsingsOutsideCompositionRoot()
+    public void ApiOutsideCompositionRoot_UsesNoInfrastructureTypes()
     {
-        var apiRoot = RepositoryPaths.Resolve("src", "TADSS.Runtime.Api");
-
-        var violations = Directory.EnumerateFiles(apiRoot, "*.cs", SearchOption.AllDirectories)
-            .Select(path => Path.GetRelativePath(apiRoot, path))
-            .Where(relative => !IsBuildOutput(relative) && !IsCompositionRoot(relative))
-            .Where(relative => File.ReadAllText(Path.Combine(apiRoot, relative)).Contains(InfrastructureNamespace, StringComparison.Ordinal))
-            .OrderBy(relative => relative, StringComparer.Ordinal)
+        var scanned = SourceTree.FilesOf(SourceTree.RuntimeApi)
+            .Where(file => !IsCompositionRoot(file))
             .ToList();
 
-        violations.Should().BeEmpty($"chỉ Program.cs và Composition/ được dùng '{InfrastructureNamespace}'");
+        scanned.Should().NotBeEmpty("phải quét ít nhất một file Runtime.Api ngoài composition root, không được pass rỗng");
+
+        var violations = scanned
+            .Select(file => (File: file, Used: InfrastructureNamespaces.Where(ns => Uses(file.CodeWithoutComments(), ns)).ToList()))
+            .Where(pair => pair.Used.Count > 0)
+            .Select(pair => $"{pair.File.RelativePath}: {string.Join(", ", pair.Used)}")
+            .OrderBy(text => text, StringComparer.Ordinal)
+            .ToList();
+
+        violations.Should().BeEmpty("chỉ Program.cs và Composition/ được dùng {0}; vi phạm: {1}",
+            string.Join(", ", InfrastructureNamespaces), string.Join("; ", violations));
     }
 
-    private static bool IsBuildOutput(string relative)
+    private static bool IsCompositionRoot(SourceFile file)
     {
-        return Parts(relative).Any(part => part is "bin" or "obj");
+        return file.RelativePath == "Program.cs" || file.Folders.FirstOrDefault() == "Composition";
     }
 
-    private static bool IsCompositionRoot(string relative)
+    /// <summary>Có dòng <c>using [static] [alias =] ns...</c> hoặc tên đầy đủ <c>ns.X</c> trong mã.</summary>
+    private static bool Uses(string code, string ns)
     {
-        var parts = Parts(relative);
-        return parts.Length == 1 && parts[0] == "Program.cs" || parts[0] == "Composition";
-    }
-
-    private static string[] Parts(string relative)
-    {
-        return relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var escaped = Regex.Escape(ns);
+        return Regex.IsMatch(code, $@"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:\w+\s*=\s*)?{escaped}\b", RegexOptions.Multiline)
+            || Regex.IsMatch(code, $@"(?<![\w.]){escaped}\.\w");
     }
 }
