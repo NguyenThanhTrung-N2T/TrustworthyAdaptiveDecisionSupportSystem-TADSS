@@ -7,6 +7,21 @@ namespace TADSS.UnitTests.TestData;
 /// <summary>Nạp JSON schema v2 từ <c>docs/contracts/schemas/v2/</c> (một lần mỗi file) và đánh giá payload.</summary>
 internal static class ContractSchemas
 {
+    /// <summary>Schema body của <c>POST /api/v2/decisions/{decisionId}/override</c>.</summary>
+    public const string OverrideRequest = "override-request.schema.json";
+
+    /// <summary>Schema response 200 của <c>POST /api/v2/decisions/{decisionId}/override</c>.</summary>
+    public const string OverrideResponse = "override-response.schema.json";
+
+    /// <summary>Schema body của <c>POST /api/v2/decisions/{decisionId}/outcome</c>.</summary>
+    public const string OutcomeRequest = "outcome-request.schema.json";
+
+    /// <summary>Schema response 200 của <c>POST /api/v2/decisions/{decisionId}/outcome</c>.</summary>
+    public const string OutcomeResponse = "outcome-response.schema.json";
+
+    /// <summary>Schema response 200 của <c>GET /api/v2/decisions/pending-approvals</c>.</summary>
+    public const string PendingApprovals = "pending-approvals.schema.json";
+
     private static readonly ConcurrentDictionary<string, JsonSchema> Cache = new(StringComparer.Ordinal);
 
     // JsonSchema.Net đăng ký $id vào registry toàn cục ở lần đánh giá đầu; các class test chạy song song cùng gọi

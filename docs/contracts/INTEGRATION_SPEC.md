@@ -105,8 +105,9 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 
 ### 3.1. Quy ước chung
 
-- Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/`: `decision-request`, `decision-result`, `decision-detail`). Tài liệu OpenAPI [`openapi-v2.yaml`](openapi-v2.yaml) được **sinh từ mã** và có test chống lệch (CT-01); khi hai bên khác nhau, JSON schema viết tay là nguồn chuẩn.
-- **Phạm vi đã hiện thực (gói 5.2c):** chỉ `POST /api/v2/decisions` (3.3) và `GET /api/v2/decisions/{decisionId}` (3.4). `pending-approvals`, `override`, `outcome` (3.5–3.7) và xác thực `X-Api-Key` thuộc gói 5.3; các mục đó vẫn là đặc tả, chưa có endpoint.
+- Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/`: `decision-request`, `decision-result`, `decision-detail`, `pending-approvals`, `override-request`, `override-response`, `outcome-request`, `outcome-response`). Tài liệu OpenAPI [`openapi-v2.yaml`](openapi-v2.yaml) được **sinh từ mã** và có test chống lệch (CT-01); khi hai bên khác nhau, JSON schema viết tay là nguồn chuẩn.
+- **Phạm vi đã hiện thực:** năm endpoint — `POST /api/v2/decisions` (3.3), `GET /api/v2/decisions/{decisionId}` (3.4), `GET /api/v2/decisions/pending-approvals` (3.5), `POST /api/v2/decisions/{decisionId}/override` (3.6) và `POST /api/v2/decisions/{decisionId}/outcome` (3.7). Xác thực `X-Api-Key` chưa hiện thực (xem 3.2).
+- **Giới hạn của contract:** `X-Idempotency-Key` 1..128 ký tự; `X-Actor-Id` 1..100 ký tự; `reason` của override 5..500 ký tự và không chỉ gồm khoảng trắng; `page` ≥ 1 (mặc định 1); `pageSize` 1..100 (mặc định 20). Độ dài `X-Actor-Id` và `reason` đếm theo **Unicode code point** (khớp `char_length` của PostgreSQL, ký tự ngoài BMP như emoji tính là một); vi phạm → 400 `VALIDATION_ERROR`.
 - Thời gian dùng ISO 8601 **kèm offset** (`2026-11-20T18:00:00+07:00`). Mọi quy tắc theo khung giờ được tính theo `branchTimeZone` (IANA, ví dụ `Asia/Ho_Chi_Minh`).
 - Tiền là số thập phân, đơn vị theo `currency` (SmashCourt: `VND`).
 - Thời gian thiếu offset (ví dụ `2026-11-20T18:00:00`) bị từ chối với 400 `VALIDATION_ERROR` — không suy múi giờ từ máy chủ.
@@ -116,9 +117,9 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 
 | Header | Bắt buộc | Mô tả |
 | :--- | :---: | :--- |
-| `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client. **Chưa kiểm tra ở 5.2c** (gói 5.3) — chưa expose ra mạng ngoài trước khi có xác thực |
-| `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá) hoặc `{decisionId}:{action}` (override) |
-| `X-Actor-Id` | `POST /override` | Định danh Manager do SmashCourt lấy từ JWT đã xác thực |
+| `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client. **Chưa kiểm tra** — chưa expose ra mạng ngoài trước khi có xác thực |
+| `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá) hoặc `{decisionId}:{action}` (override). Thiếu hoặc toàn khoảng trắng → 400 `MISSING_HEADER`; dài hơn 128 → 400 `VALIDATION_ERROR`. Ở `/outcome` key chỉ được kiểm tra, **không được lưu** (chống trùng theo nội dung, xem 3.7) |
+| `X-Actor-Id` | `POST /override` | Định danh Manager do SmashCourt lấy từ JWT đã xác thực; 1..100 ký tự (code point). Thiếu hoặc toàn khoảng trắng → 400 `MISSING_HEADER`; dài hơn 100 → 400 `VALIDATION_ERROR` |
 | `X-Correlation-ID` | Tùy chọn | Được echo lại trong response và gắn vào log, trace, audit. Giá trị rỗng/khoảng trắng hoặc dài hơn 128 ký tự bị bỏ qua: server cấp một GUID mới (không từ chối request) |
 
 ### 3.3. `POST /api/v2/decisions`
@@ -228,9 +229,12 @@ Trả chi tiết của một quyết định:
 
 ### 3.5. `GET /api/v2/decisions/pending-approvals?branchId={id}&page=1&pageSize=20`
 
-- Chỉ gồm **bản quyết định mới nhất** của mỗi `reservationId` thỏa: `status = NEED_APPROVAL`, chưa override, chưa có outcome, `approvalExpiresAt > now`.
+- Tham số: `branchId` (bắt buộc, GUID), `page` (mặc định 1), `pageSize` (mặc định 20, tối đa 100). Thiếu `branchId`, giá trị không đọc được (ví dụ `page=abc`) hoặc ngoài miền (`page < 1`, `pageSize` ngoài 1..100) → 400 `VALIDATION_ERROR`.
+- Chỉ gồm **bản quyết định mới nhất** của mỗi `reservationId` (trong cùng chi nhánh, chỉ xét bản `PRIMARY`) thỏa: `status = NEED_APPROVAL`, chưa override, chưa có outcome, `approvalExpiresAt > now` (so nghiêm ngặt; `now` lấy từ đồng hồ của runtime). Bản `SHADOW` không bao giờ xuất hiện.
+- Sắp theo `approvalExpiresAt` tăng dần, hòa thì theo `decisionId` nên phân trang tất định.
 - Mỗi item: `decisionId`, `reservationId`, `branchId`, `totalPrice`, `currency`, `earliestStart`, `customer.isGuest`, `customer.tier`, `reasonCode`, `fallbackUsed`, `approvalExpiresAt`, `createdAt`.
-- Bao ngoài: `{ "items": [...], "page": 1, "pageSize": 20, "totalItems": 42, "totalPages": 3, "hasNext": true, "hasPrev": false }`.
+- Bao ngoài: `{ "items": [...], "page": 1, "pageSize": 20, "totalItems": 42, "totalPages": 3, "hasNext": true, "hasPrev": false }`. Trang và `totalItems` đọc bằng hai truy vấn riêng, không chung transaction nên tổng chỉ là số đếm tại thời điểm đọc.
+- Schema response: `pending-approvals.schema.json`.
 
 ### 3.6. `POST /api/v2/decisions/{decisionId}/override`
 
@@ -238,9 +242,18 @@ Trả chi tiết của một quyết định:
 { "action": "APPROVE", "deposit": { "rate": 0.3 }, "reason": "Khách quen, chi nhánh bảo lãnh" }
 ```
 
-- `action`: `APPROVE` (bắt buộc **đúng một** trong `deposit.rate` hoặc `deposit.amount`) \| `REJECT` (không gửi `deposit`). `reason` 5..500 ký tự.
-- Mỗi quyết định có **tối đa một** override (ràng buộc `UNIQUE(decision_id)` trên bảng `decision_overrides`). Gửi lại cùng `X-Idempotency-Key` và cùng payload → trả lại kết quả cũ (200).
-- **Response 200:** `decisionId`, `action`, `deposit` (đã quy đổi `rate` và `amount`), `actorId`, `reason`, `overriddenAt`.
+- `action`: `APPROVE` (bắt buộc **đúng một** trong `deposit.rate` hoặc `deposit.amount`) \| `REJECT` (không gửi `deposit`). `reason` 5..500 ký tự (code point), không chỉ gồm khoảng trắng. Schema: `override-request.schema.json`, `override-response.schema.json`.
+- **Mức cọc khi `APPROVE`** (một nơi quy đổi): gửi `rate` thì `amount = round(totalPrice × rate)` theo số chữ số thập phân của tiền tệ; gửi `amount` thì giữ nguyên `amount` và `rate = round(amount / totalPrice, 4)` (làm tròn xa số 0; `totalPrice = 0` thì `amount` phải là 0 và `rate = 0`). `totalPrice` và `currency` lấy từ request đã lưu của quyết định. Từ chối bằng 400 `VALIDATION_ERROR` (không làm tròn âm thầm) khi: `rate` ngoài `[0, 1]` hoặc quá 4 chữ số thập phân; `amount` âm, lớn hơn `totalPrice` hoặc nhiều chữ số thập phân hơn tiền tệ cho phép (VND: 0).
+- Mỗi quyết định có **tối đa một** override (ràng buộc `UNIQUE(decision_id)` trên bảng `decision_overrides`). Bản ghi đánh giá bất biến nên chi tiết quyết định (3.4) vẫn hiện `result.status = NEED_APPROVAL` kèm `override`; quyết định đã override rời hàng chờ (3.5).
+- **Thứ tự kiểm tra**, dừng ở bước đầu tiên không đạt:
+  1. Request sai hình thức (header, body, `reason`, cấu trúc `deposit`, `rate`) → 400.
+  2. Không có quyết định, hoặc là bản `SHADOW` (không bao giờ lộ cho client) → 404 `DECISION_NOT_FOUND`.
+  3. `deposit.amount` sai so với đơn (lớn hơn `totalPrice` hoặc quá số chữ số thập phân của tiền tệ) → 400 `VALIDATION_ERROR` (trường `deposit.amount`). Bước này đứng **trước** bước 4: request như vậy gửi vào quyết định đã được override vẫn là 400, không phải 409 hay replay.
+  4. Đã có override: cùng `X-Idempotency-Key` và cùng nội dung → 200 trả bản đã lưu (không đóng dấu lại `overriddenAt`); cùng key khác nội dung → 409 `IDEMPOTENCY_KEY_REUSE`; khác key → 409 `ALREADY_OVERRIDDEN`. "Cùng nội dung" là cùng `action`, `reason` (so sánh ordinal), `X-Actor-Id` và cùng mức cọc request gửi (`rate` so với `deposit_rate` đã lưu, `amount` so với `deposit_amount` đã lưu).
+  5. `status` không phải `NEED_APPROVAL` hoặc đã có outcome → 409 `NOT_PENDING_APPROVAL`.
+  6. `approvalExpiresAt ≤ now` → 409 `APPROVAL_EXPIRED`.
+  7. Ghi. Thua tranh chấp `UNIQUE(decision_id)` thì xử lý như bước 4 với bản thắng (20 request song song cùng nội dung đều nhận 200 với cùng một override; 20 request khác key chỉ một nhận 200, 19 còn lại 409 `ALREADY_OVERRIDDEN`).
+- **Response 200:** `decisionId`, `action`, `deposit` (đã quy đổi `rate`, `amount`, `currency`; `null` khi `REJECT`), `actorId`, `reason`, `overriddenAt` (UTC).
 
 ### 3.7. `POST /api/v2/decisions/{decisionId}/outcome`
 
@@ -248,20 +261,20 @@ Trả chi tiết của một quyết định:
 { "outcome": "NO_SHOW", "occurredAt": "2026-11-20T18:30:00+07:00" }
 ```
 
-Mỗi quyết định có tối đa một outcome. Gửi trùng với cùng payload → 200; khác payload → 409.
+Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể cả `NEED_APPROVAL` chưa được duyệt); bản `SHADOW` và quyết định không tồn tại → 404 `DECISION_NOT_FOUND`. Mỗi quyết định có tối đa một outcome (`UNIQUE(decision_id)`). Chống trùng theo **nội dung** (`outcome` và `occurredAt` sau khi cắt về microsecond): gửi trùng → 200 trả bản đã lưu (không ghi nhận lại, `reportedAt` giữ nguyên); khác → 409 `OUTCOME_ALREADY_RECORDED`. `X-Idempotency-Key` bắt buộc và được kiểm tra theo 3.2 nhưng **không được lưu** (bảng `decision_outcomes` không có cột này). Schema: `outcome-request.schema.json`, `outcome-response.schema.json`.
 
-**Response 200:** `{ "decisionId": "...", "outcome": "NO_SHOW", "occurredAt": "2026-11-20T18:30:00+07:00", "reportedAt": "2026-11-20T19:00:02+00:00" }`.
+**Response 200:** `{ "decisionId": "...", "outcome": "NO_SHOW", "occurredAt": "2026-11-20T11:30:00+00:00", "reportedAt": "2026-11-20T19:00:02+00:00" }` — các thời điểm trong response trả theo UTC.
 
 ### 3.8. Mã lỗi (RFC 7807 `application/problem+json`, trường `code`)
 
 | HTTP | `code` | Khi nào |
 | :---: | :--- | :--- |
-| 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header sai (kể cả body không giải mã được; `X-Idempotency-Key` dài hơn 128 ký tự → `VALIDATION_ERROR`) |
+| 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header/tham số sai (kể cả body không giải mã được; `X-Idempotency-Key` dài hơn 128 hoặc `X-Actor-Id` dài hơn 100 ký tự, `page`/`pageSize` ngoài miền, mức cọc của override không hợp lệ → `VALIDATION_ERROR`) |
 | 415 | *(không có `code`)* | `Content-Type` không phải JSON. Do MVC trả mặc định, ngoài bộ mã của contract: body `application/problem+json` chuẩn không có trường `code`; `traceId` vẫn là correlation id |
 | 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key` (chưa hiện thực — gói 5.3) |
-| 404 | `DECISION_NOT_FOUND` | Không có `decisionId`. `decisionId` không phải GUID thì route không khớp → 404 mặc định của framework (không có `code`) |
-| 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác |
-| 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái (chưa hiện thực — gói 5.3, cùng override/outcome) |
+| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` (với override/outcome: hoặc đó là bản `SHADOW`). `decisionId` không phải GUID thì route không khớp → 404 mặc định của framework (không có `code`) |
+| 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác (đánh giá, override) |
+| 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái của override/outcome (3.6, 3.7) |
 | 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
 | 504 | `GATEWAY_TIMEOUT` | Vượt deadline toàn cục |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |
@@ -314,6 +327,7 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 - Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát.
 - Timeout `TimeoutMs`, lỗi 5xx, 401 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id. Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
+- **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.
 
 ### 4.4. Thay đổi dữ liệu SmashCourt (chi tiết hóa ở Phase 6)
 

@@ -1,4 +1,4 @@
 # JSON Schemas của TADSS Decision API Contract
 
-- `v2/` là contract hiện hành (INTEGRATION_SPEC): cặp `decision-request.schema.json` / `decision-result.schema.json` cho `POST /api/v2/decisions` và `decision-detail.schema.json` cho `GET /api/v2/decisions/{decisionId}`. Các schema viết tay này là nguồn chuẩn của contract.
+- `v2/` là contract hiện hành (INTEGRATION_SPEC): cặp `decision-request.schema.json` / `decision-result.schema.json` cho `POST /api/v2/decisions` `decision-detail.schema.json` cho `GET /api/v2/decisions/{decisionId}`, `pending-approvals.schema.json` cho `GET /api/v2/decisions/pending-approvals`, cặp `override-request.schema.json` / `override-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/override` và cặp `outcome-request.schema.json` / `outcome-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/outcome`. Các schema viết tay này là nguồn chuẩn của contract.
 - `../openapi-v2.yaml` được sinh từ Swashbuckle của chính app (không sửa tay) và có test lệch `OpenApiDriftTests`; khi API đổi có chủ đích, sinh lại theo hướng dẫn ở đầu test đó.

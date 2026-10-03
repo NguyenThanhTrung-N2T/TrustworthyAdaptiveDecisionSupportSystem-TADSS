@@ -42,7 +42,7 @@ Chỉ tạo hoặc áp migration (`migrations add`, `database update`) khi có y
 
 ## B. THIẾT KẾ v2
 
-> **Trạng thái (sau gói 5.2d):** B.1–B.4 **đã hiện thực** bằng migration `20261002101457_DecisionPersistenceV2` (EF entity/configuration trong `src/TADSS.Infrastructure/Persistence/` — xem Mục A.1, trigger và hàm viết bằng SQL trong migration) và có test trên PostgreSQL thật (IT-05, IT-15). Hiện chỉ `decision_executions` được ghi bởi mã (`EfDecisionAuditStore`, hiện thực hai port `IDecisionEvaluationStore` — tìm theo idempotency key, chèn — và `IDecisionQueryStore` — đọc chi tiết); `decision_overrides`, `decision_outcomes` và truy vấn hàng chờ B.5 chưa có mã ghi/đọc ở runtime — thuộc gói 5.3.
+> **Trạng thái (sau gói 5.3):** B.1–B.5 **đã hiện thực** và có test trên PostgreSQL thật. B.1–B.4 bằng migration `20261002101457_DecisionPersistenceV2` (EF entity/configuration trong `src/TADSS.Infrastructure/Persistence/` — xem Mục A.1, trigger và hàm viết bằng SQL trong migration; IT-05, IT-15). `decision_executions` được ghi bởi `EfDecisionAuditStore` (hiện thực `IDecisionEvaluationStore` — tìm theo idempotency key, chèn — và `IDecisionQueryStore` — đọc chi tiết và hàng chờ B.5, qua `PendingApprovalsQuery`); `decision_overrides` và `decision_outcomes` được ghi bởi `EfDecisionGovernanceStore` (hiện thực `IDecisionGovernanceStore`), phục vụ `POST /override` và `POST /outcome` (IT-06…IT-10). Cách phân loại lỗi và thứ tự kiểm tra của override: INTEGRATION_SPEC §3.6.
 >
 > **Ghi chú hiện thực:**
 > - Tên ràng buộc do migration đặt (DDL dưới đây khai báo CHECK không tên): `ck_de_{role,status,deposit_rate,deposit_amount,execution_type,execution_time_ms,deposit,approval}`, `ck_do_{action,deposit_rate,deposit_amount,reason_length,deposit}`, `ck_dout_outcome`; unique `uq_decision_executions_decision_id`, `uq_decision_overrides_decision_id`, `uq_decision_outcomes_decision_id`; FK `fk_decision_overrides_decision_id`, `fk_decision_outcomes_decision_id` (NO ACTION).
@@ -141,24 +141,24 @@ CREATE TRIGGER trg_de_no_truncate BEFORE TRUNCATE ON tadss.decision_executions
 ### B.5. Truy vấn hàng chờ duyệt
 
 ```sql
-WITH latest AS (
-    SELECT DISTINCT ON (reservation_id) *
-    FROM tadss.decision_executions
-    WHERE role = 'PRIMARY' AND branch_id = @branchId
-    ORDER BY reservation_id, created_at DESC
-)
-SELECT l.*
-FROM latest l
-LEFT JOIN tadss.decision_overrides o ON o.decision_id = l.decision_id
-LEFT JOIN tadss.decision_outcomes  r ON r.decision_id = l.decision_id
-WHERE l.status = 'NEED_APPROVAL'
-  AND o.id IS NULL AND r.id IS NULL
-  AND l.approval_expires_at > now()
-ORDER BY l.approval_expires_at
+-- Trang: @nowUtc do ứng dụng truyền từ TimeProvider (không dùng now())
+SELECT c.*
+FROM tadss.decision_executions c
+WHERE c.role = 'PRIMARY' AND c.branch_id = @branchId AND c.status = 'NEED_APPROVAL'
+  AND c.approval_expires_at > @nowUtc
+  AND NOT EXISTS (SELECT 1 FROM tadss.decision_executions n
+                  WHERE n.reservation_id = c.reservation_id AND n.branch_id = c.branch_id AND n.role = 'PRIMARY'
+                    AND (n.created_at, n.decision_id) > (c.created_at, c.decision_id))
+  AND NOT EXISTS (SELECT 1 FROM tadss.decision_overrides o WHERE o.decision_id = c.decision_id)
+  AND NOT EXISTS (SELECT 1 FROM tadss.decision_outcomes r WHERE r.decision_id = c.decision_id)
+ORDER BY c.approval_expires_at, c.decision_id
 LIMIT @pageSize OFFSET @offset;
+
+-- Tổng: cùng các điều kiện WHERE ở trên
+SELECT count(*) FROM tadss.decision_executions c WHERE /* như trên */;
 ```
 
-"Thay thế bản cũ" được thực hiện bằng cách chỉ lấy bản mới nhất của mỗi reservation, không cần sửa bản ghi cũ.
+"Thay thế bản cũ" được thực hiện bằng cách loại những bản đã có bản `PRIMARY` mới hơn cùng `reservation_id` và chi nhánh (so theo `(created_at, decision_id)` nên hai bản cùng `created_at` vẫn có đúng một bản thắng), không cần sửa bản ghi cũ. Dạng này (ứng viên `PRIMARY` + `NEED_APPROVAL` của chi nhánh, rồi `NOT EXISTS`) dùng được partial index `idx_de_pending` (chỉ chứa bản `NEED_APPROVAL`) và `idx_de_reservation_created` cho bước loại bản cũ; dạng `DISTINCT ON` trên mọi bản `PRIMARY` của chi nhánh không dùng được `idx_de_pending`. `decision_id` phá thế hòa nên phân trang tất định. Trang và tổng là hai câu SQL riêng, không chung transaction.
 
 ---
 
@@ -170,14 +170,14 @@ LIMIT @pageSize OFFSET @offset;
 | **INV-2** | Cùng `idempotency_key` (PRIMARY) chỉ có một bản ghi; payload khác bị từ chối | Unique partial index + so sánh `request_hash` | IT-02, IT-03, IT-04 |
 | **INV-3** | `request_hash` tất định, không phụ thuộc múi giờ/culture của máy chủ | Chuẩn hóa canonical theo thứ tự trường cố định, thời gian quy về UTC từ giá trị có offset | UT-06 |
 | **INV-4** | Ba bảng audit không bị sửa/xóa sau khi ghi | Trigger B.4 | IT-05 |
-| **INV-5** | Mỗi quyết định có tối đa một override; chỉ override được quyết định `PRIMARY`, `NEED_APPROVAL`, chưa hết hạn; APPROVE phải có mức cọc | `UNIQUE(decision_id)` + CHECK + kiểm tra ở ứng dụng | IT-06, IT-07, IT-08 |
+| **INV-5** | Mỗi quyết định có tối đa một override; chỉ override được quyết định `PRIMARY`, `NEED_APPROVAL`, chưa hết hạn; APPROVE phải có mức cọc | `UNIQUE(decision_id)` + CHECK + kiểm tra ở ứng dụng. Giới hạn đã biết: kiểm tra "chưa có outcome" rồi mới ghi override không khóa nguyên tử với việc ghi outcome (khóa hàng `FOR UPDATE` sẽ đưa quy tắc nghiệp vụ vào adapter); cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, xem INTEGRATION_SPEC §4.3 | IT-06, IT-07, IT-08 |
 | **INV-6** | Mỗi quyết định có tối đa một outcome | `UNIQUE(decision_id)` | IT-10 |
 | **INV-7** | `APPROVED` ⇔ có mức cọc; `NEED_APPROVAL` ⇔ có hạn duyệt | CHECK `ck_de_deposit`, `ck_de_approval` | IT-01, UT-10 |
 | **INV-8** | Bản ghi `SHADOW` không ảnh hưởng response và không vào hàng chờ | Lọc `role = 'PRIMARY'` | IT-12 |
 | **INV-9** | Thời gian `created_at` do ứng dụng gán theo UTC (offset 0, độ phân giải µs) | `DecisionService` gán từ `TimeProvider`; không có interceptor ghi timestamp và không có `DEFAULT now()` ở DB | UT-01 (mapper), IT-01, IT-05 |
 | **INV-10** | Request trả về thành công khi và chỉ khi bản ghi audit đã được lưu (fail-closed) | Ghi đồng bộ trước khi trả response | FI-08, SC3 |
 
-**Trạng thái sau gói 5.2d:** INV-1, INV-2, INV-3, INV-4, INV-7, INV-9, INV-10 có test khóa đang xanh (IT-01…IT-05, UT-06, UT-11, FI-08). INV-5, INV-6: mới có phần DB (`UNIQUE`, CHECK, FK — test IT-05); phần kiểm tra ở ứng dụng và IT-06…IT-10 thuộc gói 5.3. INV-8: ràng buộc DB (`uq_decision_idempotency_key` chỉ áp cho `PRIMARY`, test IT-05) và `Find` lọc `role = 'PRIMARY'` đã có; chưa có đường ghi `SHADOW` và IT-12 thuộc gói 5.4.
+**Trạng thái sau gói 5.3:** INV-1…INV-7, INV-9, INV-10 có test khóa đang xanh (IT-01…IT-10, UT-06, UT-11, UT-15, FI-08): phần DB của INV-5/INV-6 (`UNIQUE`, CHECK, FK — IT-05) cùng phần kiểm tra ở ứng dụng và đường HTTP (IT-06…IT-10). INV-8: ràng buộc DB (`uq_decision_idempotency_key` chỉ áp cho `PRIMARY`, test IT-05), `Find` lọc `role = 'PRIMARY'`, và override/outcome/hàng chờ coi bản `SHADOW` là không tồn tại hoặc không lọt hàng chờ; chưa có đường ghi `SHADOW` và IT-12 thuộc gói 5.4.
 
 ### C.1. Định danh
 

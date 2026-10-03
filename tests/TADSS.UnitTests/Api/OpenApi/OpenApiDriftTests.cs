@@ -24,6 +24,9 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
     private const string DocumentName = "v2";
     private const string PostPath = "/api/v2/decisions";
     private const string GetPath = "/api/v2/decisions/{decisionId}";
+    private const string PendingPath = "/api/v2/decisions/pending-approvals";
+    private const string OverridePath = "/api/v2/decisions/{decisionId}/override";
+    private const string OutcomePath = "/api/v2/decisions/{decisionId}/outcome";
     private const string ProblemMediaType = "application/problem+json";
 
     private readonly DecisionsApiFactory _factory;
@@ -64,27 +67,33 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
             $"tài liệu OpenAPI sinh từ app phải khớp docs/contracts/openapi-v2.yaml. Bản thực tế đã ghi ra '{snapshotPath}'; nếu thay đổi là có chủ đích thì sao chép sang docs/contracts.");
     }
 
-    /// <summary>Tài liệu chỉ có đúng hai operation v2 (POST danh sách, GET theo id), cùng nằm dưới base path <c>/api/v2</c>; không có v1/pending/override/outcome.</summary>
+    /// <summary>Tài liệu chỉ có đúng năm operation v2 (đánh giá, chi tiết, hàng chờ, override, outcome), cùng nằm dưới base path <c>/api/v2</c>; không có v1.</summary>
     [Fact]
     [Trait("CatalogId", "CT-01")]
     public void OpenApi_ContainsOnlyV2DecisionOperations()
     {
         var document = GenerateDocument();
 
-        document.Paths.Keys.Should().BeEquivalentTo([PostPath, GetPath]);
+        document.Paths.Keys.Should().BeEquivalentTo([PostPath, GetPath, PendingPath, OverridePath, OutcomePath]);
         document.Paths.Keys.Should().OnlyContain(path => path.StartsWith("/api/v2/", StringComparison.Ordinal));
         var operations = document.Paths.SelectMany(path => path.Value.Operations.Select(op => (path.Key, op.Key))).ToList();
-        operations.Should().BeEquivalentTo(new[] { (PostPath, OperationType.Post), (GetPath, OperationType.Get) });
+        operations.Should().BeEquivalentTo(new[]
+        {
+            (PostPath, OperationType.Post),
+            (GetPath, OperationType.Get),
+            (PendingPath, OperationType.Get),
+            (OverridePath, OperationType.Post),
+            (OutcomePath, OperationType.Post)
+        });
         document.Servers.Should().BeNullOrEmpty("tài liệu phải xác định, không chứa URL máy chủ riêng của môi trường sinh");
         document.Info.Version.Should().Be("2.0.0-draft");
-        document.Paths.Keys.Should().NotContain(path =>
-            path.Contains("v1", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("pending", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("override", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("outcome", StringComparison.OrdinalIgnoreCase));
+        document.Paths.Keys.Should().NotContain(path => path.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Header của contract đúng (idempotency bắt buộc ở POST, correlation tùy chọn) và mọi mã lỗi đều là problem+json có thuộc tính <c>code</c> (trừ 415 do framework dựng).</summary>
+    /// <summary>
+    /// Header của contract đúng (idempotency bắt buộc ở mọi POST, actor bắt buộc ở override, correlation tùy chọn ở mọi operation), tham số
+    /// hàng chờ có miền giá trị, và mọi mã lỗi đều là problem+json có thuộc tính <c>code</c> (trừ 415 do framework dựng).
+    /// </summary>
     [Fact]
     [Trait("CatalogId", "CT-01")]
     public void OpenApi_DocumentsRequiredHeadersAndProblemResponses()
@@ -92,21 +101,49 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
         var document = GenerateDocument();
         var post = document.Paths[PostPath].Operations[OperationType.Post];
         var get = document.Paths[GetPath].Operations[OperationType.Get];
+        var pending = document.Paths[PendingPath].Operations[OperationType.Get];
+        var overrideOperation = document.Paths[OverridePath].Operations[OperationType.Post];
+        var outcome = document.Paths[OutcomePath].Operations[OperationType.Post];
+        var all = new[] { post, get, pending, overrideOperation, outcome };
 
-        var idempotency = post.Parameters.Should().ContainSingle(p => p.Name == "X-Idempotency-Key").Which;
-        idempotency.In.Should().Be(ParameterLocation.Header);
-        idempotency.Required.Should().BeTrue();
-        get.Parameters.Should().NotContain(p => p.Name == "X-Idempotency-Key");
-        foreach (var operation in new[] { post, get })
+        foreach (var operation in new[] { post, overrideOperation, outcome })
+        {
+            var idempotency = operation.Parameters.Should().ContainSingle(p => p.Name == "X-Idempotency-Key").Which;
+            idempotency.In.Should().Be(ParameterLocation.Header);
+            idempotency.Required.Should().BeTrue();
+        }
+
+        foreach (var operation in new[] { get, pending })
+        {
+            operation.Parameters.Should().NotContain(p => p.Name == "X-Idempotency-Key" || p.Name == "X-Actor-Id");
+        }
+
+        var actor = overrideOperation.Parameters.Should().ContainSingle(p => p.Name == "X-Actor-Id").Which;
+        actor.In.Should().Be(ParameterLocation.Header);
+        actor.Required.Should().BeTrue();
+        actor.Schema.MaxLength.Should().Be(100);
+        post.Parameters.Should().NotContain(p => p.Name == "X-Actor-Id");
+        outcome.Parameters.Should().NotContain(p => p.Name == "X-Actor-Id");
+
+        foreach (var operation in all)
         {
             var correlation = operation.Parameters.Should().ContainSingle(p => p.Name == "X-Correlation-ID").Which;
             correlation.In.Should().Be(ParameterLocation.Header);
             correlation.Required.Should().BeFalse();
         }
 
+        pending.Parameters.Should().ContainSingle(p => p.Name == "branchId").Which.Required.Should().BeTrue();
+        var pageSize = pending.Parameters.Should().ContainSingle(p => p.Name == "pageSize").Which;
+        pageSize.Schema.Minimum.Should().Be(1);
+        pageSize.Schema.Maximum.Should().Be(100);
+        pending.Parameters.Should().ContainSingle(p => p.Name == "page").Which.Schema.Minimum.Should().Be(1);
+
         post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "409", "415", "500", "503", "504"]);
         get.Responses.Keys.Should().BeEquivalentTo(["200", "404", "500", "503"]);
-        foreach (var (status, response) in post.Responses.Concat(get.Responses).Where(r => r.Key != "200"))
+        pending.Responses.Keys.Should().BeEquivalentTo(["200", "400", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "404", "409", "415", "500", "503"]);
+        outcome.Responses.Keys.Should().BeEquivalentTo(["200", "400", "404", "409", "415", "500", "503"]);
+        foreach (var (status, response) in all.SelectMany(operation => operation.Responses).Where(r => r.Key != "200"))
         {
             response.Content.Keys.Should().Contain(ProblemMediaType, $"phản hồi {status} phải là problem+json");
             response.Content.Keys.Should().BeEquivalentTo([ProblemMediaType], "lỗi chỉ trả problem+json");
@@ -114,7 +151,9 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
 
         document.Components.Schemas["ProblemDetails"].Properties.Keys.Should().Contain(["code", "traceId"],
             "problem+json của TADSS có thuộc tính code (bảng mã lỗi §3.8) và traceId");
-        post.Responses["200"].Content.Keys.Should().BeEquivalentTo(["application/json"]);
-        get.Responses["200"].Content.Keys.Should().BeEquivalentTo(["application/json"]);
+        foreach (var operation in all)
+        {
+            operation.Responses["200"].Content.Keys.Should().BeEquivalentTo(["application/json"]);
+        }
     }
 }

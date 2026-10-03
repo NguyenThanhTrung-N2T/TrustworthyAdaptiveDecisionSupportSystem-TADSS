@@ -220,6 +220,59 @@ public class OverrideServiceTests
         fixture.Store.OverrideInsertCount.Should().Be(0);
     }
 
+    /// <summary>
+    /// Số tiền sai so với đơn (lớn hơn tổng tiền, hoặc nhiều chữ số thập phân hơn tiền tệ) được kiểm tra SAU bước 404/SHADOW và TRƯỚC bước "đã override"
+    /// và các bước trạng thái: quyết định đã có override (cùng key hoặc khác key) hay không còn chờ duyệt vẫn trả 400 <c>deposit.amount</c>, không phải 409/replay.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [InlineData("ExistingSameKey", 228_001)]
+    [InlineData("ExistingDifferentKey", 228_001)]
+    [InlineData("ExistingDifferentKey", 100.5)]
+    [InlineData("NotPending", 228_001)]
+    [InlineData("Expired", 100.5)]
+    public async Task Override_MalformedAmountOnAlreadyOverriddenOrClosedDecision_Is400Not409_Theory(string scenario, double amount)
+    {
+        var fixture = new Fixture();
+        switch (scenario)
+        {
+            case "ExistingSameKey":
+            case "ExistingDifferentKey":
+                fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+                fixture.Store.SeedOverride(ExistingApprove(key: scenario == "ExistingSameKey" ? Key : "another-key"));
+                break;
+            case "NotPending":
+                fixture.Store.Seed(GovernanceTestData.Execution(DecisionId, status: DecisionStatus.APPROVED));
+                break;
+            case "Expired":
+                fixture.Store.Seed(GovernanceTestData.Execution(DecisionId, approvalExpiresAt: Now.AddMinutes(-1)));
+                break;
+        }
+
+        var act = () => fixture.OverrideAsync(ApproveAmount((decimal)amount));
+
+        (await act.Should().ThrowAsync<ContractValidationException>()).Which.FieldName.Should().Be("deposit.amount");
+        fixture.Store.OverrideInsertCount.Should().Be(0);
+    }
+
+    /// <summary>Quyết định không tồn tại hoặc là bản <c>SHADOW</c> luôn là 404, kể cả khi số tiền cọc trong request sai hình thức so với đơn (không có đơn để đối chiếu).</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Override_MissingOrShadowDecisionWithHugeAmount_Is404_Theory(bool shadow)
+    {
+        var fixture = new Fixture();
+        if (shadow)
+        {
+            fixture.Store.Seed(GovernanceTestData.Execution(DecisionId, role: ExecutionRole.SHADOW));
+        }
+
+        var act = () => fixture.OverrideAsync(ApproveAmount(999_999_999m));
+
+        await act.Should().ThrowAsync<DecisionNotFoundException>();
+    }
+
     public static TheoryData<string> CheckOrderScenarios => new()
     {
         "Missing",

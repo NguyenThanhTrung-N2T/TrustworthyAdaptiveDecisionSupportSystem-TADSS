@@ -24,7 +24,7 @@ namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
 /// UT-02 / UT-08 / UT-09 / UT-10: pipeline HTTP của host thử nghiệm (không PostgreSQL/Redis) — cấu hình JSON v2 của MVC, tập endpoint
-/// đúng hai route v2, correlation id đi xuyên success/error, hành vi với Content-Type lạ, Swagger sinh được tài liệu <c>v2</c> và
+/// đúng năm route v2, correlation id đi xuyên success/error, hành vi với Content-Type lạ, Swagger sinh được tài liệu <c>v2</c> và
 /// đồ thị DI hợp lệ khi bật <c>ValidateOnBuild</c>/<c>ValidateScopes</c> như môi trường Development.
 /// </summary>
 public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
@@ -129,7 +129,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         apply.Should().NotThrow();
     }
 
-    /// <summary>Chỉ có đúng 2 endpoint controller (POST/GET v2) và không có route v1, pending, override, outcome nào (5.3 mới thêm).</summary>
+    /// <summary>Chỉ có đúng 5 endpoint controller v2 (đánh giá, chi tiết, hàng chờ, override, outcome) và không có route v1 nào.</summary>
     [Fact]
     [Trait("CatalogId", "UT-09")]
     public void Routes_OnlyV2DecisionEndpointsExist()
@@ -148,16 +148,15 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         actions.Should().BeEquivalentTo(new[]
         {
             (Method: (string?)"POST", Template: (string?)"api/v2/decisions"),
-            (Method: (string?)"GET", Template: (string?)"api/v2/decisions/{decisionId:guid}")
+            (Method: (string?)"GET", Template: (string?)"api/v2/decisions/{decisionId:guid}"),
+            (Method: (string?)"GET", Template: (string?)"api/v2/decisions/pending-approvals"),
+            (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/override"),
+            (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/outcome")
         });
-        allRoutePatterns.Should().NotContain(pattern =>
-            pattern.Contains("v1", StringComparison.OrdinalIgnoreCase)
-            || pattern.Contains("pending", StringComparison.OrdinalIgnoreCase)
-            || pattern.Contains("override", StringComparison.OrdinalIgnoreCase)
-            || pattern.Contains("outcome", StringComparison.OrdinalIgnoreCase));
+        allRoutePatterns.Should().NotContain(pattern => pattern.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Swagger sinh được tài liệu <c>v2</c> không cần DB: đúng 2 path, header idempotency bắt buộc ở POST, đủ mã phản hồi.</summary>
+    /// <summary>Swagger sinh được tài liệu <c>v2</c> không cần DB: đúng 5 path, header idempotency bắt buộc ở mọi POST, đủ mã phản hồi.</summary>
     [Fact]
     [Trait("CatalogId", "UT-09")]
     public void Swagger_GeneratesV2Document_WithHeadersAndErrorResponses()
@@ -165,11 +164,21 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         var document = _factory.Services.GetRequiredService<ISwaggerProvider>().GetSwagger("v2");
 
         document.Info.Version.Should().Be("2.0.0-draft");
-        document.Paths.Keys.Should().BeEquivalentTo(["/api/v2/decisions", "/api/v2/decisions/{decisionId}"]);
+        document.Paths.Keys.Should().BeEquivalentTo(
+        [
+            "/api/v2/decisions",
+            "/api/v2/decisions/{decisionId}",
+            "/api/v2/decisions/pending-approvals",
+            "/api/v2/decisions/{decisionId}/override",
+            "/api/v2/decisions/{decisionId}/outcome"
+        ]);
         var post = document.Paths["/api/v2/decisions"].Operations.Should().ContainSingle().Which.Value;
         var get = document.Paths["/api/v2/decisions/{decisionId}"].Operations.Should().ContainSingle().Which.Value;
+        var overrideOperation = document.Paths["/api/v2/decisions/{decisionId}/override"].Operations.Should().ContainSingle().Which.Value;
         post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "409", "415", "500", "503", "504"]);
         get.Responses.Keys.Should().BeEquivalentTo(["200", "404", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "404", "409", "415", "500", "503"]);
+        overrideOperation.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.ActorId).Which.Required.Should().BeTrue();
         var idempotency = post.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.IdempotencyKey).Which;
         idempotency.Required.Should().BeTrue();
         post.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.CorrelationId).Which.Required.Should().BeFalse();

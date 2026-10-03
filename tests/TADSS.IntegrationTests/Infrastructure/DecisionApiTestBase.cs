@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -7,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Common;
 using TADSS.Infrastructure.Persistence.Entities;
@@ -147,6 +150,108 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
         }
 
         return response;
+    }
+
+    /// <summary>
+    /// <c>POST /api/v2/decisions/{decisionId}/override</c>. Header <c>X-Idempotency-Key</c>/<c>X-Actor-Id</c> <c>null</c> thì không gửi. Response 200
+    /// phải hợp lệ theo <c>override-response.schema.json</c> (CT-01).
+    /// </summary>
+    protected async Task<DecisionHttpResponse> PostOverrideAsync(
+        Guid decisionId,
+        string body,
+        string? idempotencyKey,
+        string? actorId,
+        HttpClient? client = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{DecisionsPath}/{decisionId}/override")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        if (idempotencyKey is not null)
+        {
+            request.Headers.TryAddWithoutValidation(HttpHeaderNames.IdempotencyKey, idempotencyKey);
+        }
+
+        if (actorId is not null)
+        {
+            request.Headers.TryAddWithoutValidation(HttpHeaderNames.ActorId, actorId);
+        }
+
+        var response = await Capture(await (client ?? Api).SendAsync(request));
+        if (response.Status == HttpStatusCode.OK)
+        {
+            ResponseSchemaAssert.IsValidOverrideResponse(response.Body);
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// <c>POST /api/v2/decisions/{decisionId}/outcome</c>. <paramref name="idempotencyKey"/> <c>null</c> thì không gửi header. Response 200 phải hợp lệ
+    /// theo <c>outcome-response.schema.json</c> (CT-01).
+    /// </summary>
+    protected async Task<DecisionHttpResponse> PostOutcomeAsync(Guid decisionId, string body, string? idempotencyKey)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{DecisionsPath}/{decisionId}/outcome")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        if (idempotencyKey is not null)
+        {
+            request.Headers.TryAddWithoutValidation(HttpHeaderNames.IdempotencyKey, idempotencyKey);
+        }
+
+        var response = await Capture(await Api.SendAsync(request));
+        if (response.Status == HttpStatusCode.OK)
+        {
+            ResponseSchemaAssert.IsValidOutcomeResponse(response.Body);
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// <c>GET /api/v2/decisions/pending-approvals{query}</c> (<paramref name="query"/> gồm cả dấu <c>?</c>, hoặc rỗng). Response 200 phải hợp lệ theo
+    /// <c>pending-approvals.schema.json</c> (CT-01).
+    /// </summary>
+    protected async Task<DecisionHttpResponse> GetPendingApprovalsAsync(string query)
+    {
+        var response = await Capture(await Api.GetAsync($"{DecisionsPath}/pending-approvals{query}"));
+        if (response.Status == HttpStatusCode.OK)
+        {
+            ResponseSchemaAssert.IsValidPendingApprovals(response.Body);
+        }
+
+        return response;
+    }
+
+    /// <summary>Đọc trực tiếp mọi hàng <c>decision_overrides</c> của database test (không qua API), theo thời điểm tạo.</summary>
+    protected async Task<List<DecisionOverrideEntity>> ReadOverridesAsync()
+    {
+        await using var db = CreateDbContext();
+        return await db.DecisionOverrides.AsNoTracking().OrderBy(row => row.CreatedAt).ToListAsync();
+    }
+
+    /// <summary>Đọc trực tiếp mọi hàng <c>decision_outcomes</c> của database test (không qua API), theo thời điểm ghi nhận.</summary>
+    protected async Task<List<DecisionOutcomeEntity>> ReadOutcomesAsync()
+    {
+        await using var db = CreateDbContext();
+        return await db.DecisionOutcomes.AsNoTracking().OrderBy(row => row.ReportedAt).ToListAsync();
+    }
+
+    /// <summary>
+    /// Tạo một quyết định <c>NEED_APPROVAL</c> qua API (request giá trị lớn bắt đầu 20/11/2026 18:00 +07:00 mặc định) và trả kết quả đã kiểm
+    /// <c>status</c> và <c>approvalExpiresAt</c>.
+    /// </summary>
+    protected async Task<DecisionResultDto> CreatePendingDecisionAsync(Guid? branchId = null, DateTimeOffset? start = null)
+    {
+        var begin = start ?? new DateTimeOffset(2026, 11, 20, 18, 0, 0, TimeSpan.FromHours(7));
+        var posted = await PostDecisionAsync(DecisionRequests.HighValue(begin, branchId, Guid.NewGuid()), NewKey());
+        posted.Status.Should().Be(HttpStatusCode.OK);
+        var result = posted.Result;
+        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        result.ApprovalExpiresAt.Should().NotBeNull();
+        return result;
     }
 
     /// <summary>Đọc trực tiếp mọi hàng <c>decision_executions</c> của database test bằng <c>DbContext</c> (không qua API), theo thời điểm tạo.</summary>

@@ -23,14 +23,24 @@ public static class DecisionRequests
 
     /// <summary>
     /// Request giá trị lớn nên strategy mặc định trả <c>NEED_APPROVAL</c>; item duy nhất bắt đầu tại <paramref name="start"/> và kéo dài 2 giờ.
+    /// <paramref name="branchId"/> và <paramref name="reservationId"/> (nếu có) thay chi nhánh và đơn của request mẫu.
     /// </summary>
-    public static string HighValue(DateTimeOffset start) => Mutated(root =>
+    public static string HighValue(DateTimeOffset start, Guid? branchId = null, Guid? reservationId = null) => Mutated(root =>
     {
         var item = ContractSamples.Object(root["items"]?[0]);
         item["startTime"] = Format(start);
         item["endTime"] = Format(start.AddHours(2));
         item["price"] = HighValueTotalPrice + 100_000m;
         root["totalPrice"] = HighValueTotalPrice;
+        if (branchId is { } branch)
+        {
+            root["branchId"] = branch.ToString();
+        }
+
+        if (reservationId is { } reservation)
+        {
+            root["reservationId"] = reservation.ToString();
+        }
     });
 
     /// <summary>Request mẫu nhưng item duy nhất bắt đầu tại <paramref name="start"/> và kéo dài 2 giờ (dùng khi test chạy bằng đồng hồ thật và cần giờ bắt đầu ở tương lai).</summary>

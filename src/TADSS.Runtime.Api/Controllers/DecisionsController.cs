@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
-using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
 
@@ -45,22 +43,7 @@ public class DecisionsController(IDecisionService decisionService, IDecisionQuer
         [FromBody] DecisionRequestDto request,
         CancellationToken cancellationToken)
     {
-        var idempotencyKey = Request.Headers[HttpHeaderNames.IdempotencyKey].ToString();
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            throw new ContractValidationException(
-                ErrorCodes.MissingHeader,
-                $"Thiếu header {HttpHeaderNames.IdempotencyKey}.",
-                HttpHeaderNames.IdempotencyKey);
-        }
-
-        if (idempotencyKey.Length > ContractLimits.MaxIdempotencyKeyLength)
-        {
-            throw new ContractValidationException(
-                ErrorCodes.ValidationError,
-                $"Header {HttpHeaderNames.IdempotencyKey} dài tối đa {ContractLimits.MaxIdempotencyKeyLength} ký tự.",
-                HttpHeaderNames.IdempotencyKey);
-        }
+        var idempotencyKey = RequestHeaders.RequireIdempotencyKey(Request);
 
         // TraceIdentifier đã được CorrelationIdMiddleware chuẩn hóa (C-07)
         var result = await decisionService.EvaluateAsync(request, idempotencyKey, HttpContext.TraceIdentifier, cancellationToken);

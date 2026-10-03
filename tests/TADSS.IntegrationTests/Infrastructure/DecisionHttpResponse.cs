@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.DTOs.Governance;
+using Shared.DecisionContractSDK.DTOs.Outcomes;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 
@@ -25,6 +27,15 @@ public sealed record DecisionHttpResponse(HttpStatusCode Status, HttpResponseHea
 
     /// <summary>Body của response 200 giải mã thành <see cref="DecisionDetailDto"/> (<c>GET</c>).</summary>
     public DecisionDetailDto Detail => Deserialize<DecisionDetailDto>();
+
+    /// <summary>Body của response 200 giải mã thành <see cref="OverrideResponseDto"/> (<c>override</c>).</summary>
+    public OverrideResponseDto Override => Deserialize<OverrideResponseDto>();
+
+    /// <summary>Body của response 200 giải mã thành <see cref="OutcomeResponseDto"/> (<c>outcome</c>).</summary>
+    public OutcomeResponseDto Outcome => Deserialize<OutcomeResponseDto>();
+
+    /// <summary>Body của response 200 giải mã thành một trang hàng chờ duyệt (<c>pending-approvals</c>).</summary>
+    public PagedResult<PendingApprovalItemDto> Pending => Deserialize<PagedResult<PendingApprovalItemDto>>();
 
     /// <summary>Body của response lỗi (problem+json) dưới dạng <see cref="JsonElement"/>.</summary>
     public JsonElement Problem
