@@ -42,7 +42,7 @@
 
 ### Epic 5A — Contract v2 & lõi TADSS (SV1)
 
-> **Gói 5.2d — Clean Architecture và SOLID: ✅ hoàn tất (03/10/2026).** Tách `TADSS.Runtime.Api` thành `TADSS.Application`, `TADSS.Infrastructure`, `TADSS.Runtime.Api` (ADR-013); port audit tách theo consumer, `StrategyEvaluator`/`DecisionPayloadSerializer` tách khỏi `DecisionService`, bỏ hardcode, đổi tên entity EF; thêm bộ test kiến trúc UT-14. Không đổi wire, JSON schema, `openapi-v2.yaml`, baseline SDK và ID migration. Hiện có 1100 unit + 121 integration test (trước gói: 965 + 121). Tiếp theo: gói 5.3.
+> **Gói 5.2d — Clean Architecture và SOLID: ✅ hoàn tất (03/10/2026).** Tách `TADSS.Runtime.Api` thành `TADSS.Application`, `TADSS.Infrastructure`, `TADSS.Runtime.Api` (ADR-013); port audit tách theo consumer, `StrategyEvaluator`/`DecisionPayloadSerializer` tách khỏi `DecisionService`, bỏ hardcode, đổi tên entity EF; thêm bộ test kiến trúc UT-14. Không đổi wire, JSON schema, `openapi-v2.yaml`, baseline SDK và ID migration. Hiện có 1112 unit + 121 integration test (trước gói: 965 + 121). Tiếp theo: gói 5.3.
 
 | Mã | Task | Tuần | Test case liên quan |
 |:---|:---|:---:|:---|
@@ -62,7 +62,7 @@
 
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
-| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration; sau gói 5.2c: 965 unit + 121 integration; sau gói 5.2d: 1100 unit + 121 integration |
+| T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration; sau gói 5.2c: 965 unit + 121 integration; sau gói 5.2d: 1112 unit + 121 integration |
 | T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | ✅ (gói 5.1) `docker compose up -d --build` một lệnh; môi trường E-LOCAL tự chứa |
 | T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) | W09 | Dashboard JSON lưu trong repo |
 | T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) | W09 | Script chạy ma trận FI |

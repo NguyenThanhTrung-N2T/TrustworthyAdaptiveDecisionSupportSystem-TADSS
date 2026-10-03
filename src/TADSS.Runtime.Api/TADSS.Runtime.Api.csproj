@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Unit test kiểm hàm ánh xạ record ↔ entity (internal) của kho audit -->
+    <!-- Cho unit test thấy kiểu internal của Runtime.Api (hiện chỉ có InvalidModelStateTranslator; chưa test nào gọi trực tiếp, hành vi của nó được test qua HTTP) -->
     <InternalsVisibleTo Include="TADSS.UnitTests" />
   </ItemGroup>
 

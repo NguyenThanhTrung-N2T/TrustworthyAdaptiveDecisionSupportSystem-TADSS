@@ -339,7 +339,7 @@ sequenceDiagram
 | `Shared.DecisionContractSDK` | Chỉ BCL | Mọi project, mọi NuGet |
 | `TADSS.Strategies.*` | Chỉ SDK | Application, Infrastructure, Runtime.Api, NuGet |
 | `TADSS.Application` | SDK + gói `Microsoft.Extensions.{Logging.Abstractions, Options.ConfigurationExtensions}` (kéo theo `DependencyInjection.Abstractions`, `Options`) | Infrastructure, Runtime.Api, Strategies, ASP.NET Core, EF Core, Npgsql, StackExchange.Redis, Polly |
-| `TADSS.Infrastructure` | Application + SDK + EF Core/Npgsql, StackExchange.Redis, Polly, `Microsoft.Extensions.*` | Runtime.Api, ASP.NET Core MVC, Swashbuckle |
+| `TADSS.Infrastructure` | Application + SDK + EF Core/Npgsql, StackExchange.Redis, Polly, `Microsoft.Extensions.*` | Runtime.Api, ASP.NET Core (assembly `Microsoft.AspNetCore.*`, `FrameworkReference`, Web SDK), Swashbuckle |
 | `TADSS.Runtime.Api` | Tất cả project `src/` + Swashbuckle, Serilog, EF Core Design. Chỉ `Program.cs` và `Composition/` được dùng kiểu của Infrastructure | Controller, middleware, `ErrorHandling/`, `OpenApi/` dùng `TADSS.Infrastructure`, Npgsql, Polly, Redis, EF Core |
 | `tests/*` | Mọi project trên | — |
 
@@ -350,11 +350,12 @@ Quy ước đi kèm: interface của **port** (mà Infrastructure hiện thực)
 | Test | Quy tắc khóa |
 | :--- | :--- |
 | `SdkDependencyPurityTests`, `StrategyDependencyPurityTests` (UT-09) | SDK chỉ BCL; Strategies chỉ SDK |
-| `ProjectReferenceRulesTests` | Mỗi project `src/` chỉ có `ProjectReference` trong allowlist; Application và Infrastructure chỉ dùng `PackageReference` trong allowlist (đọc thẳng csproj) |
-| `LayerDependencyTests` | Application/Infrastructure không tham chiếu assembly hạ tầng/presentation bị cấm; EF Core chỉ trong `Persistence/`; port chỉ ở `Application.Abstractions.*` |
-| `CompositionRootBoundaryTests` | Runtime.Api ngoài `Program.cs`/`Composition/` không dùng kiểu Infrastructure, Npgsql, Polly, Redis, EF Core |
+| `ProjectReferenceRulesTests` | Mỗi project `src/` chỉ có `ProjectReference` trong allowlist; Application và Infrastructure chỉ dùng `PackageReference` trong allowlist, dùng `Microsoft.NET.Sdk` (không Web SDK) và không có `FrameworkReference` (đọc thẳng csproj) |
+| `LayerDependencyTests` | Application/Infrastructure không tham chiếu assembly hạ tầng/presentation bị cấm (Infrastructure: không `Microsoft.AspNetCore.*`, Swashbuckle, Runtime.Api); EF Core chỉ trong `Persistence/`; port chỉ ở `Application.Abstractions.*` |
+| `CompositionRootBoundaryTests` | Runtime.Api ngoài `Program.cs`/`Composition/` không dùng kiểu Infrastructure, Npgsql, Polly, Redis, EF Core (văn bản nguồn và reflection trên chữ ký/trường); không file nào, kể cả `Composition/`, có `global using` tới các namespace đó và csproj không có `<Using Include>` tới chúng |
 | `NamingConventionTests` | Namespace khớp project + thư mục; không còn "V2" trong tên kiểu/namespace; `*Options`/`*OptionsValidator` ở `Options/`; exception chỉ ở `Application.Exceptions` |
-| `SourceFileConventionTests` | Mỗi file một kiểu public, tên file = tên kiểu; file nguồn ≤ 250 dòng (trừ `Migrations/`) |
+| `SourceFileConventionTests` | Mỗi file một kiểu public, tên file = tên kiểu; file nguồn ≤ 250 dòng (trừ `Migrations/`); số kiểu public bộ quét văn bản tìm thấy bằng số kiểu public không lồng của assembly (bắt kiểu thụt lề/namespace dạng khối) |
+| `AppSettingsValidationTests` | `appsettings.json` qua mọi validator khi host khởi động; mọi options có hằng `SectionName` (tìm bằng reflection) có đúng một `IValidateOptions<T>` và đăng ký `ValidateOnStart`, ngoại lệ khai báo duy nhất là `DatabaseOptions` (chỉ có một bool) |
 
 Danh mục đầy đủ các test UT-14: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 

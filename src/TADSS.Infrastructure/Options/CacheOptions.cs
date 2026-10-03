@@ -21,12 +21,14 @@ public class CacheOptions
     public string RedisConnectionString { get; set; } = "localhost:6379";
 
     /// <summary>
-    /// Tiền tố namespace trong Redis (ví dụ "tadss:").
+    /// Tiền tố namespace trong Redis (ví dụ "tadss:"). Hiện được bind nhưng không có mã nào đọc nên không có tác dụng:
+    /// tiền tố khóa cache là hằng của <c>StrategyDecisionCacheKey</c>.
     /// </summary>
     public string InstanceName { get; set; } = "tadss:";
 
     /// <summary>
-    /// Thời gian sống mặc định của cache (tính bằng giờ). Mặc định 24h.
+    /// Thời gian sống mặc định của cache (tính bằng giờ). Mặc định 24h. Hiện được bind và kiểm phải dương nhưng không có mã nào đọc nên
+    /// không có tác dụng: TTL lấy từ tham số của lời gọi cache.
     /// </summary>
     public int TtlHours { get; set; } = 24;
 
