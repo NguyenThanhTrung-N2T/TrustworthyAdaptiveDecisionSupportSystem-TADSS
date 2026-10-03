@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,16 +29,9 @@ public static class InfrastructureServiceCollectionExtensions
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        // 1. DbContext: thời gian audit do DecisionService gán, không có interceptor ghi timestamp.
+        // 1. DbContext (EF Core nằm trong namespace Persistence): thời gian audit do DecisionService gán, không có interceptor ghi timestamp.
         // Migration nằm trong assembly Infrastructure (cùng assembly với TadssDbContext).
-        services.AddDbContext<TadssDbContext>(options =>
-        {
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.MigrationsAssembly(typeof(TadssDbContext).Assembly.GetName().Name);
-                npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "tadss");
-            });
-        });
+        services.AddPersistenceDbContext(connectionString);
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
 
         // 2. Health check có phân nhóm tag (Liveness / Readiness)

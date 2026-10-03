@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.DTOs.Outcomes;
-using Shared.DecisionContractSDK.Enums;
 
 namespace Shared.DecisionContractSDK.DTOs.Decisions;
 
@@ -39,57 +38,4 @@ public sealed class DecisionDetailDto
 
     /// <summary>Correlation id của request đánh giá (nếu có).</summary>
     public required string? CorrelationId { get; init; }
-}
-
-/// <summary>Kết quả máy trong chi tiết quyết định, gồm trạng thái gốc của strategy.</summary>
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class DecisionDetailResultDto
-{
-    /// <summary>Trạng thái trả cho client (sau approval window).</summary>
-    public required DecisionStatus Status { get; init; }
-
-    /// <summary>Trạng thái gốc do strategy/fallback trả.</summary>
-    public required DecisionStatus StrategyStatus { get; init; }
-
-    /// <summary>Mức cọc; chỉ có khi <see cref="DecisionStatus.APPROVED"/>.</summary>
-    public required DepositDto? Deposit { get; init; }
-
-    /// <summary>Mã lý do.</summary>
-    public required string ReasonCode { get; init; }
-
-    /// <summary>Lý do cho người đọc.</summary>
-    public required IReadOnlyList<string> Reasons { get; init; }
-
-    /// <summary>Khuyến nghị kèm theo.</summary>
-    public required IReadOnlyList<DecisionRecommendationDto> Recommendations { get; init; }
-
-    /// <summary>Hạn duyệt; chỉ có khi <see cref="DecisionStatus.NEED_APPROVAL"/>.</summary>
-    [JsonConverter(typeof(OffsetDateTimeConverter))]
-    public required DateTimeOffset? ApprovalExpiresAt { get; init; }
-}
-
-/// <summary>Telemetry thực thi của một quyết định.</summary>
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class ExecutionDetailDto
-{
-    /// <summary>Tên strategy.</summary>
-    public required string StrategyName { get; init; }
-
-    /// <summary>Phiên bản strategy.</summary>
-    public required string StrategyVersion { get; init; }
-
-    /// <summary>Cách quyết định được tạo ra.</summary>
-    public required ExecutionType ExecutionType { get; init; }
-
-    /// <summary>Thời gian thực thi (ms).</summary>
-    public required int ExecutionTimeMs { get; init; }
-
-    /// <summary>Có dùng fallback.</summary>
-    public required bool FallbackUsed { get; init; }
-
-    /// <summary>Lý do lỗi khi fallback (nếu có).</summary>
-    public required string? FailureReason { get; init; }
-
-    /// <summary>Lấy từ cache.</summary>
-    public required bool CacheHit { get; init; }
 }

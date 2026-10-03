@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.Enums;
 
 namespace Shared.DecisionContractSDK.DTOs.Governance;
 
@@ -43,15 +42,4 @@ public sealed class PendingApprovalItemDto
     /// <summary>Thời điểm tạo quyết định.</summary>
     [JsonConverter(typeof(OffsetDateTimeConverter))]
     public required DateTimeOffset CreatedAt { get; init; }
-}
-
-/// <summary>Thông tin khách rút gọn trong hàng chờ.</summary>
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class PendingApprovalCustomerDto
-{
-    /// <summary>Khách vãng lai.</summary>
-    public required bool IsGuest { get; init; }
-
-    /// <summary>Hạng thành viên.</summary>
-    public required CustomerTier Tier { get; init; }
 }
