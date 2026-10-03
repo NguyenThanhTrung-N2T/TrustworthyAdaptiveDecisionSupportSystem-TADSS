@@ -8,6 +8,7 @@ using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
 using TADSS.Infrastructure;
 using TADSS.Infrastructure.Persistence;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure;
@@ -68,7 +69,7 @@ public class InfrastructureServiceCollectionExtensionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Tadss:Cache:Provider"] = "Memory",
-                ["ConnectionStrings:DefaultConnection"] = "Host=127.0.0.1;Port=1;Database=none",
+                [TestConnectionStrings.Key] = TestConnectionStrings.Value,
             })
             .Build();
 }

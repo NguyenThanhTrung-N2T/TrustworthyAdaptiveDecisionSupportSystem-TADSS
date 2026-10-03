@@ -1,4 +1,3 @@
-using System.Reflection;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application;
@@ -98,13 +97,13 @@ public class NoLegacyV1Tests
     {
         var coreTypes = RuntimeLayerProjects
             .SelectMany(project => SourceTree.AssemblyOf(project).GetTypes())
-            .Where(type => type.Namespace is not { } ns || !IsInNamespace(ns, PersistenceNamespace))
+            .Where(type => type.Namespace is not { } ns || !TypeReferenceScanner.IsInNamespace(ns, PersistenceNamespace))
             .ToList();
 
         coreTypes.Should().NotBeEmpty("test không được pass rỗng khi không tìm thấy kiểu nào ngoài Persistence");
 
         var violations = coreTypes
-            .SelectMany(type => ReferencedTypes(type)
+            .SelectMany(type => TypeReferenceScanner.ReferencedTypes(type)
                 .Where(IsForbiddenOutsidePersistence)
                 .Select(referenced => $"{type.FullName} -> {referenced.FullName}"))
             .Distinct()
@@ -135,62 +134,14 @@ public class NoLegacyV1Tests
 
     private static bool IsForbiddenOutsidePersistence(Type referenced)
     {
-        var definition = referenced.IsGenericType ? referenced.GetGenericTypeDefinition() : referenced;
-        var ns = definition.Namespace;
+        var ns = TypeReferenceScanner.Definition(referenced).Namespace;
         if (ns is null)
         {
             return false;
         }
 
-        return IsInNamespace(ns, PersistenceNamespace)
-            || IsInNamespace(ns, "Microsoft.EntityFrameworkCore")
-            || IsInNamespace(ns, "MediatR");
-    }
-
-    private static bool IsInNamespace(string ns, string root)
-    {
-        return ns == root || ns.StartsWith(root + ".", StringComparison.Ordinal);
-    }
-
-    private static IEnumerable<Type> ReferencedTypes(Type type)
-    {
-        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        var methods = type.GetMethods(all);
-        var direct = type.GetProperties(all).Select(property => property.PropertyType)
-            .Concat(type.GetFields(all).Select(field => field.FieldType))
-            .Concat(methods.Select(method => method.ReturnType))
-            .Concat(methods.SelectMany(method => method.GetParameters().Select(parameter => parameter.ParameterType)))
-            .Concat(type.GetConstructors(all).SelectMany(ctor => ctor.GetParameters().Select(parameter => parameter.ParameterType)))
-            .Concat(type.GetInterfaces());
-
-        if (type.BaseType is { } baseType)
-        {
-            direct = direct.Append(baseType);
-        }
-
-        return direct.SelectMany(Flatten);
-    }
-
-    private static IEnumerable<Type> Flatten(Type type)
-    {
-        yield return type;
-
-        var element = type.HasElementType ? type.GetElementType() : null;
-        if (element is not null)
-        {
-            foreach (var inner in Flatten(element))
-            {
-                yield return inner;
-            }
-        }
-
-        if (type.IsGenericType)
-        {
-            foreach (var argument in type.GetGenericArguments().SelectMany(Flatten))
-            {
-                yield return argument;
-            }
-        }
+        return TypeReferenceScanner.IsInNamespace(ns, PersistenceNamespace)
+            || TypeReferenceScanner.IsInNamespace(ns, "Microsoft.EntityFrameworkCore")
+            || TypeReferenceScanner.IsInNamespace(ns, "MediatR");
     }
 }

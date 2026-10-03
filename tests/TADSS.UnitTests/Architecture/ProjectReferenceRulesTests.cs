@@ -9,7 +9,8 @@ namespace TADSS.UnitTests.Architecture;
 /// Khóa quy tắc phụ thuộc giữa các project <c>src/</c> (spec 4.2.4) bằng cách đọc thẳng file csproj.
 /// Không dùng reflection vì assembly rỗng hoặc chưa dùng kiểu nào thì không ghi tham chiếu vào metadata,
 /// trong khi <c>ProjectReference</c>/<c>PackageReference</c> trong csproj luôn phản ánh đúng ý định kiến trúc.
-/// Mỗi project có một allowlist <c>ProjectReference</c>; Application và Infrastructure có thêm allowlist <c>PackageReference</c>.
+/// Mỗi project có một allowlist <c>ProjectReference</c>; Application và Infrastructure có thêm allowlist <c>PackageReference</c>
+/// và phải dùng <c>Microsoft.NET.Sdk</c> không kèm <c>FrameworkReference</c> (cấm ASP.NET Core ở cả hai tầng).
 /// Thứ gì ngoài allowlist đều làm test đỏ.
 /// </summary>
 public class ProjectReferenceRulesTests
@@ -103,6 +104,25 @@ public class ProjectReferenceRulesTests
         violations.Should().BeEmpty(
             $"{projectName} chỉ được dùng gói NuGet trong allowlist (Application: không ASP.NET Core/EF/Npgsql/Redis/Polly; "
             + "Infrastructure: không Microsoft.AspNetCore.*/Swashbuckle)");
+    }
+
+    /// <summary>
+    /// Application và Infrastructure dùng SDK thường <c>Microsoft.NET.Sdk</c> (không phải <c>Microsoft.NET.Sdk.Web</c>) và không khai báo
+    /// <c>FrameworkReference</c> nào: shared framework ASP.NET Core chỉ được kéo vào qua Web SDK hoặc <c>FrameworkReference</c>,
+    /// nên đây là cổng chặn ASP.NET Core cho cả hai tầng kể cả khi chưa có kiểu nào dùng đến.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-14")]
+    [MemberData(nameof(ApplicationAndInfrastructure))]
+    public void Csproj_ApplicationAndInfrastructure_UsePlainSdkAndNoFrameworkReference_Theory(string projectName)
+    {
+        var project = LoadProject(projectName);
+
+        var sdk = (string?)project.Root?.Attribute("Sdk");
+        sdk.Should().Be("Microsoft.NET.Sdk", $"{projectName} phải dùng SDK thường, không dùng Microsoft.NET.Sdk.Web");
+        project.Descendants("Sdk").Should().BeEmpty($"{projectName} không được thêm SDK phụ qua phần tử <Sdk>");
+        project.Descendants("FrameworkReference").Select(e => (string?)e.Attribute("Include")).Should().BeEmpty(
+            $"{projectName} không được tham chiếu shared framework (Microsoft.AspNetCore.App...)");
     }
 
     /// <summary>Application không được tham chiếu ngược lên Infrastructure, Runtime.Api hay Strategies.</summary>

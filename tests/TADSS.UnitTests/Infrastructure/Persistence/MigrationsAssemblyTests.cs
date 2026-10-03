@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TADSS.Infrastructure;
 using TADSS.Infrastructure.Persistence;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Persistence;
@@ -33,7 +34,7 @@ public class MigrationsAssemblyTests
         services.AddInfrastructure(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = "Host=127.0.0.1;Port=1;Database=none",
+                [TestConnectionStrings.Key] = TestConnectionStrings.Value,
             })
             .Build());
         using var provider = services.BuildServiceProvider(validateScopes: true);

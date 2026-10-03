@@ -28,11 +28,14 @@ public class LayerDependencyTests
         "Polly*",
     ];
 
-    /// <summary>Mẫu tên assembly bị cấm với Infrastructure (tầng presentation).</summary>
+    /// <summary>
+    /// Mẫu tên assembly bị cấm với Infrastructure (tầng presentation): Runtime.Api, mọi assembly <c>Microsoft.AspNetCore.*</c> và Swashbuckle.
+    /// Gói <c>AspNetCore.HealthChecks.NpgSql</c> được phép vì assembly của nó tên <c>HealthChecks.NpgSql</c> và không kéo theo <c>Microsoft.AspNetCore.*</c>.
+    /// </summary>
     private static readonly string[] InfrastructureForbiddenReferences =
     [
         "TADSS.Runtime.Api",
-        "Microsoft.AspNetCore.Mvc*",
+        "Microsoft.AspNetCore.*",
         "Swashbuckle*",
     ];
 
@@ -48,7 +51,7 @@ public class LayerDependencyTests
             string.Join(", ", violations));
     }
 
-    /// <summary>Infrastructure không được tham chiếu Runtime.Api, ASP.NET Core MVC hay Swashbuckle.</summary>
+    /// <summary>Infrastructure không được tham chiếu Runtime.Api, ASP.NET Core (<c>Microsoft.AspNetCore.*</c>) hay Swashbuckle.</summary>
     [Fact]
     [Trait("CatalogId", "UT-14")]
     public void Infrastructure_ReferencesNoPresentationAssemblies()

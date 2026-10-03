@@ -52,6 +52,41 @@ public class SourceFileConventionTests
             Environment.NewLine, string.Join(Environment.NewLine, violations));
     }
 
+    /// <summary>
+    /// Lưới an toàn cho bộ quét văn bản: regex chỉ nhận kiểu <c>public</c> khai báo ở cột 0 nên kiểu thụt lề (ví dụ trong namespace dạng khối) sẽ lọt qua
+    /// kiểm tra "một kiểu public/file". Số kiểu public cấp cao nhất regex tìm thấy phải bằng số kiểu public không lồng nhau của assembly (reflection);
+    /// ngoại lệ khai báo giống test trên: mã sinh (<c>Migrations/</c>, <c>*.Designer.cs</c>) bị bỏ ở cả hai phía.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-14")]
+    [MemberData(nameof(AllProjects))]
+    public void SourceFiles_RegexPublicTypeCount_EqualsReflectionCount_Theory(string project)
+    {
+        var files = SourceTree.FilesOf(project);
+        files.Should().NotBeEmpty($"project '{project}' phải có file nguồn để kiểm tra");
+
+        var scanned = files
+            .Where(file => !file.IsGenerated)
+            .SelectMany(file => file.PublicTopLevelTypeNames())
+            .ToList();
+
+        var reflected = SourceTree.AssemblyOf(project).GetTypes()
+            .Where(type => type is { IsPublic: true, IsNested: false })
+            .Where(type => type.Namespace?.Split('.').Contains("Migrations", StringComparer.Ordinal) != true)
+            .Select(type => type.Name.Split('`')[0])
+            .ToList();
+
+        reflected.Should().NotBeEmpty($"assembly '{project}' phải có kiểu public để so khớp");
+
+        var missedByRegex = reflected.Except(scanned, StringComparer.Ordinal).OrderBy(name => name, StringComparer.Ordinal).ToList();
+        var missedByReflection = scanned.Except(reflected, StringComparer.Ordinal).OrderBy(name => name, StringComparer.Ordinal).ToList();
+
+        scanned.Count.Should().Be(reflected.Count,
+            "regex quét {0} kiểu public cấp cao nhất nhưng reflection thấy {1} trong '{2}' (kiểu thụt lề/namespace khối làm bộ quét văn bản bỏ sót?). "
+            + "Chỉ có ở reflection: [{3}]; chỉ có ở regex: [{4}]",
+            scanned.Count, reflected.Count, project, string.Join(", ", missedByRegex), string.Join(", ", missedByReflection));
+    }
+
     /// <summary>Không file nguồn nào (trừ <c>Migrations/</c> và <c>*.Designer.cs</c>) vượt 250 dòng.</summary>
     [Theory]
     [Trait("CatalogId", "UT-14")]

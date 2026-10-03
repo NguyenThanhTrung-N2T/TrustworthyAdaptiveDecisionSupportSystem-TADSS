@@ -6,6 +6,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Exceptions;
 using TADSS.Infrastructure.Persistence;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Persistence;
@@ -22,7 +23,7 @@ public class EfDecisionAuditStoreErrorTests
 
     private static DbContextOptions<TadssDbContext> FakeOptions() =>
         new DbContextOptionsBuilder<TadssDbContext>()
-            .UseNpgsql("Host=127.0.0.1;Port=1;Database=none;Timeout=1")
+            .UseNpgsql($"{TestConnectionStrings.Value};Timeout=1")
             .Options;
 
     private static PostgresException Postgres(string sqlState, string? constraintName = null) =>
