@@ -30,10 +30,10 @@ Lệnh EF luôn chỉ rõ cả project chứa migration và project khởi độ
 
 ```bash
 # Liệt kê migration, không kết nối database
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect   --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
 
 # Kiểm tra model và snapshot còn khớp nhau (chỉ đọc)
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations has-pending-model-changes   --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations has-pending-model-changes --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
 ```
 
 Chỉ tạo hoặc áp migration (`migrations add`, `database update`) khi có yêu cầu; `Tadss:Database:ApplyMigrationsOnStartup` được `StartupTasks` (Runtime.Api) xử lý.

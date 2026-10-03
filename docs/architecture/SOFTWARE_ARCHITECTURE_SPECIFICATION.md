@@ -222,43 +222,51 @@ sequenceDiagram
     else Chưa có
         DS->>DS: ItemDurationPolicy (P-01), IStrategyRegistry.ResolveActive, nowUtc từ TimeProvider
         DS->>EV: EvaluateAsync(strategy, reservation, context, requestHash)
-        opt Strategy khai báo cache Enabled
-            EV->>CA: GetAsync(key)
-            CA-->>EV: StrategyDecision hoặc miss (lỗi cache cũng chỉ là miss)
-        end
-        alt Cache hit
-            EV-->>DS: StrategyEvaluation (CACHE_HIT)
-        else Miss
-            EV->>PL: ExecuteAsync (outer timeout → fallback → retry → breaker → inner timeout)
-            PL->>ST: EvaluateAsync
-            alt Strategy trả kết quả
-                ST-->>PL: StrategyDecision
-                PL-->>EV: AUTOMATED
-                opt Strategy cho phép cache
-                    EV->>CA: SetAsync (lỗi ghi cache bị bỏ qua)
-                end
-            else Strategy lỗi, quá hạn inner timeout hoặc breaker mở
-                PL-->>EV: Fallback NEED_APPROVAL (FALLBACK, không ghi cache)
-            else Quá outer timeout
-                PL-->>MW: DecisionTimeoutException
-                MW-->>BE: 504 GATEWAY_TIMEOUT + Retry-After
+        alt Cache miss và pipeline vượt outer timeout
+            EV->>PL: ExecuteAsync
+            PL-->>MW: DecisionTimeoutException
+            MW-->>BE: 504 GATEWAY_TIMEOUT + Retry-After (kết thúc, không ghi audit)
+        else Có kết quả đánh giá
+            opt Strategy khai báo cache Enabled
+                EV->>CA: GetAsync(key)
+                CA-->>EV: StrategyDecision hoặc miss (lỗi cache cũng chỉ là miss)
             end
-            EV-->>DS: StrategyEvaluation
-        end
-        DS->>DS: DecisionResponseComposer (approval window, quy đổi cọc, response ⇔ response_payload)
-        DS->>AU: InsertExecutionAsync(record) (fail-closed, INV-10)
-        AU->>DB: INSERT decision_executions
-        alt Ghi thành công
-            AU-->>DS: Inserted
-            DS-->>CT: DecisionResultDto
-            CT-->>BE: 200 DecisionResult v2
-        else Tranh chấp uq_decision_idempotency_key (23505)
-            AU-->>DS: Bản ghi của request thắng
-            DS-->>CT: Response đã lưu
-            CT-->>BE: 200 (cùng kết quả với request thắng)
-        else Lỗi tạm thời của PostgreSQL (40001, 40P01, mất kết nối)
-            AU-->>MW: PersistenceUnavailableException
-            MW-->>BE: 503 PERSISTENCE_UNAVAILABLE + Retry-After, không có response nào được trả
+            alt Cache hit
+                EV-->>DS: StrategyEvaluation (CACHE_HIT)
+            else Miss
+                EV->>PL: ExecuteAsync (outer timeout, fallback, retry, breaker, inner timeout)
+                PL->>ST: EvaluateAsync
+                alt Strategy trả kết quả
+                    ST-->>PL: StrategyDecision
+                    PL-->>EV: AUTOMATED
+                    opt Strategy cho phép cache
+                        EV->>CA: SetAsync (lỗi ghi cache bị bỏ qua)
+                    end
+                else Strategy lỗi, quá hạn inner timeout hoặc breaker mở
+                    PL-->>EV: Fallback NEED_APPROVAL (FALLBACK, không ghi cache)
+                end
+                EV-->>DS: StrategyEvaluation
+            end
+            DS->>DS: DecisionResponseComposer (approval window, quy đổi cọc, response ⇔ response_payload)
+            DS->>AU: InsertExecutionAsync(record) (fail-closed, INV-10)
+            AU->>DB: INSERT decision_executions
+            alt Ghi thành công
+                AU-->>DS: Inserted
+                DS-->>CT: DecisionResultDto
+                CT-->>BE: 200 DecisionResult v2
+            else Tranh chấp uq_decision_idempotency_key (23505)
+                AU-->>DS: Bản ghi của request thắng
+                alt Cùng request_hash
+                    DS-->>CT: Response đã lưu
+                    CT-->>BE: 200 (cùng kết quả với request thắng)
+                else Khác request_hash
+                    DS-->>MW: IdempotencyConflictException
+                    MW-->>BE: 409 IDEMPOTENCY_KEY_REUSE
+                end
+            else Lỗi tạm thời của PostgreSQL (40001, 40P01, mất kết nối)
+                AU-->>MW: PersistenceUnavailableException
+                MW-->>BE: 503 PERSISTENCE_UNAVAILABLE + Retry-After, không có response nào được trả
+            end
         end
     end
     Note over BE,MW: Caller hủy (client ngắt kết nối) ở bất kỳ bước nào: OperationCanceledException lan ra,<br/>GlobalExceptionHandler chỉ ghi log mức thông tin và không ghi response
