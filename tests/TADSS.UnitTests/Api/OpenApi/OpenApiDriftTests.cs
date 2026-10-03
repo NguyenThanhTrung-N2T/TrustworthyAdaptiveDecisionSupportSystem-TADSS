@@ -138,11 +138,11 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
         pageSize.Schema.Maximum.Should().Be(100);
         pending.Parameters.Should().ContainSingle(p => p.Name == "page").Which.Schema.Minimum.Should().Be(1);
 
-        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "409", "415", "500", "503", "504"]);
-        get.Responses.Keys.Should().BeEquivalentTo(["200", "404", "500", "503"]);
-        pending.Responses.Keys.Should().BeEquivalentTo(["200", "400", "500", "503"]);
-        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "404", "409", "415", "500", "503"]);
-        outcome.Responses.Keys.Should().BeEquivalentTo(["200", "400", "404", "409", "415", "500", "503"]);
+        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "415", "500", "503", "504"]);
+        get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "500", "503"]);
+        pending.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
+        outcome.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
         foreach (var (status, response) in all.SelectMany(operation => operation.Responses).Where(r => r.Key != "200"))
         {
             response.Content.Keys.Should().Contain(ProblemMediaType, $"phản hồi {status} phải là problem+json");

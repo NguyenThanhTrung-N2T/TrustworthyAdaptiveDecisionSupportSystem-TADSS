@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using Shared.DecisionContractSDK.Common;
+using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.ErrorHandling;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.OpenApi;
@@ -8,10 +10,13 @@ using TADSS.Runtime.Api.Options;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Đăng ký DI của tầng presentation: exception handler, ProblemDetails, controller + JSON và Swagger.
+/// Đăng ký DI của tầng presentation: bảo mật (API key), exception handler, ProblemDetails, controller + JSON và Swagger.
 /// </summary>
 public static class PresentationServiceCollectionExtensions
 {
+    /// <summary>Tên security scheme trong tài liệu OpenAPI.</summary>
+    private const string ApiKeySchemeName = "ApiKey";
+
     /// <summary>
     /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc section <c>Tadss:ErrorHandling</c> từ <paramref name="configuration"/>.
     /// </summary>
@@ -22,6 +27,9 @@ public static class PresentationServiceCollectionExtensions
             .Bind(configuration.GetSection(ErrorHandlingOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<ErrorHandlingOptions>, ErrorHandlingOptionsValidator>();
+
+        // Xác thực API key (Tadss:Security)
+        services.AddTadssSecurity(configuration);
 
         services.AddExceptionHandler<GlobalExceptionHandler>();
         // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa
@@ -64,6 +72,20 @@ public static class PresentationServiceCollectionExtensions
 
             // Register operation filter for contract-defined headers
             c.OperationFilter<RequiredHeaderOperationFilter>();
+
+            // Mọi operation yêu cầu X-Api-Key: khai báo scheme + requirement, và phản hồi 401 của từng operation
+            c.AddSecurityDefinition(ApiKeySchemeName, new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = HttpHeaderNames.ApiKey,
+                Description = "API key do TADSS cấp cho từng client (service-to-service)."
+            });
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = ApiKeySchemeName } }] = []
+            });
+            c.OperationFilter<SecurityResponsesOperationFilter>();
 
             // problem+json của contract mang thêm code/traceId...; chuẩn hóa xuống dòng để openapi-v2.yaml sinh ổn định giữa các máy
             c.SchemaFilter<ProblemDetailsSchemaFilter>();

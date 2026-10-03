@@ -34,6 +34,8 @@ public class AppSettingsValidationTests
         builder.Configuration.AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false);
         // Chuỗi kết nối trong appsettings.json là ô giữ chỗ (bị DatabaseOptionsValidator từ chối): thay bằng chuỗi test
         builder.Configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
+        // ApiKeys rỗng trong appsettings.json (khóa thật cấp qua biến môi trường); host Production của test này cần ít nhất một khóa giả
+        builder.Configuration.AddInMemoryCollection(TestApiKeys.ToConfiguration(TestApiKeys.DefaultClients));
         builder.Services.AddLogging();
         builder.Services.AddRuntimeCore(builder.Configuration);
         builder.Services.AddPresentation(builder.Configuration);

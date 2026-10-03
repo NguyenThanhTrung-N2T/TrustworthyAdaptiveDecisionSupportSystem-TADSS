@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using TADSS.Application.Strategies;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Persistence;
+using TADSS.Runtime.Api.Options;
 
 namespace TADSS.Runtime.Api.Composition;
 
@@ -18,6 +19,14 @@ public static class StartupTasks
     {
         // Eager startup validation cho registry strategy: tham số strategy/ActiveStrategyName sai thì không khởi động
         app.Services.GetRequiredService<IStrategyRegistry>();
+
+        // API key rỗng ở Development/Testing: vẫn khởi động (validator cho phép) nhưng mọi request /api/* sẽ bị 401, nên cảnh báo rõ
+        if (app.Services.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKeys.Count == 0)
+        {
+            app.Logger.LogWarning(
+                "{Section}:ApiKeys đang rỗng: mọi request /api/* sẽ bị 401. Cấp khóa qua biến môi trường Tadss__Security__ApiKeys__0__ClientId/KeySha256 hoặc file cấu hình dev.",
+                SecurityOptions.SectionName);
+        }
 
         // Tự áp migration khi khởi động — chỉ bật ở E-LOCAL (docker compose); Neon/staging giữ mặc định false
         if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.ApplyMigrationsOnStartup)

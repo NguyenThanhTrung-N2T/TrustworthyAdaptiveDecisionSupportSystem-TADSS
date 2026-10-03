@@ -65,6 +65,17 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: 'Thiếu hoặc sai X-Api-Key (UNAUTHORIZED), kèm header WWW-Authenticate.'
+          headers:
+            WWW-Authenticate:
+              description: 'Cách xác thực: ApiKey header="X-Api-Key".'
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}/override':
     post:
       tags:
@@ -157,6 +168,17 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: 'Thiếu hoặc sai X-Api-Key (UNAUTHORIZED), kèm header WWW-Authenticate.'
+          headers:
+            WWW-Authenticate:
+              description: 'Cách xác thực: ApiKey header="X-Api-Key".'
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}/outcome':
     post:
       tags:
@@ -240,6 +262,17 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: 'Thiếu hoặc sai X-Api-Key (UNAUTHORIZED), kèm header WWW-Authenticate.'
+          headers:
+            WWW-Authenticate:
+              description: 'Cách xác thực: ApiKey header="X-Api-Key".'
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v2/decisions:
     post:
       tags:
@@ -316,6 +349,17 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: 'Thiếu hoặc sai X-Api-Key (UNAUTHORIZED), kèm header WWW-Authenticate.'
+          headers:
+            WWW-Authenticate:
+              description: 'Cách xác thực: ApiKey header="X-Api-Key".'
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}':
     get:
       tags:
@@ -356,6 +400,17 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '500':
           description: Lỗi nội bộ (`INTERNAL_ERROR`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: 'Thiếu hoặc sai X-Api-Key (UNAUTHORIZED), kèm header WWW-Authenticate.'
+          headers:
+            WWW-Authenticate:
+              description: 'Cách xác thực: ApiKey header="X-Api-Key".'
+              schema:
+                type: string
           content:
             application/problem+json:
               schema:
@@ -1051,3 +1106,11 @@ components:
           format: double
       additionalProperties: false
       description: Một item của request.
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      description: API key do TADSS cấp cho từng client (service-to-service).
+      name: X-Api-Key
+      in: header
+security:
+  - ApiKey: [ ]
