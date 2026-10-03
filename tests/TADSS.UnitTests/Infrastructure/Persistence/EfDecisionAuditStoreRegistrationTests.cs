@@ -55,6 +55,7 @@ public class EfDecisionAuditStoreRegistrationTests
         var evaluation = firstScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
         var query = firstScope.ServiceProvider.GetRequiredService<IDecisionQueryStore>();
         var concrete = firstScope.ServiceProvider.GetRequiredService<EfDecisionAuditStore>();
+        var governance = firstScope.ServiceProvider.GetRequiredService<IDecisionGovernanceStore>();
         using var secondScope = host.Services.CreateScope();
         var otherEvaluation = secondScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
         var otherQuery = secondScope.ServiceProvider.GetRequiredService<IDecisionQueryStore>();
@@ -64,5 +65,9 @@ public class EfDecisionAuditStoreRegistrationTests
         concrete.Should().BeSameAs(evaluation);
         otherQuery.Should().BeSameAs(otherEvaluation);
         otherEvaluation.Should().NotBeSameAs(evaluation);
+        // Port ghi quản trị là adapter riêng (EfDecisionGovernanceStore), cũng scoped
+        governance.Should().BeOfType<EfDecisionGovernanceStore>();
+        firstScope.ServiceProvider.GetRequiredService<IDecisionGovernanceStore>().Should().BeSameAs(governance);
+        secondScope.ServiceProvider.GetRequiredService<IDecisionGovernanceStore>().Should().NotBeSameAs(governance);
     }
 }

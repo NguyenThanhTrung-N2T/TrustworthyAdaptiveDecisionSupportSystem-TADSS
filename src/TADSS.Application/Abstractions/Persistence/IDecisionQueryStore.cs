@@ -19,4 +19,23 @@ public interface IDecisionQueryStore
     /// <returns>Chi tiết quyết định, hoặc <c>null</c> nếu không có bản ghi đánh giá nào với <paramref name="decisionId"/>.</returns>
     /// <exception cref="PersistenceUnavailableException">Khi lưu trữ tạm thời không khả dụng.</exception>
     Task<DecisionDetailRecord?> GetDecisionDetailAsync(Guid decisionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lấy một trang hàng chờ duyệt của chi nhánh: bản ghi <c>PRIMARY</c> trạng thái <c>NEED_APPROVAL</c> còn hạn duyệt
+    /// (<c>approval_expires_at</c> &gt; <paramref name="nowUtc"/>, so sánh nghiêm ngặt), chưa có override hay outcome và không bị
+    /// bản <c>PRIMARY</c> mới hơn của cùng đơn (cùng <c>reservation_id</c> và chi nhánh) thay thế. Bản <c>SHADOW</c> không bao giờ có mặt (INV-8).
+    /// Sắp theo <c>approval_expires_at</c> rồi <c>decision_id</c> nên phân trang tất định.
+    /// <para>
+    /// Trang và tổng là hai truy vấn riêng, không chung transaction: giữa hai lần đọc hàng chờ có thể đổi, nên <c>TotalItems</c> chỉ là
+    /// số đếm tại thời điểm đọc, không bảo đảm khớp tuyệt đối với <c>Items</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="branchId">Chi nhánh cần lấy hàng chờ.</param>
+    /// <param name="page">Số trang, bắt đầu từ 1.</param>
+    /// <param name="pageSize">Số bản ghi mỗi trang (≥ 1).</param>
+    /// <param name="nowUtc">Mốc hiện tại để loại bản đã hết hạn duyệt (lấy từ <see cref="TimeProvider"/> của caller).</param>
+    /// <param name="cancellationToken">Token hủy của caller.</param>
+    /// <returns>Trang kết quả và tổng số bản ghi đang chờ của chi nhánh.</returns>
+    /// <exception cref="PersistenceUnavailableException">Khi lưu trữ tạm thời không khả dụng.</exception>
+    Task<PendingApprovalsPage> GetPendingApprovalsAsync(Guid branchId, int page, int pageSize, DateTimeOffset nowUtc, CancellationToken cancellationToken);
 }

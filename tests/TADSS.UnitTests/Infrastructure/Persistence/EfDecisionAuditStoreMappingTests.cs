@@ -214,4 +214,41 @@ public class EfDecisionAuditStoreMappingTests
 
         record.Should().Be(new DecisionOutcomeRecord(entity.DecisionId, outcome, occurredAt, reportedAt));
     }
+
+    [Theory]
+    [InlineData(OverrideAction.APPROVE, 0.5, 150000.0)]
+    [InlineData(OverrideAction.REJECT, null, null)]
+    [Trait("CatalogId", "UT-01")]
+    public void MapOverride_RecordToEntityAndBack_RoundTripsAndLeavesTechnicalKeyEmpty(OverrideAction action, double? rate, double? amount)
+    {
+        var record = new DecisionOverrideRecord(
+            Guid.NewGuid(),
+            action,
+            rate is null ? null : (decimal)rate,
+            amount is null ? null : (decimal)amount,
+            "manager-01",
+            "Khách quen, duyệt cọc 50%",
+            "override-key-1",
+            EvaluatedAt);
+
+        var entity = DecisionAuditMapper.ToEntity(record);
+
+        entity.Id.Should().BeEmpty("khóa kỹ thuật do cơ sở dữ liệu sinh");
+        entity.DecisionId.Should().Be(record.DecisionId);
+        DecisionAuditMapper.ToRecord(entity).Should().Be(record);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllOutcomes))]
+    [Trait("CatalogId", "UT-01")]
+    public void MapOutcome_RecordToEntityAndBack_RoundTripsAndLeavesTechnicalKeyEmpty(OutcomeKind outcome)
+    {
+        var record = new DecisionOutcomeRecord(Guid.NewGuid(), outcome, EvaluatedAt.AddDays(1), EvaluatedAt.AddDays(1).AddMinutes(5));
+
+        var entity = DecisionAuditMapper.ToEntity(record);
+
+        entity.Id.Should().BeEmpty("khóa kỹ thuật do cơ sở dữ liệu sinh");
+        entity.DecisionId.Should().Be(record.DecisionId);
+        DecisionAuditMapper.ToRecord(entity).Should().Be(record);
+    }
 }

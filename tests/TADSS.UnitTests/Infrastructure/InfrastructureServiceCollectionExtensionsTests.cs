@@ -24,6 +24,7 @@ public class InfrastructureServiceCollectionExtensionsTests
         { typeof(EfDecisionAuditStore), ServiceLifetime.Scoped },
         { typeof(IDecisionEvaluationStore), ServiceLifetime.Scoped },
         { typeof(IDecisionQueryStore), ServiceLifetime.Scoped },
+        { typeof(IDecisionGovernanceStore), ServiceLifetime.Scoped },
         { typeof(TadssDbContext), ServiceLifetime.Scoped },
         { typeof(IStrategyPipeline), ServiceLifetime.Singleton },
         { typeof(IStrategyDecisionCache), ServiceLifetime.Singleton },
@@ -67,6 +68,7 @@ public class InfrastructureServiceCollectionExtensionsTests
         using var scope = provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>().Should().BeOfType<EfDecisionAuditStore>();
         scope.ServiceProvider.GetRequiredService<IDecisionQueryStore>().Should().BeOfType<EfDecisionAuditStore>();
+        scope.ServiceProvider.GetRequiredService<IDecisionGovernanceStore>().Should().BeOfType<EfDecisionGovernanceStore>();
         scope.ServiceProvider.GetRequiredService<TadssDbContext>().Should().NotBeNull();
     }
 

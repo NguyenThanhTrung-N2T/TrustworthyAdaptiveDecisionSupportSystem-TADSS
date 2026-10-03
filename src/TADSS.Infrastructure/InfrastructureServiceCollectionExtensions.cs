@@ -77,6 +77,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<EfDecisionAuditStore>();
         services.AddScoped<IDecisionEvaluationStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());
         services.AddScoped<IDecisionQueryStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());
+        services.AddScoped<IDecisionGovernanceStore, EfDecisionGovernanceStore>();
 
         return services;
     }

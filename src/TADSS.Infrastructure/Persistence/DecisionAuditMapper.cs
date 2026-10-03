@@ -4,7 +4,7 @@ using TADSS.Infrastructure.Persistence.Entities;
 namespace TADSS.Infrastructure.Persistence;
 
 /// <summary>
-/// Ánh xạ thuần (không I/O, không trạng thái) giữa record của <see cref="IDecisionEvaluationStore"/>/<see cref="IDecisionQueryStore"/> và entity EF Core.
+/// Ánh xạ thuần (không I/O, không trạng thái) giữa record của <see cref="IDecisionEvaluationStore"/>/<see cref="IDecisionQueryStore"/>/<see cref="IDecisionGovernanceStore"/> và entity EF Core.
 /// Là chỗ duy nhất biết cả hai phía để entity không lọt ra ngoài store. Mọi giá trị đi qua nguyên vẹn
 /// (chuỗi jsonb, <c>decimal</c>, <see cref="DateTimeOffset"/>); khóa kỹ thuật <c>Id</c> để trống cho cơ sở dữ liệu sinh.
 /// </summary>
@@ -36,6 +36,28 @@ internal static class DecisionAuditMapper
         IdempotencyKey = record.IdempotencyKey,
         CorrelationId = record.CorrelationId,
         CreatedAt = record.CreatedAt,
+    };
+
+    /// <summary>Tạo entity override chưa lưu từ <paramref name="record"/>; <see cref="DecisionOverrideEntity.Id"/> do cơ sở dữ liệu sinh.</summary>
+    public static DecisionOverrideEntity ToEntity(DecisionOverrideRecord record) => new()
+    {
+        DecisionId = record.DecisionId,
+        Action = record.Action,
+        DepositRate = record.DepositRate,
+        DepositAmount = record.DepositAmount,
+        ActorId = record.ActorId,
+        Reason = record.Reason,
+        IdempotencyKey = record.IdempotencyKey,
+        CreatedAt = record.CreatedAt,
+    };
+
+    /// <summary>Tạo entity outcome chưa lưu từ <paramref name="record"/>; <see cref="DecisionOutcomeEntity.Id"/> do cơ sở dữ liệu sinh.</summary>
+    public static DecisionOutcomeEntity ToEntity(DecisionOutcomeRecord record) => new()
+    {
+        DecisionId = record.DecisionId,
+        Outcome = record.Outcome,
+        OccurredAt = record.OccurredAt,
+        ReportedAt = record.ReportedAt,
     };
 
     /// <summary>Dựng record từ entity đã đọc (bỏ khóa kỹ thuật <c>Id</c>).</summary>

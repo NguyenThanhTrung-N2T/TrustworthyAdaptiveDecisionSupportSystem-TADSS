@@ -8,33 +8,36 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Persistence;
 
 /// <summary>
-/// UT-01 (INV-4): khóa bằng phản chiếu tuyên bố "kho audit append-only và không lộ hạ tầng EF" của hai port
-/// <see cref="IDecisionEvaluationStore"/> và <see cref="IDecisionQueryStore"/> — không có method sửa/xóa/thêm kiểu chung, và không
+/// UT-01 (INV-4): khóa bằng phản chiếu tuyên bố "kho audit append-only và không lộ hạ tầng EF" của ba port
+/// <see cref="IDecisionEvaluationStore"/>, <see cref="IDecisionQueryStore"/> và <see cref="IDecisionGovernanceStore"/> — không có method sửa/xóa/thêm kiểu chung, và không
 /// method nào nhận hay trả <c>IQueryable</c>, <see cref="DbContext"/> hoặc entity EF.
 /// </summary>
 public class DecisionAuditStoreContractTests
 {
     private static readonly string[] ForbiddenNamePrefixes = ["Update", "Delete", "Remove", "Add", "Save", "Attach", "Upsert", "Truncate"];
 
-    private static readonly Type[] StoreInterfaces = [typeof(IDecisionEvaluationStore), typeof(IDecisionQueryStore)];
+    private static readonly Type[] StoreInterfaces = [typeof(IDecisionEvaluationStore), typeof(IDecisionQueryStore), typeof(IDecisionGovernanceStore)];
 
     private static readonly MethodInfo[] StoreMethods = StoreInterfaces
         .SelectMany(MethodsOf)
         .ToArray();
 
-    public static TheoryData<Type> AuditStoreInterfaces => new() { typeof(IDecisionEvaluationStore), typeof(IDecisionQueryStore) };
+    public static TheoryData<Type> AuditStoreInterfaces => new() { typeof(IDecisionEvaluationStore), typeof(IDecisionQueryStore), typeof(IDecisionGovernanceStore) };
 
     private static IEnumerable<MethodInfo> MethodsOf(Type storeInterface) =>
         storeInterface.GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
     [Fact]
     [Trait("CatalogId", "UT-01")]
-    public void Interface_ExposesOnlyTheThreeExpectedMethods()
+    public void Interface_ExposesOnlyTheExpectedMethods()
     {
         StoreMethods.Select(method => method.Name).Should().BeEquivalentTo(
             "FindPrimaryByIdempotencyKeyAsync",
             "InsertExecutionAsync",
-            "GetDecisionDetailAsync");
+            "GetDecisionDetailAsync",
+            "GetPendingApprovalsAsync",
+            "InsertOverrideAsync",
+            "InsertOutcomeAsync");
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public class DecisionAuditStoreContractTests
             .Should().BeEmpty("DbContext/IQueryable/entity EF không được lọt ra khỏi port");
     }
 
-    /// <summary>ISP (E-07): mỗi port chỉ lộ đúng method của consumer — evaluation gồm tra idempotency và ghi, query chỉ tra chi tiết.</summary>
+    /// <summary>ISP (E-07, F-01): mỗi port chỉ lộ đúng method của consumer — evaluation gồm tra idempotency và ghi, query chỉ đọc (chi tiết, hàng chờ), governance chỉ ghi override/outcome.</summary>
     [Fact]
     [Trait("CatalogId", "UT-14")]
     public void AuditStoreInterfaces_SplitMethodsByConsumer()
@@ -92,14 +95,16 @@ public class DecisionAuditStoreContractTests
         MethodsOf(typeof(IDecisionEvaluationStore)).Select(method => method.Name)
             .Should().BeEquivalentTo("FindPrimaryByIdempotencyKeyAsync", "InsertExecutionAsync");
         MethodsOf(typeof(IDecisionQueryStore)).Select(method => method.Name)
-            .Should().BeEquivalentTo("GetDecisionDetailAsync");
+            .Should().BeEquivalentTo("GetDecisionDetailAsync", "GetPendingApprovalsAsync");
+        MethodsOf(typeof(IDecisionGovernanceStore)).Select(method => method.Name)
+            .Should().BeEquivalentTo("InsertOverrideAsync", "InsertOutcomeAsync");
     }
 
     [Fact]
     [Trait("CatalogId", "UT-01")]
     public void Entities_AreNotReachableFromTheReadModelRecords()
     {
-        var recordTypes = new[] { typeof(DecisionExecutionRecord), typeof(DecisionOverrideRecord), typeof(DecisionOutcomeRecord), typeof(DecisionDetailRecord), typeof(InsertExecutionResult) };
+        var recordTypes = new[] { typeof(DecisionExecutionRecord), typeof(DecisionOverrideRecord), typeof(DecisionOutcomeRecord), typeof(DecisionDetailRecord), typeof(InsertExecutionResult), typeof(InsertOverrideResult), typeof(InsertOutcomeResult), typeof(PendingApprovalsPage) };
 
         var leaked = recordTypes
             .SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance))

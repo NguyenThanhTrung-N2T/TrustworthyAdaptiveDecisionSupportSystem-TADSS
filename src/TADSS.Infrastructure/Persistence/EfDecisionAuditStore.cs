@@ -12,7 +12,8 @@ namespace TADSS.Infrastructure.Persistence;
 /// dùng một <see cref="TadssDbContext"/> riêng, nên store không được chia sẻ giữa các luồng song song.
 /// <para>
 /// Chỉ thêm và đọc (INV-4): không tạo <c>UPDATE</c>/<c>DELETE</c>; mọi truy vấn đọc là <c>AsNoTracking</c>; entity không lọt ra ngoài
-/// (xem <see cref="DecisionAuditMapper"/>).
+/// (xem <see cref="DecisionAuditMapper"/>). Hàng chờ duyệt do <see cref="PendingApprovalsQuery"/> dựng (SQL thô tham số hóa); ghi override/outcome
+/// là việc của <see cref="EfDecisionGovernanceStore"/>.
 /// </para>
 /// <para>
 /// Dịch lỗi: lỗi kết nối/timeout/<c>40001</c>/<c>40P01</c> (theo <see cref="PersistenceFailureDetector.IsRetryable"/>) →
@@ -58,6 +59,15 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
     /// <inheritdoc />
     public Task<DecisionDetailRecord?> GetDecisionDetailAsync(Guid decisionId, CancellationToken cancellationToken) =>
         Execute(() => GetDetailCoreAsync(decisionId, cancellationToken), cancellationToken);
+
+    /// <inheritdoc />
+    public Task<PendingApprovalsPage> GetPendingApprovalsAsync(
+        Guid branchId, int page, int pageSize, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        return Execute(() => new PendingApprovalsQuery(_db).ExecuteAsync(branchId, page, pageSize, nowUtc, cancellationToken), cancellationToken);
+    }
 
     private async Task<DecisionExecutionRecord?> FindPrimaryCoreAsync(string idempotencyKey, CancellationToken cancellationToken)
     {
