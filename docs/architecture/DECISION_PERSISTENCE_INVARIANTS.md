@@ -26,14 +26,14 @@ Mã persistence nằm trong project `TADSS.Infrastructure` (EF Core chỉ đư�
 | Cấu hình ánh xạ: `DecisionExecutionConfiguration`, `DecisionOverrideConfiguration`, `DecisionOutcomeConfiguration` | `src/TADSS.Infrastructure/Persistence/Configurations/` |
 | Migration và `TadssDbContextModelSnapshot` | `src/TADSS.Infrastructure/Persistence/Migrations/` |
 
-Lệnh EF luôn chỉ rõ cả project chứa migration và project khởi động (composition root), chạy với môi trường `Testing` để không đọc cấu hình cục bộ:
+Lệnh EF luôn chỉ rõ cả project chứa migration và project khởi động (composition root), chạy với môi trường `Testing` để không đọc cấu hình cục bộ. Kèm biến `ConnectionStrings__DefaultConnection` giả (không phải secret, không mở kết nối): design-time khởi động host, mà validator từ chối chuỗi giữ chỗ trong `appsettings.json` và `Testing` không nạp `appsettings.Development.json`:
 
 ```bash
 # Liệt kê migration, không kết nối database
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+ASPNETCORE_ENVIRONMENT=Testing ConnectionStrings__DefaultConnection="Host=localhost;Database=x" dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
 
 # Kiểm tra model và snapshot còn khớp nhau (chỉ đọc)
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations has-pending-model-changes --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+ASPNETCORE_ENVIRONMENT=Testing ConnectionStrings__DefaultConnection="Host=localhost;Database=x" dotnet ef migrations has-pending-model-changes --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
 ```
 
 Chỉ tạo hoặc áp migration (`migrations add`, `database update`) khi có yêu cầu; `Tadss:Database:ApplyMigrationsOnStartup` được `StartupTasks` (Runtime.Api) xử lý.

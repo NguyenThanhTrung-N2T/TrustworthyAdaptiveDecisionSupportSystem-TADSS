@@ -62,10 +62,12 @@ dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296
 Lệnh EF Core (chỉ đọc, không kết nối database):
 
 ```bash
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
+ASPNETCORE_ENVIRONMENT=Testing ConnectionStrings__DefaultConnection="Host=localhost;Database=x" dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api
 ```
 
-Cấu hình kết nối PostgreSQL/Redis đặt trong user-secrets hoặc `appsettings.Development.json` (không commit). `appsettings.json` chỉ chứa giá trị mẫu.
+Biến `ConnectionStrings__DefaultConnection` ở trên là chuỗi giả (không phải secret, không mở kết nối): công cụ EF khởi động host ở design-time, mà môi trường `Testing` không nạp `appsettings.Development.json` và validator từ chối chuỗi giữ chỗ trong `appsettings.json`.
+
+Cấu hình kết nối PostgreSQL/Redis đặt trong user-secrets hoặc `appsettings.Development.json` (không commit). `appsettings.json` chỉ chứa giá trị mẫu. Chuỗi kết nối PostgreSQL (`ConnectionStrings:DefaultConnection`, bắt buộc ở mọi môi trường, thiếu hoặc sai thì app không khởi động) phải ở dạng Npgsql `key=value` (ví dụ `Host=...;Port=5432;Database=...;Username=...;Password=...`); URI dạng `postgresql://...` (kiểu Neon hay cấp) **không** được chấp nhận, cần đổi sang dạng `key=value`.
 
 ### Môi trường E-LOCAL (docker compose)
 

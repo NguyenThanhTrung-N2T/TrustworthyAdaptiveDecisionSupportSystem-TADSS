@@ -13,7 +13,7 @@ dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS
 dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS.IntegrationTests"   # cần Docker (Testcontainers)
 docker compose up -d --build                                            # môi trường E-LOCAL tự chứa; dừng + xóa dữ liệu: docker compose down -v
 dotnet run --project src/TADSS.Runtime.Api                              # http://localhost:5296/swagger
-ASPNETCORE_ENVIRONMENT=Testing dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api   # EF chỉ đọc; migration nằm ở Infrastructure
+ASPNETCORE_ENVIRONMENT=Testing ConnectionStrings__DefaultConnection="Host=localhost;Database=x" dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api   # EF chỉ đọc; migration nằm ở Infrastructure; chuỗi kết nối giả vì design-time khởi động host mà validator từ chối ô giữ chỗ trong appsettings.json (không phải secret, không mở kết nối)
 ```
 CI: restore → build Release → unit test → integration test (Testcontainers) → Docker build. Nhánh làm việc chính: `develop`.
 
