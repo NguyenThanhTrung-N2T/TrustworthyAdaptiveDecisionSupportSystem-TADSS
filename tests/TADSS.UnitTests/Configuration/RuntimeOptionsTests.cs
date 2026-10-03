@@ -78,7 +78,7 @@ public class RuntimeOptionsTests
     {
         var calendar = new CalendarOptions().ToCalendar();
 
-        Project(calendar).Should().Equal(Project(V2TestData.StandardCalendar()));
+        Project(calendar).Should().Equal(Project(DomainTestData.StandardCalendar()));
         CalendarOptions.DefaultPeakWindows.Should().HaveCount(7);
     }
 

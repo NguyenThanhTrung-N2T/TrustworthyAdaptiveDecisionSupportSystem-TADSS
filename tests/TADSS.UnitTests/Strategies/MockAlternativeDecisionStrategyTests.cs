@@ -30,9 +30,9 @@ public class MockAlternativeDecisionStrategyTests
         string startIso, long totalPrice, DecisionStatus expectedStatus, string? expectedRate, string expectedReason)
     {
         var start = DateTimeOffset.Parse(startIso, CultureInfo.InvariantCulture);
-        var reservation = V2TestData.CreateReservation(items: [V2TestData.CreateItem(start)], totalPrice: totalPrice);
+        var reservation = DomainTestData.CreateReservation(items: [DomainTestData.CreateItem(start)], totalPrice: totalPrice);
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Status.Should().Be(expectedStatus);
         decision.ReasonCode.Should().Be(expectedReason);
@@ -43,10 +43,10 @@ public class MockAlternativeDecisionStrategyTests
     [Trait("CatalogId", "UT-05")]
     public async Task EvaluateAsync_PeakReason_UsesBranchLocalTimeAndVietnameseDay()
     {
-        var reservation = V2TestData.CreateReservation(
-            items: [V2TestData.CreateItem(new DateTimeOffset(2026, 11, 20, 11, 0, 0, TimeSpan.Zero))]);
+        var reservation = DomainTestData.CreateReservation(
+            items: [DomainTestData.CreateItem(new DateTimeOffset(2026, 11, 20, 11, 0, 0, TimeSpan.Zero))]);
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Reasons.Should().ContainSingle()
             .Which.Should().Be("Khung giờ cao điểm (18:00 thứ Sáu, giờ chi nhánh) áp dụng cọc 50%.");
@@ -56,9 +56,9 @@ public class MockAlternativeDecisionStrategyTests
     [Trait("CatalogId", "UT-03")]
     public async Task EvaluateAsync_HighValueAtPeak_RecommendsApprovalAndAlternativeSlot()
     {
-        var reservation = V2TestData.CreateReservation(totalPrice: 2_000_000m);
+        var reservation = DomainTestData.CreateReservation(totalPrice: 2_000_000m);
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Recommendations.Select(recommendation => recommendation.Type).Should().Equal(
             RecommendationType.REQUIRE_APPROVAL, RecommendationType.ALTERNATIVE_SLOT);
@@ -68,9 +68,9 @@ public class MockAlternativeDecisionStrategyTests
     [Trait("CatalogId", "UT-05")]
     public async Task EvaluateAsync_CalendarWithoutPeakWindows_TreatsAsOffPeak()
     {
-        var context = V2TestData.CreateContext(calendar: new BranchCalendar([]));
+        var context = DomainTestData.CreateContext(calendar: new BranchCalendar([]));
 
-        var decision = await Strategy.EvaluateAsync(V2TestData.CreateReservation(), context, CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(DomainTestData.CreateReservation(), context, CancellationToken.None);
 
         decision.ReasonCode.Should().Be(ReasonCodes.OffPeakDeposit);
     }
@@ -151,7 +151,7 @@ public class MockAlternativeDecisionStrategyTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        var act = () => Strategy.EvaluateAsync(V2TestData.CreateReservation(), V2TestData.CreateContext(), cancellation.Token);
+        var act = () => Strategy.EvaluateAsync(DomainTestData.CreateReservation(), DomainTestData.CreateContext(), cancellation.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }

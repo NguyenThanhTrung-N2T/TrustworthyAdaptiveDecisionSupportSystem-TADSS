@@ -46,10 +46,10 @@ public class DecisionServiceTests
     };
 
     private static DecisionRequestDto Request(Action<JsonObject>? mutate = null) =>
-        V2Samples.DeserializeRequest(mutate is null ? V2Samples.RequestJson : V2Samples.MutateRequest(mutate));
+        ContractSamples.DeserializeRequest(mutate is null ? ContractSamples.RequestJson : ContractSamples.MutateRequest(mutate));
 
     private static RegisteredStrategy DefaultStrategy() =>
-        StrategyRegistrations.CreateDefault(new ConfigurationBuilder().Build(), V2TestData.StandardCalendar());
+        StrategyRegistrations.CreateDefault(new ConfigurationBuilder().Build(), DomainTestData.StandardCalendar());
 
     private static DelegateStrategy ApproveStrategy(StrategyCachePolicy? cachePolicy = null) =>
         new(
@@ -72,7 +72,7 @@ public class DecisionServiceTests
             RequestHasher.ComputeHash(request));
 
     private static DecisionResultDto Deserialize(string payload) =>
-        V2Samples.Required(JsonSerializer.Deserialize<DecisionResultDto>(payload, TadssJson.Options));
+        ContractSamples.Required(JsonSerializer.Deserialize<DecisionResultDto>(payload, TadssJson.Options));
 
     /// <summary>Bộ phụ thuộc giả dùng chung cho một lần dựng <see cref="DecisionService"/>.</summary>
     private sealed class Fixture
@@ -99,7 +99,7 @@ public class DecisionServiceTests
                 new DecisionResponseComposer(
                     new DepositCalculator(),
                     new ApprovalWindowPolicy(Options.Create(new ApprovalOptions()))),
-                V2TestData.StandardCalendar(),
+                DomainTestData.StandardCalendar(),
                 Time,
                 Logger);
         }
@@ -137,7 +137,7 @@ public class DecisionServiceTests
         var response = await fixture.EvaluateAsync(Request());
 
         response.Status.Should().Be(DecisionStatus.APPROVED);
-        V2Samples.Required(response.Deposit).Rate.Should().Be(0.3m);
+        ContractSamples.Required(response.Deposit).Rate.Should().Be(0.3m);
         response.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         var record = fixture.Store.Records.Should().ContainSingle().Subject;
         record.Role.Should().Be(ExecutionRole.PRIMARY);
@@ -224,7 +224,7 @@ public class DecisionServiceTests
         var fixture = new Fixture();
         var request = Request(root =>
         {
-            var item = V2Samples.Object(root["items"]?.AsArray()[0]);
+            var item = ContractSamples.Object(root["items"]?.AsArray()[0]);
             item["endTime"] = "2026-11-20T18:15:00+07:00";
         });
 
@@ -425,7 +425,7 @@ public class DecisionServiceTests
         // Giờ bắt đầu cách now 1 giờ: hạn duyệt (start - 120 phút) đã ở quá khứ
         var request = Request(root =>
         {
-            var item = V2Samples.Object(root["items"]?.AsArray()[0]);
+            var item = ContractSamples.Object(root["items"]?.AsArray()[0]);
             item["startTime"] = "2026-11-18T10:15:00+07:00";
             item["endTime"] = "2026-11-18T12:15:00+07:00";
         });
@@ -434,7 +434,7 @@ public class DecisionServiceTests
 
         response.ReasonCode.Should().Be(ReasonCodes.ApprovalWindowUnavailable);
         response.Status.Should().Be(DecisionStatus.APPROVED);
-        V2Samples.Required(response.Deposit).Rate.Should().Be(1m);
+        ContractSamples.Required(response.Deposit).Rate.Should().Be(1m);
         var original = fixture.Logger.Entries.Should()
             .ContainSingle(entry => entry.Level == LogLevel.Information
                 && entry.Message.Contains(ReasonCodes.HighValueReview, StringComparison.Ordinal)
@@ -521,7 +521,7 @@ public class DecisionServiceTests
 
         var response = await fixture.EvaluateAsync(Request());
 
-        V2Samples.Required(strategy.LastContext).EvaluatedAtUtc.Should().Be(evaluatedAt);
+        ContractSamples.Required(strategy.LastContext).EvaluatedAtUtc.Should().Be(evaluatedAt);
         fixture.Pipeline.LastContext.Should().BeSameAs(strategy.LastContext);
         response.EvaluatedAt.Should().Be(evaluatedAt);
         fixture.Store.Records.Should().ContainSingle().Which.CreatedAt.Should().Be(evaluatedAt);
@@ -539,7 +539,7 @@ public class DecisionServiceTests
 
         var response = await fixture.EvaluateAsync(Request());
 
-        V2Samples.Required(strategy.LastContext).EvaluatedAtUtc.Should().Be(truncatedNow);
+        ContractSamples.Required(strategy.LastContext).EvaluatedAtUtc.Should().Be(truncatedNow);
         response.EvaluatedAt.Should().Be(truncatedNow);
         var record = fixture.Store.Records.Should().ContainSingle().Subject;
         record.CreatedAt.Should().Be(truncatedNow);

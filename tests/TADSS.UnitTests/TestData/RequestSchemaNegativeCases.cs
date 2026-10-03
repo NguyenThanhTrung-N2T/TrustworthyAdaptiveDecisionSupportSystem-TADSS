@@ -65,7 +65,7 @@ internal static class RequestSchemaNegativeCases
         ["occupancy-above-one"] = root => Demand(root)["occupancyRate"] = 1.5,
         ["occupancy-below-zero"] = root => Demand(root)["occupancyRate"] = -0.1,
         ["waitlist-negative"] = root => Demand(root)["waitlistCount"] = -1,
-        ["metadata-null-value"] = root => V2Samples.Object(root["metadata"])["promotionCode"] = null
+        ["metadata-null-value"] = root => ContractSamples.Object(root["metadata"])["promotionCode"] = null
     };
 
     /// <summary>Tên mọi ca âm (dùng với <c>MemberData</c>).</summary>
@@ -77,28 +77,28 @@ internal static class RequestSchemaNegativeCases
     /// <summary>Payload mẫu đã áp biến đổi của ca <paramref name="caseName"/>.</summary>
     public static string Json(string caseName) =>
         Mutations.TryGetValue(caseName, out var mutate)
-            ? V2Samples.MutateRequest(mutate)
+            ? ContractSamples.MutateRequest(mutate)
             : throw new ArgumentOutOfRangeException(nameof(caseName), caseName, "Không có ca âm này.");
 
-    private static JsonObject Item(JsonObject root) => V2Samples.Object(root["items"]?[0]);
+    private static JsonObject Item(JsonObject root) => ContractSamples.Object(root["items"]?[0]);
 
-    private static JsonObject Customer(JsonObject root) => V2Samples.Object(root["customer"]);
+    private static JsonObject Customer(JsonObject root) => ContractSamples.Object(root["customer"]);
 
-    private static JsonObject History(JsonObject root) => V2Samples.Object(Customer(root)["history"]);
+    private static JsonObject History(JsonObject root) => ContractSamples.Object(Customer(root)["history"]);
 
-    private static JsonObject Demand(JsonObject root) => V2Samples.Object(root["demand"]);
+    private static JsonObject Demand(JsonObject root) => ContractSamples.Object(root["demand"]);
 
     /// <summary>Mảng <paramref name="count"/> item sao từ item mẫu; <paramref name="mutateLast"/> sửa item cuối.</summary>
     private static JsonArray ItemsWith(int count, Action<JsonObject> mutateLast)
     {
-        var sampleItem = Item(V2Samples.Object(JsonNode.Parse(V2Samples.RequestJson)));
+        var sampleItem = Item(ContractSamples.Object(JsonNode.Parse(ContractSamples.RequestJson)));
         var items = new JsonArray();
         for (var i = 0; i < count; i++)
         {
             items.Add(sampleItem.DeepClone());
         }
 
-        mutateLast(V2Samples.Object(items[count - 1]));
+        mutateLast(ContractSamples.Object(items[count - 1]));
         return items;
     }
 }

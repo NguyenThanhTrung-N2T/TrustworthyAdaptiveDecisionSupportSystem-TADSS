@@ -3,7 +3,7 @@ using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Xunit;
 
-namespace TADSS.UnitTests.Domain;
+namespace TADSS.UnitTests.Sdk.Domain;
 
 /// <summary>
 /// UT-01: bất biến của <see cref="CustomerProfile"/>, <see cref="CustomerHistory"/> và <see cref="DemandSnapshot"/>

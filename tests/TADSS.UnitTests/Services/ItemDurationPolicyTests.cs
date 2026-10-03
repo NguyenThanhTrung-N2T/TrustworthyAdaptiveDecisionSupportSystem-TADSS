@@ -14,7 +14,7 @@ namespace TADSS.UnitTests.Services;
 /// </summary>
 public class ItemDurationPolicyTests
 {
-    private static readonly DateTimeOffset Start = V2TestData.FridayPeakStart;
+    private static readonly DateTimeOffset Start = DomainTestData.FridayPeakStart;
 
     [Theory]
     [Trait("CatalogId", "UT-01")]
@@ -76,10 +76,10 @@ public class ItemDurationPolicyTests
         // Lisbon chuyển sang giờ mùa hè lúc 01:00Z ngày 29/03/2026: 00:30Z → 02:30Z là 2 giờ instant
         // nhưng đồng hồ địa phương chạy từ 00:30 đến 03:30 (chênh 3 giờ).
         var start = new DateTimeOffset(2026, 3, 29, 0, 30, 0, TimeSpan.Zero);
-        var end = TimeZoneInfo.ConvertTime(start.AddHours(2), V2TestData.Lisbon);
+        var end = TimeZoneInfo.ConvertTime(start.AddHours(2), DomainTestData.Lisbon);
         (end.DateTime - start.DateTime).Should().Be(TimeSpan.FromHours(3), "tiền đề: đồng hồ địa phương lệch instant do đổi giờ");
         var item = new ReservationItem(Guid.NewGuid(), Guid.NewGuid(), start, end, 240_000m);
-        var reservation = V2TestData.CreateReservation(items: [item], timeZone: V2TestData.Lisbon);
+        var reservation = DomainTestData.CreateReservation(items: [item], timeZone: DomainTestData.Lisbon);
 
         var exactTwoHours = () => CreatePolicy(min: 120, max: 120).EnsureWithinLimits(reservation);
         var wallClockThreeHours = () => CreatePolicy(min: 180, max: 180).EnsureWithinLimits(reservation);
@@ -95,5 +95,5 @@ public class ItemDurationPolicyTests
         new(Guid.NewGuid(), Guid.NewGuid(), start, start.AddMinutes(minutes), 240_000m);
 
     private static Reservation CreateReservation(params ReservationItem[] items) =>
-        V2TestData.CreateReservation(items: items);
+        DomainTestData.CreateReservation(items: items);
 }

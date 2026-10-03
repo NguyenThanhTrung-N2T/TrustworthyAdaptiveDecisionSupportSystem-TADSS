@@ -52,11 +52,11 @@ public class IdempotencyIntegrationTests : DecisionApiTestBase
         var first = await PostDecisionAsync(DecisionRequests.Valid(), key);
         var changed = DecisionRequests.Mutated(root =>
         {
-            var demand = V2Samples.Object(root["demand"]);
+            var demand = ContractSamples.Object(root["demand"]);
             demand["occupancyRate"] = 0.1;
             demand["waitlistCount"] = 9;
             root["requestedAt"] = "2026-11-18T09:45:00+07:00";
-            V2Samples.Object(root["metadata"])["promotionCode"] = "SUMMER";
+            ContractSamples.Object(root["metadata"])["promotionCode"] = "SUMMER";
         });
 
         var second = await PostDecisionAsync(changed, key);

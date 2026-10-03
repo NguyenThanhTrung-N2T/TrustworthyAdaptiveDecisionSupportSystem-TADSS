@@ -27,7 +27,7 @@ public class DecisionQueryServiceTests
     private static readonly DateTimeOffset OccurredAt = new(2026, 11, 20, 18, 30, 0, TimeSpan.FromHours(7));
     private static readonly DateTimeOffset ReportedAt = new(2026, 11, 20, 19, 0, 2, TimeSpan.Zero);
 
-    private static DecisionRequestDto Request() => V2Samples.DeserializeRequest(V2Samples.RequestJson);
+    private static DecisionRequestDto Request() => ContractSamples.DeserializeRequest(ContractSamples.RequestJson);
 
     private static DepositDto Deposit(decimal rate, decimal amount) =>
         new() { Rate = rate, Amount = amount, Currency = "VND" };
@@ -118,7 +118,7 @@ public class DecisionQueryServiceTests
         detail.Request.Currency.Should().Be("VND");
         detail.Result.Status.Should().Be(DecisionStatus.APPROVED);
         detail.Result.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
-        var deposit = V2Samples.Required(detail.Result.Deposit);
+        var deposit = ContractSamples.Required(detail.Result.Deposit);
         deposit.Rate.Should().Be(0.5m);
         deposit.Amount.Should().Be(114_000m);
         deposit.Currency.Should().Be("VND");
@@ -198,7 +198,7 @@ public class DecisionQueryServiceTests
 
         var detail = await service.GetDetailAsync(DecisionId, CancellationToken.None);
 
-        var overrideDto = V2Samples.Required(detail.Override);
+        var overrideDto = ContractSamples.Required(detail.Override);
         overrideDto.DecisionId.Should().Be(DecisionId);
         overrideDto.Action.Should().Be(OverrideAction.APPROVE);
         overrideDto.Deposit.Should().BeEquivalentTo(Deposit(0.3m, 68_400m));
@@ -206,7 +206,7 @@ public class DecisionQueryServiceTests
         overrideDto.Reason.Should().Be("Khách quen, chi nhánh bảo lãnh");
         overrideDto.OverriddenAt.Should().Be(OverriddenAt);
 
-        var outcomeDto = V2Samples.Required(detail.Outcome);
+        var outcomeDto = ContractSamples.Required(detail.Outcome);
         outcomeDto.DecisionId.Should().Be(DecisionId);
         outcomeDto.Outcome.Should().Be(DecisionOutcome.NO_SHOW);
         outcomeDto.OccurredAt.Should().Be(OccurredAt);
@@ -224,7 +224,7 @@ public class DecisionQueryServiceTests
 
         var detail = await service.GetDetailAsync(DecisionId, CancellationToken.None);
 
-        var overrideDto = V2Samples.Required(detail.Override);
+        var overrideDto = ContractSamples.Required(detail.Override);
         overrideDto.Action.Should().Be(OverrideAction.REJECT);
         overrideDto.Deposit.Should().BeNull();
     }

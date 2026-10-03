@@ -3,7 +3,7 @@ using Shared.DecisionContractSDK.Domain;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Domain;
+namespace TADSS.UnitTests.Sdk.Domain;
 
 /// <summary>
 /// UT-01: bất biến của <see cref="ReservationItem"/> — chỉ <c>End &gt; Start</c> là bất biến thời gian của SDK
@@ -11,7 +11,7 @@ namespace TADSS.UnitTests.Domain;
 /// </summary>
 public class ReservationItemTests
 {
-    private static readonly DateTimeOffset Start = V2TestData.FridayPeakStart;
+    private static readonly DateTimeOffset Start = DomainTestData.FridayPeakStart;
 
     [Fact]
     [Trait("CatalogId", "UT-01")]

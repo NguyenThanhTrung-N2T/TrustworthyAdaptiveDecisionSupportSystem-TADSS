@@ -4,7 +4,7 @@ using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Xunit;
 
-namespace TADSS.UnitTests.Common;
+namespace TADSS.UnitTests.Sdk.Common;
 
 /// <summary>
 /// UT-02: <see cref="PagedResult{T}"/> tính trường suy ra đúng và có hình dạng wire của INTEGRATION_SPEC §3.5.

@@ -5,7 +5,7 @@ using Shared.DecisionContractSDK.Enums;
 namespace TADSS.UnitTests.TestData;
 
 /// <summary>Dữ liệu mẫu dùng chung cho test SDK v2 và strategy v2.</summary>
-internal static class V2TestData
+internal static class DomainTestData
 {
     public static readonly TimeZoneInfo HoChiMinh = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
     public static readonly TimeZoneInfo Lisbon = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");

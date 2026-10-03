@@ -60,9 +60,9 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
     [Trait("CatalogId", "UT-08")]
     public async Task Pipeline_CorrelationIdEchoedOnSuccessAndError()
     {
-        using var success = await _client.SendAsync(PostRequest(V2Samples.RequestJson, "application/json", "corr-ok-1"));
+        using var success = await _client.SendAsync(PostRequest(ContractSamples.RequestJson, "application/json", "corr-ok-1"));
         _factory.DecisionService.Behavior = _ => throw new InvalidOperationException("SECRET-boom");
-        using var failure = await _client.SendAsync(PostRequest(V2Samples.RequestJson, "application/json", "corr-fail-1"));
+        using var failure = await _client.SendAsync(PostRequest(ContractSamples.RequestJson, "application/json", "corr-fail-1"));
 
         success.StatusCode.Should().Be(HttpStatusCode.OK);
         success.Headers.GetValues(HttpHeaderNames.CorrelationId).Should().ContainSingle().Which.Should().Be("corr-ok-1");
@@ -99,7 +99,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
     [InlineData("application/xml")]
     public async Task Post_NonJsonContentType_Is415ProblemWithCorrelationTraceId_Theory(string mediaType)
     {
-        using var response = await _client.SendAsync(PostRequest(V2Samples.RequestJson, mediaType, "corr-media"));
+        using var response = await _client.SendAsync(PostRequest(ContractSamples.RequestJson, mediaType, "corr-media"));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
         var responseMediaType = response.Content.Headers.ContentType?.MediaType;

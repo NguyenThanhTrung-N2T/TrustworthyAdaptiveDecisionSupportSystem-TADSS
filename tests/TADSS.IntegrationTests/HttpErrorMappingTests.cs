@@ -92,7 +92,7 @@ public class HttpErrorMappingTests : DecisionApiTestBase
     {
         var body = DecisionRequests.Mutated(root =>
         {
-            var item = V2Samples.Object(root["items"]?[0]);
+            var item = ContractSamples.Object(root["items"]?[0]);
             item["endTime"] = caseName == "item-15-minutes" ? "2026-11-20T18:15:00+07:00" : "2026-11-20T18:00:00+07:00";
         });
 

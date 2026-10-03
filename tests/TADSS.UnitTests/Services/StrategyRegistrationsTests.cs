@@ -22,8 +22,8 @@ public class StrategyRegistrationsTests
 
     private static async Task<DecisionStatus> DecideAsync(RegisteredStrategy registered, decimal totalPrice)
     {
-        var reservation = V2TestData.CreateReservation(totalPrice: totalPrice, customer: V2TestData.CreateMember());
-        var decision = await registered.Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var reservation = DomainTestData.CreateReservation(totalPrice: totalPrice, customer: DomainTestData.CreateMember());
+        var decision = await registered.Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
         return decision.Status;
     }
 
@@ -32,7 +32,7 @@ public class StrategyRegistrationsTests
     public async Task CreateDefault_ConfiguredValues_AreBound()
     {
         var registered = StrategyRegistrations.CreateDefault(
-            Config(("Tadss:Strategies:Default:HighValueThreshold", "3000000")), V2TestData.StandardCalendar());
+            Config(("Tadss:Strategies:Default:HighValueThreshold", "3000000")), DomainTestData.StandardCalendar());
 
         // Ngưỡng mới 3.000.000: đơn 2.500.000 không còn cần duyệt (mặc định 2.000.000 thì cần)
         (await DecideAsync(registered, 2_500_000m)).Should().Be(DecisionStatus.APPROVED);
@@ -43,7 +43,7 @@ public class StrategyRegistrationsTests
     [Trait("CatalogId", "UT-04")]
     public async Task CreateDefault_NoSection_UsesPocoDefaults()
     {
-        var registered = StrategyRegistrations.CreateDefault(Config(), V2TestData.StandardCalendar());
+        var registered = StrategyRegistrations.CreateDefault(Config(), DomainTestData.StandardCalendar());
 
         (await DecideAsync(registered, 1_999_999m)).Should().Be(DecisionStatus.APPROVED);
         (await DecideAsync(registered, 2_500_000m)).Should().Be(DecisionStatus.NEED_APPROVAL);
@@ -53,7 +53,7 @@ public class StrategyRegistrationsTests
     [Trait("CatalogId", "UT-04")]
     public async Task CreateMockAlternative_ConfiguredValues_AreBound()
     {
-        var calendar = V2TestData.StandardCalendar();
+        var calendar = DomainTestData.StandardCalendar();
         var defaults = StrategyRegistrations.CreateMockAlternative(Config(), calendar);
         var raised = StrategyRegistrations.CreateMockAlternative(
             Config(("Tadss:Strategies:MockAlternative:HighValueThreshold", "9000000")), calendar);
@@ -72,7 +72,7 @@ public class StrategyRegistrationsTests
         {
             CultureInfo.CurrentCulture = new CultureInfo("de-DE");
             var registered = StrategyRegistrations.CreateDefault(
-                Config(("Tadss:Strategies:Default:HighValueThreshold", "3000000.5")), V2TestData.StandardCalendar());
+                Config(("Tadss:Strategies:Default:HighValueThreshold", "3000000.5")), DomainTestData.StandardCalendar());
 
             (await DecideAsync(registered, 3_000_000m)).Should().Be(DecisionStatus.APPROVED);
             (await DecideAsync(registered, 3_000_001m)).Should().Be(DecisionStatus.NEED_APPROVAL);
@@ -92,7 +92,7 @@ public class StrategyRegistrationsTests
     public void CreateDefault_InvalidOptions_Throws_Theory(string key, string value)
     {
         var act = () => StrategyRegistrations.CreateDefault(
-            Config(($"Tadss:Strategies:Default:{key}", value)), V2TestData.StandardCalendar());
+            Config(($"Tadss:Strategies:Default:{key}", value)), DomainTestData.StandardCalendar());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*Tadss:Strategies:Default*")
@@ -107,7 +107,7 @@ public class StrategyRegistrationsTests
     public void CreateMockAlternative_InvalidOptions_Throws_Theory(string key, string value)
     {
         var act = () => StrategyRegistrations.CreateMockAlternative(
-            Config(($"Tadss:Strategies:MockAlternative:{key}", value)), V2TestData.StandardCalendar());
+            Config(($"Tadss:Strategies:MockAlternative:{key}", value)), DomainTestData.StandardCalendar());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*Tadss:Strategies:MockAlternative*")
@@ -119,7 +119,7 @@ public class StrategyRegistrationsTests
     public void CreateDefault_NotANumber_ThrowsNamingSection()
     {
         var act = () => StrategyRegistrations.CreateDefault(
-            Config(("Tadss:Strategies:Default:HighValueThreshold", "abc")), V2TestData.StandardCalendar());
+            Config(("Tadss:Strategies:Default:HighValueThreshold", "abc")), DomainTestData.StandardCalendar());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*Tadss:Strategies:Default*");
     }
@@ -128,7 +128,7 @@ public class StrategyRegistrationsTests
     [Trait("CatalogId", "UT-04")]
     public void Create_Strategies_ReportNamesAndVersion()
     {
-        var calendar = V2TestData.StandardCalendar();
+        var calendar = DomainTestData.StandardCalendar();
 
         var defaultStrategy = StrategyRegistrations.CreateDefault(Config(), calendar);
         var mock = StrategyRegistrations.CreateMockAlternative(Config(), calendar);

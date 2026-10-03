@@ -36,21 +36,21 @@ public class RequestHasherTests
         + "\"lateCancelledCount\":\"1\",\"paymentExpiredCount\":\"0\",\"lastCompletedAt\":\"2026-11-02T13:00:00Z\"}},"
         + "\"totalPrice\":\"228000\",\"currency\":\"VND\",\"channel\":\"ONLINE\"}";
 
-    private static string Hash(string requestJson) => RequestHasher.ComputeHash(V2Samples.DeserializeRequest(requestJson));
+    private static string Hash(string requestJson) => RequestHasher.ComputeHash(ContractSamples.DeserializeRequest(requestJson));
 
-    private static string SampleHash() => Hash(V2Samples.RequestJson);
+    private static string SampleHash() => Hash(ContractSamples.RequestJson);
 
     private static JsonObject FirstItem(JsonObject root) =>
-        V2Samples.Object(Items(root)[0]);
+        ContractSamples.Object(Items(root)[0]);
 
-    private static JsonObject Customer(JsonObject root) => V2Samples.Object(root["customer"]);
+    private static JsonObject Customer(JsonObject root) => ContractSamples.Object(root["customer"]);
 
-    private static JsonObject History(JsonObject root) => V2Samples.Object(Customer(root)["history"]);
+    private static JsonObject History(JsonObject root) => ContractSamples.Object(Customer(root)["history"]);
 
     private static JsonArray Items(JsonObject root) =>
         root["items"]?.AsArray() ?? throw new InvalidOperationException("Thiếu mảng items.");
 
-    private static JsonObject ParseObject(string json) => V2Samples.Object(JsonNode.Parse(json));
+    private static JsonObject ParseObject(string json) => ContractSamples.Object(JsonNode.Parse(json));
 
     /// <summary>Item thứ hai khác item mẫu (sân khác, khung giờ khác) để thử thứ tự.</summary>
     private static JsonObject SecondItem() => ParseObject("""
@@ -85,17 +85,17 @@ public class RequestHasherTests
     [Trait("CatalogId", "UT-06")]
     public void ComputeHash_SameInstantDifferentOffsets_SameHash()
     {
-        var plus7 = V2Samples.MutateRequest(root =>
+        var plus7 = ContractSamples.MutateRequest(root =>
         {
             FirstItem(root)["startTime"] = "2026-11-20T18:00:00+07:00";
             FirstItem(root)["endTime"] = "2026-11-20T20:00:00+07:00";
         });
-        var utc = V2Samples.MutateRequest(root =>
+        var utc = ContractSamples.MutateRequest(root =>
         {
             FirstItem(root)["startTime"] = "2026-11-20T11:00:00Z";
             FirstItem(root)["endTime"] = "2026-11-20T13:00:00Z";
         });
-        var minus5 = V2Samples.MutateRequest(root =>
+        var minus5 = ContractSamples.MutateRequest(root =>
         {
             FirstItem(root)["startTime"] = "2026-11-20T06:00:00-05:00";
             FirstItem(root)["endTime"] = "2026-11-20T08:00:00-05:00";
@@ -108,7 +108,7 @@ public class RequestHasherTests
     [Trait("CatalogId", "UT-06")]
     public void ComputeHash_SubSecondFractions_AreIgnored()
     {
-        var withFraction = V2Samples.MutateRequest(root =>
+        var withFraction = ContractSamples.MutateRequest(root =>
             FirstItem(root)["startTime"] = "2026-11-20T18:00:00.750+07:00");
 
         Hash(withFraction).Should().Be(SampleHash());
@@ -126,7 +126,7 @@ public class RequestHasherTests
         var originalUiCulture = CultureInfo.CurrentUICulture;
         try
         {
-            var fractionalRequest = V2Samples.MutateRequest(root => root["totalPrice"] = 228000.5m);
+            var fractionalRequest = ContractSamples.MutateRequest(root => root["totalPrice"] = 228000.5m);
 
             SetCulture(CultureInfo.InvariantCulture);
             var invariantSample = SampleHash();
@@ -180,20 +180,20 @@ public class RequestHasherTests
     [Trait("CatalogId", "UT-06")]
     public void ComputeHash_DecimalScaleOnItemPrice_SameHash()
     {
-        var scaled = V2Samples.MutateRequest(root => FirstItem(root)["price"] = JsonNode.Parse("240000.000"));
+        var scaled = ContractSamples.MutateRequest(root => FirstItem(root)["price"] = JsonNode.Parse("240000.000"));
 
         Hash(scaled).Should().Be(SampleHash());
     }
 
     private static string WithTotalPrice(string literal) =>
-        V2Samples.MutateRequest(root => root["totalPrice"] = JsonNode.Parse(literal));
+        ContractSamples.MutateRequest(root => root["totalPrice"] = JsonNode.Parse(literal));
 
     [Fact]
     [Trait("CatalogId", "UT-06")]
     public void ComputeHash_ItemOrder_SameHash()
     {
-        var forward = V2Samples.MutateRequest(root => Items(root).Add(SecondItem()));
-        var reversed = V2Samples.MutateRequest(root =>
+        var forward = ContractSamples.MutateRequest(root => Items(root).Add(SecondItem()));
+        var reversed = ContractSamples.MutateRequest(root =>
         {
             var items = Items(root);
             var sampleItem = FirstItem(root).DeepClone();
@@ -220,7 +220,7 @@ public class RequestHasherTests
             }
             """);
 
-        static string WithOrder(params JsonObject[] items) => V2Samples.MutateRequest(root =>
+        static string WithOrder(params JsonObject[] items) => ContractSamples.MutateRequest(root =>
         {
             var array = Items(root);
             array.Clear();
@@ -268,7 +268,7 @@ public class RequestHasherTests
     [MemberData(nameof(ExcludedFieldCases))]
     public void ComputeHash_ExcludedFields_SameHash_Theory(string caseName)
     {
-        Hash(V2Samples.MutateRequest(ExcludedMutations[caseName])).Should().Be(SampleHash());
+        Hash(ContractSamples.MutateRequest(ExcludedMutations[caseName])).Should().Be(SampleHash());
     }
 
     private static readonly Dictionary<string, Action<JsonObject>> BusinessMutations = new()
@@ -307,15 +307,15 @@ public class RequestHasherTests
     [MemberData(nameof(BusinessFieldCases))]
     public void ComputeHash_BusinessFieldChanged_DifferentHash_Theory(string caseName)
     {
-        Hash(V2Samples.MutateRequest(BusinessMutations[caseName])).Should().NotBe(SampleHash());
+        Hash(ContractSamples.MutateRequest(BusinessMutations[caseName])).Should().NotBe(SampleHash());
     }
 
     [Fact]
     [Trait("CatalogId", "UT-06")]
     public void ComputeHash_NullVersusZeroHistory_DifferentHash()
     {
-        var nullHistory = V2Samples.MutateRequest(root => Customer(root)["history"] = null);
-        var zeroHistory = V2Samples.MutateRequest(root => Customer(root)["history"] = ParseObject("""
+        var nullHistory = ContractSamples.MutateRequest(root => Customer(root)["history"] = null);
+        var zeroHistory = ContractSamples.MutateRequest(root => Customer(root)["history"] = ParseObject("""
             {
               "completedCount": 0,
               "noShowCount": 0,
@@ -333,7 +333,7 @@ public class RequestHasherTests
     public void ComputeHash_OmittedOptionalCountEqualsExplicitZero_SameHash()
     {
         // paymentExpiredCount tùy chọn, mặc định 0: vắng mặt và ghi 0 là cùng một yêu cầu nghiệp vụ.
-        var omitted = V2Samples.MutateRequest(root => History(root).Remove("paymentExpiredCount"));
+        var omitted = ContractSamples.MutateRequest(root => History(root).Remove("paymentExpiredCount"));
 
         Hash(omitted).Should().Be(SampleHash());
     }

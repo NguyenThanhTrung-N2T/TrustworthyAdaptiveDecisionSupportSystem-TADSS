@@ -16,10 +16,10 @@ namespace TADSS.UnitTests.Services;
 public class StrategyRegistryTests
 {
     private static RegisteredStrategy CreateDefault() =>
-        StrategyRegistrations.CreateDefault(new ConfigurationBuilder().Build(), V2TestData.StandardCalendar());
+        StrategyRegistrations.CreateDefault(new ConfigurationBuilder().Build(), DomainTestData.StandardCalendar());
 
     private static RegisteredStrategy CreateMock() =>
-        StrategyRegistrations.CreateMockAlternative(new ConfigurationBuilder().Build(), V2TestData.StandardCalendar());
+        StrategyRegistrations.CreateMockAlternative(new ConfigurationBuilder().Build(), DomainTestData.StandardCalendar());
 
     private static StrategyRegistry Build(string active, params RegisteredStrategy[] strategies) =>
         new(strategies, Options.Create(new StrategyOptions { ActiveStrategyName = active }), NullLogger<StrategyRegistry>.Instance);

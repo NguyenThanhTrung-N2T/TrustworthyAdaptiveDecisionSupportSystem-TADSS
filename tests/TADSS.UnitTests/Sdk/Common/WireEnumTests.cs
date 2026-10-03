@@ -7,7 +7,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Common;
+namespace TADSS.UnitTests.Sdk.Common;
 
 /// <summary>
 /// UT-02: enum v2 trên wire chỉ nhận đúng tên đã định nghĩa (phân biệt hoa thường), không nhận số hay chuỗi số;
@@ -118,9 +118,9 @@ public class WireEnumTests
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         TadssJson.Apply(options);
 
-        var dto = JsonSerializer.Deserialize<DecisionRequestDto>(V2Samples.RequestJson, options);
+        var dto = JsonSerializer.Deserialize<DecisionRequestDto>(ContractSamples.RequestJson, options);
 
-        V2Samples.Required(dto).TotalPrice.Should().Be(228_000m);
+        ContractSamples.Required(dto).TotalPrice.Should().Be(228_000m);
     }
 
     [Theory]
@@ -135,7 +135,7 @@ public class WireEnumTests
         // JsonSerializerDefaults.Web bật sẵn PropertyNameCaseInsensitive và AllowReadingFromString
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         TadssJson.Apply(options);
-        var json = V2Samples.MutateRequest(root =>
+        var json = ContractSamples.MutateRequest(root =>
         {
             switch (caseName)
             {

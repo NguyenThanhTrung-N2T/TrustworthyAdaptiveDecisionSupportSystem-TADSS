@@ -49,7 +49,7 @@ public class DecisionResponseComposerTests
         var composed = CreateComposer().Compose(CreateComposition(Scenario.ApprovedAutomated));
 
         var response = composed.Response;
-        var deposit = V2Samples.Required(response.Deposit);
+        var deposit = ContractSamples.Required(response.Deposit);
         response.Status.Should().Be(DecisionStatus.APPROVED);
         deposit.Rate.Should().Be(0.5m);
         deposit.Amount.Should().Be(114_000m);
@@ -99,7 +99,7 @@ public class DecisionResponseComposerTests
     {
         var composed = CreateComposer().Compose(CreateComposition(Scenario.NeedApprovalNoWindow));
 
-        var deposit = V2Samples.Required(composed.Response.Deposit);
+        var deposit = ContractSamples.Required(composed.Response.Deposit);
         composed.Response.Status.Should().Be(DecisionStatus.APPROVED);
         deposit.Rate.Should().Be(1m);
         deposit.Amount.Should().Be(228_000m);
@@ -221,7 +221,7 @@ public class DecisionResponseComposerTests
         var composed = CreateComposer().Compose(composition);
 
         composed.Response.Status.Should().Be(DecisionStatus.APPROVED);
-        V2Samples.Required(composed.Response.Deposit).Rate.Should().Be(rate);
+        ContractSamples.Required(composed.Response.Deposit).Rate.Should().Be(rate);
     }
 
     [Fact]
@@ -297,20 +297,20 @@ public class DecisionResponseComposerTests
 
         // Request: serialize đúng bằng TadssJson, gồm cả demand, metadata và requestedAt
         composed.Record.RequestPayload.Should().Be(JsonSerializer.Serialize(composition.Request, TadssJson.Options));
-        var requestNode = V2Samples.Object(JsonNode.Parse(composed.Record.RequestPayload));
+        var requestNode = ContractSamples.Object(JsonNode.Parse(composed.Record.RequestPayload));
         requestNode.Should().ContainKey("demand");
         requestNode.Should().ContainKey("metadata");
         requestNode.Should().ContainKey("requestedAt");
 
-        var requestBack = V2Samples.Required(
+        var requestBack = ContractSamples.Required(
             JsonSerializer.Deserialize<DecisionRequestDto>(composed.Record.RequestPayload, TadssJson.Options));
         requestBack.Should().BeEquivalentTo(composition.Request);
-        V2Samples.Required(requestBack.Demand).OccupancyRate.Should().Be(0.75m);
-        V2Samples.Required(requestBack.Metadata).Should().ContainKey("promotionCode");
+        ContractSamples.Required(requestBack.Demand).OccupancyRate.Should().Be(0.75m);
+        ContractSamples.Required(requestBack.Metadata).Should().ContainKey("promotionCode");
 
         // Response: payload là chính response, serialize bằng TadssJson
         composed.Record.ResponsePayload.Should().Be(JsonSerializer.Serialize(composed.Response, TadssJson.Options));
-        var responseBack = V2Samples.Required(
+        var responseBack = ContractSamples.Required(
             JsonSerializer.Deserialize<DecisionResultDto>(composed.Record.ResponsePayload, TadssJson.Options));
         responseBack.Should().BeEquivalentTo(composed.Response);
     }
@@ -383,9 +383,9 @@ public class DecisionResponseComposerTests
     {
         // NeedApprovalNoWindow: giờ bắt đầu gần hơn MinLead nên hạn duyệt đã ở quá khứ
         var start = scenario == Scenario.NeedApprovalNoWindow ? Now.AddHours(1) : Now.AddDays(3);
-        var request = V2Samples.DeserializeRequest(V2Samples.RequestJson);
-        var reservation = V2TestData.CreateReservation(
-            items: [V2TestData.CreateItem(start)],
+        var request = ContractSamples.DeserializeRequest(ContractSamples.RequestJson);
+        var reservation = DomainTestData.CreateReservation(
+            items: [DomainTestData.CreateItem(start)],
             totalPrice: 228_000m,
             reservationId: request.ReservationId,
             branchId: request.BranchId);

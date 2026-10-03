@@ -71,10 +71,10 @@ public class DecisionsControllerTests : IClassFixture<DecisionsApiFactory>
         "empty-body" => string.Empty,
         "json-null" => "null",
         "array-root" => "[]",
-        "channel-numeric" => V2Samples.MutateRequest(root => root["channel"] = 1),
-        "total-price-as-string" => V2Samples.MutateRequest(root => root["totalPrice"] = "228000"),
-        "missing-reservation-id" => V2Samples.MutateRequest(root => root.Remove("reservationId")),
-        "property-name-wrong-case" => V2Samples.MutateRequest(root =>
+        "channel-numeric" => ContractSamples.MutateRequest(root => root["channel"] = 1),
+        "total-price-as-string" => ContractSamples.MutateRequest(root => root["totalPrice"] = "228000"),
+        "missing-reservation-id" => ContractSamples.MutateRequest(root => root.Remove("reservationId")),
+        "property-name-wrong-case" => ContractSamples.MutateRequest(root =>
         {
             var value = root["reservationId"]?.GetValue<string>();
             root.Remove("reservationId");
@@ -130,7 +130,7 @@ public class DecisionsControllerTests : IClassFixture<DecisionsApiFactory>
     [Trait("CatalogId", "UT-11")]
     public async Task Post_ValidRequest_ForwardsToServiceAndReturns200()
     {
-        var response = await PostAsync(V2Samples.RequestJson, "booking-0001", "corr-post-1");
+        var response = await PostAsync(ContractSamples.RequestJson, "booking-0001", "corr-post-1");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         MediaTypeOf(response).Should().Be("application/json");
@@ -150,7 +150,7 @@ public class DecisionsControllerTests : IClassFixture<DecisionsApiFactory>
     [InlineData("   ")]
     public async Task Post_MissingOrBlankIdempotencyKey_Is400MissingHeader_Theory(string? key)
     {
-        var response = await PostAsync(V2Samples.RequestJson, key);
+        var response = await PostAsync(ContractSamples.RequestJson, key);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = await ReadProblemAsync(response);
@@ -164,8 +164,8 @@ public class DecisionsControllerTests : IClassFixture<DecisionsApiFactory>
     [Trait("CatalogId", "UT-08")]
     public async Task Post_IdempotencyKeyOver128Chars_Is400ValidationError_And128Succeeds()
     {
-        var tooLong = await PostAsync(V2Samples.RequestJson, new string('k', 129));
-        var atLimit = await PostAsync(V2Samples.RequestJson, new string('k', 128));
+        var tooLong = await PostAsync(ContractSamples.RequestJson, new string('k', 129));
+        var atLimit = await PostAsync(ContractSamples.RequestJson, new string('k', 128));
 
         tooLong.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = await ReadProblemAsync(tooLong);
@@ -211,7 +211,7 @@ public class DecisionsControllerTests : IClassFixture<DecisionsApiFactory>
     {
         _factory.DecisionService.Behavior = _ => throw new IdempotencyConflictException("booking-0001", "Khóa idempotency đã dùng cho nội dung khác.");
 
-        var response = await PostAsync(V2Samples.RequestJson);
+        var response = await PostAsync(ContractSamples.RequestJson);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await ReadProblemAsync(response)).GetProperty("code").GetString().Should().Be("IDEMPOTENCY_KEY_REUSE");

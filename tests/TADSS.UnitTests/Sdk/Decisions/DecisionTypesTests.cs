@@ -5,7 +5,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Decisions;
+namespace TADSS.UnitTests.Sdk.Decisions;
 
 /// <summary>
 /// UT-01: bất biến của kiểu quyết định v2 — <see cref="StrategyDecision"/> chỉ tạo qua factory, tỷ lệ cọc trong
@@ -170,7 +170,7 @@ public class DecisionTypesTests
     [Trait("CatalogId", "UT-01")]
     public void Context_NonUtcInstant_ThrowsArgumentException()
     {
-        var act = () => new DecisionContext(V2TestData.FridayPeakStart, V2TestData.StandardCalendar());
+        var act = () => new DecisionContext(DomainTestData.FridayPeakStart, DomainTestData.StandardCalendar());
 
         act.Should().Throw<ArgumentException>();
     }
@@ -179,7 +179,7 @@ public class DecisionTypesTests
     [Trait("CatalogId", "UT-01")]
     public void Context_UtcInstant_ExposesValues()
     {
-        var context = V2TestData.CreateContext();
+        var context = DomainTestData.CreateContext();
 
         context.EvaluatedAtUtc.Offset.Should().Be(TimeSpan.Zero);
         context.Calendar.PeakWindows.Should().HaveCount(7);

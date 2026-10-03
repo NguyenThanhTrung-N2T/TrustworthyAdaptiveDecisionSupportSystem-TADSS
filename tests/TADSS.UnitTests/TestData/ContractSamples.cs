@@ -6,7 +6,7 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 namespace TADSS.UnitTests.TestData;
 
 /// <summary>Payload mẫu của INTEGRATION_SPEC §3.3 và các hàm biến đổi để dựng ca sai.</summary>
-internal static class V2Samples
+internal static class ContractSamples
 {
     public const string RequestJson = """
         {

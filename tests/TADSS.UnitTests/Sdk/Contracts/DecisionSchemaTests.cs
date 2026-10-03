@@ -6,7 +6,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Contracts;
+namespace TADSS.UnitTests.Sdk.Contracts;
 
 /// <summary>
 /// CT-01 (phần schema): JSON schema v2 ở <c>docs/contracts/schemas/v2/</c> chấp nhận payload mẫu và payload do SDK
@@ -21,7 +21,7 @@ public class DecisionSchemaTests
     [Trait("CatalogId", "CT-01")]
     public void RequestSchema_IntegrationSpecSample_IsValid()
     {
-        var results = ContractSchemas.Evaluate(RequestSchema, V2Samples.RequestJson);
+        var results = ContractSchemas.Evaluate(RequestSchema, ContractSamples.RequestJson);
 
         results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
     }
@@ -30,16 +30,16 @@ public class DecisionSchemaTests
     [Trait("CatalogId", "CT-01")]
     public void RequestSchema_SdkSerializedGuestRequest_IsValid()
     {
-        var guestJson = V2Samples.MutateRequest(root =>
+        var guestJson = ContractSamples.MutateRequest(root =>
         {
-            var customer = V2Samples.Object(root["customer"]);
+            var customer = ContractSamples.Object(root["customer"]);
             customer.Remove("customerId");
             customer.Remove("memberSince");
             customer["isGuest"] = true;
             customer["tier"] = "STANDARD";
             root.Remove("demand");
         });
-        var serialized = JsonSerializer.Serialize(V2Samples.DeserializeRequest(guestJson), TadssJson.Options);
+        var serialized = JsonSerializer.Serialize(ContractSamples.DeserializeRequest(guestJson), TadssJson.Options);
 
         var results = ContractSchemas.Evaluate(RequestSchema, serialized);
 
@@ -50,7 +50,7 @@ public class DecisionSchemaTests
     [Trait("CatalogId", "CT-01")]
     public void ResultSchema_IntegrationSpecSample_IsValid()
     {
-        var results = ContractSchemas.Evaluate(ResultSchema, V2Samples.ResultJson);
+        var results = ContractSchemas.Evaluate(ResultSchema, ContractSamples.ResultJson);
 
         results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
     }
@@ -98,7 +98,7 @@ public class DecisionSchemaTests
     [InlineData("rejected-with-deposit")]
     public void ResultSchema_StatusInconsistentWithDepositOrExpiry_IsRejected(string caseName)
     {
-        var json = V2Samples.MutateResult(root =>
+        var json = ContractSamples.MutateResult(root =>
         {
             switch (caseName)
             {
@@ -119,13 +119,13 @@ public class DecisionSchemaTests
     [InlineData("deposit-rate-above-one", "/deposit")]
     public void ResultSchema_ExpiryOrDepositRateOutOfContract_IsRejectedForThatField(string caseName, string expectedLocation)
     {
-        var json = V2Samples.MutateResult(root =>
+        var json = ContractSamples.MutateResult(root =>
         {
             switch (caseName)
             {
                 case "approved-with-expiry": root["approvalExpiresAt"] = "2026-11-18T02:45:00Z"; break;
                 case "rejected-with-expiry": root["status"] = "REJECTED"; root["deposit"] = null; root["approvalExpiresAt"] = "2026-11-18T02:45:00Z"; break;
-                case "deposit-rate-above-one": V2Samples.Object(root["deposit"])["rate"] = 1.5; break;
+                case "deposit-rate-above-one": ContractSamples.Object(root["deposit"])["rate"] = 1.5; break;
                 default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
             }
         });
@@ -150,7 +150,7 @@ public class DecisionSchemaTests
     [Trait("CatalogId", "CT-01")]
     public void RequestSchema_IntegrationSpecSample_IsValidWithoutFormatAssertion()
     {
-        var results = ContractSchemas.Evaluate(RequestSchema, V2Samples.RequestJson, requireFormatValidation: false);
+        var results = ContractSchemas.Evaluate(RequestSchema, ContractSamples.RequestJson, requireFormatValidation: false);
 
         results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
     }

@@ -5,7 +5,7 @@ using TADSS.UnitTests.TestData;
 namespace TADSS.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Dựng body request v2 cho integration test từ payload mẫu của INTEGRATION_SPEC §3.3 (<c>V2Samples</c>, dùng lại qua <c>Compile Link</c>).
+/// Dựng body request v2 cho integration test từ payload mẫu của INTEGRATION_SPEC §3.3 (<c>ContractSamples</c>, dùng lại qua <c>Compile Link</c>).
 /// Request mẫu: khách GOLD, tổng 228.000 VND, bắt đầu 20/11/2026 18:00 (+07:00), strategy mặc định cho <c>APPROVED</c> cọc 30%.
 /// </summary>
 public static class DecisionRequests
@@ -16,17 +16,17 @@ public static class DecisionRequests
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
     /// <summary>Request mẫu hợp lệ.</summary>
-    public static string Valid() => V2Samples.RequestJson;
+    public static string Valid() => ContractSamples.RequestJson;
 
     /// <summary>Request mẫu sau khi áp <paramref name="mutate"/> lên JSON gốc.</summary>
-    public static string Mutated(Action<JsonObject> mutate) => V2Samples.MutateRequest(mutate);
+    public static string Mutated(Action<JsonObject> mutate) => ContractSamples.MutateRequest(mutate);
 
     /// <summary>
     /// Request giá trị lớn nên strategy mặc định trả <c>NEED_APPROVAL</c>; item duy nhất bắt đầu tại <paramref name="start"/> và kéo dài 2 giờ.
     /// </summary>
     public static string HighValue(DateTimeOffset start) => Mutated(root =>
     {
-        var item = V2Samples.Object(root["items"]?[0]);
+        var item = ContractSamples.Object(root["items"]?[0]);
         item["startTime"] = Format(start);
         item["endTime"] = Format(start.AddHours(2));
         item["price"] = HighValueTotalPrice + 100_000m;
@@ -36,7 +36,7 @@ public static class DecisionRequests
     /// <summary>Request mẫu nhưng item duy nhất bắt đầu tại <paramref name="start"/> và kéo dài 2 giờ (dùng khi test chạy bằng đồng hồ thật và cần giờ bắt đầu ở tương lai).</summary>
     public static string StartingAt(DateTimeOffset start) => Mutated(root =>
     {
-        var item = V2Samples.Object(root["items"]?[0]);
+        var item = ContractSamples.Object(root["items"]?[0]);
         item["startTime"] = Format(start);
         item["endTime"] = Format(start.AddHours(2));
     });

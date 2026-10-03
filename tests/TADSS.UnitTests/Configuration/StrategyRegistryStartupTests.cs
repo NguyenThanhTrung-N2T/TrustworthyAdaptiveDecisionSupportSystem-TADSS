@@ -50,7 +50,7 @@ public class StrategyRegistryStartupTests
     [Trait("CatalogId", "UT-04")]
     public void AddDecisionRuntime_AppsettingsDefaults_EqualPocoDefaults()
     {
-        var calendar = V2TestData.StandardCalendar();
+        var calendar = DomainTestData.StandardCalendar();
         var appsettings = new ConfigurationBuilder()
             .AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false)
             .Build();

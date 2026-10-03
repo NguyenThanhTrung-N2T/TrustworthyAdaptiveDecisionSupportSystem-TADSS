@@ -64,7 +64,7 @@ public class StrategyPipelineTests
         var strategy = new DelegateStrategy((_, _, _) => Task.FromResult(expected));
         var pipeline = Build(SmallOptions());
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         outcome.FallbackUsed.Should().BeFalse();
@@ -80,8 +80,8 @@ public class StrategyPipelineTests
     public async Task ExecuteAsync_PassesContextToStrategy()
     {
         var strategy = new DelegateStrategy((_, _, _) => Task.FromResult(Approved()));
-        var reservation = V2TestData.CreateReservation();
-        var context = V2TestData.CreateContext();
+        var reservation = DomainTestData.CreateReservation();
+        var context = DomainTestData.CreateContext();
         var pipeline = Build(SmallOptions());
 
         await pipeline.ExecuteAsync(strategy, reservation, context, CancellationToken.None);
@@ -99,7 +99,7 @@ public class StrategyPipelineTests
             Interlocked.Increment(ref calls) == 1 ? Throwing() : Task.FromResult(Approved()));
         var pipeline = Build(SmallOptions());
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         outcome.FallbackUsed.Should().BeFalse();
@@ -115,7 +115,7 @@ public class StrategyPipelineTests
         var strategy = new DelegateStrategy((_, _, _) => Throwing());
         var pipeline = Build(options);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
@@ -136,7 +136,7 @@ public class StrategyPipelineTests
             Task.FromResult(StrategyDecision.Approve(1.5m, ReasonCodes.TierDeposit, [SensitiveMessage])));
         var pipeline = Build(SmallOptions());
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
@@ -154,7 +154,7 @@ public class StrategyPipelineTests
         var strategy = new DelegateStrategy((_, _, _) => (Task<StrategyDecision>)(object)Task.FromResult<StrategyDecision?>(null));
         var pipeline = Build(options);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
@@ -171,7 +171,7 @@ public class StrategyPipelineTests
         var strategy = new DelegateStrategy((_, _, token) => WaitForever(token));
         var pipeline = Build(options);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
@@ -189,8 +189,8 @@ public class StrategyPipelineTests
         var options = SmallOptions(maxRetryAttempts: 0, minimumThroughput: 2);
         var strategy = new DelegateStrategy((_, _, _) => Throwing());
         var pipeline = Build(options);
-        var reservation = V2TestData.CreateReservation();
-        var context = V2TestData.CreateContext();
+        var reservation = DomainTestData.CreateReservation();
+        var context = DomainTestData.CreateContext();
 
         var first = await pipeline.ExecuteAsync(strategy, reservation, context, CancellationToken.None);
         var second = await pipeline.ExecuteAsync(strategy, reservation, context, CancellationToken.None);
@@ -220,7 +220,7 @@ public class StrategyPipelineTests
         var pipeline = Build(SmallOptions(innerTimeoutMs: 30_000, outerTimeoutMs: 60_000));
         using var cts = new CancellationTokenSource();
 
-        var execution = pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), cts.Token);
+        var execution = pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), cts.Token);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await cts.CancelAsync();
 
@@ -238,7 +238,7 @@ public class StrategyPipelineTests
             Task.FromException<StrategyDecision>(new TaskCanceledException(SensitiveMessage)));
         var pipeline = Build(options);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
@@ -261,7 +261,7 @@ public class StrategyPipelineTests
                 : Task.FromResult(Approved()));
         var pipeline = Build(SmallOptions());
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         outcome.FallbackUsed.Should().BeFalse();
@@ -283,7 +283,7 @@ public class StrategyPipelineTests
         });
         var pipeline = Build(SmallOptions(innerTimeoutMs: 30_000, outerTimeoutMs: 60_000));
 
-        var execution = pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), cts.Token);
+        var execution = pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), cts.Token);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await cts.CancelAsync();
 
@@ -300,7 +300,7 @@ public class StrategyPipelineTests
         var strategy = new DelegateStrategy((_, _, token) => WaitForever(token));
         var pipeline = Build(options);
 
-        var act = () => pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var act = () => pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<TimeoutRejectedException>();
     }
@@ -317,7 +317,7 @@ public class StrategyPipelineTests
         });
         var pipeline = Build(SmallOptions(), clock);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionTimeMs.Should().Be(7);
         outcome.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
@@ -335,7 +335,7 @@ public class StrategyPipelineTests
         });
         var pipeline = Build(SmallOptions(maxRetryAttempts: 0), clock);
 
-        var outcome = await pipeline.ExecuteAsync(strategy, V2TestData.CreateReservation(), V2TestData.CreateContext(), CancellationToken.None);
+        var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.ExecutionTimeMs.Should().Be(7, "làm tròn xuống và áp dụng cả cho outcome fallback");

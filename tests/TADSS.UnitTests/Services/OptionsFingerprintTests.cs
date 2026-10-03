@@ -62,8 +62,8 @@ public class OptionsFingerprintTests
 
     private static string Create(string strategy, IConfiguration configuration, BranchCalendar? calendar = null) =>
         strategy == "Default"
-            ? StrategyRegistrations.CreateDefault(configuration, calendar ?? V2TestData.StandardCalendar()).OptionsFingerprint
-            : StrategyRegistrations.CreateMockAlternative(configuration, calendar ?? V2TestData.StandardCalendar()).OptionsFingerprint;
+            ? StrategyRegistrations.CreateDefault(configuration, calendar ?? DomainTestData.StandardCalendar()).OptionsFingerprint
+            : StrategyRegistrations.CreateMockAlternative(configuration, calendar ?? DomainTestData.StandardCalendar()).OptionsFingerprint;
 
     private static BranchCalendar Calendar(params (DayOfWeek Day, int StartHour, int EndHour)[] windows) =>
         new(windows.Select(window => new PeakWindow(window.Day, new TimeOnly(window.StartHour, 0), new TimeOnly(window.EndHour, 0))));

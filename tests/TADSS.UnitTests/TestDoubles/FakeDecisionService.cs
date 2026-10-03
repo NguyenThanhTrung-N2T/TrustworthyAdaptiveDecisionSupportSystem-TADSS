@@ -15,7 +15,7 @@ public sealed class FakeDecisionService : IDecisionService
 
     private readonly List<Call> _calls = [];
 
-    /// <summary>Hành vi hiện tại; <c>null</c> nghĩa là trả <see cref="V2Samples.ResultJson"/>.</summary>
+    /// <summary>Hành vi hiện tại; <c>null</c> nghĩa là trả <see cref="ContractSamples.ResultJson"/>.</summary>
     public Func<DecisionRequestDto, Task<DecisionResultDto>>? Behavior { get; set; }
 
     /// <summary>Các lần gọi theo thứ tự.</summary>
@@ -30,7 +30,7 @@ public sealed class FakeDecisionService : IDecisionService
 
     /// <summary>Response mẫu §3.3 đã deserialize.</summary>
     public static DecisionResultDto SampleResult() =>
-        System.Text.Json.JsonSerializer.Deserialize<DecisionResultDto>(V2Samples.ResultJson, Shared.DecisionContractSDK.Common.TadssJson.Options)
+        System.Text.Json.JsonSerializer.Deserialize<DecisionResultDto>(ContractSamples.ResultJson, Shared.DecisionContractSDK.Common.TadssJson.Options)
             ?? throw new InvalidOperationException("Deserialize trả null.");
 
     /// <inheritdoc />

@@ -33,11 +33,11 @@ public class DefaultDecisionStrategyTests
         CustomerTier tier, bool isGuest, long totalPrice, int noShowCount,
         DecisionStatus expectedStatus, string? expectedRate, string expectedReason)
     {
-        var history = V2TestData.CreateHistory(noShowCount);
-        var customer = isGuest ? V2TestData.CreateGuest(history) : V2TestData.CreateMember(tier, history);
-        var reservation = V2TestData.CreateReservation(customer: customer, totalPrice: totalPrice);
+        var history = DomainTestData.CreateHistory(noShowCount);
+        var customer = isGuest ? DomainTestData.CreateGuest(history) : DomainTestData.CreateMember(tier, history);
+        var reservation = DomainTestData.CreateReservation(customer: customer, totalPrice: totalPrice);
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Status.Should().Be(expectedStatus);
         decision.ReasonCode.Should().Be(expectedReason);
@@ -49,9 +49,9 @@ public class DefaultDecisionStrategyTests
     [Trait("CatalogId", "UT-03")]
     public async Task EvaluateAsync_NoHistory_TreatsAsZeroNoShows()
     {
-        var reservation = V2TestData.CreateReservation(customer: V2TestData.CreateMember(CustomerTier.GOLD, history: null));
+        var reservation = DomainTestData.CreateReservation(customer: DomainTestData.CreateMember(CustomerTier.GOLD, history: null));
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Status.Should().Be(DecisionStatus.APPROVED);
         decision.DepositRate.Should().Be(0.3m);
@@ -61,9 +61,9 @@ public class DefaultDecisionStrategyTests
     [Trait("CatalogId", "UT-03")]
     public async Task EvaluateAsync_NeedApproval_RecommendsManagerApproval()
     {
-        var reservation = V2TestData.CreateReservation(totalPrice: 2_500_000m);
+        var reservation = DomainTestData.CreateReservation(totalPrice: 2_500_000m);
 
-        var decision = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.Recommendations.Should().ContainSingle().Which.Type.Should().Be(RecommendationType.REQUIRE_APPROVAL);
     }
@@ -72,10 +72,10 @@ public class DefaultDecisionStrategyTests
     [Trait("CatalogId", "UT-03")]
     public async Task EvaluateAsync_DifferentEvaluationTimes_ReturnsSameDecision()
     {
-        var reservation = V2TestData.CreateReservation(customer: V2TestData.CreateMember(CustomerTier.SILVER));
+        var reservation = DomainTestData.CreateReservation(customer: DomainTestData.CreateMember(CustomerTier.SILVER));
 
-        var early = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)), CancellationToken.None);
-        var late = await Strategy.EvaluateAsync(reservation, V2TestData.CreateContext(new DateTimeOffset(2035, 6, 1, 12, 0, 0, TimeSpan.Zero)), CancellationToken.None);
+        var early = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)), CancellationToken.None);
+        var late = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(new DateTimeOffset(2035, 6, 1, 12, 0, 0, TimeSpan.Zero)), CancellationToken.None);
 
         late.Status.Should().Be(early.Status);
         late.DepositRate.Should().Be(early.DepositRate);
@@ -88,9 +88,9 @@ public class DefaultDecisionStrategyTests
     {
         // Ngưỡng tiền tệ chỉnh bằng cấu hình (PT-01 Hotel EUR) — không sửa mã
         var strategy = new DefaultDecisionStrategy(new DefaultStrategyOptions { HighValueThreshold = 500m });
-        var reservation = V2TestData.CreateReservation(totalPrice: 600m, currency: "EUR");
+        var reservation = DomainTestData.CreateReservation(totalPrice: 600m, currency: "EUR");
 
-        var decision = await strategy.EvaluateAsync(reservation, V2TestData.CreateContext(), CancellationToken.None);
+        var decision = await strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
 
         decision.ReasonCode.Should().Be(ReasonCodes.HighValueReview);
     }
@@ -188,7 +188,7 @@ public class DefaultDecisionStrategyTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        var act = () => Strategy.EvaluateAsync(V2TestData.CreateReservation(), V2TestData.CreateContext(), cancellation.Token);
+        var act = () => Strategy.EvaluateAsync(DomainTestData.CreateReservation(), DomainTestData.CreateContext(), cancellation.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }

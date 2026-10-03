@@ -4,7 +4,7 @@ using Shared.DecisionContractSDK.Domain;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Domain;
+namespace TADSS.UnitTests.Sdk.Domain;
 
 /// <summary>
 /// UT-05: giờ cao điểm xét theo thời điểm bắt đầu sớm nhất, quy về múi giờ chi nhánh
@@ -28,9 +28,9 @@ public class BranchCalendarTests
     {
         // 2026-11-20T20:00:00Z là thứ Sáu 20:00 theo UTC nhưng là thứ Bảy 03:00 giờ chi nhánh → không cao điểm
         var start = DateTimeOffset.Parse(startIso, CultureInfo.InvariantCulture);
-        var reservation = V2TestData.CreateReservation(items: [V2TestData.CreateItem(start, hours: 1)]);
+        var reservation = DomainTestData.CreateReservation(items: [DomainTestData.CreateItem(start, hours: 1)]);
 
-        V2TestData.StandardCalendar().IsPeak(reservation).Should().Be(expectedPeak);
+        DomainTestData.StandardCalendar().IsPeak(reservation).Should().Be(expectedPeak);
     }
 
     [Theory]
@@ -41,35 +41,35 @@ public class BranchCalendarTests
     {
         // Lisbon mùa hè UTC+01:00: 16:00Z = 17:00 thứ Sáu giờ chi nhánh
         var start = DateTimeOffset.Parse(startIso, CultureInfo.InvariantCulture);
-        var reservation = V2TestData.CreateReservation(
-            items: [V2TestData.CreateItem(start, hours: 1)], timeZone: V2TestData.Lisbon, currency: "EUR");
+        var reservation = DomainTestData.CreateReservation(
+            items: [DomainTestData.CreateItem(start, hours: 1)], timeZone: DomainTestData.Lisbon, currency: "EUR");
 
-        V2TestData.StandardCalendar().IsPeak(reservation).Should().Be(expectedPeak);
+        DomainTestData.StandardCalendar().IsPeak(reservation).Should().Be(expectedPeak);
     }
 
     [Fact]
     [Trait("CatalogId", "UT-05")]
     public void IsPeak_MultipleItems_UsesEarliestStartRegardlessOfOrder()
     {
-        var offPeak = V2TestData.CreateItem(new DateTimeOffset(2026, 11, 20, 16, 0, 0, V2TestData.VietnamOffset), hours: 1);
-        var peak = V2TestData.CreateItem(V2TestData.FridayPeakStart, hours: 1);
-        var reservation = V2TestData.CreateReservation(items: [peak, offPeak]);
+        var offPeak = DomainTestData.CreateItem(new DateTimeOffset(2026, 11, 20, 16, 0, 0, DomainTestData.VietnamOffset), hours: 1);
+        var peak = DomainTestData.CreateItem(DomainTestData.FridayPeakStart, hours: 1);
+        var reservation = DomainTestData.CreateReservation(items: [peak, offPeak]);
 
-        V2TestData.StandardCalendar().IsPeak(reservation).Should().BeFalse();
+        DomainTestData.StandardCalendar().IsPeak(reservation).Should().BeFalse();
     }
 
     [Fact]
     [Trait("CatalogId", "UT-05")]
     public void IsPeak_EmptyCalendar_ReturnsFalse()
     {
-        new BranchCalendar([]).IsPeak(V2TestData.CreateReservation()).Should().BeFalse();
+        new BranchCalendar([]).IsPeak(DomainTestData.CreateReservation()).Should().BeFalse();
     }
 
     [Fact]
     [Trait("CatalogId", "UT-05")]
     public void PeakWindows_AnyCalendar_IsNotWritableArray()
     {
-        V2TestData.StandardCalendar().PeakWindows.Should().NotBeAssignableTo<PeakWindow[]>("downcast sang mảng sẽ cho phép ghi đè lịch");
+        DomainTestData.StandardCalendar().PeakWindows.Should().NotBeAssignableTo<PeakWindow[]>("downcast sang mảng sẽ cho phép ghi đè lịch");
     }
 
     [Theory]

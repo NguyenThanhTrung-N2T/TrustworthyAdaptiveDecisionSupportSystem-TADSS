@@ -16,7 +16,7 @@
     <Compile Include="..\TADSS.UnitTests\TestData\ContractSchemas.cs" Link="SharedTestData\ContractSchemas.cs" />
     <Compile Include="..\TADSS.UnitTests\TestData\RepositoryPaths.cs" Link="SharedTestData\RepositoryPaths.cs" />
     <Compile Include="..\TADSS.UnitTests\TestData\RequestSchemaNegativeCases.cs" Link="SharedTestData\RequestSchemaNegativeCases.cs" />
-    <Compile Include="..\TADSS.UnitTests\TestData\V2Samples.cs" Link="SharedTestData\V2Samples.cs" />
+    <Compile Include="..\TADSS.UnitTests\TestData\ContractSamples.cs" Link="SharedTestData\ContractSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -130,7 +130,7 @@ public class CacheIntegrationTests : DecisionApiTestBase
         third.Result.ExecutionType.Should().Be(ExecutionType.CACHE_HIT);
         third.Result.Status.Should().Be(DecisionStatus.APPROVED, "không còn đủ thời gian để Manager duyệt");
         third.Result.ApprovalExpiresAt.Should().BeNull();
-        V2Samples.Required(third.Result.Deposit).Rate.Should().Be(1m);
+        ContractSamples.Required(third.Result.Deposit).Rate.Should().Be(1m);
 
         Strategies.InvocationCount.Should().Be(1);
         var rows = await ReadExecutionsAsync();

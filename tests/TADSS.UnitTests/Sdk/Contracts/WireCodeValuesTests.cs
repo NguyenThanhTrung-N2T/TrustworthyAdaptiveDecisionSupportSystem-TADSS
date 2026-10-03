@@ -3,7 +3,7 @@ using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Xunit;
 
-namespace TADSS.UnitTests.Contracts;
+namespace TADSS.UnitTests.Sdk.Contracts;
 
 /// <summary>
 /// CT-02: ghim giá trị wire của <see cref="ErrorCodes"/> (INTEGRATION_SPEC §3.8, 13 mã) và <see cref="ReasonCodes"/>

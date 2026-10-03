@@ -40,7 +40,7 @@ public class DecisionServiceEndToEndTests
     }
 
     private static DecisionResultDto Deserialize(string payload) =>
-        V2Samples.Required(JsonSerializer.Deserialize<DecisionResultDto>(payload, TadssJson.Options));
+        ContractSamples.Required(JsonSerializer.Deserialize<DecisionResultDto>(payload, TadssJson.Options));
 
     [Fact]
     [Trait("CatalogId", "UT-11")]
@@ -51,7 +51,7 @@ public class DecisionServiceEndToEndTests
         var store = new FakeDecisionAuditStore();
         var service = ActivatorUtilities.CreateInstance<DecisionService>(provider, store);
 
-        var response = await service.EvaluateAsync(V2Samples.DeserializeRequest(V2Samples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
+        var response = await service.EvaluateAsync(ContractSamples.DeserializeRequest(ContractSamples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
 
         var results = ContractSchemas.Evaluate(ResultSchema, JsonSerializer.Serialize(response, TadssJson.Options));
         results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
@@ -71,8 +71,8 @@ public class DecisionServiceEndToEndTests
         var store = new FakeDecisionAuditStore();
         var service = ActivatorUtilities.CreateInstance<DecisionService>(provider, store);
 
-        var first = await service.EvaluateAsync(V2Samples.DeserializeRequest(V2Samples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
-        var replay = await service.EvaluateAsync(V2Samples.DeserializeRequest(V2Samples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
+        var first = await service.EvaluateAsync(ContractSamples.DeserializeRequest(ContractSamples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
+        var replay = await service.EvaluateAsync(ContractSamples.DeserializeRequest(ContractSamples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
 
         replay.Should().BeEquivalentTo(first);
         store.Records.Should().ContainSingle("replay không ghi bản ghi mới");
@@ -87,8 +87,8 @@ public class DecisionServiceEndToEndTests
         var store = new FakeDecisionAuditStore();
         var service = ActivatorUtilities.CreateInstance<DecisionService>(provider, store);
 
-        var first = await service.EvaluateAsync(V2Samples.DeserializeRequest(V2Samples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
-        var second = await service.EvaluateAsync(V2Samples.DeserializeRequest(V2Samples.RequestJson), "idem-e2e-0002", "corr-e2e", CancellationToken.None);
+        var first = await service.EvaluateAsync(ContractSamples.DeserializeRequest(ContractSamples.RequestJson), "idem-e2e-0001", "corr-e2e", CancellationToken.None);
+        var second = await service.EvaluateAsync(ContractSamples.DeserializeRequest(ContractSamples.RequestJson), "idem-e2e-0002", "corr-e2e", CancellationToken.None);
 
         first.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         second.ExecutionType.Should().Be(ExecutionType.CACHE_HIT);

@@ -8,7 +8,7 @@ using TADSS.UnitTests.TestData;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace TADSS.UnitTests.Contracts;
+namespace TADSS.UnitTests.Sdk.Contracts;
 
 /// <summary>
 /// B-06 — phân tầng lỗi request v2: vi phạm mà JSON schema diễn đạt được luôn ra <see cref="ContractValidationException"/>
@@ -50,7 +50,7 @@ public class RequestErrorTierTests(ITestOutputHelper output)
     [MemberData(nameof(FormatViolations))]
     public void ToDomain_FormatViolations_Theory(string caseName, string errorCode, string fieldName)
     {
-        var dto = V2Samples.DeserializeRequest(RequestSchemaNegativeCases.Json(caseName));
+        var dto = ContractSamples.DeserializeRequest(RequestSchemaNegativeCases.Json(caseName));
 
         var act = () => dto.ToDomain();
 
@@ -63,8 +63,8 @@ public class RequestErrorTierTests(ITestOutputHelper output)
     [Trait("CatalogId", "UT-01")]
     public void ToDomain_EndNotAfterStart_StillDomainInvariant()
     {
-        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root =>
-            V2Samples.Object(root["items"]?[0])["endTime"] = "2026-11-20T18:00:00+07:00"));
+        var dto = ContractSamples.DeserializeRequest(ContractSamples.MutateRequest(root =>
+            ContractSamples.Object(root["items"]?[0])["endTime"] = "2026-11-20T18:00:00+07:00"));
 
         var act = () => dto.ToDomain();
 
@@ -77,7 +77,7 @@ public class RequestErrorTierTests(ITestOutputHelper output)
     [InlineData("branchId", "INVALID_BRANCH_ID")]
     public void ToDomain_EmptyGuidIdentifier_StillDomainInvariant(string property, string invariantCode)
     {
-        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root => root[property] = Guid.Empty.ToString()));
+        var dto = ContractSamples.DeserializeRequest(ContractSamples.MutateRequest(root => root[property] = Guid.Empty.ToString()));
 
         var act = () => dto.ToDomain();
 
@@ -88,8 +88,8 @@ public class RequestErrorTierTests(ITestOutputHelper output)
     [Trait("CatalogId", "UT-01")]
     public void ToDomain_EmptyGuidCustomerId_StillDomainInvariant()
     {
-        var dto = V2Samples.DeserializeRequest(V2Samples.MutateRequest(root =>
-            V2Samples.Object(root["customer"])["customerId"] = Guid.Empty.ToString()));
+        var dto = ContractSamples.DeserializeRequest(ContractSamples.MutateRequest(root =>
+            ContractSamples.Object(root["customer"])["customerId"] = Guid.Empty.ToString()));
 
         var act = () => dto.ToDomain();
 
@@ -126,7 +126,7 @@ public class RequestErrorTierTests(ITestOutputHelper output)
     [Trait("CatalogId", "UT-02")]
     public void ToDomain_SpecSample_StillMaps()
     {
-        var reservation = V2Samples.DeserializeRequest(V2Samples.RequestJson).ToDomain();
+        var reservation = ContractSamples.DeserializeRequest(ContractSamples.RequestJson).ToDomain();
 
         reservation.ReservationId.Should().Be(Guid.Parse("5b0a6f0e-7c0d-4a0e-9a64-0c2e7f1b9a11"));
         reservation.BranchId.Should().Be(Guid.Parse("1f2e3d4c-0000-4000-8000-000000000001"));
@@ -135,7 +135,7 @@ public class RequestErrorTierTests(ITestOutputHelper output)
         reservation.Currency.Should().Be("VND");
         reservation.Customer.IsGuest.Should().BeFalse();
         reservation.Customer.CustomerId.Should().Be(Guid.Parse("9d3f1c2a-0000-4000-8000-000000000123"));
-        V2Samples.Required(reservation.Demand).OccupancyRate.Should().Be(0.75m);
+        ContractSamples.Required(reservation.Demand).OccupancyRate.Should().Be(0.75m);
         reservation.RequestedAt.Should().Be(new DateTimeOffset(2026, 11, 18, 9, 15, 0, TimeSpan.FromHours(7)));
         reservation.Metadata.Should().ContainKey("promotionCode");
     }

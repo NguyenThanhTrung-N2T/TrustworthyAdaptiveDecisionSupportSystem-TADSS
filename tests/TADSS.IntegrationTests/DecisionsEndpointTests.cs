@@ -40,7 +40,7 @@ public class DecisionsEndpointTests : DecisionApiTestBase
         var result = response.Result;
         result.Status.Should().Be(DecisionStatus.APPROVED);
         result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
-        var deposit = V2Samples.Required(result.Deposit);
+        var deposit = ContractSamples.Required(result.Deposit);
         deposit.Rate.Should().Be(0.3m);
         deposit.Amount.Should().Be(68_400m);
         result.EvaluatedAt.Should().Be(InitialInstant);
@@ -54,7 +54,7 @@ public class DecisionsEndpointTests : DecisionApiTestBase
         row.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
         row.CacheHit.Should().BeFalse();
         row.CreatedAt.Should().Be(InitialInstant);
-        var normalizedRequest = JsonSerializer.Serialize(V2Samples.DeserializeRequest(DecisionRequests.Valid()), TadssJson.Options);
+        var normalizedRequest = JsonSerializer.Serialize(ContractSamples.DeserializeRequest(DecisionRequests.Valid()), TadssJson.Options);
         JsonNode.DeepEquals(JsonNode.Parse(row.RequestPayload), JsonNode.Parse(normalizedRequest))
             .Should().BeTrue("request_payload là snapshot request đã chuẩn hóa");
         JsonNode.DeepEquals(JsonNode.Parse(row.ResponsePayload), JsonNode.Parse(response.Body))
@@ -79,7 +79,7 @@ public class DecisionsEndpointTests : DecisionApiTestBase
         result.Status.Should().Be(DecisionStatus.APPROVED);
         result.ReasonCode.Should().Be(ReasonCodes.ApprovalWindowUnavailable);
         result.ApprovalExpiresAt.Should().BeNull();
-        var deposit = V2Samples.Required(result.Deposit);
+        var deposit = ContractSamples.Required(result.Deposit);
         deposit.Rate.Should().Be(1m);
         deposit.Amount.Should().Be(DecisionRequests.HighValueTotalPrice);
 

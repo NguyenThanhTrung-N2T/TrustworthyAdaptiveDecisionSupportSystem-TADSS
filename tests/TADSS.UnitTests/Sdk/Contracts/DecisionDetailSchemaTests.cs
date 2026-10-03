@@ -3,7 +3,7 @@ using FluentAssertions;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
-namespace TADSS.UnitTests.Contracts;
+namespace TADSS.UnitTests.Sdk.Contracts;
 
 /// <summary>
 /// CT-01 (phần chi tiết quyết định): <c>decision-detail.schema.json</c> chấp nhận ví dụ INTEGRATION_SPEC §3.4 (kể cả khi có
@@ -21,7 +21,7 @@ public class DecisionDetailSchemaTests
         {
           "decisionId": "0f9c7e5a-0000-4000-8000-00000000d001",
           "reservationId": "5b0a6f0e-7c0d-4a0e-9a64-0c2e7f1b9a11",
-          "request": {{V2Samples.RequestJson}},
+          "request": {{ContractSamples.RequestJson}},
           "result": {
             "status": "APPROVED",
             "strategyStatus": "NEED_APPROVAL",
@@ -98,7 +98,7 @@ public class DecisionDetailSchemaTests
 
     private static string Mutate(string json, Action<JsonObject> mutate)
     {
-        var root = V2Samples.Object(JsonNode.Parse(json));
+        var root = ContractSamples.Object(JsonNode.Parse(json));
         mutate(root);
         return root.ToJsonString();
     }
@@ -114,30 +114,30 @@ public class DecisionDetailSchemaTests
         switch (caseName)
         {
             case "extra-top-level-field": return Mutate(DetailJson, root => root["extra"] = 1);
-            case "extra-result-field": return Mutate(DetailJson, root => V2Samples.Object(root["result"])["extra"] = 1);
-            case "extra-execution-field": return Mutate(DetailJson, root => V2Samples.Object(root["execution"])["extra"] = 1);
+            case "extra-result-field": return Mutate(DetailJson, root => ContractSamples.Object(root["result"])["extra"] = 1);
+            case "extra-execution-field": return Mutate(DetailJson, root => ContractSamples.Object(root["execution"])["extra"] = 1);
             case "missing-correlation-id": return Mutate(DetailJson, root => root.Remove("correlationId"));
             case "missing-result": return Mutate(DetailJson, root => root.Remove("result"));
-            case "missing-strategy-status": return Mutate(DetailJson, root => V2Samples.Object(root["result"]).Remove("strategyStatus"));
+            case "missing-strategy-status": return Mutate(DetailJson, root => ContractSamples.Object(root["result"]).Remove("strategyStatus"));
             case "missing-override": return Mutate(DetailJson, root => root.Remove("override"));
             case "wrong-type-decision-id": return Mutate(DetailJson, root => root["decisionId"] = 42);
-            case "wrong-type-execution-time": return Mutate(DetailJson, root => V2Samples.Object(root["execution"])["executionTimeMs"] = "3");
-            case "wrong-type-cache-hit": return Mutate(DetailJson, root => V2Samples.Object(root["execution"])["cacheHit"] = "false");
-            case "unknown-strategy-status": return Mutate(DetailJson, root => V2Samples.Object(root["result"])["strategyStatus"] = "approved");
-            case "approved-without-deposit": return Mutate(DetailJson, root => V2Samples.Object(root["result"])["deposit"] = null);
+            case "wrong-type-execution-time": return Mutate(DetailJson, root => ContractSamples.Object(root["execution"])["executionTimeMs"] = "3");
+            case "wrong-type-cache-hit": return Mutate(DetailJson, root => ContractSamples.Object(root["execution"])["cacheHit"] = "false");
+            case "unknown-strategy-status": return Mutate(DetailJson, root => ContractSamples.Object(root["result"])["strategyStatus"] = "approved");
+            case "approved-without-deposit": return Mutate(DetailJson, root => ContractSamples.Object(root["result"])["deposit"] = null);
             case "created-at-without-offset": return Mutate(DetailJson, root => root["createdAt"] = "2026-11-18T02:15:00");
-            case "request-missing-field": return Mutate(DetailJson, root => V2Samples.Object(root["request"]).Remove("totalPrice"));
-            case "request-extra-field": return Mutate(DetailJson, root => V2Samples.Object(root["request"])["extra"] = true);
+            case "request-missing-field": return Mutate(DetailJson, root => ContractSamples.Object(root["request"]).Remove("totalPrice"));
+            case "request-extra-field": return Mutate(DetailJson, root => ContractSamples.Object(root["request"])["extra"] = true);
             case "override-wrong-shape": return Mutate(DetailJson, root => root["override"] = JsonNode.Parse("""{ "action": "APPROVE", "deposit": { "rate": 0.3 } }"""));
             case "override-not-object": return Mutate(DetailJson, root => root["override"] = "APPROVE");
-            case "override-approve-without-deposit": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["override"])["deposit"] = null);
-            case "override-reject-with-deposit": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["override"])["action"] = "REJECT");
-            case "override-extra-field": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["override"])["extra"] = 1);
-            case "override-reason-too-short": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["override"])["reason"] = "ok");
+            case "override-approve-without-deposit": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["override"])["deposit"] = null);
+            case "override-reject-with-deposit": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["override"])["action"] = "REJECT");
+            case "override-extra-field": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["override"])["extra"] = 1);
+            case "override-reason-too-short": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["override"])["reason"] = "ok");
             case "outcome-wrong-shape": return Mutate(DetailJson, root => root["outcome"] = JsonNode.Parse("""{ "outcome": "NO_SHOW" }"""));
             case "outcome-not-object": return Mutate(DetailJson, root => root["outcome"] = "NO_SHOW");
-            case "outcome-unknown-value": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["outcome"])["outcome"] = "LATE");
-            case "outcome-extra-field": return Mutate(WithOverrideAndOutcome(), root => V2Samples.Object(root["outcome"])["extra"] = 1);
+            case "outcome-unknown-value": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["outcome"])["outcome"] = "LATE");
+            case "outcome-extra-field": return Mutate(WithOverrideAndOutcome(), root => ContractSamples.Object(root["outcome"])["extra"] = 1);
             default: throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null);
         }
     }
@@ -169,7 +169,7 @@ public class DecisionDetailSchemaTests
     {
         var json = Mutate(WithOverrideAndOutcome(), root =>
         {
-            var overrideNode = V2Samples.Object(root["override"]);
+            var overrideNode = ContractSamples.Object(root["override"]);
             overrideNode["action"] = "REJECT";
             overrideNode["deposit"] = null;
         });

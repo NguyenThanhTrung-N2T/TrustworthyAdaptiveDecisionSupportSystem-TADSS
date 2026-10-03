@@ -12,7 +12,7 @@ namespace TADSS.UnitTests.Architecture;
 /// Domain, Decisions hay DTO (bổ sung cho <c>SdkDependencyPurityTests</c>); SDK không phụ thuộc Runtime/Strategies
 /// và mỗi Strategy chỉ phụ thuộc SDK trong số các assembly của hệ thống.
 /// </summary>
-public class SdkV2LayeringTests
+public class SdkLayeringTests
 {
     private const string Sdk = "Shared.DecisionContractSDK.";
     private const string SdkAssemblyName = "Shared.DecisionContractSDK";
