@@ -10,8 +10,8 @@ namespace TADSS.Infrastructure.Persistence;
 /// </summary>
 internal static class DecisionAuditMapper
 {
-    /// <summary>Tạo entity chưa lưu từ <paramref name="record"/>; <see cref="DecisionExecution.Id"/> do cơ sở dữ liệu sinh.</summary>
-    public static DecisionExecution ToEntity(DecisionExecutionRecord record) => new()
+    /// <summary>Tạo entity chưa lưu từ <paramref name="record"/>; <see cref="DecisionExecutionEntity.Id"/> do cơ sở dữ liệu sinh.</summary>
+    public static DecisionExecutionEntity ToEntity(DecisionExecutionRecord record) => new()
     {
         DecisionId = record.DecisionId,
         ReservationId = record.ReservationId,
@@ -39,7 +39,7 @@ internal static class DecisionAuditMapper
     };
 
     /// <summary>Dựng record từ entity đã đọc (bỏ khóa kỹ thuật <c>Id</c>).</summary>
-    public static DecisionExecutionRecord ToRecord(DecisionExecution entity) => new(
+    public static DecisionExecutionRecord ToRecord(DecisionExecutionEntity entity) => new(
         DecisionId: entity.DecisionId,
         ReservationId: entity.ReservationId,
         BranchId: entity.BranchId,
@@ -65,7 +65,7 @@ internal static class DecisionAuditMapper
         CreatedAt: entity.CreatedAt);
 
     /// <summary>Dựng record override từ entity đã đọc.</summary>
-    public static DecisionOverrideRecord ToRecord(DecisionOverride entity) => new(
+    public static DecisionOverrideRecord ToRecord(DecisionOverrideEntity entity) => new(
         entity.DecisionId,
         entity.Action,
         entity.DepositRate,
@@ -76,7 +76,7 @@ internal static class DecisionAuditMapper
         entity.CreatedAt);
 
     /// <summary>Dựng record outcome từ entity đã đọc.</summary>
-    public static DecisionOutcomeRecord ToRecord(Entities.DecisionOutcome entity) => new(
+    public static DecisionOutcomeRecord ToRecord(DecisionOutcomeEntity entity) => new(
         entity.DecisionId,
         entity.Outcome,
         entity.OccurredAt,

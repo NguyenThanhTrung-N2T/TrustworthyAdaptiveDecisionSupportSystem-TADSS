@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
 
@@ -9,15 +10,12 @@ namespace TADSS.Runtime.Api.Controllers;
 /// <summary>
 /// API quyết định v2 (INTEGRATION_SPEC §3.3–3.4). Controller chỉ chuyển tiếp: kiểm tra header <c>X-Idempotency-Key</c>, gọi service
 /// và trả kết quả. Mọi lỗi (header, giải mã body, nghiệp vụ, hạ tầng) đi qua <c>GlobalExceptionHandler</c> nên controller không tự
-/// dựng <see cref="ProblemDetails"/>. Các endpoint pending/override/outcome thuộc gói 5.3.
+/// dựng <see cref="ProblemDetails"/>.
 /// </summary>
 [ApiController]
 [Route("api/v2/decisions")]
 public class DecisionsController(IDecisionService decisionService, IDecisionQueryService decisionQueryService) : ControllerBase
 {
-    /// <summary>Độ dài tối đa của <c>X-Idempotency-Key</c> (INTEGRATION_SPEC §2).</summary>
-    public const int MaxIdempotencyKeyLength = 128;
-
     /// <summary>Media type của mọi phản hồi lỗi (RFC 7807), dùng cho tài liệu OpenAPI.</summary>
     private const string ProblemContentType = "application/problem+json";
 
@@ -56,11 +54,11 @@ public class DecisionsController(IDecisionService decisionService, IDecisionQuer
                 HttpHeaderNames.IdempotencyKey);
         }
 
-        if (idempotencyKey.Length > MaxIdempotencyKeyLength)
+        if (idempotencyKey.Length > ContractLimits.MaxIdempotencyKeyLength)
         {
             throw new ContractValidationException(
                 ErrorCodes.ValidationError,
-                $"Header {HttpHeaderNames.IdempotencyKey} dài tối đa {MaxIdempotencyKeyLength} ký tự.",
+                $"Header {HttpHeaderNames.IdempotencyKey} dài tối đa {ContractLimits.MaxIdempotencyKeyLength} ký tự.",
                 HttpHeaderNames.IdempotencyKey);
         }
 

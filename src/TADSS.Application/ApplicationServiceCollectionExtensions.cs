@@ -46,7 +46,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<ApprovalWindowPolicy>();
 
         // Strategy đang kích hoạt: section Tadss:Strategy
-        services.AddOptions<StrategyOptions>().Bind(configuration.GetSection(StrategyOptions.SectionName));
+        services.AddOptions<StrategyOptions>()
+            .Bind(configuration.GetSection(StrategyOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<StrategyOptions>, StrategyOptionsValidator>();
         services.AddSingleton<IStrategyRegistry, StrategyRegistry>();
 
         // Bộ ghép response + bản ghi audit (phép biến đổi thuần)

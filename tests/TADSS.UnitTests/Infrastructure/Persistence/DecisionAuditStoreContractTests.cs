@@ -136,5 +136,5 @@ public class DecisionAuditStoreContractTests
     private static bool IsInfrastructureType(Type type) =>
         typeof(IQueryable).IsAssignableFrom(type)
         || typeof(DbContext).IsAssignableFrom(type)
-        || type.Namespace == typeof(DecisionExecution).Namespace;
+        || type.Namespace == typeof(DecisionExecutionEntity).Namespace;
 }

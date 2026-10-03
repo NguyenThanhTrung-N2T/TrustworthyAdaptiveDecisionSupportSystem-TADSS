@@ -29,15 +29,15 @@ public class ExceptionClassifierTests
     private static NpgsqlException TransientNpgsql() =>
         new("Failed to connect", new SocketException((int)SocketError.ConnectionRefused));
 
-    public static TheoryData<Exception, int, string, bool, int?> MappingRows => new()
+    public static TheoryData<Exception, int, string, bool, bool> MappingRows => new()
     {
-        { new ContractValidationException(ErrorCodes.ValidationError, "sai định dạng", "items"), 400, ErrorCodes.ValidationError, true, null },
-        { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, ErrorCodes.DomainInvariantViolation, true, null },
-        { new IdempotencyConflictException("key-01", "key dùng lại"), 409, ErrorCodes.IdempotencyKeyReuse, true, null },
-        { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, ErrorCodes.PersistenceUnavailable, false, 5 },
-        { new DecisionTimeoutException("vượt deadline", new TimeoutException()), 504, ErrorCodes.GatewayTimeout, false, 5 },
-        { new InvalidOperationException("lỗi nội bộ"), 500, ErrorCodes.InternalError, false, null },
-        { new ArgumentException("lỗi tham số"), 500, ErrorCodes.InternalError, false, null },
+        { new ContractValidationException(ErrorCodes.ValidationError, "sai định dạng", "items"), 400, ErrorCodes.ValidationError, true, false },
+        { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, ErrorCodes.DomainInvariantViolation, true, false },
+        { new IdempotencyConflictException("key-01", "key dùng lại"), 409, ErrorCodes.IdempotencyKeyReuse, true, false },
+        { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, ErrorCodes.PersistenceUnavailable, false, true },
+        { new DecisionTimeoutException("vượt deadline", new TimeoutException()), 504, ErrorCodes.GatewayTimeout, false, true },
+        { new InvalidOperationException("lỗi nội bộ"), 500, ErrorCodes.InternalError, false, false },
+        { new ArgumentException("lỗi tham số"), 500, ErrorCodes.InternalError, false, false },
     };
 
     public static TheoryData<Exception> ServerSideErrors => new()
@@ -51,7 +51,7 @@ public class ExceptionClassifierTests
     [Trait("CatalogId", "UT-08")]
     [MemberData(nameof(MappingRows))]
     public void Classify_MappingTable_Theory(
-        Exception exception, int expectedStatus, string expectedCode, bool expectedExposeMessage, int? expectedRetryAfter)
+        Exception exception, int expectedStatus, string expectedCode, bool expectedExposeMessage, bool expectedHasRetryAfter)
     {
         var result = ExceptionClassifier.Classify(exception, requestAborted: false);
 
@@ -59,7 +59,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(expectedStatus);
         classification.Code.Should().Be(expectedCode);
         classification.ExposeMessage.Should().Be(expectedExposeMessage);
-        classification.RetryAfterSeconds.Should().Be(expectedRetryAfter);
+        classification.HasRetryAfter.Should().Be(expectedHasRetryAfter);
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -75,7 +75,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(400);
         classification.Code.Should().Be(ErrorCodes.MissingHeader);
         classification.ExposeMessage.Should().BeTrue();
-        classification.RetryAfterSeconds.Should().BeNull();
+        classification.HasRetryAfter.Should().BeFalse();
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -89,7 +89,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(404);
         classification.Code.Should().Be(ErrorCodes.DecisionNotFound);
         classification.ExposeMessage.Should().BeTrue();
-        classification.RetryAfterSeconds.Should().BeNull();
+        classification.HasRetryAfter.Should().BeFalse();
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -139,7 +139,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(504);
         classification.Code.Should().Be(ErrorCodes.GatewayTimeout);
         classification.ExposeMessage.Should().BeFalse();
-        classification.RetryAfterSeconds.Should().Be(5);
+        classification.HasRetryAfter.Should().BeTrue();
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -154,7 +154,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(503);
         classification.Code.Should().Be(ErrorCodes.PersistenceUnavailable);
         classification.ExposeMessage.Should().BeFalse();
-        classification.RetryAfterSeconds.Should().Be(5);
+        classification.HasRetryAfter.Should().BeTrue();
     }
 
     [Theory]
@@ -169,7 +169,7 @@ public class ExceptionClassifierTests
         classification.StatusCode.Should().Be(500);
         classification.Code.Should().Be(ErrorCodes.InternalError);
         classification.ExposeMessage.Should().BeFalse();
-        classification.RetryAfterSeconds.Should().BeNull();
+        classification.HasRetryAfter.Should().BeFalse();
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public class ExceptionClassifierTests
         var classification = Require(result);
         classification.StatusCode.Should().Be(500);
         classification.Code.Should().Be(ErrorCodes.InternalError);
-        classification.RetryAfterSeconds.Should().BeNull();
+        classification.HasRetryAfter.Should().BeFalse();
     }
 
     [Theory]

@@ -7,9 +7,9 @@ namespace TADSS.Infrastructure.Persistence.Configurations;
 /// <summary>
 /// Cấu hình bảng <c>tadss.decision_outcomes</c> theo DECISION_PERSISTENCE_INVARIANTS B.3 (append-only).
 /// </summary>
-public class DecisionOutcomeConfiguration : IEntityTypeConfiguration<DecisionOutcome>
+public class DecisionOutcomeConfiguration : IEntityTypeConfiguration<DecisionOutcomeEntity>
 {
-    public void Configure(EntityTypeBuilder<DecisionOutcome> builder)
+    public void Configure(EntityTypeBuilder<DecisionOutcomeEntity> builder)
     {
         builder.ToTable("decision_outcomes", "tadss", table =>
         {
@@ -33,10 +33,10 @@ public class DecisionOutcomeConfiguration : IEntityTypeConfiguration<DecisionOut
             .HasDatabaseName("uq_decision_outcomes_decision_id")
             .IsUnique();
 
-        builder.HasOne<DecisionExecution>()
+        builder.HasOne<DecisionExecutionEntity>()
             .WithOne()
-            .HasForeignKey<DecisionOutcome>(e => e.DecisionId)
-            .HasPrincipalKey<DecisionExecution>(e => e.DecisionId)
+            .HasForeignKey<DecisionOutcomeEntity>(e => e.DecisionId)
+            .HasPrincipalKey<DecisionExecutionEntity>(e => e.DecisionId)
             .HasConstraintName("fk_decision_outcomes_decision_id")
             .OnDelete(DeleteBehavior.NoAction);
     }

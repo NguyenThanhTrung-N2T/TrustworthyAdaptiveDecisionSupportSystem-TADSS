@@ -4,7 +4,6 @@ using TADSS.Application.Abstractions.Persistence;
 using TADSS.Infrastructure.Persistence;
 using TADSS.Infrastructure.Persistence.Entities;
 using Xunit;
-using OutcomeEntity = TADSS.Infrastructure.Persistence.Entities.DecisionOutcome;
 using OutcomeKind = Shared.DecisionContractSDK.Enums.DecisionOutcome;
 
 namespace TADSS.UnitTests.Infrastructure.Persistence;
@@ -169,7 +168,7 @@ public class EfDecisionAuditStoreMappingTests
     [Trait("CatalogId", "UT-01")]
     public void MapOverride_EntityToRecord_CopiesEveryColumn(OverrideAction action, double? rate, double? amount)
     {
-        var entity = new DecisionOverride
+        var entity = new DecisionOverrideEntity
         {
             Id = Guid.NewGuid(),
             DecisionId = Guid.NewGuid(),
@@ -202,7 +201,7 @@ public class EfDecisionAuditStoreMappingTests
     {
         var occurredAt = EvaluatedAt.AddDays(1);
         var reportedAt = occurredAt.AddMinutes(5);
-        var entity = new OutcomeEntity
+        var entity = new DecisionOutcomeEntity
         {
             Id = Guid.NewGuid(),
             DecisionId = Guid.NewGuid(),

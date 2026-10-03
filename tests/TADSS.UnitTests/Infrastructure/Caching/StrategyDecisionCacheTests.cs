@@ -65,7 +65,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         IMemoryCache? memory = null,
         string instanceName = "tadss:")
     {
-        var options = MsOptions.Create(new TadssCacheOptions
+        var options = MsOptions.Create(new CacheOptions
         {
             Provider = provider,
             EnableFallbackToMemory = fallbackToMemory,

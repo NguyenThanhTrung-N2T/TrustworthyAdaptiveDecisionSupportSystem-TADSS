@@ -3,7 +3,7 @@ using Shared.DecisionContractSDK.Domain;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Đăng ký strategy cụ thể của runtime. Chọn strategy nào là việc lắp ráp của composition root (E-03):
+/// Đăng ký strategy cụ thể của runtime. Chọn strategy nào là việc lắp ráp của composition root:
 /// Application chỉ biết <c>IStrategyRegistry</c> và <c>RegisteredStrategy</c>, không tham chiếu project strategy.
 /// </summary>
 public static class StrategyServiceCollectionExtensions

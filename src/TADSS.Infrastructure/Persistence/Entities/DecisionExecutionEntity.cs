@@ -9,7 +9,7 @@ namespace TADSS.Infrastructure.Persistence.Entities;
 /// (DECISION_PERSISTENCE_INVARIANTS B.1). Bảng append-only (trigger <c>trg_de_append_only</c>), nên entity không có
 /// <c>updated_at</c>, <c>version</c> hay <c>is_overridden</c>; thời gian do <c>DecisionService</c> gán (UTC, offset 0).
 /// </summary>
-public class DecisionExecution
+public class DecisionExecutionEntity
 {
     // ── 1. Khóa định danh ──────────────────────────────────────────
     /// <summary>Khóa kỹ thuật, do cơ sở dữ liệu sinh (<c>gen_random_uuid()</c>).</summary>
@@ -72,10 +72,10 @@ public class DecisionExecution
     /// <summary>SHA-256 hex thường (64 ký tự) của request đã chuẩn hóa.</summary>
     public string RequestHash { get; set; } = string.Empty;
 
-    /// <summary>Request v2 đã chuẩn hóa (cột <c>jsonb</c>).</summary>
+    /// <summary>Request đã chuẩn hóa (cột <c>jsonb</c>).</summary>
     public string RequestPayload { get; set; } = "{}";
 
-    /// <summary>Response v2 (cột <c>jsonb</c>).</summary>
+    /// <summary>Response (cột <c>jsonb</c>).</summary>
     public string ResponsePayload { get; set; } = "{}";
 
     /// <summary>Khóa idempotency.</summary>

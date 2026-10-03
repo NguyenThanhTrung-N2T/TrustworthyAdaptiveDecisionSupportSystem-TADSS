@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Persistence.Entities;
 
 namespace TADSS.Infrastructure.Persistence.Configurations;
@@ -7,9 +8,9 @@ namespace TADSS.Infrastructure.Persistence.Configurations;
 /// <summary>
 /// Cấu hình bảng <c>tadss.decision_overrides</c> theo DECISION_PERSISTENCE_INVARIANTS B.2 (append-only).
 /// </summary>
-public class DecisionOverrideConfiguration : IEntityTypeConfiguration<DecisionOverride>
+public class DecisionOverrideConfiguration : IEntityTypeConfiguration<DecisionOverrideEntity>
 {
-    public void Configure(EntityTypeBuilder<DecisionOverride> builder)
+    public void Configure(EntityTypeBuilder<DecisionOverrideEntity> builder)
     {
         builder.ToTable("decision_overrides", "tadss", table =>
         {
@@ -31,7 +32,7 @@ public class DecisionOverrideConfiguration : IEntityTypeConfiguration<DecisionOv
         builder.Property(e => e.DepositAmount).HasColumnName("deposit_amount").HasPrecision(14, 2);
         builder.Property(e => e.ActorId).HasColumnName("actor_id").HasMaxLength(100).IsRequired();
         builder.Property(e => e.Reason).HasColumnName("reason").HasColumnType("text").IsRequired();
-        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(128).IsRequired();
+        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(ContractLimits.MaxIdempotencyKeyLength).IsRequired();
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
 
         // Tối đa một override cho mỗi quyết định (INV-5)
@@ -39,10 +40,10 @@ public class DecisionOverrideConfiguration : IEntityTypeConfiguration<DecisionOv
             .HasDatabaseName("uq_decision_overrides_decision_id")
             .IsUnique();
 
-        builder.HasOne<DecisionExecution>()
+        builder.HasOne<DecisionExecutionEntity>()
             .WithOne()
-            .HasForeignKey<DecisionOverride>(e => e.DecisionId)
-            .HasPrincipalKey<DecisionExecution>(e => e.DecisionId)
+            .HasForeignKey<DecisionOverrideEntity>(e => e.DecisionId)
+            .HasPrincipalKey<DecisionExecutionEntity>(e => e.DecisionId)
             .HasConstraintName("fk_decision_overrides_decision_id")
             .OnDelete(DeleteBehavior.NoAction);
     }

@@ -36,7 +36,7 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             ReplaceDbContext(services, _connectionString);
-            services.PostConfigure<TadssCacheOptions>(options =>
+            services.PostConfigure<CacheOptions>(options =>
             {
                 options.Provider = "Redis";
                 options.RedisConnectionString = _redisConnectionString;

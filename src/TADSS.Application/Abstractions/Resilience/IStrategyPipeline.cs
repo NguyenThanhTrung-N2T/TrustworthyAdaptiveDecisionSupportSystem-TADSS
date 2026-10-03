@@ -6,7 +6,7 @@ using TADSS.Application.Exceptions;
 namespace TADSS.Application.Abstractions.Resilience;
 
 /// <summary>
-/// Chạy strategy v2 trong lớp bảo vệ chịu lỗi (timeout, retry, circuit breaker, fallback).
+/// Chạy strategy trong lớp bảo vệ chịu lỗi (timeout, retry, circuit breaker, fallback).
 /// </summary>
 public interface IStrategyPipeline
 {

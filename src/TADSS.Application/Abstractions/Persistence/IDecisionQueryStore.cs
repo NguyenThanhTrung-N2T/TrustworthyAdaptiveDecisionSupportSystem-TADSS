@@ -3,7 +3,7 @@ using TADSS.Application.Exceptions;
 namespace TADSS.Application.Abstractions.Persistence;
 
 /// <summary>
-/// Port audit phía tra cứu quyết định (chỉ đọc), khai báo theo nhu cầu của <c>DecisionQueryService</c> (ISP — E-07);
+/// Port audit phía tra cứu quyết định (chỉ đọc), khai báo theo nhu cầu của <c>DecisionQueryService</c> (ISP);
 /// hiện thực là <c>EfDecisionAuditStore</c> (đăng ký scoped, dùng chung instance với <see cref="IDecisionEvaluationStore"/>).
 /// Giữ ràng buộc append-only (INV-4): không có method sửa hay xóa và không lộ DbContext/<c>IQueryable</c>/entity EF.
 /// Lỗi lưu trữ tạm thời được dịch thành <see cref="PersistenceUnavailableException"/> như <see cref="IDecisionEvaluationStore"/>.

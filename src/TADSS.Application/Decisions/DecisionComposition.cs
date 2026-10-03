@@ -9,7 +9,7 @@ namespace TADSS.Application.Decisions;
 /// Đầu vào để ghép một quyết định thành response và bản ghi audit.
 /// </summary>
 /// <param name="DecisionId">Định danh quyết định do runtime cấp.</param>
-/// <param name="Request">Request v2 gốc (được serialize nguyên vẹn vào <c>request_payload</c>).</param>
+/// <param name="Request">Request gốc (được serialize nguyên vẹn vào <c>request_payload</c>).</param>
 /// <param name="Reservation">Reservation đã dựng từ request.</param>
 /// <param name="Strategy">Strategy đã được chọn (tên/phiên bản đi vào response và audit, kể cả khi fallback — B-04).</param>
 /// <param name="Outcome">Kết quả chạy strategy qua pipeline.</param>

@@ -3,7 +3,7 @@ namespace TADSS.Application.Abstractions.Caching;
 /// <summary>
 /// Dựng khóa cache của <c>StrategyDecision</c> theo spec 4.2.3:
 /// <c>tadss:v2:{strategyName}:{strategyVersion}:{optionsFingerprint}:{requestHash}</c>.
-/// Tiền tố <c>tadss:</c> đã nằm trong khóa nên cache không cộng thêm <c>TadssCacheOptions.InstanceName</c>.
+/// Tiền tố <c>tadss:</c> đã nằm trong khóa nên cache không cộng thêm <c>CacheOptions.InstanceName</c>.
 /// </summary>
 public static class StrategyDecisionCacheKey
 {

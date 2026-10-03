@@ -18,7 +18,7 @@ public sealed class StrategyRegistry : IStrategyRegistry
     /// <summary>
     /// Dựng registry từ các strategy đã đăng ký.
     /// </summary>
-    /// <param name="strategies">Các strategy v2 (kèm fingerprint) lấy từ DI.</param>
+    /// <param name="strategies">Các strategy (kèm fingerprint) lấy từ DI.</param>
     /// <param name="options">Cấu hình chỉ định strategy kích hoạt.</param>
     /// <param name="logger">Logger.</param>
     /// <exception cref="InvalidOperationException">Trùng <c>StrategyName</c>, hoặc strategy kích hoạt rỗng/không có trong registry.</exception>

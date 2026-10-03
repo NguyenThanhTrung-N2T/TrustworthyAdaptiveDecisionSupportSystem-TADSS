@@ -1,8 +1,7 @@
 namespace TADSS.Application.Strategies;
 
 /// <summary>
-/// Danh bạ các strategy v2: strategy đang kích hoạt (<c>Tadss:Strategy:ActiveStrategyName</c>) và tra theo tên.
-/// Việc chọn strategy theo từng request (router) thuộc gói 5.4.
+/// Danh bạ các strategy: strategy đang kích hoạt (<c>Tadss:Strategy:ActiveStrategyName</c>) và tra theo tên.
 /// </summary>
 public interface IStrategyRegistry
 {

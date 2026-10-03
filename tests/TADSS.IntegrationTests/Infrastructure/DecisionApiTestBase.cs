@@ -150,7 +150,7 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
     }
 
     /// <summary>Đọc trực tiếp mọi hàng <c>decision_executions</c> của database test bằng <c>DbContext</c> (không qua API), theo thời điểm tạo.</summary>
-    protected async Task<List<DecisionExecution>> ReadExecutionsAsync()
+    protected async Task<List<DecisionExecutionEntity>> ReadExecutionsAsync()
     {
         await using var db = CreateDbContext();
         return await db.DecisionExecutions.AsNoTracking().OrderBy(execution => execution.CreatedAt).ToListAsync();

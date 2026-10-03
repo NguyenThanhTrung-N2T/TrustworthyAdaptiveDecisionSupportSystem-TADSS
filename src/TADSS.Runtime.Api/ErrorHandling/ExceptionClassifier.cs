@@ -5,7 +5,7 @@ using TADSS.Application.Exceptions;
 namespace TADSS.Runtime.Api.ErrorHandling;
 
 /// <summary>
-/// Phân loại exception thành phản hồi lỗi v2 theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.
+/// Phân loại exception thành phản hồi lỗi theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.
 /// Chỉ biết exception của SDK và Application: adapter hạ tầng đã dịch lỗi Npgsql/Polly thành <see cref="PersistenceUnavailableException"/>
 /// và <see cref="DecisionTimeoutException"/>, nên exception thô của thư viện hạ tầng lọt tới đây là lỗi lập trình (500).
 /// <see cref="PersistenceUnavailableException"/> được tìm ở mọi tầng inner (kể cả mọi nhánh của <see cref="AggregateException"/>) và kiểm tra trước mọi nhánh khác.
@@ -14,8 +14,6 @@ namespace TADSS.Runtime.Api.ErrorHandling;
 /// </summary>
 public static class ExceptionClassifier
 {
-    private const int RetryAfterSeconds = 5;
-
     /// <summary>
     /// Phân loại <paramref name="exception"/>.
     /// </summary>
@@ -36,26 +34,26 @@ public static class ExceptionClassifier
                 ErrorCodes.PersistenceUnavailable,
                 "Persistence Unavailable",
                 ExposeMessage: false,
-                RetryAfterSeconds);
+                HasRetryAfter: true);
         }
 
         return exception switch
         {
             ContractValidationException { ErrorCode: ErrorCodes.MissingHeader } => new ErrorClassification(
-                StatusCodes.Status400BadRequest, ErrorCodes.MissingHeader, "Missing Header", ExposeMessage: true, null),
+                StatusCodes.Status400BadRequest, ErrorCodes.MissingHeader, "Missing Header", ExposeMessage: true, HasRetryAfter: false),
             // Tập mã đóng: ErrorCode lạ của ContractValidationException (kể cả INTERNAL_ERROR) luôn là VALIDATION_ERROR
             ContractValidationException => new ErrorClassification(
-                StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "Validation Error", ExposeMessage: true, null),
+                StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "Validation Error", ExposeMessage: true, HasRetryAfter: false),
             DomainInvariantException => new ErrorClassification(
-                StatusCodes.Status400BadRequest, ErrorCodes.DomainInvariantViolation, "Domain Invariant Violation", ExposeMessage: true, null),
+                StatusCodes.Status400BadRequest, ErrorCodes.DomainInvariantViolation, "Domain Invariant Violation", ExposeMessage: true, HasRetryAfter: false),
             DecisionNotFoundException => new ErrorClassification(
-                StatusCodes.Status404NotFound, ErrorCodes.DecisionNotFound, "Decision Not Found", ExposeMessage: true, null),
+                StatusCodes.Status404NotFound, ErrorCodes.DecisionNotFound, "Decision Not Found", ExposeMessage: true, HasRetryAfter: false),
             IdempotencyConflictException => new ErrorClassification(
-                StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, null),
+                StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, HasRetryAfter: false),
             DecisionTimeoutException => new ErrorClassification(
-                StatusCodes.Status504GatewayTimeout, ErrorCodes.GatewayTimeout, "Gateway Timeout", ExposeMessage: false, RetryAfterSeconds),
+                StatusCodes.Status504GatewayTimeout, ErrorCodes.GatewayTimeout, "Gateway Timeout", ExposeMessage: false, HasRetryAfter: true),
             _ => new ErrorClassification(
-                StatusCodes.Status500InternalServerError, ErrorCodes.InternalError, "Internal Server Error", ExposeMessage: false, null),
+                StatusCodes.Status500InternalServerError, ErrorCodes.InternalError, "Internal Server Error", ExposeMessage: false, HasRetryAfter: false),
         };
     }
 

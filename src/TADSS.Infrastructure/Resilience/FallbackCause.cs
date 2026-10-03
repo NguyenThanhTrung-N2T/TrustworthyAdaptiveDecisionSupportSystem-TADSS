@@ -1,7 +1,7 @@
 namespace TADSS.Infrastructure.Resilience;
 
 /// <summary>
-/// Nguyên nhân khiến pipeline v2 phải dùng quyết định fallback (RESILIENCE_AND_FAULT_TAXONOMY F2–F4).
+/// Nguyên nhân khiến pipeline phải dùng quyết định fallback (RESILIENCE_AND_FAULT_TAXONOMY F2–F4).
 /// </summary>
 public enum FallbackCause
 {

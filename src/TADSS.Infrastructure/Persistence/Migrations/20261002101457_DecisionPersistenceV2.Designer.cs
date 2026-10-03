@@ -26,7 +26,7 @@ namespace TADSS.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -193,7 +193,7 @@ namespace TADSS.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOutcome", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOutcomeEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -231,7 +231,7 @@ namespace TADSS.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOverride", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOverrideEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -300,23 +300,23 @@ namespace TADSS.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOutcome", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOutcomeEntity", b =>
                 {
-                    b.HasOne("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", null)
+                    b.HasOne("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", null)
                         .WithOne()
-                        .HasForeignKey("TADSS.Infrastructure.Persistence.Entities.DecisionOutcome", "DecisionId")
-                        .HasPrincipalKey("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", "DecisionId")
+                        .HasForeignKey("TADSS.Infrastructure.Persistence.Entities.DecisionOutcomeEntity", "DecisionId")
+                        .HasPrincipalKey("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", "DecisionId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_decision_outcomes_decision_id");
                 });
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOverride", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionOverrideEntity", b =>
                 {
-                    b.HasOne("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", null)
+                    b.HasOne("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", null)
                         .WithOne()
-                        .HasForeignKey("TADSS.Infrastructure.Persistence.Entities.DecisionOverride", "DecisionId")
-                        .HasPrincipalKey("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", "DecisionId")
+                        .HasForeignKey("TADSS.Infrastructure.Persistence.Entities.DecisionOverrideEntity", "DecisionId")
+                        .HasPrincipalKey("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", "DecisionId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_decision_overrides_decision_id");

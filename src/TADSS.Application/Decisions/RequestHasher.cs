@@ -7,7 +7,7 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 namespace TADSS.Application.Decisions;
 
 /// <summary>
-/// Tính <c>request_hash</c> v2 (DECISION_PERSISTENCE_INVARIANTS C.2, bất biến INV-3): SHA-256 của chuỗi JSON canonical
+/// Tính <c>request_hash</c> (DECISION_PERSISTENCE_INVARIANTS C.2, bất biến INV-3): SHA-256 của chuỗi JSON canonical
 /// gồm các trường nghiệp vụ theo thứ tự cố định, tất định và không phụ thuộc <see cref="CultureInfo.CurrentCulture"/>
 /// hay múi giờ máy chủ. Không gồm <c>requestedAt</c>, <c>metadata</c>, <c>demand</c> (ảnh chụp nhu cầu đổi giữa các
 /// lần retry cùng idempotency key). Danh sách trường được khai báo tường minh trong <see cref="WriteCanonical"/>;
@@ -24,7 +24,7 @@ public static class RequestHasher
     private const string UtcTimestampFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
     /// <summary>
-    /// Tính <c>request_hash</c> của một request v2.
+    /// Tính <c>request_hash</c> của một request.
     /// </summary>
     /// <param name="request">Request đã qua deserialize/kiểm tra hợp đồng.</param>
     /// <returns>SHA-256 của canonical JSON (UTF-8) dưới dạng 64 ký tự hex thường.</returns>

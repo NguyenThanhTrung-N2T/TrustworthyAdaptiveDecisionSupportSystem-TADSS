@@ -5,7 +5,7 @@ namespace TADSS.Application.Abstractions.Persistence;
 
 /// <summary>
 /// Port audit phía đánh giá quyết định (bảng <c>tadss.decision_executions</c>), khai báo theo nhu cầu của <c>DecisionService</c>
-/// (B-09, ISP — E-07); hiện thực EF Core/PostgreSQL là <c>EfDecisionAuditStore</c> (đăng ký scoped, dùng chung instance với
+/// (B-09, ISP); hiện thực EF Core/PostgreSQL là <c>EfDecisionAuditStore</c> (đăng ký scoped, dùng chung instance với
 /// <see cref="IDecisionQueryStore"/>).
 /// <para>
 /// <b>Append-only (INV-4):</b> chỉ có đọc (<see cref="FindPrimaryByIdempotencyKeyAsync"/>) và thêm mới

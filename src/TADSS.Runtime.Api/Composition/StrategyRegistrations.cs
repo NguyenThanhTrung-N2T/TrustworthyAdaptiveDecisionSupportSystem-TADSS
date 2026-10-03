@@ -6,7 +6,7 @@ using TADSS.Strategies.MockAlternative;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Dựng các strategy v2 từ cấu hình (spec 4.2.2): bind tham số từ <c>Tadss:Strategies:{Default|MockAlternative}</c>,
+/// Dựng các strategy từ cấu hình (spec 4.2.2): bind tham số từ <c>Tadss:Strategies:{Default|MockAlternative}</c>,
 /// kiểm tra bằng <c>Validate()</c> của options và tính <c>optionsFingerprint</c> (gồm cả lịch cao điểm, B-08).
 /// Thiếu section thì dùng giá trị mặc định của options. Tham số sai ném <see cref="InvalidOperationException"/> nêu tên
 /// section nên ứng dụng không khởi động. Tham số đổi phải khởi động lại.

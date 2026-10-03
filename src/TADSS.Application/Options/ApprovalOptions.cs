@@ -1,7 +1,7 @@
 namespace TADSS.Application.Options;
 
 /// <summary>
-/// Cấu hình chính sách approval window của runtime v2 (INTEGRATION_SPEC §1.1): khoảng thời gian Manager có để
+/// Cấu hình chính sách approval window của runtime (INTEGRATION_SPEC §1.1): khoảng thời gian Manager có để
 /// duyệt và thời gian tối thiểu phải còn lại trước giờ bắt đầu thì mới cho phép chờ duyệt.
 /// </summary>
 public class ApprovalOptions

@@ -20,14 +20,13 @@ namespace TADSS.Infrastructure.Caching;
 /// </para>
 /// <para>
 /// Cô lập miền lỗi: lỗi Redis, memory, serialize hoặc payload hỏng chỉ là miss (đọc) hoặc bị bỏ qua (ghi) kèm log
-/// Warning; chỉ <see cref="OperationCanceledException"/> của chính caller được lan ra. Circuit breaker riêng cho Redis
-/// và metric <c>bypass</c> thuộc gói 5.4.
+/// Warning; chỉ <see cref="OperationCanceledException"/> của chính caller được lan ra.
 /// </para>
 /// </summary>
 public sealed class StrategyDecisionCache : IStrategyDecisionCache
 {
     private readonly IMemoryCache _memoryCache;
-    private readonly TadssCacheOptions _options;
+    private readonly CacheOptions _options;
     private readonly ILogger<StrategyDecisionCache> _logger;
     private readonly IConnectionMultiplexer? _redis;
 
@@ -38,18 +37,18 @@ public sealed class StrategyDecisionCache : IStrategyDecisionCache
     /// <param name="redis">Kết nối Redis; <c>null</c> thì chỉ dùng memory.</param>
     public StrategyDecisionCache(
         IMemoryCache memoryCache,
-        IOptions<TadssCacheOptions> options,
+        IOptions<CacheOptions> options,
         ILogger<StrategyDecisionCache> logger,
         IConnectionMultiplexer? redis = null)
     {
         _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
-        _options = options?.Value ?? new TadssCacheOptions();
+        _options = options?.Value ?? new CacheOptions();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _redis = redis;
     }
 
     private bool ShouldUseRedis =>
-        _redis is not null && string.Equals(_options.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
+        _redis is not null && CacheProviders.IsRedis(_options.Provider);
 
     /// <inheritdoc />
     public async Task<StrategyDecision?> GetAsync(string key, CancellationToken cancellationToken)

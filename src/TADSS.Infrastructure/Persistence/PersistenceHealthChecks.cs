@@ -8,7 +8,7 @@ namespace TADSS.Infrastructure.Persistence;
 internal static class PersistenceHealthChecks
 {
     /// <summary>Tên health check PostgreSQL.</summary>
-    public const string Name = "Neon-PostgreSQL";
+    public const string Name = "postgresql";
 
     /// <summary>
     /// Thêm health check PostgreSQL với tag <c>ready</c> và <c>db</c>.

@@ -3,13 +3,17 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
 using TADSS.Runtime.Api.Middlewares;
+using TADSS.Runtime.Api.Options;
+using TADSS.UnitTests.TestData;
 using Xunit;
+using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace TADSS.UnitTests.Api.Middlewares;
 
@@ -40,10 +44,11 @@ public class GlobalExceptionHandlerTests
 
     private sealed record HandlerResult(DefaultHttpContext Context, bool Handled, JsonElement Body, CapturingLogger<GlobalExceptionHandler> Logger);
 
-    private static async Task<HandlerResult> HandleAsync(Exception exception, bool requestAborted = false)
+    private static async Task<HandlerResult> HandleAsync(
+        Exception exception, bool requestAborted = false, ErrorHandlingOptions? errorHandlingOptions = null)
     {
         var logger = new CapturingLogger<GlobalExceptionHandler>();
-        var handler = new GlobalExceptionHandler(logger);
+        var handler = new GlobalExceptionHandler(logger, MsOptions.Create(errorHandlingOptions ?? new ErrorHandlingOptions()));
         var context = new DefaultHttpContext { TraceIdentifier = TraceId };
         context.Request.Path = "/api/v2/decisions";
         using var bodyStream = new MemoryStream();
@@ -145,6 +150,42 @@ public class GlobalExceptionHandlerTests
         result.Context.Response.Headers["Retry-After"].ToString().Should().Be("5");
         result.Body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(5);
         result.Body.GetProperty("detail").GetString().Should().NotContain("10.0.0.5");
+    }
+
+    /// <summary>Số giây của <c>Retry-After</c> và <c>retryAfterSeconds</c> lấy từ <c>ErrorHandlingOptions</c> chứ không phải hằng cố định.</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [InlineData(StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(StatusCodes.Status504GatewayTimeout)]
+    public async Task Handle_RetryableError_UsesConfiguredRetryAfter_Theory(int expectedStatus)
+    {
+        Exception exception = expectedStatus == StatusCodes.Status503ServiceUnavailable
+            ? new PersistenceUnavailableException("mất kết nối", new TimeoutException())
+            : new DecisionTimeoutException("vượt deadline", new TimeoutException());
+
+        var result = await HandleAsync(exception, errorHandlingOptions: new ErrorHandlingOptions { RetryAfterSeconds = 7 });
+
+        result.Context.Response.StatusCode.Should().Be(expectedStatus);
+        result.Context.Response.Headers["Retry-After"].ToString().Should().Be("7");
+        result.Body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(7);
+    }
+
+    /// <summary>Cấu hình <c>appsettings.json</c> (không phải Development) cho <c>Retry-After: 5</c> như hành vi trước đây.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public async Task Handle_DefaultConfig_RetryAfterIsFive()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false)
+            .Build();
+        var options = configuration.GetSection(ErrorHandlingOptions.SectionName).Get<ErrorHandlingOptions>();
+        options.Should().NotBeNull("appsettings.json phải khai báo section Tadss:ErrorHandling");
+
+        var result = await HandleAsync(
+            new PersistenceUnavailableException("mất kết nối", new TimeoutException()), errorHandlingOptions: options);
+
+        result.Context.Response.Headers["Retry-After"].ToString().Should().Be("5");
+        result.Body.GetProperty("retryAfterSeconds").GetInt32().Should().Be(5);
     }
 
     [Theory]

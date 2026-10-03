@@ -26,8 +26,8 @@ namespace TADSS.Application.Abstractions.Persistence;
 /// <param name="CacheHit">Quyết định của strategy lấy từ cache.</param>
 /// <param name="ApprovalExpiresAt">Hạn duyệt (UTC); chỉ có khi <paramref name="Status"/> là <c>NEED_APPROVAL</c>.</param>
 /// <param name="RequestHash">SHA-256 hex thường (64 ký tự) của request đã chuẩn hóa (INV-3).</param>
-/// <param name="RequestPayload">Request v2 đã serialize bằng <c>TadssJson.Options</c> (cột jsonb).</param>
-/// <param name="ResponsePayload">Response v2 đã serialize bằng <c>TadssJson.Options</c> (cột jsonb).</param>
+/// <param name="RequestPayload">Request đã serialize bằng <c>TadssJson.Options</c> (cột jsonb).</param>
+/// <param name="ResponsePayload">Response đã serialize bằng <c>TadssJson.Options</c> (cột jsonb).</param>
 /// <param name="IdempotencyKey">Khóa idempotency; <c>null</c> với bản ghi không thuộc luồng idempotency.</param>
 /// <param name="CorrelationId">Mã tương quan của request; <c>null</c> khi không có.</param>
 /// <param name="CreatedAt">Thời điểm đánh giá (UTC, offset 0) — cùng giá trị với <c>evaluatedAt</c> của response (B-03).</param>

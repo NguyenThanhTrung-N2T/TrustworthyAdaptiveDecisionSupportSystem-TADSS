@@ -6,7 +6,6 @@ using TADSS.Application.Abstractions.Persistence;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Infrastructure.Persistence.Entities;
 using Xunit;
-using OutcomeEntity = TADSS.Infrastructure.Persistence.Entities.DecisionOutcome;
 
 namespace TADSS.IntegrationTests.Migrations;
 
@@ -180,7 +179,7 @@ public class SchemaConstraintTests : IntegrationTestBase
         var decisionId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 10, 2, 8, 30, 15, 123, TimeSpan.Zero);
         var expiresAt = createdAt.AddHours(2);
-        var execution = new DecisionExecution
+        var execution = new DecisionExecutionEntity
         {
             DecisionId = decisionId,
             ReservationId = Guid.NewGuid(),
@@ -204,7 +203,7 @@ public class SchemaConstraintTests : IntegrationTestBase
             CorrelationId = "corr-1",
             CreatedAt = createdAt,
         };
-        var decisionOverride = new DecisionOverride
+        var decisionOverride = new DecisionOverrideEntity
         {
             DecisionId = decisionId,
             Action = OverrideAction.APPROVE,
@@ -215,7 +214,7 @@ public class SchemaConstraintTests : IntegrationTestBase
             IdempotencyKey = "override-key",
             CreatedAt = createdAt.AddMinutes(5),
         };
-        var outcome = new OutcomeEntity
+        var outcome = new DecisionOutcomeEntity
         {
             DecisionId = decisionId,
             Outcome = Shared.DecisionContractSDK.Enums.DecisionOutcome.NO_SHOW,

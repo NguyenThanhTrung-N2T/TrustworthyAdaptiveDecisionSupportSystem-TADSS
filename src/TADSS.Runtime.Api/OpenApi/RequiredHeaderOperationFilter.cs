@@ -1,16 +1,20 @@
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using TADSS.Application.Common;
 using TADSS.Runtime.Api.Common;
 
 namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
-/// OpenAPI operation filter mô tả header của contract v2 (INTEGRATION_SPEC §2):
+/// OpenAPI operation filter mô tả header của contract (INTEGRATION_SPEC §2):
 /// <c>X-Idempotency-Key</c> bắt buộc ở <c>POST /api/v2/decisions</c>, <c>X-Correlation-ID</c> tùy chọn ở mọi endpoint.
 /// </summary>
 public class RequiredHeaderOperationFilter : IOperationFilter
 {
+    private static readonly string IdempotencyKeyDescription =
+        $"Unique client-generated operation key (UUID or string 1..{ContractLimits.MaxIdempotencyKeyLength} chars) for idempotency and safe retry.";
+
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         operation.Parameters ??= new List<OpenApiParameter>();
@@ -30,12 +34,12 @@ public class RequiredHeaderOperationFilter : IOperationFilter
             if (existingIdempotencyParam != null)
             {
                 existingIdempotencyParam.Required = true;
-                existingIdempotencyParam.Description = "Unique client-generated operation key (UUID or string 1..128 chars) for idempotency and safe retry.";
+                existingIdempotencyParam.Description = IdempotencyKeyDescription;
                 existingIdempotencyParam.Schema = new OpenApiSchema
                 {
                     Type = "string",
                     MinLength = 1,
-                    MaxLength = 128,
+                    MaxLength = ContractLimits.MaxIdempotencyKeyLength,
                     Example = new OpenApiString("req-booking-20260912-001")
                 };
             }
@@ -46,12 +50,12 @@ public class RequiredHeaderOperationFilter : IOperationFilter
                     Name = HttpHeaderNames.IdempotencyKey,
                     In = ParameterLocation.Header,
                     Required = true,
-                    Description = "Unique client-generated operation key (UUID or string 1..128 chars) for idempotency and safe retry.",
+                    Description = IdempotencyKeyDescription,
                     Schema = new OpenApiSchema
                     {
                         Type = "string",
                         MinLength = 1,
-                        MaxLength = 128,
+                        MaxLength = ContractLimits.MaxIdempotencyKeyLength,
                         Example = new OpenApiString("req-booking-20260912-001")
                     }
                 });

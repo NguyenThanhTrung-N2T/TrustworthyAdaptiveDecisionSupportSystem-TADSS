@@ -10,22 +10,30 @@ namespace TADSS.Infrastructure.Caching;
 /// </summary>
 internal static class RedisConnectionFactory
 {
+    /// <summary>Đoạn host mẫu trong template cấu hình (<c>your-redis-host:...</c>); gặp nó thì coi như chưa cấu hình Redis thật.</summary>
+    internal const string PlaceholderHost = "your-redis-host";
+
     /// <summary>
-    /// Tạo multiplexer Redis: parse chuỗi kết nối, <c>AbortOnConnectFail = false</c> (host
-    /// không với tới thì multiplexer vẫn dựng được ở trạng thái ngắt kết nối), timeout thao tác theo <c>RedisTimeoutMs</c>,
-    /// timeout kết nối tối thiểu 3000 ms trừ khi host còn là placeholder của template cấu hình.
+    /// Tạo multiplexer Redis từ <see cref="BuildConfiguration"/>; host không với tới thì multiplexer vẫn dựng được ở trạng thái ngắt kết nối.
     /// </summary>
-    public static IConnectionMultiplexer Create(TadssCacheOptions cacheOptions)
+    public static IConnectionMultiplexer Create(CacheOptions cacheOptions) =>
+        ConnectionMultiplexer.Connect(BuildConfiguration(cacheOptions));
+
+    /// <summary>
+    /// Dựng cấu hình kết nối: parse chuỗi kết nối, <c>AbortOnConnectFail = false</c>, timeout thao tác theo <c>RedisTimeoutMs</c>,
+    /// timeout kết nối tối thiểu <c>RedisConnectTimeoutMs</c> trừ khi host còn là placeholder của template cấu hình (khi đó dùng <c>RedisTimeoutMs</c>).
+    /// </summary>
+    internal static ConfigurationOptions BuildConfiguration(CacheOptions cacheOptions)
     {
         var redisConfig = ConfigurationOptions.Parse(cacheOptions.RedisConnectionString);
         redisConfig.AbortOnConnectFail = false;
-        var isPlaceholderHost = cacheOptions.RedisConnectionString.Contains("your-redis-host", StringComparison.OrdinalIgnoreCase);
+        var isPlaceholderHost = cacheOptions.RedisConnectionString.Contains(PlaceholderHost, StringComparison.OrdinalIgnoreCase);
         redisConfig.ConnectTimeout = isPlaceholderHost
             ? cacheOptions.RedisTimeoutMs
-            : Math.Max(cacheOptions.RedisTimeoutMs, 3000);
+            : Math.Max(cacheOptions.RedisTimeoutMs, cacheOptions.RedisConnectTimeoutMs);
         redisConfig.SyncTimeout = cacheOptions.RedisTimeoutMs;
         redisConfig.AsyncTimeout = cacheOptions.RedisTimeoutMs;
-        return ConnectionMultiplexer.Connect(redisConfig);
+        return redisConfig;
     }
 
     /// <summary>

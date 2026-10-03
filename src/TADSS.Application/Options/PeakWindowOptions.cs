@@ -36,7 +36,7 @@ public class PeakWindowOptions
         TimeOnly.TryParseExact(value, TimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
 
     /// <summary>
-    /// Chuyển thành <see cref="PeakWindow"/> của SDK v2.
+    /// Chuyển thành <see cref="PeakWindow"/> của SDK.
     /// </summary>
     /// <exception cref="InvalidOperationException">Khi <see cref="Day"/> thiếu, hoặc <see cref="Start"/>/<see cref="End"/> không đúng định dạng.</exception>
     /// <exception cref="Shared.DecisionContractSDK.Domain.DomainInvariantException">Khi khung giờ vi phạm bất biến của SDK.</exception>

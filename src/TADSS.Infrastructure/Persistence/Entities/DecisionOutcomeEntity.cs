@@ -4,7 +4,7 @@ namespace TADSS.Infrastructure.Persistence.Entities;
 /// Kết cục thực tế của một quyết định, ánh xạ 1-1 với <c>tadss.decision_outcomes</c>
 /// (DECISION_PERSISTENCE_INVARIANTS B.3). Append-only: mỗi quyết định có tối đa một outcome (INV-6).
 /// </summary>
-public class DecisionOutcome
+public class DecisionOutcomeEntity
 {
     /// <summary>Khóa kỹ thuật, do cơ sở dữ liệu sinh.</summary>
     public Guid Id { get; set; }

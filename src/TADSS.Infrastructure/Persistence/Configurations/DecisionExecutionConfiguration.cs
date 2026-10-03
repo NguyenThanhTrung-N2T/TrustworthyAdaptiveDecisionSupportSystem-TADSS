@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Persistence.Entities;
 
 namespace TADSS.Infrastructure.Persistence.Configurations;
@@ -7,9 +8,9 @@ namespace TADSS.Infrastructure.Persistence.Configurations;
 /// <summary>
 /// Cấu hình bảng <c>tadss.decision_executions</c> theo DECISION_PERSISTENCE_INVARIANTS B.1 (cột, CHECK, unique, index).
 /// </summary>
-public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionExecution>
+public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionExecutionEntity>
 {
-    public void Configure(EntityTypeBuilder<DecisionExecution> builder)
+    public void Configure(EntityTypeBuilder<DecisionExecutionEntity> builder)
     {
         builder.ToTable("decision_executions", "tadss", table =>
         {
@@ -53,8 +54,8 @@ public class DecisionExecutionConfiguration : IEntityTypeConfiguration<DecisionE
         builder.Property(e => e.RequestHash).HasColumnName("request_hash").HasMaxLength(64).IsFixedLength().IsRequired();
         builder.Property(e => e.RequestPayload).HasColumnName("request_payload").HasColumnType("jsonb").IsRequired();
         builder.Property(e => e.ResponsePayload).HasColumnName("response_payload").HasColumnType("jsonb").IsRequired();
-        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(128);
-        builder.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(128);
+        builder.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(ContractLimits.MaxIdempotencyKeyLength);
+        builder.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(ContractLimits.MaxCorrelationIdLength);
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
 
         // Idempotency chỉ ràng buộc bản PRIMARY; bản SHADOW được phép trùng khóa (INV-2, INV-8)

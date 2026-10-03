@@ -5,6 +5,7 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.DTOs.Mappings;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Strategies;
 
@@ -22,9 +23,7 @@ namespace TADSS.Application.Decisions;
 /// </summary>
 public sealed class DecisionService : IDecisionService
 {
-    private const int MaxIdempotencyKeyLength = 128;
-
-    private readonly IDecisionEvaluationStore _auditStore;
+    private readonly IDecisionEvaluationStore _evaluationStore;
     private readonly IStrategyRegistry _strategyRegistry;
     private readonly StrategyEvaluator _evaluator;
     private readonly ItemDurationPolicy _itemDurationPolicy;
@@ -34,8 +33,8 @@ public sealed class DecisionService : IDecisionService
     private readonly ILogger<DecisionService> _logger;
 
     /// <summary>Khởi tạo service điều phối.</summary>
-    /// <param name="auditStore">Kho audit (tra idempotency, ghi bản ghi <c>PRIMARY</c>).</param>
-    /// <param name="strategyRegistry">Danh bạ strategy v2.</param>
+    /// <param name="evaluationStore">Kho audit (tra idempotency, ghi bản ghi <c>PRIMARY</c>).</param>
+    /// <param name="strategyRegistry">Danh bạ strategy.</param>
     /// <param name="evaluator">Bộ đánh giá strategy (cache + pipeline chịu lỗi).</param>
     /// <param name="itemDurationPolicy">Chính sách thời lượng item (P-01).</param>
     /// <param name="composer">Ghép response và bản ghi audit.</param>
@@ -43,7 +42,7 @@ public sealed class DecisionService : IDecisionService
     /// <param name="timeProvider">Nguồn thời gian.</param>
     /// <param name="logger">Logger.</param>
     public DecisionService(
-        IDecisionEvaluationStore auditStore,
+        IDecisionEvaluationStore evaluationStore,
         IStrategyRegistry strategyRegistry,
         StrategyEvaluator evaluator,
         ItemDurationPolicy itemDurationPolicy,
@@ -52,7 +51,7 @@ public sealed class DecisionService : IDecisionService
         TimeProvider timeProvider,
         ILogger<DecisionService> logger)
     {
-        _auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
+        _evaluationStore = evaluationStore ?? throw new ArgumentNullException(nameof(evaluationStore));
         _strategyRegistry = strategyRegistry ?? throw new ArgumentNullException(nameof(strategyRegistry));
         _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
         _itemDurationPolicy = itemDurationPolicy ?? throw new ArgumentNullException(nameof(itemDurationPolicy));
@@ -78,7 +77,7 @@ public sealed class DecisionService : IDecisionService
         var reservation = request.ToDomain();
         var requestHash = RequestHasher.ComputeHash(request);
 
-        var existing = await _auditStore.FindPrimaryByIdempotencyKeyAsync(idempotencyKey, cancellationToken).ConfigureAwait(false);
+        var existing = await _evaluationStore.FindPrimaryByIdempotencyKeyAsync(idempotencyKey, cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
             var replayed = ReplayStored(existing, requestHash, idempotencyKey);
@@ -112,7 +111,7 @@ public sealed class DecisionService : IDecisionService
             CorrelationId: correlationId));
 
         // Ghi audit đồng bộ, fail-closed (INV-10): lỗi lan ra và không có response nào được trả
-        var inserted = await _auditStore.InsertExecutionAsync(composed.Record, cancellationToken).ConfigureAwait(false);
+        var inserted = await _evaluationStore.InsertExecutionAsync(composed.Record, cancellationToken).ConfigureAwait(false);
         if (inserted.IsExistingWinner)
         {
             var winner = ReplayStored(inserted.Stored, requestHash, idempotencyKey);
@@ -141,10 +140,10 @@ public sealed class DecisionService : IDecisionService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
 
-        if (idempotencyKey.Length > MaxIdempotencyKeyLength)
+        if (idempotencyKey.Length > ContractLimits.MaxIdempotencyKeyLength)
         {
             throw new ArgumentException(
-                $"Idempotency key không được dài quá {MaxIdempotencyKeyLength} ký tự.",
+                $"Idempotency key không được dài quá {ContractLimits.MaxIdempotencyKeyLength} ký tự.",
                 nameof(idempotencyKey));
         }
     }

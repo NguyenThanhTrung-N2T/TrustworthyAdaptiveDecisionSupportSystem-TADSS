@@ -26,7 +26,7 @@ namespace TADSS.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionExecution", b =>
+            modelBuilder.Entity("TADSS.Infrastructure.Persistence.Entities.DecisionExecutionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

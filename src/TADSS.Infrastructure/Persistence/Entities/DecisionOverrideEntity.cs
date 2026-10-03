@@ -6,7 +6,7 @@ namespace TADSS.Infrastructure.Persistence.Entities;
 /// Quyết định ghi đè của quản lý, ánh xạ 1-1 với <c>tadss.decision_overrides</c> (DECISION_PERSISTENCE_INVARIANTS B.2).
 /// Append-only: mỗi quyết định có tối đa một override (INV-5) và không bao giờ bị sửa.
 /// </summary>
-public class DecisionOverride
+public class DecisionOverrideEntity
 {
     /// <summary>Khóa kỹ thuật, do cơ sở dữ liệu sinh.</summary>
     public Guid Id { get; set; }

@@ -1,26 +1,34 @@
+using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Common;
 using TADSS.Runtime.Api.ErrorHandling;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.OpenApi;
+using TADSS.Runtime.Api.Options;
 
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Đăng ký DI của tầng presentation: exception handler, ProblemDetails, controller + JSON v2 và Swagger.
+/// Đăng ký DI của tầng presentation: exception handler, ProblemDetails, controller + JSON và Swagger.
 /// </summary>
 public static class PresentationServiceCollectionExtensions
 {
     /// <summary>
-    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure).
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc section <c>Tadss:ErrorHandling</c> từ <paramref name="configuration"/>.
     /// </summary>
-    public static IServiceCollection AddPresentation(this IServiceCollection services)
+    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration)
     {
+        // Cấu hình xử lý lỗi (Retry-After): sai thì ứng dụng không khởi động
+        services.AddOptions<ErrorHandlingOptions>()
+            .Bind(configuration.GetSection(ErrorHandlingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<ErrorHandlingOptions>, ErrorHandlingOptionsValidator>();
+
         services.AddExceptionHandler<GlobalExceptionHandler>();
         // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa
         services.AddProblemDetails(options =>
             options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
-        // JSON v2 chỉ qua TadssJson.Apply (camelCase, phân biệt hoa thường, enum/thời gian chặt, trường lạ bị từ chối);
-        // không thêm converter toàn cục nào vì sẽ làm enum v2 nhận chữ thường/chuỗi số (Apply ném lỗi nếu có)
+        // JSON chỉ qua TadssJson.Apply (camelCase, phân biệt hoa thường, enum/thời gian chặt, trường lạ bị từ chối);
+        // không thêm converter toàn cục nào vì sẽ làm enum nhận chữ thường/chuỗi số (Apply ném lỗi nếu có)
         services.AddControllers()
             .AddJsonOptions(options => TadssJson.Apply(options.JsonSerializerOptions))
             .ConfigureApiBehaviorOptions(options =>

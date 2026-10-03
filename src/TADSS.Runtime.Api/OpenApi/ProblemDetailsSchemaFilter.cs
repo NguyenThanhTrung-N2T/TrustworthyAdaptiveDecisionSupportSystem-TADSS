@@ -6,7 +6,7 @@ namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
 /// Bổ sung vào schema <see cref="ProblemDetails"/> các trường mở rộng mà <c>GlobalExceptionHandler</c> luôn/đôi khi trả trong
-/// problem+json của contract v2 (INTEGRATION_SPEC §3.8): <c>code</c>, <c>traceId</c>, <c>retryAfterSeconds</c>, <c>errors</c>.
+/// problem+json của contract (INTEGRATION_SPEC §3.8): <c>code</c>, <c>traceId</c>, <c>retryAfterSeconds</c>, <c>errors</c>.
 /// Swashbuckle chỉ thấy các thuộc tính khai báo của <see cref="ProblemDetails"/> nên các trường này nằm trong <c>Extensions</c> sẽ bị thiếu.
 /// </summary>
 public class ProblemDetailsSchemaFilter : ISchemaFilter

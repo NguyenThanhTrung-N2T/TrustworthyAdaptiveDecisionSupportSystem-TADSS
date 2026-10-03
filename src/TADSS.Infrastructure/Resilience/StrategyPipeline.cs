@@ -16,11 +16,11 @@ using TADSS.Infrastructure.Options;
 namespace TADSS.Infrastructure.Resilience;
 
 /// <summary>
-/// Pipeline chịu lỗi của strategy (Polly v8, theo SAS 4.2):
+/// Pipeline chịu lỗi của strategy (Polly, theo SAS 4.2):
 /// Outer timeout → Fallback → Retry → Circuit breaker → Inner timeout, tham số lấy từ <see cref="ResilienceOptions"/>.
 /// <para>
 /// Pipeline là singleton dùng chung cho mọi strategy nên chỉ có <b>một</b> circuit breaker cho tất cả strategy
-/// (breaker theo từng strategy sẽ làm ở gói 5.4 — V-2).
+/// (không tách breaker theo từng strategy).
 /// <see cref="TimeProvider"/> được gán cho cả pipeline Polly nên timeout, retry delay và breaker cùng
 /// chạy theo đồng hồ được tiêm (test dùng <c>FakeTimeProvider</c>).
 /// </para>
@@ -82,7 +82,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
         }
         catch (TimeoutRejectedException ex)
         {
-            // Dịch exception của Polly tại ranh giới adapter: lớp trên chỉ biết kiểu của Application (E-04)
+            // Dịch exception của Polly tại ranh giới adapter: lớp trên chỉ biết kiểu của Application
             throw new DecisionTimeoutException("Pipeline strategy vượt ngân sách thời gian cho phép.", ex);
         }
 

@@ -37,7 +37,7 @@ public static class DecisionPayloadSerializer
     /// Như <see cref="DeserializeResponse"/> nhưng trả <c>null</c> (thay vì ném) khi payload là JSON <c>null</c>, để nơi gọi giữ exception riêng
     /// của mình (replay ném <see cref="InvalidOperationException"/>). Payload hỏng vẫn ném <see cref="JsonException"/>.
     /// </summary>
-    public static DecisionResultDto? DeserializeResponseOrNull(string payload) =>
+    internal static DecisionResultDto? DeserializeResponseOrNull(string payload) =>
         JsonSerializer.Deserialize<DecisionResultDto>(payload, TadssJson.Options);
 
     private static JsonException NullPayload(string column) =>

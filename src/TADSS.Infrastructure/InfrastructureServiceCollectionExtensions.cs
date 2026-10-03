@@ -57,14 +57,17 @@ public static class InfrastructureServiceCollectionExtensions
         // đăng ký IMemoryCache/options ở đây. Multiplexer Redis cũng đăng ký tại đây
         // (TryAdd: đăng ký có sẵn thắng); nó chỉ được tạo khi Provider = Redis được resolve.
         services.AddMemoryCache();
-        services.AddOptions<TadssCacheOptions>().Bind(configuration.GetSection(TadssCacheOptions.SectionName));
+        services.AddOptions<CacheOptions>()
+            .Bind(configuration.GetSection(CacheOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<CacheOptions>, CacheOptionsValidator>();
         services.TryAddSingleton<IConnectionMultiplexer>(sp =>
-            RedisConnectionFactory.Create(sp.GetRequiredService<IOptions<TadssCacheOptions>>().Value));
+            RedisConnectionFactory.Create(sp.GetRequiredService<IOptions<CacheOptions>>().Value));
         services.AddSingleton<IStrategyDecisionCache>(sp =>
         {
-            var options = sp.GetRequiredService<IOptions<TadssCacheOptions>>();
+            var options = sp.GetRequiredService<IOptions<CacheOptions>>();
             var logger = sp.GetRequiredService<ILogger<StrategyDecisionCache>>();
-            var useRedis = string.Equals(options.Value.Provider, "Redis", StringComparison.OrdinalIgnoreCase);
+            var useRedis = CacheProviders.IsRedis(options.Value.Provider);
             return new StrategyDecisionCache(
                 sp.GetRequiredService<IMemoryCache>(),
                 options,

@@ -121,7 +121,7 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
             row.outcome is null ? null : DecisionAuditMapper.ToRecord(row.outcome));
     }
 
-    private void Detach(DecisionExecution entity) => _db.Entry(entity).State = EntityState.Detached;
+    private void Detach(DecisionExecutionEntity entity) => _db.Entry(entity).State = EntityState.Detached;
 
     /// <summary>Đúng khi chuỗi exception chứa unique violation <c>23505</c> của đúng constraint <c>uq_decision_idempotency_key</c>.</summary>
     private static bool IsIdempotencyConflict(Exception exception)

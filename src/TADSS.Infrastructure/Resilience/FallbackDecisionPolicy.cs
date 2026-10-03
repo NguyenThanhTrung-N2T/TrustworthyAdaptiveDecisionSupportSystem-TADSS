@@ -5,7 +5,7 @@ using Shared.DecisionContractSDK.Enums;
 namespace TADSS.Infrastructure.Resilience;
 
 /// <summary>
-/// Tạo quyết định dự phòng của TADSS v2 khi strategy không dùng được. Luôn <c>NEED_APPROVAL</c> với một khuyến nghị
+/// Tạo quyết định dự phòng của TADSS khi strategy không dùng được. Luôn <c>NEED_APPROVAL</c> với một khuyến nghị
 /// <c>REQUIRE_APPROVAL</c>; thuần túy, không I/O. Mức cọc khi cần duyệt hoặc khi TADSS lỗi do hệ thống đặt sân
 /// quyết định (chính sách của SmashCourt), nên lý do ở đây không nêu con số cọc.
 /// </summary>

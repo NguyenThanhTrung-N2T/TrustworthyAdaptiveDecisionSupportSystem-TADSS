@@ -5,7 +5,7 @@ namespace TADSS.Application.Decisions;
 /// <summary>
 /// Quy đổi tỷ lệ cọc thành số tiền cọc (INTEGRATION_SPEC §3.3): <c>amount = round(totalPrice × rate)</c> theo số chữ
 /// số thập phân của tiền tệ, làm tròn <see cref="MidpointRounding.AwayFromZero"/>. Đây là nơi duy nhất quy đổi tiền cọc
-/// của runtime v2; đầu vào đã được domain/strategy bảo đảm nên vi phạm là lỗi lập trình (ném lỗi đối số).
+/// của runtime; đầu vào đã được domain/strategy bảo đảm nên vi phạm là lỗi lập trình (ném lỗi đối số).
 /// </summary>
 public sealed class DepositCalculator
 {

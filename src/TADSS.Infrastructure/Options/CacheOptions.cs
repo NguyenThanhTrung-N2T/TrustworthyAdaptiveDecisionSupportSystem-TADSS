@@ -3,14 +3,17 @@ namespace TADSS.Infrastructure.Options;
 /// <summary>
 /// Cấu hình cho tầng Caching phân tán (Redis + In-Memory Fallback) của TADSS.
 /// </summary>
-public class TadssCacheOptions
+public class CacheOptions
 {
+    /// <summary>
+    /// Tên section cấu hình trong appsettings.json.
+    /// </summary>
     public const string SectionName = "Tadss:Cache";
 
     /// <summary>
-    /// Nhà cung cấp cache chính: "Redis" hoặc "Memory". Mặc định "Redis".
+    /// Nhà cung cấp cache chính: <see cref="CacheProviders.Redis"/> hoặc <see cref="CacheProviders.Memory"/> (không phân biệt hoa thường). Mặc định "Redis".
     /// </summary>
-    public string Provider { get; set; } = "Redis";
+    public string Provider { get; set; } = CacheProviders.Redis;
 
     /// <summary>
     /// Connection string cho Redis instance (ví dụ "localhost:6379").
@@ -28,11 +31,6 @@ public class TadssCacheOptions
     public int TtlHours { get; set; } = 24;
 
     /// <summary>
-    /// Số lượng bản ghi tối đa cho In-Memory Cache (áp dụng LRU eviction).
-    /// </summary>
-    public int MaxMemoryCacheSize { get; set; } = 10000;
-
-    /// <summary>
     /// Cho phép tự động fallback sang In-Memory Cache khi Redis mất kết nối hoặc timeout.
     /// </summary>
     public bool EnableFallbackToMemory { get; set; } = true;
@@ -41,4 +39,10 @@ public class TadssCacheOptions
     /// Timeout tối đa cho thao tác Redis (ms) trước khi chuyển sang fallback.
     /// </summary>
     public int RedisTimeoutMs { get; set; } = 150;
+
+    /// <summary>
+    /// Timeout tối thiểu khi kết nối Redis (ms). Timeout kết nối thực tế là <c>max(RedisTimeoutMs, RedisConnectTimeoutMs)</c>,
+    /// trừ khi host còn là placeholder của template cấu hình (khi đó dùng <c>RedisTimeoutMs</c> để không chờ vô ích). Mặc định 3000.
+    /// </summary>
+    public int RedisConnectTimeoutMs { get; set; } = 3000;
 }

@@ -1,16 +1,19 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.ErrorHandling;
+using TADSS.Runtime.Api.Options;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
 /// <summary>
-/// Chuyển exception chưa xử lý thành phản hồi RFC 7807 theo bảng map lỗi v2 (spec 4.2.3) qua <see cref="ExceptionClassifier"/>.
+/// Chuyển exception chưa xử lý thành phản hồi RFC 7807 theo bảng map lỗi (spec 4.2.3) qua <see cref="ExceptionClassifier"/>.
+/// Header <c>Retry-After</c> của lỗi tạm thời lấy từ <see cref="ErrorHandlingOptions.RetryAfterSeconds"/>.
 /// Chỉ trả <c>Exception.Message</c> khi lỗi do request (<see cref="ErrorClassification.ExposeMessage"/>); lỗi hạ tầng luôn dùng câu chung theo mã.
 /// </summary>
-public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IOptions<ErrorHandlingOptions> options) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -50,8 +53,9 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         problemDetails.Extensions["code"] = classification.Code;
         problemDetails.Extensions["traceId"] = traceId;
 
-        if (classification.RetryAfterSeconds is { } retryAfterSeconds)
+        if (classification.HasRetryAfter)
         {
+            var retryAfterSeconds = options.Value.RetryAfterSeconds;
             problemDetails.Extensions["retryAfterSeconds"] = retryAfterSeconds;
             httpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }

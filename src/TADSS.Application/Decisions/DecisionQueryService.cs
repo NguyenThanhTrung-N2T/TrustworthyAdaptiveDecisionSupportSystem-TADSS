@@ -23,19 +23,19 @@ namespace TADSS.Application.Decisions;
 /// </summary>
 public sealed class DecisionQueryService : IDecisionQueryService
 {
-    private readonly IDecisionQueryStore _auditStore;
+    private readonly IDecisionQueryStore _queryStore;
 
     /// <summary>Khởi tạo service tra cứu.</summary>
-    /// <param name="auditStore">Kho audit (đọc chi tiết theo <c>decisionId</c>).</param>
-    public DecisionQueryService(IDecisionQueryStore auditStore)
+    /// <param name="queryStore">Kho audit (đọc chi tiết theo <c>decisionId</c>).</param>
+    public DecisionQueryService(IDecisionQueryStore queryStore)
     {
-        _auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
+        _queryStore = queryStore ?? throw new ArgumentNullException(nameof(queryStore));
     }
 
     /// <inheritdoc />
     public async Task<DecisionDetailDto> GetDetailAsync(Guid decisionId, CancellationToken cancellationToken)
     {
-        var detail = await _auditStore.GetDecisionDetailAsync(decisionId, cancellationToken)
+        var detail = await _queryStore.GetDecisionDetailAsync(decisionId, cancellationToken)
             ?? throw new DecisionNotFoundException(decisionId);
 
         var execution = detail.Execution;

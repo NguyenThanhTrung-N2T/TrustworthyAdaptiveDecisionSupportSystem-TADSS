@@ -1,7 +1,7 @@
 namespace TADSS.Application.Options;
 
 /// <summary>
-/// Cấu hình kiểm tra yêu cầu đánh giá v2 (P-01): giới hạn thời lượng của mỗi item. SDK chỉ bảo đảm
+/// Cấu hình kiểm tra yêu cầu đánh giá (P-01): giới hạn thời lượng của mỗi item. SDK chỉ bảo đảm
 /// <c>End &gt; Start</c>; giới hạn cụ thể là chính sách của runtime.
 /// </summary>
 public class ValidationOptions

@@ -10,7 +10,7 @@ namespace TADSS.Application.Decisions;
 
 /// <summary>
 /// Đánh giá một reservation bằng strategy đang kích hoạt: dựng khóa cache → đọc cache (lỗi cache chỉ là miss) → chạy pipeline khi miss
-/// → ghi cache khi kết quả là <c>AUTOMATED</c> (fallback là kết quả tạm thời nên không cache). Tách khỏi <c>DecisionService</c> theo SRP (E-08).
+/// → ghi cache khi kết quả là <c>AUTOMATED</c> (fallback là kết quả tạm thời nên không cache). Tách khỏi <c>DecisionService</c> theo SRP.
 /// <para>
 /// Lỗi cache được cô lập tại đây (coi như miss / bỏ qua ghi) nên không bao giờ biến một quyết định thành công thành thất bại;
 /// chỉ hủy của chính caller được lan ra. Thời gian của <c>CACHE_HIT</c> là thời gian đọc cache, đo bằng <see cref="TimeProvider"/>.

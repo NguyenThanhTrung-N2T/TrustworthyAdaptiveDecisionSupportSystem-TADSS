@@ -4,7 +4,7 @@ using TADSS.Application.Exceptions;
 namespace TADSS.Application.Decisions;
 
 /// <summary>
-/// Tra cứu chi tiết quyết định v2 đã lưu (INTEGRATION_SPEC §3.4). Chỉ đọc: không chạy lại strategy, không tính lại gì,
+/// Tra cứu chi tiết quyết định đã lưu (INTEGRATION_SPEC §3.4). Chỉ đọc: không chạy lại strategy, không tính lại gì,
 /// không ghi audit.
 /// </summary>
 public interface IDecisionQueryService

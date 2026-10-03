@@ -4,7 +4,7 @@ using TADSS.Runtime.Api.Middlewares;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Thứ tự middleware của request pipeline, khai báo tại một nơi duy nhất (E-12).
+/// Thứ tự middleware của request pipeline, khai báo tại một nơi duy nhất.
 /// </summary>
 public static class RequestPipelineExtensions
 {
