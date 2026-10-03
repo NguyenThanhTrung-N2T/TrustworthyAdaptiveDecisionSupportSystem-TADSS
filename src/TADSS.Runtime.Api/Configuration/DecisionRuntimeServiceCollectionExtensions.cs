@@ -3,12 +3,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Domain;
 using StackExchange.Redis;
+using TADSS.Application;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
-using TADSS.Application.Decisions;
-using TADSS.Application.Options;
-using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
@@ -22,44 +20,17 @@ namespace TADSS.Runtime.Api.Configuration;
 public static class DecisionRuntimeServiceCollectionExtensions
 {
     /// <summary>
-    /// Đăng ký cấu hình (có kiểm tra khi khởi động), lịch cao điểm và các dịch vụ nền của runtime.
+    /// Đăng ký phần Application (qua <c>AddApplication</c>) cùng strategy, resilience, cache và kho audit của runtime.
     /// </summary>
     public static IServiceCollection AddDecisionRuntime(this IServiceCollection services, IConfiguration configuration)
     {
-        // Thời gian lấy qua TimeProvider để test điều khiển được đồng hồ
-        services.TryAddSingleton(TimeProvider.System);
-
-        // Options + validator fail-fast: cấu hình sai thì ứng dụng không khởi động
-        services.AddOptions<ApprovalOptions>()
-            .Bind(configuration.GetSection(ApprovalOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<ApprovalOptions>, ApprovalOptionsValidator>();
-
-        services.AddOptions<ValidationOptions>()
-            .Bind(configuration.GetSection(ValidationOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<ValidationOptions>, ValidationOptionsValidator>();
-
-        services.AddOptions<CalendarOptions>()
-            .Bind(configuration.GetSection(CalendarOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<CalendarOptions>, CalendarOptionsValidator>();
-
-        // Lịch cao điểm dùng chung cho router và mọi strategy (nguồn duy nhất của "giờ cao điểm")
-        services.AddSingleton(sp => sp.GetRequiredService<IOptions<CalendarOptions>>().Value.ToCalendar());
-
-        services.AddSingleton<ItemDurationPolicy>();
-        services.AddSingleton<DepositCalculator>();
-        services.AddSingleton<ApprovalWindowPolicy>();
-
-        // Strategy đang kích hoạt: section Tadss:Strategy
-        services.AddOptions<StrategyOptions>().Bind(configuration.GetSection(StrategyOptions.SectionName));
+        // Phần use case (options, policy, composer, registry, service) do tầng Application đăng ký
+        services.AddApplication(configuration);
 
         // Strategy v2 dựng từ Tadss:Strategies:* + lịch cao điểm; lỗi cấu hình làm registry không dựng được
         // (Program.cs resolve sớm nên ứng dụng không khởi động)
         services.AddSingleton(sp => StrategyRegistrations.CreateDefault(configuration, sp.GetRequiredService<BranchCalendar>()));
         services.AddSingleton(sp => StrategyRegistrations.CreateMockAlternative(configuration, sp.GetRequiredService<BranchCalendar>()));
-        services.AddSingleton<IStrategyRegistry, StrategyRegistry>();
 
         // Cấu hình chịu lỗi (section Tadss:Resilience): kiểm tra ngân sách thời gian khi khởi động.
         // Pipeline là singleton: circuit breaker dùng chung cho mọi request.
@@ -88,15 +59,8 @@ public static class DecisionRuntimeServiceCollectionExtensions
                 useRedis ? ResolveRedisOrWarn(sp, logger) : null);
         });
 
-        // Bộ ghép response + bản ghi audit; kho audit scoped vì dùng TadssDbContext của scope (request)
-        services.AddSingleton<DecisionResponseComposer>();
+        // Kho audit scoped vì dùng TadssDbContext của scope (request)
         services.AddScoped<IDecisionAuditStore, EfDecisionAuditStore>();
-
-        // Điều phối đánh giá quyết định: scoped vì phụ thuộc kho audit scoped (strategy/pipeline/cache vẫn singleton)
-        services.AddScoped<IDecisionService, DecisionService>();
-
-        // Tra cứu chi tiết quyết định chỉ đọc qua kho audit nên cùng vòng đời scoped với kho
-        services.AddScoped<IDecisionQueryService, DecisionQueryService>();
 
         return services;
     }
