@@ -10,6 +10,8 @@
   <ItemGroup>
     <!-- Unit test kiểm các kiểu internal của tầng Infrastructure (ánh xạ audit, bộ phát hiện lỗi persistence) -->
     <InternalsVisibleTo Include="TADSS.UnitTests" />
+    <!-- FI-08 xác nhận exception gốc được giữ lại là lỗi lưu trữ có thể thử lại (PersistenceFailureDetector là internal) -->
+    <InternalsVisibleTo Include="TADSS.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>

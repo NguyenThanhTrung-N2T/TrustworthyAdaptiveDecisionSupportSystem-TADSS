@@ -1,6 +1,7 @@
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Interfaces;
+using TADSS.Application.Exceptions;
 
 namespace TADSS.Application.Abstractions.Resilience;
 
@@ -17,8 +18,8 @@ public interface IStrategyPipeline
     /// <param name="context">Ngữ cảnh runtime của lần đánh giá.</param>
     /// <param name="cancellationToken">Token hủy của caller.</param>
     /// <returns>Kết quả <c>AUTOMATED</c> hoặc <c>FALLBACK</c>.</returns>
-    /// <exception cref="OperationCanceledException">Khi chính <paramref name="cancellationToken"/> bị hủy (không fallback).</exception>
-    /// <exception cref="Exception"><c>TimeoutRejectedException</c> của Polly khi vượt Outer timeout (ngân sách toàn pipeline).</exception>
+    /// <exception cref="OperationCanceledException">Khi chính <paramref name="cancellationToken"/> bị hủy (không fallback); hủy của caller được ưu tiên hơn Outer timeout.</exception>
+    /// <exception cref="DecisionTimeoutException">Khi vượt Outer timeout (ngân sách toàn pipeline) mà caller chưa hủy.</exception>
     Task<StrategyExecutionOutcome> ExecuteAsync(
         IReservationDecisionStrategy strategy,
         Reservation reservation,

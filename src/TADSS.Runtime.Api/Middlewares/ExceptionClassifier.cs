@@ -1,14 +1,14 @@
-using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
-using TADSS.Infrastructure.Persistence;
 
 namespace TADSS.Runtime.Api.Middlewares;
 
 /// <summary>
 /// Phân loại exception thành phản hồi lỗi v2 theo bảng map lỗi của spec 4.2.3. Thuần túy, không I/O, không ghi log.
-/// Lỗi persistence được kiểm tra trước mọi nhánh khác để lỗi hạ tầng bị bọc trong exception khác vẫn thành 503.
+/// Chỉ biết exception của SDK và Application: adapter hạ tầng đã dịch lỗi Npgsql/Polly thành <see cref="PersistenceUnavailableException"/>
+/// và <see cref="DecisionTimeoutException"/>, nên exception thô của thư viện hạ tầng lọt tới đây là lỗi lập trình (500).
+/// <see cref="PersistenceUnavailableException"/> được tìm ở mọi tầng inner (kể cả mọi nhánh của <see cref="AggregateException"/>) và kiểm tra trước mọi nhánh khác.
 /// <see cref="ContractValidationException"/> chỉ được mang mã <c>VALIDATION_ERROR</c> hoặc <c>MISSING_HEADER</c> ra wire (tập đóng).
 /// Được <c>GlobalExceptionHandler</c> dùng để dựng phản hồi lỗi.
 /// </summary>
@@ -29,7 +29,7 @@ public static class ExceptionClassifier
             return null;
         }
 
-        if (PersistenceFailureDetector.IsRetryable(exception))
+        if (ContainsPersistenceUnavailable(exception))
         {
             return new ErrorClassification(
                 StatusCodes.Status503ServiceUnavailable,
@@ -52,10 +52,27 @@ public static class ExceptionClassifier
                 StatusCodes.Status404NotFound, ErrorCodes.DecisionNotFound, "Decision Not Found", ExposeMessage: true, null),
             IdempotencyConflictException => new ErrorClassification(
                 StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, null),
-            TimeoutRejectedException => new ErrorClassification(
+            DecisionTimeoutException => new ErrorClassification(
                 StatusCodes.Status504GatewayTimeout, ErrorCodes.GatewayTimeout, "Gateway Timeout", ExposeMessage: false, RetryAfterSeconds),
             _ => new ErrorClassification(
                 StatusCodes.Status500InternalServerError, ErrorCodes.InternalError, "Internal Server Error", ExposeMessage: false, null),
         };
+    }
+
+    private static bool ContainsPersistenceUnavailable(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            switch (current)
+            {
+                case PersistenceUnavailableException:
+                    return true;
+                case AggregateException aggregate when aggregate.InnerExceptions.Any(ContainsPersistenceUnavailable):
+                    // AggregateException.InnerException chỉ là nhánh đầu tiên nên phải duyệt cả InnerExceptions
+                    return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TADSS.Infrastructure.Options;
@@ -10,6 +11,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Exceptions;
 using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
@@ -212,7 +214,7 @@ public class StrategyPipelineTests
 
     [Fact]
     [Trait("CatalogId", "UT-07")]
-    public async Task ExecuteAsync_CallerCancelled_Throws()
+    public async Task ExecuteAsync_CallerCancelled_PropagatesOperationCanceled()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var strategy = new DelegateStrategy((_, _, token) =>
@@ -227,7 +229,8 @@ public class StrategyPipelineTests
         await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await cts.CancelAsync();
 
-        await execution.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
+        var thrown = await execution.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
+        thrown.Which.Should().NotBeOfType<DecisionTimeoutException>("hủy từ caller không bị đổi thành lỗi timeout");
         strategy.InvocationCount.Should().Be(1, "hủy từ caller không được retry hay fallback");
     }
 
@@ -296,16 +299,88 @@ public class StrategyPipelineTests
 
     [Fact]
     [Trait("CatalogId", "UT-07")]
-    public async Task ExecuteAsync_OuterTimeoutElapses_ThrowsTimeoutRejected()
+    public async Task ExecuteAsync_OuterTimeoutExceeded_ThrowsDecisionTimeoutException()
     {
-        // Outer nhỏ hơn hẳn Inner nên Outer luôn hết hạn trước; Outer nằm ngoài Fallback nên lỗi lan ra (504 ở Task 10)
+        // Outer nhỏ hơn hẳn Inner nên Outer luôn hết hạn trước; Outer nằm ngoài Fallback nên lỗi lan ra (504), đã dịch sang kiểu của Application
         var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 50);
         var strategy = new DelegateStrategy((_, _, token) => WaitForever(token));
         var pipeline = Build(options);
 
         var act = () => pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<TimeoutRejectedException>();
+        var thrown = await act.Should().ThrowAsync<DecisionTimeoutException>();
+        thrown.Which.InnerException.Should().BeOfType<TimeoutRejectedException>("giữ exception gốc của Polly để chẩn đoán");
+        thrown.Which.Message.Should().NotBeNullOrWhiteSpace().And.NotContain("Polly");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_OuterTimeoutWhileCallerCancelled_PrefersCancellation()
+    {
+        // Tất định: Outer (50 ms) hết hạn trước Inner (60 s). Timeout của Polly là kiểu hợp tác nên strategy phải tôn trọng token;
+        // khi token (do Outer timeout hủy) kích hoạt, strategy hủy luôn CTS của caller TRƯỚC khi ném lại.
+        var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 50);
+        using var callerCts = new CancellationTokenSource();
+        var strategy = new DelegateStrategy(async (_, _, token) =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            catch (OperationCanceledException)
+            {
+                await callerCts.CancelAsync();
+                throw;
+            }
+
+            throw new InvalidOperationException("Không được tới đây: Task.Delay vô hạn chỉ kết thúc bằng hủy.");
+        });
+        var pipeline = Build(options);
+
+        var act = () => pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), callerCts.Token);
+
+        var thrown = await act.Should().ThrowAsync<OperationCanceledException>();
+        thrown.Which.Should().NotBeOfType<DecisionTimeoutException>();
+        callerCts.IsCancellationRequested.Should().BeTrue("caller đã hủy nên hủy được ưu tiên hơn timeout");
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_CallerCancelsAfterOuterTimeoutDecided_PrefersCancellation()
+    {
+        // Ca cửa sổ hẹp: Polly đã quyết định timeout (callback OnTimeout ghi log Error chạy ngay trước khi ném TimeoutRejectedException)
+        // rồi caller mới hủy. Logger giả hủy CTS của caller đúng lúc đó nên TimeoutRejectedException lan tới catch với token caller đã hủy.
+        var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 50);
+        using var callerCts = new CancellationTokenSource();
+        var logger = new CancelOnErrorLogger(callerCts);
+        var pipeline = new StrategyPipeline(MsOptions.Create(options), TimeProvider.System, logger);
+        var strategy = new DelegateStrategy((_, _, token) => WaitForever(token));
+
+        var act = () => pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), callerCts.Token);
+
+        var thrown = await act.Should().ThrowAsync<OperationCanceledException>();
+        thrown.Which.Should().NotBeOfType<DecisionTimeoutException>();
+        thrown.Which.CancellationToken.Should().Be(callerCts.Token, "exception gắn token của caller để handler coi là client hủy");
+        logger.ErrorLogged.Should().BeTrue("kịch bản phải đi qua nhánh Outer timeout của Polly");
+    }
+
+    /// <summary>Logger giả hủy CTS của caller ngay khi nhận bản ghi mức Error (OnTimeout của Outer timeout).</summary>
+    private sealed class CancelOnErrorLogger(CancellationTokenSource callerCts) : ILogger<StrategyPipeline>
+    {
+        public bool ErrorLogged { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error)
+            {
+                ErrorLogged = true;
+                callerCts.Cancel();
+            }
+        }
     }
 
     [Fact]

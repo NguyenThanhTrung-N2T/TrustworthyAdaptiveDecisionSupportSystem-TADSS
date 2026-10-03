@@ -10,6 +10,7 @@ using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Exceptions;
 using TADSS.Infrastructure.Options;
 
 namespace TADSS.Infrastructure.Resilience;
@@ -55,21 +56,35 @@ public sealed class StrategyPipeline : IStrategyPipeline
 
         var startedAt = _timeProvider.GetTimestamp();
 
-        var outcome = await _pipeline.ExecuteAsync(
-            static async (state, token) =>
-            {
-                var decision = await state.Strategy.EvaluateAsync(state.Reservation, state.Context, token).ConfigureAwait(false);
-
-                // Strategy trả null là lỗi hợp đồng: đi chung đường lỗi để được retry rồi fallback
-                if (decision is null)
+        StrategyExecutionOutcome outcome;
+        try
+        {
+            outcome = await _pipeline.ExecuteAsync(
+                static async (state, token) =>
                 {
-                    throw new InvalidOperationException("Strategy trả về null thay vì StrategyDecision.");
-                }
+                    var decision = await state.Strategy.EvaluateAsync(state.Reservation, state.Context, token).ConfigureAwait(false);
 
-                return new StrategyExecutionOutcome(decision, ExecutionType.AUTOMATED, FallbackUsed: false, FailureReason: null, ExecutionTimeMs: 0);
-            },
-            (Strategy: strategy, Reservation: reservation, Context: context),
-            cancellationToken).ConfigureAwait(false);
+                    // Strategy trả null là lỗi hợp đồng: đi chung đường lỗi để được retry rồi fallback
+                    if (decision is null)
+                    {
+                        throw new InvalidOperationException("Strategy trả về null thay vì StrategyDecision.");
+                    }
+
+                    return new StrategyExecutionOutcome(decision, ExecutionType.AUTOMATED, FallbackUsed: false, FailureReason: null, ExecutionTimeMs: 0);
+                },
+                (Strategy: strategy, Reservation: reservation, Context: context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutRejectedException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            // Ưu tiên hủy của caller: Outer timeout và hủy của caller cùng xảy ra thì coi là client hủy (handler không ghi response)
+            throw new OperationCanceledException(ex.Message, ex, cancellationToken);
+        }
+        catch (TimeoutRejectedException ex)
+        {
+            // Dịch exception của Polly tại ranh giới adapter: lớp trên chỉ biết kiểu của Application (E-04)
+            throw new DecisionTimeoutException("Pipeline strategy vượt ngân sách thời gian cho phép.", ex);
+        }
 
         var elapsed = _timeProvider.GetElapsedTime(startedAt);
         var elapsedMs = (int)Math.Max(0d, Math.Floor(elapsed.TotalMilliseconds));
@@ -81,7 +96,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
     {
         var builder = new ResiliencePipelineBuilder<StrategyExecutionOutcome> { TimeProvider = _timeProvider };
 
-        // 1. Outer timeout: hạn cứng của cả pipeline; nằm ngoài Fallback nên TimeoutRejectedException lan ra (504)
+        // 1. Outer timeout: hạn cứng của cả pipeline; nằm ngoài Fallback nên lỗi lan ra và được dịch thành DecisionTimeoutException (504)
         builder.AddTimeout(new TimeoutStrategyOptions
         {
             Timeout = TimeSpan.FromMilliseconds(_options.OuterTimeoutMs),

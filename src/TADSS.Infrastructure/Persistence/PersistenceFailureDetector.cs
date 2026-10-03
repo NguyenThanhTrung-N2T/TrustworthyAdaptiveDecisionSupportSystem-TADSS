@@ -5,10 +5,10 @@ namespace TADSS.Infrastructure.Persistence;
 
 /// <summary>
 /// Nhận diện lỗi lưu trữ có thể thử lại (PostgreSQL tạm thời không khả dụng) ở bất kỳ tầng <c>InnerException</c> nào (kể cả mọi nhánh của <see cref="AggregateException"/>).
-/// Dùng chung cho handler lỗi toàn cục và bộ phân loại lỗi; EF Core/Npgsql thường bọc lỗi gốc trong
+/// Chỉ dùng trong Infrastructure (kho audit dịch lỗi thành <see cref="PersistenceUnavailableException"/>); EF Core/Npgsql thường bọc lỗi gốc trong
 /// <see cref="InvalidOperationException"/> hoặc <c>DbUpdateException</c>.
 /// </summary>
-public static class PersistenceFailureDetector
+internal static class PersistenceFailureDetector
 {
     /// <summary>SqlState lỗi tuần tự hóa giao dịch (serialization failure).</summary>
     private const string SerializationFailure = "40001";
@@ -23,7 +23,7 @@ public static class PersistenceFailureDetector
     /// Vi phạm ràng buộc (ví dụ <c>23505</c>) không phải lỗi có thể thử lại.
     /// </summary>
     /// <param name="exception">Exception cần kiểm tra.</param>
-    /// <returns><c>true</c> nếu nên trả 503 kèm <c>Retry-After</c>.</returns>
+    /// <returns><c>true</c> nếu nên dịch thành <see cref="PersistenceUnavailableException"/> (503 kèm <c>Retry-After</c> ở presentation).</returns>
     public static bool IsRetryable(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)

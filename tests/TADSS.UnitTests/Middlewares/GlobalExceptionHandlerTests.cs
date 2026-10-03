@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
-using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
@@ -79,17 +78,16 @@ public class GlobalExceptionHandlerTests
         { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, ErrorCodes.DomainInvariantViolation },
         { new IdempotencyConflictException("key-01", "key dùng lại"), 409, ErrorCodes.IdempotencyKeyReuse },
         { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, ErrorCodes.PersistenceUnavailable },
-        { new TimeoutRejectedException("vượt deadline"), 504, ErrorCodes.GatewayTimeout },
+        { new DecisionTimeoutException("vượt deadline", new TimeoutException()), 504, ErrorCodes.GatewayTimeout },
         { new InvalidOperationException("lỗi nội bộ"), 500, ErrorCodes.InternalError },
     };
 
     public static TheoryData<Exception> RetryableErrors => new()
     {
         new PersistenceUnavailableException("mất kết nối", new TimeoutException()),
-        new DbUpdateException("save failed", Postgres("40001")),
-        new DbUpdateException("save failed", Postgres("40P01")),
-        new NpgsqlException("Failed to connect", new SocketException((int)SocketError.ConnectionRefused)),
-        new TimeoutRejectedException("vượt deadline"),
+        new DbUpdateException("save failed", new PersistenceUnavailableException("mất kết nối", new TimeoutException())),
+        new AggregateException(new InvalidOperationException("nhánh 1"), new PersistenceUnavailableException("mất kết nối", new TimeoutException())),
+        new DecisionTimeoutException("vượt deadline", new TimeoutException()),
     };
 
     public static TheoryData<Exception> ServerSideErrors => new()
@@ -98,6 +96,9 @@ public class GlobalExceptionHandlerTests
         new ArgumentException(SecretMessage),
         new NullReferenceException(SecretMessage),
         new DbUpdateException(SecretMessage, Postgres("23505")),
+        // Exception thô của Npgsql không còn được classifier nhận: store đã chịu trách nhiệm dịch (E-04)
+        new NpgsqlException(SecretMessage, new SocketException((int)SocketError.ConnectionRefused)),
+        new DbUpdateException(SecretMessage, Postgres("40001")),
     };
 
     [Theory]
@@ -206,7 +207,7 @@ public class GlobalExceptionHandlerTests
     {
         // Lỗi hạ tầng bị bọc trong exception khác vẫn phải thành 503 (classifier kiểm tra persistence trước)
         var wrapped = new InvalidOperationException(
-            "transient failure", new NpgsqlException("Failed to connect", new SocketException((int)SocketError.ConnectionRefused)));
+            "transient failure", new PersistenceUnavailableException("mất kết nối", new TimeoutException()));
 
         var result = await HandleAsync(wrapped);
 
@@ -229,7 +230,7 @@ public class GlobalExceptionHandlerTests
             409 => new IdempotencyConflictException("key", "msg"),
             500 => new InvalidOperationException("msg"),
             503 => new PersistenceUnavailableException("msg", new TimeoutException()),
-            _ => new TimeoutRejectedException("msg"),
+            _ => new DecisionTimeoutException("msg", new TimeoutException()),
         };
 
         var result = await HandleAsync(exception);

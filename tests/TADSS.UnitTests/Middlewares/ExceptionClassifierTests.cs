@@ -2,7 +2,6 @@ using System.Net.Sockets;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Exceptions;
@@ -14,6 +13,7 @@ namespace TADSS.UnitTests.Middlewares;
 /// <summary>
 /// UT-08: <see cref="ExceptionClassifier"/> hiện thực đúng bảng map lỗi v2 (spec 4.2.3) — lỗi persistence được
 /// kiểm tra trước các nhánh khác, lỗi phía server không bao giờ thành lỗi client và không lộ message kỹ thuật.
+/// Classifier chỉ biết exception của SDK và Application: exception thô của Npgsql/Polly đã được adapter hạ tầng dịch (E-04).
 /// </summary>
 public class ExceptionClassifierTests
 {
@@ -35,7 +35,7 @@ public class ExceptionClassifierTests
         { new DomainInvariantException("ANY_CODE", "vi phạm bất biến", "endTime"), 400, ErrorCodes.DomainInvariantViolation, true, null },
         { new IdempotencyConflictException("key-01", "key dùng lại"), 409, ErrorCodes.IdempotencyKeyReuse, true, null },
         { new PersistenceUnavailableException("mất kết nối", new TimeoutException()), 503, ErrorCodes.PersistenceUnavailable, false, 5 },
-        { new TimeoutRejectedException("vượt deadline"), 504, ErrorCodes.GatewayTimeout, false, 5 },
+        { new DecisionTimeoutException("vượt deadline", new TimeoutException()), 504, ErrorCodes.GatewayTimeout, false, 5 },
         { new InvalidOperationException("lỗi nội bộ"), 500, ErrorCodes.InternalError, false, null },
         { new ArgumentException("lỗi tham số"), 500, ErrorCodes.InternalError, false, null },
     };
@@ -110,35 +110,66 @@ public class ExceptionClassifierTests
         classification.ExposeMessage.Should().BeTrue();
     }
 
+    public static TheoryData<Exception> PersistenceUnavailableShapes => new()
+    {
+        // Trực tiếp
+        new PersistenceUnavailableException("mất kết nối", new TimeoutException()),
+        // Bọc trong exception khác (nhiều tầng)
+        new InvalidOperationException("wrapper", new DbUpdateException("save failed", new PersistenceUnavailableException("mất kết nối", new TimeoutException()))),
+        // Nằm ở nhánh thứ hai của AggregateException (InnerException chỉ trỏ nhánh đầu)
+        new AggregateException(new InvalidOperationException("nhánh 1"), new PersistenceUnavailableException("mất kết nối", new TimeoutException())),
+    };
+
+    public static TheoryData<Exception> RawNpgsqlShapes => new()
+    {
+        TransientNpgsql(),
+        new InvalidOperationException("wrapper", new DbUpdateException("save failed", TransientNpgsql())),
+        new DbUpdateException("save failed", Postgres("40001")),
+        new DbUpdateException("save failed", Postgres("40P01")),
+    };
+
     [Fact]
     [Trait("CatalogId", "UT-08")]
-    public void Classify_TransientNpgsqlNestedThreeLevels_Is503()
+    public void Classify_DecisionTimeout_Is504WithRetryAfter()
     {
-        var nested = new InvalidOperationException(
-            "wrapper", new DbUpdateException("save failed", TransientNpgsql()));
+        var result = ExceptionClassifier.Classify(
+            new DecisionTimeoutException("vượt deadline", new TimeoutException()), requestAborted: false);
 
-        var result = ExceptionClassifier.Classify(nested, requestAborted: false);
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(504);
+        classification.Code.Should().Be(ErrorCodes.GatewayTimeout);
+        classification.ExposeMessage.Should().BeFalse();
+        classification.RetryAfterSeconds.Should().Be(5);
+        classification.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-08")]
+    [MemberData(nameof(PersistenceUnavailableShapes))]
+    public void Classify_PersistenceUnavailableNestedOrAggregate_Is503_Theory(Exception exception)
+    {
+        var result = ExceptionClassifier.Classify(exception, requestAborted: false);
 
         var classification = Require(result);
         classification.StatusCode.Should().Be(503);
         classification.Code.Should().Be(ErrorCodes.PersistenceUnavailable);
+        classification.ExposeMessage.Should().BeFalse();
         classification.RetryAfterSeconds.Should().Be(5);
     }
 
     [Theory]
     [Trait("CatalogId", "UT-08")]
-    [InlineData("40001")]
-    [InlineData("40P01")]
-    public void Classify_SerializationFailureAndDeadlock_Is503_Theory(string sqlState)
+    [MemberData(nameof(RawNpgsqlShapes))]
+    public void Classify_RawNpgsqlException_IsInternalError(Exception exception)
     {
-        var result = ExceptionClassifier.Classify(
-            new DbUpdateException("save failed", Postgres(sqlState)), requestAborted: false);
+        // Store chịu trách nhiệm dịch lỗi Npgsql thành PersistenceUnavailableException; exception thô lọt tới đây là lỗi lập trình
+        var result = ExceptionClassifier.Classify(exception, requestAborted: false);
 
         var classification = Require(result);
-        classification.StatusCode.Should().Be(503);
-        classification.Code.Should().Be(ErrorCodes.PersistenceUnavailable);
-        classification.RetryAfterSeconds.Should().Be(5);
+        classification.StatusCode.Should().Be(500);
+        classification.Code.Should().Be(ErrorCodes.InternalError);
         classification.ExposeMessage.Should().BeFalse();
+        classification.RetryAfterSeconds.Should().BeNull();
     }
 
     [Fact]
