@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Services.Strategies;
 using TADSS.UnitTests.TestData;

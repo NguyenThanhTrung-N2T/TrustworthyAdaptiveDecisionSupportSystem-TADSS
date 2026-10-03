@@ -4,9 +4,9 @@ using System.Text.Json.Nodes;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Common;
-using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.UnitTests.TestData;
 using Xunit;
 

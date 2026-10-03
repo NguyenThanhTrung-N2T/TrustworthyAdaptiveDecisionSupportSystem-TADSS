@@ -1,3 +1,4 @@
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 
 namespace TADSS.Runtime.Api.Infrastructure.Data;

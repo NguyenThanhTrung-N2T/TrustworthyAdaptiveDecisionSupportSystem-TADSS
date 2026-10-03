@@ -3,8 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Application.Abstractions.Resilience;
 using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
 using Xunit;
 

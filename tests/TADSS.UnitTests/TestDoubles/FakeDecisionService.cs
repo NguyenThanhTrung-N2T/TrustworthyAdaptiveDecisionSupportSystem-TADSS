@@ -1,5 +1,5 @@
 using Shared.DecisionContractSDK.DTOs.Decisions;
-using TADSS.Runtime.Api.Services;
+using TADSS.Application.Decisions;
 using TADSS.UnitTests.TestData;
 
 namespace TADSS.UnitTests.TestDoubles;

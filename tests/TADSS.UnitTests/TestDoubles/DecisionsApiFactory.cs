@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using TADSS.Runtime.Api.Services;
+using TADSS.Application.Decisions;
 
 namespace TADSS.UnitTests.TestDoubles;
 

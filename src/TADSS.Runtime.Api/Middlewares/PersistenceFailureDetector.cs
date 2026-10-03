@@ -1,4 +1,5 @@
 using Npgsql;
+using TADSS.Application.Exceptions;
 
 namespace TADSS.Runtime.Api.Middlewares;
 

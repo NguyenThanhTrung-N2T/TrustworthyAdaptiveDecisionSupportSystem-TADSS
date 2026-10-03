@@ -1,5 +1,5 @@
 using Shared.DecisionContractSDK.Decisions;
-using TADSS.Runtime.Api.Services.Strategies;
+using TADSS.Application.Strategies;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

@@ -2,10 +2,10 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.Services.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 

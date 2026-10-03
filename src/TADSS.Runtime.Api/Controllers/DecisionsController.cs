@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
-using TADSS.Runtime.Api.Services;
 
 namespace TADSS.Runtime.Api.Controllers;
 

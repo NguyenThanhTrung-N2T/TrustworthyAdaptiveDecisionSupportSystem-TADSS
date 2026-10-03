@@ -3,11 +3,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Domain;
 using StackExchange.Redis;
+using TADSS.Application.Abstractions.Caching;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Decisions;
+using TADSS.Application.Options;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
-using TADSS.Runtime.Api.Services;
-using TADSS.Runtime.Api.Services.Decisions;
 using TADSS.Runtime.Api.Services.Strategies;
 
 namespace TADSS.Runtime.Api.Configuration;

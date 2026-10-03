@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
+using TADSS.Application.Abstractions.Caching;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 using TADSS.UnitTests.TestDoubles;

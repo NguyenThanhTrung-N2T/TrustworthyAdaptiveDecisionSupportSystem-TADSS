@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Exceptions;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using TADSS.Runtime.Api.Middlewares;
 

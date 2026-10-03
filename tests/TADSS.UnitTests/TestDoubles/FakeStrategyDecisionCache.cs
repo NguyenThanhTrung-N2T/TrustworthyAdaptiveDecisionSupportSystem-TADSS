@@ -1,5 +1,6 @@
 using Shared.DecisionContractSDK.Decisions;
-using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Application.Abstractions.Caching;
+using TADSS.Application.Decisions;
 
 namespace TADSS.UnitTests.TestDoubles;
 

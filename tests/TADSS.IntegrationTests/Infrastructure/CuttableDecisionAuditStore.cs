@@ -1,4 +1,4 @@
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Application.Abstractions.Persistence;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

@@ -1,5 +1,6 @@
 using System.Net;
 using FluentAssertions;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.IntegrationTests.Infrastructure;
 using Xunit;
 

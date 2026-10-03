@@ -1,6 +1,7 @@
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
+using TADSS.Application.Exceptions;
 
 namespace TADSS.Runtime.Api.Middlewares;
 

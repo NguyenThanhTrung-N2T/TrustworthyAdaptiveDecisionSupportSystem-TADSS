@@ -1,5 +1,5 @@
 using Shared.DecisionContractSDK.Decisions;
-using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Application.Abstractions.Caching;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

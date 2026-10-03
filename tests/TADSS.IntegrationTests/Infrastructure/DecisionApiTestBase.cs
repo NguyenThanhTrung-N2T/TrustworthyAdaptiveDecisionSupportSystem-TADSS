@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
-using TADSS.Runtime.Api.Services.Strategies;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

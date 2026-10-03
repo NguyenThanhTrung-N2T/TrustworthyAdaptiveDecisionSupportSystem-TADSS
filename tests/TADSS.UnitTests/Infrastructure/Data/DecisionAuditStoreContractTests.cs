@@ -1,7 +1,7 @@
 using System.Reflection;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using TADSS.Runtime.Api.Infrastructure.Data;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using Xunit;
 

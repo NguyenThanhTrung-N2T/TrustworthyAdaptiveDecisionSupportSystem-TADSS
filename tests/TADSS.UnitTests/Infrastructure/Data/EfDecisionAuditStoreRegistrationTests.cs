@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using Xunit;

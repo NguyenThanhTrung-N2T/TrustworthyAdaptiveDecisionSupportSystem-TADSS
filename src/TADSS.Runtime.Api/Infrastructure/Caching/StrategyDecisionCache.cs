@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
+using TADSS.Application.Abstractions.Caching;
 using TADSS.Runtime.Api.Infrastructure.Caching;
 
 namespace TADSS.Runtime.Api.Infrastructure.Caching;

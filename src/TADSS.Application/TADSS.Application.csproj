@@ -16,4 +16,10 @@
     <!-- Application chỉ phụ thuộc SDK (spec 4.2.4); quy tắc khóa bởi ProjectReferenceRulesTests (UT-14) -->
     <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Chỉ abstraction của nền tảng (E-02); DependencyInjection.Abstractions và Options đến bắc cầu qua hai gói này -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
 </Project>

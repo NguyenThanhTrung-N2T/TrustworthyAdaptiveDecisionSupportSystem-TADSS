@@ -8,10 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Shared.DecisionContractSDK.Decisions;
-using TADSS.Runtime.Api.Infrastructure.Caching;
+using TADSS.Application.Abstractions.Caching;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Resilience;
-using TADSS.Runtime.Api.Services.Strategies;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 

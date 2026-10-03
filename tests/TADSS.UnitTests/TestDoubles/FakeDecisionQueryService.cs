@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Decisions;
-using TADSS.Runtime.Api.Services;
+using TADSS.Application.Decisions;
 using TADSS.UnitTests.Sdk.Contracts;
 
 namespace TADSS.UnitTests.TestDoubles;

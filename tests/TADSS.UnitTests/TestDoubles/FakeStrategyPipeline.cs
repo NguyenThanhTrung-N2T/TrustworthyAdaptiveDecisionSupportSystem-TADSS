@@ -2,7 +2,8 @@ using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
+using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Decisions;
 
 namespace TADSS.UnitTests.TestDoubles;
 

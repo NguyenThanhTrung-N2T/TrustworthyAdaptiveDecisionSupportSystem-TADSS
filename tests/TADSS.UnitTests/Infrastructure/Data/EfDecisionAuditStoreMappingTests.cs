@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Runtime.Api.Infrastructure.Data;
 using TADSS.Runtime.Api.Infrastructure.Data.Entities;
 using Xunit;

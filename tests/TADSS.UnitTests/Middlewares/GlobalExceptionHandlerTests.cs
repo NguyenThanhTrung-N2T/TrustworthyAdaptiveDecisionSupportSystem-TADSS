@@ -8,6 +8,7 @@ using Npgsql;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
+using TADSS.Application.Exceptions;
 using TADSS.Runtime.Api.Middlewares;
 using Xunit;
 

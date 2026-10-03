@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Domain;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Runtime.Api.Configuration;
 using TADSS.Strategies.Default;
 using TADSS.Strategies.MockAlternative;

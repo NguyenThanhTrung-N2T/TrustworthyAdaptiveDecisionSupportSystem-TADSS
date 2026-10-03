@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TADSS.Application.Exceptions;
 using TADSS.Runtime.Api.Middlewares;
 using Xunit;
 

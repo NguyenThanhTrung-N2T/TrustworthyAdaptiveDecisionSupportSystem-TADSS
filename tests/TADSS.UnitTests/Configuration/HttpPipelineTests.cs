@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Common;
 using Swashbuckle.AspNetCore.Swagger;
+using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;

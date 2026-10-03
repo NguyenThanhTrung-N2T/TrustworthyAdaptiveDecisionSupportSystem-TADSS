@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Exceptions;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.IntegrationTests.Migrations;
 using TADSS.Runtime.Api.Infrastructure.Data;

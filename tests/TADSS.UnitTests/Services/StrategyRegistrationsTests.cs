@@ -2,6 +2,7 @@ using System.Globalization;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Services.Strategies;
 using TADSS.UnitTests.TestData;
 using Xunit;

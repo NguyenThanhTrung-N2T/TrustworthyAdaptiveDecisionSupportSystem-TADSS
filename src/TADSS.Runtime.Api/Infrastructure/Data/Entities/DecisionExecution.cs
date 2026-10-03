@@ -1,4 +1,6 @@
 using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Decisions;
 
 namespace TADSS.Runtime.Api.Infrastructure.Data.Entities;
 
