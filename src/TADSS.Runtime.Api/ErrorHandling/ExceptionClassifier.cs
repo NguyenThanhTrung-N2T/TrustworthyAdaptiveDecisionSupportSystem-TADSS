@@ -75,4 +75,24 @@ public static class ExceptionClassifier
 
         return false;
     }
+
+    /// <summary>
+    /// Câu <c>detail</c> chung theo status cho lỗi không được phép lộ <c>Exception.Message</c> (<see cref="ErrorClassification.ExposeMessage"/> = <c>false</c>).
+    /// </summary>
+    public static string GenericDetail(int statusCode) => statusCode switch
+    {
+        StatusCodes.Status503ServiceUnavailable => "Decision audit storage is temporarily unavailable. Please retry later.",
+        StatusCodes.Status504GatewayTimeout => "The decision could not be completed within the allowed time. Please retry later.",
+        _ => "An unexpected internal server error occurred."
+    };
+
+    /// <summary>
+    /// Lỗi theo trường (<c>errors</c> của problem+json) khi exception gắn với một trường cụ thể; <c>null</c> nếu không.
+    /// </summary>
+    public static Dictionary<string, string[]>? FieldErrors(Exception exception) => exception switch
+    {
+        DomainInvariantException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
+        ContractValidationException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
+        _ => null
+    };
 }

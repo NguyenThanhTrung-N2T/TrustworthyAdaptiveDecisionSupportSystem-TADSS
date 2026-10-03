@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.Domain;
 using TADSS.Runtime.Api.ErrorHandling;
 using TADSS.Runtime.Api.Options;
 
@@ -11,6 +8,7 @@ namespace TADSS.Runtime.Api.Middlewares;
 /// <summary>
 /// Chuyển exception chưa xử lý thành phản hồi RFC 7807 theo bảng map lỗi (spec 4.2.3) qua <see cref="ExceptionClassifier"/>.
 /// Header <c>Retry-After</c> của lỗi tạm thời lấy từ <see cref="ErrorHandlingOptions.RetryAfterSeconds"/>.
+/// Body do <see cref="ProblemResponseWriter"/> dựng (cùng đường với các phản hồi từ chối của middleware).
 /// Chỉ trả <c>Exception.Message</c> khi lỗi do request (<see cref="ErrorClassification.ExposeMessage"/>); lỗi hạ tầng luôn dùng câu chung theo mã.
 /// </summary>
 public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IOptions<ErrorHandlingOptions> options) : IExceptionHandler
@@ -41,49 +39,17 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IOpt
                 classification.StatusCode, classification.Code, traceId, httpContext.Request.Path, exception.Message);
         }
 
-        var problemDetails = new ProblemDetails
-        {
-            Status = classification.StatusCode,
-            Title = classification.Title,
-            Detail = classification.ExposeMessage ? exception.Message : GenericDetail(classification.StatusCode),
-            Instance = httpContext.Request.Path,
-            Type = $"https://tadss.smashcourt.vn/errors/{classification.Code.ToLowerInvariant().Replace('_', '-')}"
-        };
-
-        problemDetails.Extensions["code"] = classification.Code;
-        problemDetails.Extensions["traceId"] = traceId;
-
-        if (classification.HasRetryAfter)
-        {
-            var retryAfterSeconds = options.Value.RetryAfterSeconds;
-            problemDetails.Extensions["retryAfterSeconds"] = retryAfterSeconds;
-            httpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        var errors = BuildFieldErrors(exception);
-        if (errors is not null)
-        {
-            problemDetails.Extensions["errors"] = errors;
-        }
-
-        httpContext.Response.StatusCode = classification.StatusCode;
-        httpContext.Response.ContentType = "application/problem+json";
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, options: (System.Text.Json.JsonSerializerOptions?)null, contentType: "application/problem+json", cancellationToken: cancellationToken);
+        await ProblemResponseWriter.WriteAsync(
+            httpContext,
+            new ProblemResponse(
+                classification.StatusCode,
+                classification.Code,
+                classification.Title,
+                classification.ExposeMessage ? exception.Message : ExceptionClassifier.GenericDetail(classification.StatusCode),
+                classification.HasRetryAfter ? options.Value.RetryAfterSeconds : null,
+                ExceptionClassifier.FieldErrors(exception)),
+            cancellationToken);
 
         return true;
     }
-
-    private static string GenericDetail(int statusCode) => statusCode switch
-    {
-        StatusCodes.Status503ServiceUnavailable => "Decision audit storage is temporarily unavailable. Please retry later.",
-        StatusCodes.Status504GatewayTimeout => "The decision could not be completed within the allowed time. Please retry later.",
-        _ => "An unexpected internal server error occurred."
-    };
-
-    private static Dictionary<string, string[]>? BuildFieldErrors(Exception exception) => exception switch
-    {
-        DomainInvariantException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
-        ContractValidationException { FieldName: { Length: > 0 } field } => new() { [field] = new[] { exception.Message } },
-        _ => null
-    };
 }
