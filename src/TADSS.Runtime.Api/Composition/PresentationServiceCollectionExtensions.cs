@@ -1,0 +1,97 @@
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
+using Shared.DecisionContractSDK.Common;
+using TADSS.Runtime.Api.Common;
+using TADSS.Runtime.Api.ErrorHandling;
+using TADSS.Runtime.Api.Middlewares;
+using TADSS.Runtime.Api.OpenApi;
+using TADSS.Runtime.Api.Options;
+
+namespace TADSS.Runtime.Api.Composition;
+
+/// <summary>
+/// Đăng ký DI của tầng presentation: bảo mật (API key), exception handler, ProblemDetails, controller + JSON và Swagger.
+/// </summary>
+public static class PresentationServiceCollectionExtensions
+{
+    /// <summary>Tên security scheme trong tài liệu OpenAPI.</summary>
+    private const string ApiKeySchemeName = "ApiKey";
+
+    /// <summary>
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc section <c>Tadss:ErrorHandling</c> từ <paramref name="configuration"/>.
+    /// </summary>
+    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Cấu hình xử lý lỗi (Retry-After): sai thì ứng dụng không khởi động
+        services.AddOptions<ErrorHandlingOptions>()
+            .Bind(configuration.GetSection(ErrorHandlingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<ErrorHandlingOptions>, ErrorHandlingOptionsValidator>();
+
+        // Xác thực API key (Tadss:Security)
+        services.AddTadssSecurity(configuration);
+
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa
+        services.AddProblemDetails(options =>
+            options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
+        // JSON chỉ qua TadssJson.Apply (camelCase, phân biệt hoa thường, enum/thời gian chặt, trường lạ bị từ chối);
+        // không thêm converter toàn cục nào vì sẽ làm enum nhận chữ thường/chuỗi số (Apply ném lỗi nếu có)
+        services.AddControllers()
+            .AddJsonOptions(options => TadssJson.Apply(options.JsonSerializerOptions))
+            .ConfigureApiBehaviorOptions(options =>
+            {
+                // Mọi lỗi giải mã body đi qua GlobalExceptionHandler để có cùng một dạng problem+json
+                options.InvalidModelStateResponseFactory = InvalidModelStateTranslator.Throw;
+            });
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v2", new Microsoft.OpenApi.Models.OpenApiInfo
+            {
+                Title = "TADSS Decision Runtime API",
+                Version = "2.0.0-draft",
+                Description = "Decision Runtime của TADSS cho SmashCourt: đánh giá quyết định đặt sân (POST /api/v2/decisions), tra cứu chi tiết quyết định (GET /api/v2/decisions/{decisionId}), hàng chờ duyệt (GET /api/v2/decisions/pending-approvals), Manager duyệt hoặc từ chối (POST /api/v2/decisions/{decisionId}/override) và ghi kết cục thực tế (POST /api/v2/decisions/{decisionId}/outcome). Contract v2: INTEGRATION_SPEC."
+            });
+
+            // Load API XML documentation if present
+            var apiXmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var apiXmlPath = Path.Combine(AppContext.BaseDirectory, apiXmlFile);
+            if (File.Exists(apiXmlPath))
+            {
+                c.IncludeXmlComments(apiXmlPath);
+            }
+
+            // Load Shared SDK XML documentation if present
+            var sdkXmlFile = "Shared.DecisionContractSDK.xml";
+            var sdkXmlPath = Path.Combine(AppContext.BaseDirectory, sdkXmlFile);
+            if (File.Exists(sdkXmlPath))
+            {
+                c.IncludeXmlComments(sdkXmlPath);
+            }
+
+            // Register operation filter for contract-defined headers
+            c.OperationFilter<RequiredHeaderOperationFilter>();
+
+            // Mọi operation yêu cầu X-Api-Key: khai báo scheme + requirement, và phản hồi 401 của từng operation
+            c.AddSecurityDefinition(ApiKeySchemeName, new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = HttpHeaderNames.ApiKey,
+                Description = "API key do TADSS cấp cho từng client (service-to-service)."
+            });
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = ApiKeySchemeName } }] = []
+            });
+            c.OperationFilter<SecurityResponsesOperationFilter>();
+
+            // problem+json của contract mang thêm code/traceId...; chuẩn hóa xuống dòng để openapi-v2.yaml sinh ổn định giữa các máy
+            c.SchemaFilter<ProblemDetailsSchemaFilter>();
+            c.DocumentFilter<LineEndingDocumentFilter>();
+        });
+
+        return services;
+    }
+}

@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Serilog.Context;
+using TADSS.Application.Common;
 using TADSS.Runtime.Api.Common;
 
 namespace TADSS.Runtime.Api.Middlewares;
@@ -10,21 +12,40 @@ namespace TADSS.Runtime.Api.Middlewares;
 public class CorrelationIdMiddleware
 {
     public const string HeaderName = HttpHeaderNames.CorrelationId;
-    private readonly RequestDelegate _next;
 
-    public CorrelationIdMiddleware(RequestDelegate next)
+    private readonly RequestDelegate _next;
+    private readonly ILogger<CorrelationIdMiddleware> _logger;
+
+    public CorrelationIdMiddleware(RequestDelegate next, ILogger<CorrelationIdMiddleware>? logger = null)
     {
         _next = next;
+        _logger = logger ?? NullLogger<CorrelationIdMiddleware>.Instance;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
         var headerValue = context.Request.Headers[HeaderName].FirstOrDefault();
 
-        // Preserve client-supplied correlation ID as-is; if missing or whitespace, generate a new GUID
-        var correlationId = string.IsNullOrWhiteSpace(headerValue)
-            ? Guid.NewGuid().ToString()
-            : headerValue;
+        // Preserve client-supplied correlation ID as-is when valid (non-blank, at most ContractLimits.MaxCorrelationIdLength chars);
+        // otherwise generate a new GUID so an oversized value never reaches TraceIdentifier, log scope, headers or audit
+        string correlationId;
+        if (string.IsNullOrWhiteSpace(headerValue))
+        {
+            correlationId = Guid.NewGuid().ToString();
+        }
+        else if (headerValue.Length > ContractLimits.MaxCorrelationIdLength)
+        {
+            correlationId = Guid.NewGuid().ToString();
+            _logger.LogInformation(
+                "Correlation id do client gửi dài {Length} ký tự (tối đa {MaxLength}); thay bằng {CorrelationId}.",
+                headerValue.Length,
+                ContractLimits.MaxCorrelationIdLength,
+                correlationId);
+        }
+        else
+        {
+            correlationId = headerValue;
+        }
 
         // 1. Set canonical TraceIdentifier
         context.TraceIdentifier = correlationId;

@@ -1,6 +1,6 @@
 # ARCHITECTURE DECISION RECORDS (ADR) — TỔNG HỢP
 
-> Tài liệu tổng hợp các quyết định kiến trúc của TADSS. ADR-001 → ADR-005 có file chi tiết trong [`adr/`](adr/). ADR-006 → ADR-012 được chốt khi re-baseline (01/10/2026) và ghi trực tiếp tại đây.
+> Tài liệu tổng hợp các quyết định kiến trúc của TADSS. ADR-001 → ADR-005 có file chi tiết trong [`adr/`](adr/). ADR-006 → ADR-012 được chốt khi re-baseline (01/10/2026) và ADR-013 khi hoàn tất gói 5.2d (03/10/2026); tất cả ghi trực tiếp tại đây.
 
 | ADR | Quyết định | Trạng thái | Phạm vi |
 | :--- | :--- | :--- | :--- |
@@ -16,6 +16,7 @@
 | 010 | Observability bằng OpenTelemetry | Đã duyệt | Đồ án 2 |
 | 011 | Định tuyến strategy theo request + shadow mode | Đã duyệt | Đồ án 2 |
 | 012 | Evidence Pack & ba nguồn dữ liệu minh chứng | Đã duyệt | Đồ án 2 |
+| 013 | Clean Architecture nhiều project | Đã hiện thực (gói 5.2d) | Đồ án 2 |
 
 ---
 
@@ -42,6 +43,7 @@ Tóm tắt (chi tiết trong file riêng):
 - **Bối cảnh:** v1 không biểu diễn được số cọc, nhiều sân, khách vãng lai, chi nhánh, danh tính Manager, kết quả thực tế; chính sách đóng băng v1 không cho thêm trường.
 - **Quyết định:** phát hành v2.0.0 (`/api/v2`) theo [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md); v1 được giữ làm hồ sơ và gỡ endpoint khi v2 đóng băng vì chưa có consumer.
 - **Hệ quả:** cập nhật SDK, JSON schema, public API baseline; viết lại strategies.
+- **Cập nhật 02/10/2026:** endpoint, mã và toàn bộ hồ sơ v1 (contract, OpenAPI, schema, số đo Milestone 2, benchmark Tuần 8) đã gỡ khỏi repo ở Phase 5 (gói 5.2c và đợt dọn sau đó); tra lại qua tag git `phase4-baseline`.
 
 ## ADR-008: Audit bất biến ba bảng + trigger
 
@@ -70,4 +72,22 @@ Tóm tắt (chi tiết trong file riêng):
 
 - **Bối cảnh:** giảng viên yêu cầu minh chứng bằng dữ liệu chạy thật; dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn do job tự sinh).
 - **Quyết định:** ba nguồn dữ liệu, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt (hình dạng input thực tế), dataset công khai Hotel Booking Demand (độc lập domain), pilot UAT với người dùng thật (luồng tích hợp, khả dụng). Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
-- **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION_V1.md`](../research/DATASET_SCHEMA_SPECIFICATION_V1.md).
+- **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md).
+
+## ADR-013: Clean Architecture nhiều project
+
+- **Bối cảnh:** sau 5.2c toàn bộ runtime nằm trong một project `TADSS.Runtime.Api`, nên ranh giới tầng chỉ dựa vào quy ước thư mục. Hệ quả: port `IDecisionAuditStore` nằm trong `Infrastructure/`, nên use case phụ thuộc hạ tầng (vi phạm DIP); exception nghiệp vụ nằm ở `Middlewares/` và bị service/store tham chiếu ngược; `DecisionService` gánh điều phối, cache và log (SRP); một hàm DI đăng ký mọi tầng; một số giá trị vận hành (`Retry-After`, timeout kết nối Redis) và hằng của contract bị hardcode, lặp ở nhiều nơi. Khóa luận cần mở rộng nhiều port (override, outcome, hàng chờ ở 5.3; router, shadow ở 5.4), nên phụ thuộc ngược phải được compiler chặn trước đó.
+- **Quyết định (P-03):** tách thành bốn project theo hướng phụ thuộc vào trong: `Shared.DecisionContractSDK` (Domain + contract) ← `TADSS.Application` (use case, port, options nghiệp vụ) ← `TADSS.Infrastructure` (adapter: EF Core/Npgsql, Redis, Polly, health check, migration) ← `TADSS.Runtime.Api` (presentation + composition root). Hai project strategy là plugin chỉ phụ thuộc SDK. Quy tắc phụ thuộc do `ProjectReference`/`PackageReference` cưỡng chế ở compiler và khóa bằng UT-14 (Mục 5 của [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](SOFTWARE_ARCHITECTURE_SPECIFICATION.md)). Các quyết định kèm theo:
+  - Port nằm ở `TADSS.Application/Abstractions/{Caching,Persistence,Resilience}`; adapter ở Infrastructure. Port audit tách theo consumer (ISP): `IDecisionEvaluationStore` và `IDecisionQueryStore`, một `EfDecisionAuditStore` hiện thực cả hai.
+  - Infrastructure dịch mọi exception hạ tầng ngay tại adapter (outer timeout của Polly → `DecisionTimeoutException`; lỗi tạm thời của PostgreSQL → `PersistenceUnavailableException`); `ExceptionClassifier` chỉ biết exception của SDK và Application.
+  - Mỗi tầng tự đăng ký phần của mình (`AddApplication`, `AddInfrastructure`, `AddStrategies`, `AddPresentation`); việc dựng strategy cụ thể từ cấu hình (`StrategyRegistrations`) thuộc composition root `TADSS.Runtime.Api/Composition/`; `Program.cs` chỉ còn lắp ráp và gọi `StartupTasks`, `UseTadssRequestPipeline`.
+  - Tách `DecisionService` (SRP): `StrategyEvaluator` (cache + pipeline) và `DecisionPayloadSerializer` (dùng chung cho composer, replay, query).
+  - Bỏ hardcode: `ContractLimits` (giới hạn 128 ký tự), `Tadss:ErrorHandling:RetryAfterSeconds`, `Tadss:Cache:RedisConnectTimeoutMs`, `CacheProviders`, hằng tên health check; xóa option chết `MaxMemoryCacheSize`.
+  - Đổi tên entity EF thành `DecisionExecutionEntity`/`DecisionOverrideEntity`/`DecisionOutcomeEntity` (tránh trùng enum `DecisionOutcome` của SDK). Chuỗi tên kiểu trong `TadssDbContextModelSnapshot` và `*.Designer.cs` sửa theo; ID và DDL của 4 migration không đổi.
+  - Thư mục composition root tên `Composition/` (không dùng `DependencyInjection/` để tránh namespace trùng đoạn cuối với `Microsoft.Extensions.DependencyInjection`).
+- **Hệ quả:**
+  - *Không đổi:* wire, JSON schema, mã lỗi và status HTTP, `openapi-v2.yaml`, `baseline_public_api.txt`, ID/nội dung migration, các khóa cấu hình hiện có và giá trị mặc định.
+  - *Đổi hành vi có chủ đích:* (1) thêm validator cho `StrategyOptions`, `CacheOptions`, `ErrorHandlingOptions` nên khởi động từ chối cấu hình sai: `Tadss:Cache:Provider` lạ (khác `Redis`/`Memory`, không phân biệt hoa thường), `RedisTimeoutMs`/`RedisConnectTimeoutMs`/`TtlHours` không dương, `Tadss:Strategy:ActiveStrategyName` rỗng, `Tadss:ErrorHandling:RetryAfterSeconds` ngoài 1..3600 (`DatabaseOptions` chỉ có một cờ bool nên không có validator); (2) `Retry-After` của 503/504 đọc từ `Tadss:ErrorHandling:RetryAfterSeconds` (mặc định 5, đúng giá trị cũ); (3) khóa mới `Tadss:Cache:RedisConnectTimeoutMs` (mặc định 3000) là timeout kết nối tối thiểu, thay số 3000 hardcode: timeout kết nối thực tế vẫn là `max(RedisTimeoutMs, RedisConnectTimeoutMs)`; (4) khóa `Tadss:Cache:MaxMemoryCacheSize` bị xóa (không mã nào đọc; khóa còn sót trong file cấu hình cục bộ bị bỏ qua, không gây lỗi); (5) tên health check PostgreSQL đổi thành `postgresql` (không lộ ra response); (6) category của logger đổi theo namespace mới (cần cập nhật bộ lọc log nếu có lọc theo category); (7) kiểu `DecisionTimeoutException` mới, ánh xạ 504 `GATEWAY_TIMEOUT` giữ nguyên; (8) khi outer timeout của strategy và việc caller hủy xảy ra cùng lúc, request kết thúc như "client đã hủy" (log mức Information, không ghi response) thay vì 504 kèm log mức Error như trước (`StrategyPipeline` ném `OperationCanceledException` thay vì `DecisionTimeoutException`; xem Mục 4.4.1 của [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](SOFTWARE_ARCHITECTURE_SPECIFICATION.md)).
+  - *Chưa thay đổi / để lại cho 5.4:* (i) tiền tố khóa cache `tadss:v2:` (`StrategyDecisionCacheKey`) vẫn là hằng, chưa đưa vào cấu hình; (ii) tên health check PostgreSQL vẫn là hằng `"postgresql"`; (iii) `CacheOptions.InstanceName` và `CacheOptions.TtlHours` vẫn được bind nhưng không mã nào đọc (validator vẫn yêu cầu `TtlHours` > 0 theo plan), là ứng viên xóa ở 5.4 như `MaxMemoryCacheSize` đã xóa ở 5.2d; XML doc của hai thuộc tính ghi rõ hiện không có tác dụng.
+  - *Chi phí:* thêm hai project, thêm bước đăng ký qua bốn hàm `Add*`; bù lại thêm port mới ở 5.3/5.4 chỉ cần khai báo ở `Application/Abstractions` và hiện thực ở Infrastructure, còn compiler chặn mọi phụ thuộc ngược. Kiểu mới đặt sai chỗ hoặc vi phạm quy ước làm UT-14 đỏ.
+  - *Việc mang sang 5.3:* `IDecisionGovernanceStore` (đặt ở `Application/Abstractions/Persistence`), `DecisionStateConflictException` (đặt ở `Application/Exceptions`), middleware bảo mật chèn vào `UseTadssRequestPipeline`; fail-fast khi thiếu connection string, nới options đọc payload audit, log 503 giả khi client hủy trong pha SQL.

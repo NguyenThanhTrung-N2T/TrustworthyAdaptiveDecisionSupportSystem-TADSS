@@ -1,211 +1,158 @@
+using System.Globalization;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Strategies.MockAlternative;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Strategies;
 
 /// <summary>
-/// Bộ kiểm thử xác thực tính chính xác và các biên quyết định của MockAlternativeDecisionStrategy.
+/// UT-03 / UT-05: bảng quyết định <c>MockAlternativeDecisionStrategy</c> 2.0.0 theo giờ cao điểm của chi nhánh
+/// (so sánh theo giờ địa phương, không theo UTC), ngưỡng giá trị lớn chỉ áp dụng giờ cao điểm, lịch lấy từ ngữ cảnh.
 /// </summary>
 public class MockAlternativeDecisionStrategyTests
 {
-    private readonly MockAlternativeDecisionStrategy _strategy = new();
+    private static readonly MockAlternativeDecisionStrategy Strategy = new(new MockAlternativeStrategyOptions());
 
-    private static Reservation CreateReservation(
-        DateTime startTime,
-        decimal totalPrice = 200000m,
-        decimal depositAmount = 100000m,
-        string customerTier = "Standard",
-        PaymentStatus paymentStatus = PaymentStatus.PARTIALLY_PAID)
+    [Theory]
+    [Trait("CatalogId", "UT-03")]
+    [InlineData("2026-11-20T18:00:00+07:00", 228_000, DecisionStatus.APPROVED, "0.5", ReasonCodes.PeakHourDeposit)]
+    [InlineData("2026-11-20T16:00:00+07:00", 228_000, DecisionStatus.APPROVED, "0.3", ReasonCodes.OffPeakDeposit)]
+    [InlineData("2026-11-20T18:00:00+07:00", 1_500_000, DecisionStatus.NEED_APPROVAL, null, ReasonCodes.HighValueReview)]
+    [InlineData("2026-11-20T18:00:00+07:00", 1_499_999, DecisionStatus.APPROVED, "0.5", ReasonCodes.PeakHourDeposit)]
+    [InlineData("2026-11-20T16:00:00+07:00", 5_000_000, DecisionStatus.APPROVED, "0.3", ReasonCodes.OffPeakDeposit)]
+    [InlineData("2026-11-20T11:00:00Z", 228_000, DecisionStatus.APPROVED, "0.5", ReasonCodes.PeakHourDeposit)]
+    [InlineData("2026-11-21T09:00:00+07:00", 228_000, DecisionStatus.APPROVED, "0.5", ReasonCodes.PeakHourDeposit)]
+    public async Task EvaluateAsync_DecisionTable_ReturnsExpectedDecision(
+        string startIso, long totalPrice, DecisionStatus expectedStatus, string? expectedRate, string expectedReason)
     {
-        return Reservation.Create(
-            reservationId: Guid.NewGuid(),
-            customerId: Guid.NewGuid(),
-            customerTier: customerTier,
-            courtId: Guid.NewGuid(),
-            branchId: Guid.NewGuid(),
-            courtTypeId: null,
-            startTime: startTime,
-            endTime: startTime.AddHours(2),
-            totalPrice: totalPrice,
-            depositAmount: depositAmount,
-            paymentStatus: paymentStatus,
-            bookingType: "SINGLE",
-            priority: BookingPriority.NORMAL,
-            requestedAt: DateTime.UtcNow);
+        var start = DateTimeOffset.Parse(startIso, CultureInfo.InvariantCulture);
+        var reservation = DomainTestData.CreateReservation(items: [DomainTestData.CreateItem(start)], totalPrice: totalPrice);
+
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
+
+        decision.Status.Should().Be(expectedStatus);
+        decision.ReasonCode.Should().Be(expectedReason);
+        decision.DepositRate.Should().Be(expectedRate is null ? null : decimal.Parse(expectedRate, CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public void StrategyIdentity_NameAndVersion_AreCorrect()
+    [Trait("CatalogId", "UT-05")]
+    public async Task EvaluateAsync_PeakReason_UsesBranchLocalTimeAndVietnameseDay()
     {
-        _strategy.StrategyName.Should().Be("MockAlternativeDecisionStrategy");
-        _strategy.StrategyVersion.Should().Be("1.0.0");
+        var reservation = DomainTestData.CreateReservation(
+            items: [DomainTestData.CreateItem(new DateTimeOffset(2026, 11, 20, 11, 0, 0, TimeSpan.Zero))]);
+
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
+
+        decision.Reasons.Should().ContainSingle()
+            .Which.Should().Be("Khung giờ cao điểm (18:00 thứ Sáu, giờ chi nhánh) áp dụng cọc 50%.");
     }
 
     [Fact]
-    public async Task EvaluateAsync_WhenReservationIsNull_ThrowsArgumentNullException()
+    [Trait("CatalogId", "UT-03")]
+    public async Task EvaluateAsync_HighValueAtPeak_RecommendsApprovalAndAlternativeSlot()
     {
-        var act = () => _strategy.EvaluateAsync(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        var reservation = DomainTestData.CreateReservation(totalPrice: 2_000_000m);
+
+        var decision = await Strategy.EvaluateAsync(reservation, DomainTestData.CreateContext(), CancellationToken.None);
+
+        decision.Recommendations.Select(recommendation => recommendation.Type).Should().Equal(
+            RecommendationType.REQUIRE_APPROVAL, RecommendationType.ALTERNATIVE_SLOT);
     }
 
     [Fact]
-    public async Task EvaluateAsync_FullyPaidBooking_AlwaysApproved_RegardlessOfHour()
+    [Trait("CatalogId", "UT-05")]
+    public async Task EvaluateAsync_CalendarWithoutPeakWindows_TreatsAsOffPeak()
     {
-        // Arrange: Peak hour (Wednesday 18:00) with 100% deposit
-        var peakWednesday = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc); // Wednesday 18:00
-        var reservation = CreateReservation(peakWednesday, 200000m, 200000m, "Standard", PaymentStatus.PAID);
+        var context = DomainTestData.CreateContext(calendar: new BranchCalendar([]));
 
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
+        var decision = await Strategy.EvaluateAsync(DomainTestData.CreateReservation(), context, CancellationToken.None);
 
-        // Assert
-        result.Status.Should().Be(DecisionStatus.APPROVED.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.ApprovedPaidInFull);
-        result.FallbackUsed.Should().BeFalse();
+        decision.ReasonCode.Should().Be(ReasonCodes.OffPeakDeposit);
     }
 
     [Fact]
-    public async Task EvaluateAsync_VipCustomer_AlwaysApproved_RegardlessOfHourAndDeposit()
+    [Trait("CatalogId", "UT-03")]
+    public void Identity_NameAndVersion_MatchV2Contract()
     {
-        // Arrange: Peak hour (Wednesday 18:00), VIP tier, 0 deposit
-        var peakWednesday = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc);
-        var reservation = CreateReservation(peakWednesday, 200000m, 0m, "VIP", PaymentStatus.UNPAID);
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.APPROVED.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.AutoApprovedTierEligible);
+        Strategy.StrategyName.Should().Be("MockAlternativeDecisionStrategy");
+        Strategy.StrategyVersion.Should().Be("2.0.0");
     }
 
     [Fact]
-    public async Task EvaluateAsync_WeekdayPeakHour_WithSufficientDeposit50Percent_ReturnsApproved()
+    [Trait("CatalogId", "UT-03")]
+    public void CachePolicy_DefaultOptions_EnabledForSixtyMinutes()
     {
-        // Arrange: Wednesday 18:00 (Peak), exactly 50% deposit
-        var peakWednesday = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc);
-        var reservation = CreateReservation(peakWednesday, 200000m, 100000m); // 50%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.APPROVED.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.ApprovedStandard);
-        result.Reasons.Should().Contain(r => r.Contains("50.0%"));
-    }
-
-    [Fact]
-    public async Task EvaluateAsync_WeekdayPeakHour_WithInsufficientDeposit_ReturnsNeedApprovalAndRecommendations()
-    {
-        // Arrange: Wednesday 18:00 (Peak), only 30% deposit (needs 50% for peak)
-        var peakWednesday = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc);
-        var reservation = CreateReservation(peakWednesday, 200000m, 60000m); // 30%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.DepositBelowThreshold);
-
-        // Recommendations check: MUST contain REQUIRE_DEPOSIT and ALTERNATIVE_SLOT
-        result.Recommendations.Should().HaveCount(2);
-
-        var requireDeposit = result.Recommendations.FirstOrDefault(r => r.Type == RecommendationType.REQUIRE_DEPOSIT.ToString());
-        requireDeposit.Should().NotBeNull();
-        requireDeposit!.Description.Should().Contain("40,000 VND"); // 100,000 - 60,000 = 40,000 shortage
-        requireDeposit.ConfidenceScore.Should().Be(1.0);
-
-        var alternativeSlot = result.Recommendations.FirstOrDefault(r => r.Type == RecommendationType.ALTERNATIVE_SLOT.ToString());
-        alternativeSlot.Should().NotBeNull();
-        alternativeSlot!.Description.Should().Contain("khung giờ thấp điểm");
-        alternativeSlot.ConfidenceScore.Should().Be(0.85);
-    }
-
-    [Fact]
-    public async Task EvaluateAsync_WeekendPeakHour_WithSufficientDeposit50Percent_ReturnsApproved()
-    {
-        // Arrange: Saturday 10:00 (Weekend Peak 08:00 - 21:00), 50% deposit
-        var saturday = new DateTime(2026, 9, 26, 10, 0, 0, DateTimeKind.Utc); // Saturday
-        var reservation = CreateReservation(saturday, 300000m, 150000m); // 50%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.APPROVED.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.ApprovedStandard);
-    }
-
-    [Fact]
-    public async Task EvaluateAsync_WeekendPeakHour_WithInsufficientDeposit_ReturnsNeedApproval()
-    {
-        // Arrange: Sunday 14:00 (Weekend Peak), only 30% deposit
-        var sunday = new DateTime(2026, 9, 27, 14, 0, 0, DateTimeKind.Utc); // Sunday
-        var reservation = CreateReservation(sunday, 300000m, 90000m); // 30%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.DepositBelowThreshold);
-    }
-
-    [Fact]
-    public async Task EvaluateAsync_WeekdayOffPeak_WithSufficientDeposit30Percent_ReturnsApproved()
-    {
-        // Arrange: Wednesday 10:00 (Off-Peak: before 17:00), 30% deposit
-        var offPeakWednesday = new DateTime(2026, 9, 23, 10, 0, 0, DateTimeKind.Utc);
-        var reservation = CreateReservation(offPeakWednesday, 200000m, 60000m); // 30%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.APPROVED.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.ApprovedStandard);
-        result.Reasons.Should().Contain(r => r.Contains("30.0%"));
-    }
-
-    [Fact]
-    public async Task EvaluateAsync_WeekdayOffPeak_WithInsufficientDepositBelow30Percent_ReturnsNeedApproval()
-    {
-        // Arrange: Wednesday 10:00 (Off-Peak), only 10% deposit (below 30%)
-        var offPeakWednesday = new DateTime(2026, 9, 23, 10, 0, 0, DateTimeKind.Utc);
-        var reservation = CreateReservation(offPeakWednesday, 200000m, 20000m); // 10%
-
-        // Act
-        var result = await _strategy.EvaluateAsync(reservation);
-
-        // Assert
-        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL.ToString());
-        result.PrimaryReason.Should().Be(ErrorCodes.DepositBelowThreshold);
-
-        // Off-peak shortage: 60,000 - 20,000 = 40,000 shortage to 30%
-        result.Recommendations.Should().HaveCount(1);
-        result.Recommendations[0].Type.Should().Be(RecommendationType.REQUIRE_DEPOSIT.ToString());
-        result.Recommendations[0].Description.Should().Contain("40,000 VND");
+        Strategy.CachePolicy.IsEnabled.Should().BeTrue();
+        Strategy.CachePolicy.Ttl.Should().Be(TimeSpan.FromMinutes(60));
     }
 
     [Theory]
-    [InlineData(2026, 9, 23, 17, 0, 0, true)]   // Wednesday 17:00:00 -> Peak
-    [InlineData(2026, 9, 23, 16, 59, 59, false)] // Wednesday 16:59:59 -> Off-peak
-    [InlineData(2026, 9, 23, 20, 59, 59, true)]  // Wednesday 20:59:59 -> Peak
-    [InlineData(2026, 9, 23, 21, 0, 0, false)]   // Wednesday 21:00:00 -> Off-peak
-    [InlineData(2026, 9, 26, 8, 0, 0, true)]     // Saturday 08:00:00 -> Weekend Peak
-    [InlineData(2026, 9, 26, 7, 59, 59, false)]  // Saturday 07:59:59 -> Weekend Off-peak
-    [InlineData(2026, 9, 26, 20, 59, 59, true)]  // Saturday 20:59:59 -> Weekend Peak
-    [InlineData(2026, 9, 26, 21, 0, 0, false)]   // Saturday 21:00:00 -> Weekend Off-peak
-    public void IsPeakHour_BoundaryEvaluation_ReturnsExpectedClassification(
-        int year, int month, int day, int hour, int minute, int second, bool expectedPeak)
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("PeakDepositRate")]
+    [InlineData("OffPeakDepositRate")]
+    public void Validate_DepositRateWithMoreThanFourDecimals_Fails_Theory(string fieldName)
     {
-        var dt = new DateTime(year, month, day, hour, minute, second, DateTimeKind.Utc);
-        MockAlternativeDecisionStrategy.IsPeakHour(dt).Should().Be(expectedPeak);
+        var options = CreateWithRate(fieldName, 0.33333m);
+
+        var act = options.Validate;
+
+        act.Should().Throw<ArgumentException>().WithMessage($"*{fieldName}*");
+    }
+
+    [Theory]
+    [Trait("CatalogId", "UT-05")]
+    [InlineData("PeakDepositRate")]
+    [InlineData("OffPeakDepositRate")]
+    public void Validate_DepositRateWithFourDecimals_Passes_Theory(string fieldName)
+    {
+        var options = CreateWithRate(fieldName, 0.3333m);
+
+        var act = options.Validate;
+
+        act.Should().NotThrow();
+    }
+
+    private static MockAlternativeStrategyOptions CreateWithRate(string fieldName, decimal rate) => fieldName switch
+    {
+        "PeakDepositRate" => new MockAlternativeStrategyOptions { PeakDepositRate = rate },
+        "OffPeakDepositRate" => new MockAlternativeStrategyOptions { OffPeakDepositRate = rate },
+        _ => throw new ArgumentOutOfRangeException(nameof(fieldName), fieldName, null)
+    };
+
+    [Theory]
+    [Trait("CatalogId", "UT-03")]
+    [InlineData("peak-rate-above-one")]
+    [InlineData("negative-threshold")]
+    [InlineData("negative-ttl")]
+    public void Constructor_InvalidOptions_ThrowsArgumentException(string caseName)
+    {
+        var options = caseName switch
+        {
+            "peak-rate-above-one" => new MockAlternativeStrategyOptions { PeakDepositRate = 1.5m },
+            "negative-threshold" => new MockAlternativeStrategyOptions { HighValueThreshold = -1m },
+            "negative-ttl" => new MockAlternativeStrategyOptions { CacheTtlMinutes = -1 },
+            _ => throw new ArgumentOutOfRangeException(nameof(caseName), caseName, null)
+        };
+
+        var act = () => new MockAlternativeDecisionStrategy(options);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-03")]
+    public async Task EvaluateAsync_CancelledToken_ThrowsOperationCanceled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var act = () => Strategy.EvaluateAsync(DomainTestData.CreateReservation(), DomainTestData.CreateContext(), cancellation.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
     }
 }

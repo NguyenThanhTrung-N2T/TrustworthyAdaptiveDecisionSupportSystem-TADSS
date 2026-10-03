@@ -1,209 +1,126 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc;
-using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.DTOs.Decisions;
-using Shared.DecisionContractSDK.DTOs.Governance;
+using Shared.DecisionContractSDK.Decisions;
+using TADSS.IntegrationTests.Infrastructure;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class IdempotencyIntegrationTests : IClassFixture<TadssWebApplicationFactory>
+/// <summary>
+/// IT-02/IT-03/IT-04: idempotency của <c>POST /api/v2/decisions</c> qua HTTP thật trên PostgreSQL thật — gửi lại cùng key và cùng nội dung trả
+/// đúng response đã lưu (giống từng byte) mà không chạy lại strategy, đổi nội dung nghiệp vụ thì <c>409 IDEMPOTENCY_KEY_REUSE</c>,
+/// và 50 request song song cùng key chỉ để lại một hàng audit.
+/// </summary>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class IdempotencyIntegrationTests : DecisionApiTestBase
 {
-    private readonly HttpClient _client;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+    private const int Concurrency = 50;
 
-    public IdempotencyIntegrationTests(TadssWebApplicationFactory factory)
+    public IdempotencyIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _client = factory.CreateClient();
     }
 
+    /// <summary>Hai lần cùng key và payload: body giống từng byte, một hàng, strategy chạy đúng một lần (đồng hồ đã tiến nên replay không dựng lại).</summary>
     [Fact]
-    public async Task PostDecision_SameIdempotencyKeySamePayload_Returns200OKAndReplaysOriginalDecision()
+    [Trait("CatalogId", "IT-02")]
+    public async Task PostDecision_SameKeySamePayload_ReplaysStoredResponseWithoutRerunningStrategy()
     {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 300000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
+        // Tắt cache của strategy để "strategy chạy một lần" chỉ có thể do replay (cache hit cũng không chạy strategy nên sẽ che lỗi)
+        Strategies.CachePolicyOverride = StrategyCachePolicy.Disabled;
+        var key = NewKey();
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), key);
+        Clock.Advance(TimeSpan.FromMinutes(5));
 
-        var key = "idemp-replay-integration-key";
+        var second = await PostDecisionAsync(DecisionRequests.Valid(), key);
 
-        // Act 1: First request
-        var msg1 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
-        res1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        body1.Should().NotBeNull();
-
-        // Act 2: Second request with exact SAME key and SAME payload
-        var msg2 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg2.Headers.Add("X-Idempotency-Key", key);
-        var res2 = await _client.SendAsync(msg2);
-
-        // Assert
-        res2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body2 = await res2.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        body2.Should().NotBeNull();
-        body2!.DecisionId.Should().Be(body1!.DecisionId);
-        body2.Status.Should().Be(body1.Status);
-        body2.EvaluatedAt.Should().Be(body1.EvaluatedAt);
+        first.Status.Should().Be(HttpStatusCode.OK);
+        second.Status.Should().Be(HttpStatusCode.OK);
+        second.Bytes.Should().Equal(first.Bytes, "replay trả đúng response đã lưu, giống từng byte");
+        (await ReadExecutionsAsync()).Should().ContainSingle();
+        Strategies.InvocationCount.Should().Be(1, "strategy không chạy lại khi replay");
     }
 
+    /// <summary><c>demand</c>, <c>requestedAt</c> và <c>metadata</c> không nằm trong <c>request_hash</c> nên đổi chúng vẫn là replay, không phải 409.</summary>
     [Fact]
-    public async Task PostDecision_SameIdempotencyKeyDifferentPayload_Returns409Conflict()
+    [Trait("CatalogId", "IT-02")]
+    public async Task PostDecision_SameKeyOnlyDemandRequestedAtMetadataChanged_Replays()
     {
-        // Arrange
-        var baseReq = new DecisionRequestDto
+        Strategies.CachePolicyOverride = StrategyCachePolicy.Disabled;
+        var key = NewKey();
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), key);
+        var changed = DecisionRequests.Mutated(root =>
         {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 300000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
+            var demand = ContractSamples.Object(root["demand"]);
+            demand["occupancyRate"] = 0.1;
+            demand["waitlistCount"] = 9;
+            root["requestedAt"] = "2026-11-18T09:45:00+07:00";
+            ContractSamples.Object(root["metadata"])["promotionCode"] = "SUMMER";
+        });
 
-        var key = "shared-idempotency-key-test";
+        var second = await PostDecisionAsync(changed, key);
 
-        // First request
-        var msg1 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(baseReq)
-        };
-        msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
-        res1.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Second request with SAME key but DIFFERENT payload (price changed)
-        var modifiedReq = new DecisionRequestDto
-        {
-            ReservationId = baseReq.ReservationId,
-            CourtId = baseReq.CourtId,
-            BranchId = baseReq.BranchId,
-            CustomerId = baseReq.CustomerId,
-            CustomerTier = baseReq.CustomerTier,
-            StartTime = baseReq.StartTime,
-            EndTime = baseReq.EndTime,
-            BookingType = baseReq.BookingType,
-            TotalPrice = 999999m, // Changed
-            DepositAmount = baseReq.DepositAmount,
-            PaymentStatus = baseReq.PaymentStatus,
-            Priority = baseReq.Priority,
-            RequestedAt = baseReq.RequestedAt
-        };
-
-        var msg2 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(modifiedReq)
-        };
-        msg2.Headers.Add("X-Idempotency-Key", key);
-
-        // Act
-        var res2 = await _client.SendAsync(msg2);
-
-        // Assert
-        res2.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        var problem = await res2.Content.ReadFromJsonAsync<ProblemDetails>(JsonOptions);
-        problem.Should().NotBeNull();
-        problem!.Title.Should().Be("Idempotency Key Reuse Conflict");
+        second.Status.Should().Be(HttpStatusCode.OK);
+        second.Bytes.Should().Equal(first.Bytes);
+        (await ReadExecutionsAsync()).Should().ContainSingle();
+        Strategies.InvocationCount.Should().Be(1);
     }
 
+    /// <summary>Cùng key nhưng <c>totalPrice</c> khác: 409 <c>IDEMPOTENCY_KEY_REUSE</c>, hàng gốc giữ nguyên.</summary>
     [Fact]
-    public async Task PostDecision_ReplayAfterOverride_ReturnsOriginalMachineSnapshot_WhileGetDetailShowsOverridden()
+    [Trait("CatalogId", "IT-03")]
+    public async Task PostDecision_SameKeyDifferentPayload_Returns409IdempotencyKeyReuse()
     {
-        // Arrange
-        var request = new DecisionRequestDto
+        var key = NewKey();
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), key);
+        var different = DecisionRequests.Mutated(root => root["totalPrice"] = 100_000);
+
+        var second = await PostDecisionAsync(different, key);
+
+        second.Status.Should().Be(HttpStatusCode.Conflict);
+        second.ContentType.Should().Be("application/problem+json");
+        second.Problem.GetProperty("code").GetString().Should().Be("IDEMPOTENCY_KEY_REUSE");
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+        row.DecisionId.Should().Be(first.Result.DecisionId);
+        Strategies.InvocationCount.Should().Be(1);
+    }
+
+    /// <summary>
+    /// 50 <see cref="HttpClient"/> cùng gửi một request với cùng key sau một cổng xuất phát chung: đúng một hàng audit, cả 50 response là 200 và giống nhau
+    /// (bên thua tranh chấp đọc lại bản của bên thắng nên cùng <c>decisionId</c>).
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "IT-04")]
+    public async Task PostDecision_FiftyParallelSameKey_OneRecordAndIdenticalResponses()
+    {
+        var key = NewKey();
+        var body = DecisionRequests.Valid();
+        var startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clients = Enumerable.Range(0, Concurrency).Select(_ => CreateApiClient()).ToList();
+        try
         {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "Standard",
-            StartTime = DateTime.UtcNow.AddDays(2),
-            EndTime = DateTime.UtcNow.AddDays(2).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 400000m,
-            DepositAmount = 40000m, // NEED_APPROVAL (< 30%)
-            PaymentStatus = "PARTIALLY_PAID",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
+            var requests = clients
+                .Select(client => Task.Run(async () =>
+                {
+                    await startGate.Task;
+                    return await PostDecisionAsync(body, key, client: client);
+                }))
+                .ToList();
 
-        var key = "idemp-override-integration-key";
+            startGate.SetResult();
+            var responses = await Task.WhenAll(requests);
 
-        // Act 1: Initial decision
-        var msg1 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
+            responses.Select(response => response.Status).Should().OnlyContain(status => status == HttpStatusCode.OK);
+            var winner = responses[0].Result.DecisionId;
+            responses.Select(response => response.Result.DecisionId).Should().OnlyContain(id => id == winner);
+            responses.Select(response => response.Body).Distinct().Should().ContainSingle("50 response phải giống nhau");
+            var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+            row.DecisionId.Should().Be(winner);
+        }
+        finally
         {
-            Content = JsonContent.Create(request)
-        };
-        msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
-        res1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        body1!.Status.Should().Be("NEED_APPROVAL");
-
-        // Act 2: Override to APPROVED via Governance API
-        var overrideReq = new OverrideDecisionRequestDto
-        {
-            Decision = new OverrideTargetPayloadDto { Status = "APPROVED" },
-            OverriddenBy = "manager-integration",
-            OverrideReason = "Khách vip quen"
-        };
-        var overrideRes = await _client.PostAsJsonAsync($"/api/v1/decisions/{body1.DecisionId}/override", overrideReq);
-        overrideRes.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Act 3: Client replays request with same idempotency key
-        var msgReplay = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msgReplay.Headers.Add("X-Idempotency-Key", key);
-        var resReplay = await _client.SendAsync(msgReplay);
-
-        // Assert 1: Replayed machine decision retains original status
-        resReplay.StatusCode.Should().Be(HttpStatusCode.OK);
-        var bodyReplay = await resReplay.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        bodyReplay!.DecisionId.Should().Be(body1.DecisionId);
-        bodyReplay.Status.Should().Be("NEED_APPROVAL");
-
-        // Assert 2: GET /decisions/{id} returns overridden governance state
-        var detailRes = await _client.GetAsync($"/api/v1/decisions/{body1.DecisionId}");
-        detailRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        var detailBody = await detailRes.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
-        detailBody!.Governance.IsOverridden.Should().BeTrue();
-        detailBody.Governance.OverriddenBy.Should().Be("manager-integration");
+            clients.ForEach(client => client.Dispose());
+        }
     }
 }

@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
-using TADSS.Runtime.Api.Configuration;
-using TADSS.Runtime.Api.Middlewares;
-using TADSS.Runtime.Api.Services;
+using TADSS.Application;
+using TADSS.Infrastructure;
+using TADSS.Runtime.Api.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,48 +10,26 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, services, configuration) =>
     configuration.ReadFrom.Configuration(context.Configuration));
 
-// Đăng ký Services
-builder.Services.AddInfrastructureServices(builder.Configuration);
-builder.Services.AddApiServices();
+// Đăng ký Services: mỗi tầng tự đăng ký phần của mình
+builder.Services
+    .AddApplication(builder.Configuration)
+    .AddInfrastructure(builder.Configuration)
+    .AddStrategies(builder.Configuration)
+    .AddPresentation(builder.Configuration);
 
 var app = builder.Build();
 
-// Eager startup validation for StrategyResolver (fail-fast on startup if strategy config is invalid)
-app.Services.GetRequiredService<IStrategyResolver>();
+await StartupTasks.RunAsync(app);
 
-// 1. Correlation ID Middleware (Canonical Correlation Propagation)
-app.UseMiddleware<CorrelationIdMiddleware>();
-
-// 2. Pipeline xử lý lỗi RFC 7807 ProblemDetails
-app.UseExceptionHandler();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseSerilogRequestLogging();
-
-app.UseHttpsRedirection();
-app.UseAuthorization();
+app.UseTadssRequestPipeline();
 
 app.MapControllers();
 
 // Health Check Endpoints chuẩn Cloud-Native
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = _ => false
-});
-
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("ready")
-});
-
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 app.MapHealthChecks("/health");
 
 app.Run();
 
 public partial class Program { }
-

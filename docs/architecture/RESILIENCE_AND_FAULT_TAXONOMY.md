@@ -12,7 +12,7 @@ Mục tiêu của tầng chịu lỗi không phải chứng minh "zero downtime"
 
 ```text
 Outer Timeout 500ms ─ deadline cho toàn bộ phần thực thi strategy
- └─ Fallback ─ FallbackDecisionStrategy → NEED_APPROVAL (fallbackUsed = true)
+ └─ Fallback ─ FallbackDecisionPolicy → NEED_APPROVAL (fallbackUsed = true)
      └─ Retry ─ tối đa 2 lần, delay cố định 30ms (tổng 3 lần thử)
          └─ Circuit Breaker ─ FailureRatio 0.5, SamplingDuration 30s, MinimumThroughput 10, BreakDuration 15s
              └─ Inner Timeout 120ms ─ mỗi lần thử
@@ -48,7 +48,7 @@ Outer Timeout 500ms ─ deadline cho toàn bộ phần thực thi strategy
 2. **Cô lập miền lỗi cache:** lỗi Redis không kích hoạt fallback của strategy, không đổi kết quả nghiệp vụ, không gây bão retry; cache được coi như miss.
 3. **Audit bắt buộc (fail-closed):** không ghi được audit thì không trả quyết định — trả 503 `PERSISTENCE_UNAVAILABLE`. (Outbox bất đồng bộ là future work.)
 4. **Client hủy request:** dừng xử lý, không tạo bản ghi audit, chỉ ghi log vận hành kèm correlation id.
-5. **Fallback tất định, tách khỏi chính sách nghiệp vụ:** `FallbackDecisionStrategy` không gọi I/O, không ném lỗi, luôn trả `NEED_APPROVAL`; tách biệt với `DefaultDecisionStrategy`. Mức cọc 100% khi TADSS không khả dụng là chính sách của SmashCourt, không phải của TADSS.
+5. **Fallback tất định, tách khỏi chính sách nghiệp vụ:** `FallbackDecisionPolicy` không gọi I/O, không ném lỗi, luôn trả `NEED_APPROVAL`; tách biệt với `DefaultDecisionStrategy`. Mức cọc 100% khi TADSS không khả dụng là chính sách của SmashCourt, không phải của TADSS.
 6. **Bất biến audit:** bản ghi quyết định, override và outcome không bị sửa sau khi ghi (DB trigger — xem [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md)).
 7. **SmashCourt không phụ thuộc cứng vào TADSS:** mọi lỗi phía TADSS (timeout, 5xx, 401, mất mạng) → SmashCourt áp cọc 100%, booking vẫn hợp lệ.
 
@@ -73,7 +73,7 @@ NEED_APPROVAL     PG: fail-closed 503   không ghi audit       booking nhất qu
 
 ## 4. MA TRẬN NGỮ NGHĨA LỖI
 
-| Mã cũ (v1) | Kịch bản | Miền | Xử lý | Kết quả | `execution_type` / `failure_reason` | Kiểm thử v2 |
+| Mã F (tên test) | Kịch bản | Miền | Xử lý | Kết quả | `execution_type` / `failure_reason` | Kiểm thử |
 | :---: | :--- | :---: | :--- | :--- | :--- | :---: |
 | F1 | Strategy chậm ở lần thử đầu, lần sau thành công | 1 | Retry | Kết quả của strategy | `AUTOMATED` / `null` | FI-01 |
 | F2 | Strategy chậm ở mọi lần thử | 1 | Fallback | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-02 |
@@ -93,5 +93,6 @@ NEED_APPROVAL     PG: fail-closed 503   không ghi audit       booking nhất qu
 
 ## 5. HIỆN TRẠNG KIỂM CHỨNG
 
-- **Phase 4 (v1):** F1–F7 có test tự động và đạt, nhưng chạy với EF Core InMemory và decorator `Task.Delay`. F5 (Redis) được mô phỏng bằng cache service ném exception; F6 được mô phỏng bằng interceptor ném `DbUpdateException` và trả 500 (v2 đổi thành 503). Chưa kịch bản nào được kiểm chứng trên Redis/PostgreSQL thật.
+- **Gói 5.1 (đã xong):** integration test chạy trên PostgreSQL 16 / Redis 7 / Toxiproxy thật (Testcontainers). FI-08 trên PostgreSQL thật xác nhận chuỗi exception khi mất kết nối `InvalidOperationException → NpgsqlException(IsTransient) → EndOfStreamException`; `ExceptionClassifier` duyệt chuỗi này để trả 503 `PERSISTENCE_UNAVAILABLE` (mã trong `ErrorCodes` của SDK) thay vì 400 (lỗi V-8).
+- **Gói 5.2c (đã xong) — ma trận FI chạy trên API v2:** FI-01, FI-02, FI-03, FI-04, FI-06, FI-08 (hai kịch bản: mất PostgreSQL trước khi xử lý và đứt giữa lúc ghi audit, cả hai qua Toxiproxy), FI-10. Strategy lỗi/chậm được tiêm bằng `ScriptedStrategy` (strategy v2 thật, hành vi theo kịch bản) với cấu hình resilience riêng từng kịch bản, đồng hồ thật; thời gian pipeline đo từ cột `execution_time_ms` của bản ghi audit, thời gian endpoint đo ở client (SC2: pipeline ≤ 500 ms, endpoint ≤ 700 ms). F6 (lỗi lưu không tạm thời → 500) không có test HTTP riêng, được phủ bởi test store và UT-08. FI-06 mới dùng cache double ném lỗi (breaker Redis và Toxiproxy cho Redis thuộc 5.4); FI-05, FI-07, FI-09 chưa làm (5.4–5.5).
 - **Phase 5 (v2):** toàn bộ FI-01…FI-10 chạy trên hạ tầng thật (Testcontainers / docker-compose + Toxiproxy). FI-11…FI-14 chạy ở mức E2E sau khi tích hợp, kèm bộ truy vấn bất biến booking.

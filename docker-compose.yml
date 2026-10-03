@@ -1,38 +1,72 @@
-version: "3.9"
+# Môi trường E-LOCAL của TADSS (Phase 5): TADSS + PostgreSQL + Redis + Toxiproxy + Grafana LGTM.
+# Chạy: docker compose up -d --build   ·   Dừng và xóa dữ liệu: docker compose down -v
+# TADSS kết nối PostgreSQL/Redis QUA Toxiproxy để kịch bản FI tiêm lỗi được mà không phải khởi động lại.
+# Nối vào smashcourt-network của SmashCourt-BE làm ở Phase 7 bằng file override.
+name: tadss-local
 
 services:
+  tadss-postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_DB: tadss
+      POSTGRES_USER: ${TADSS_PG_USER:-tadss}
+      POSTGRES_PASSWORD: ${TADSS_PG_PASSWORD:-tadss_local}
+    ports:
+      - "5433:5432"
+    volumes:
+      - tadss-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  tadss-redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./docker/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"
+    depends_on:
+      tadss-postgres:
+        condition: service_healthy
+      tadss-redis:
+        condition: service_healthy
+
   tadss-runtime:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: tadss-runtime
+    restart: on-failure
     ports:
       - "8081:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${TADSS_DB_CONNECTION_STRING}
-      - Redis__ConnectionString=${TADSS_REDIS_CONNECTION_STRING:-tadss-redis:6379}
-    networks:
-      - smashcourt-network
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=toxiproxy;Port=15432;Database=tadss;Username=${TADSS_PG_USER:-tadss};Password=${TADSS_PG_PASSWORD:-tadss_local}"
+      Tadss__Cache__Provider: Redis
+      Tadss__Cache__RedisConnectionString: "toxiproxy:16379"
+      Tadss__Database__ApplyMigrationsOnStartup: "true"
     depends_on:
-      - tadss-redis
-    restart: unless-stopped
+      toxiproxy:
+        condition: service_started
 
-  tadss-redis:
-    image: redis:7.2-alpine
-    container_name: tadss-redis
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.34.0
     ports:
-      - "6380:6379"
-    volumes:
-      - tadss-redis-data:/data
-    networks:
-      - smashcourt-network
-    restart: unless-stopped
-
-networks:
-  smashcourt-network:
-    name: smashcourt-network
-    external: true
+      - "3001:3000"
+      - "4317:4317"
+      - "4318:4318"
 
 volumes:
-  tadss-redis-data:
+  tadss-pg-data:

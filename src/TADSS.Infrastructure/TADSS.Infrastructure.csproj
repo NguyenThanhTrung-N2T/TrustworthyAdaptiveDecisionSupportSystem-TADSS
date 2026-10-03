@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unit test kiểm các kiểu internal của tầng Infrastructure (ánh xạ audit, bộ phát hiện lỗi persistence) -->
+    <InternalsVisibleTo Include="TADSS.UnitTests" />
+    <!-- FI-08 xác nhận exception gốc được giữ lại là lỗi lưu trữ có thể thử lại (PersistenceFailureDetector là internal) -->
+    <InternalsVisibleTo Include="TADSS.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Infrastructure phụ thuộc Application và SDK, không bao giờ phụ thuộc Runtime.Api (spec 4.2.4) -->
+    <ProjectReference Include="..\TADSS.Application\TADSS.Application.csproj" />
+    <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Adapter hạ tầng: EF Core/Npgsql, Redis, Polly, health check PostgreSQL; Microsoft.Extensions.* theo allowlist UT-14 -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
+    <PackageReference Include="Polly.Core" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
+</Project>

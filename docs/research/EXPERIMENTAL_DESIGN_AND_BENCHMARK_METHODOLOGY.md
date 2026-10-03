@@ -1,6 +1,6 @@
 # GIAO THỨC ĐÁNH GIÁ, DANH MỤC KIỂM THỬ & KPI — v2.0
 
-> **Vai trò của tài liệu:** nguồn duy nhất về **danh mục kiểm thử (test catalogue)**, **định nghĩa KPI SC1–SC9**, môi trường đo và giao thức thực nghiệm của Đồ án 2. Lịch xây dựng và chạy: [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md). Định dạng dữ liệu minh chứng: [`DATASET_SCHEMA_SPECIFICATION_V1.md`](DATASET_SCHEMA_SPECIFICATION_V1.md).
+> **Vai trò của tài liệu:** nguồn duy nhất về **danh mục kiểm thử (test catalogue)**, **định nghĩa KPI SC1–SC9**, môi trường đo và giao thức thực nghiệm của Đồ án 2. Lịch xây dựng và chạy: [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md). Định dạng dữ liệu minh chứng: [`DATASET_SCHEMA_SPECIFICATION.md`](DATASET_SCHEMA_SPECIFICATION.md).
 
 ---
 
@@ -79,6 +79,11 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | UT-08 | Map exception → HTTP/`code` | Lỗi server không thành 4xx | P5 |
 | UT-09 | Kiểm thử kiến trúc: dependency purity, public API baseline v2 | Đạt | P2, P5 |
 | UT-10 | Quy tắc approval window | Đổi `NEED_APPROVAL` → `APPROVED` 100% đúng điều kiện | P5 |
+| UT-11 | Điều phối `DecisionService` bằng test double (thứ tự idempotency → cache → pipeline → approval window → audit; fail-closed; lỗi cache chỉ là miss) | Đúng thứ tự gọi; lỗi ghi audit lan ra và không có response; idempotency trả lại bản cũ hoặc 409; không gọi strategy khi request sai | P5 |
+| UT-12 | `DepositCalculator` (làm tròn theo tiền tệ, biên 0 và 1) | `amount = round(totalPrice × rate)` đúng đơn vị nhỏ nhất của từng tiền tệ, gồm biên rate 0 và 1 | P5 |
+| UT-13 | Cache v2: key (tên, phiên bản strategy, `optionsFingerprint`, `request_hash`), chính sách theo strategy, chỉ lưu `StrategyDecision`, lỗi cache bị cô lập (breaker Redis bằng test double thuộc gói 5.4) | Key đổi khi đổi tham số strategy hoặc lịch cao điểm; lỗi/payload hỏng chỉ là miss; `request_hash` và fingerprint tất định (INV-3) | P5 |
+| UT-14 | Kiến trúc và quy ước (gói 5.2d, Clean Architecture nhiều project): đồ thị tham chiếu SDK ← Application ← Infrastructure ← Runtime.Api đúng quy tắc; Application không tham chiếu assembly hạ tầng; controller/middleware không dùng kiểu Infrastructure (kể cả qua `global using`/`<Using>`); Application và Infrastructure không có `FrameworkReference`/Web SDK; namespace khớp project + thư mục; không còn kiểu/namespace "V2"; mỗi kiểu public một file; `Options` chỉ ở `Options/`, exception nghiệp vụ chỉ ở `Exceptions/`; port chỉ khai báo ở `Application/Abstractions`, EF Core chỉ trong `Persistence/`; bất biến tỷ lệ cọc 4 chữ số thập phân; mọi options có `SectionName` (tìm bằng reflection) có validator đăng ký cùng `ValidateOnStart` (không có ngoại lệ, kể cả `DatabaseOptions`); thứ tự middleware, gồm các middleware bảo mật (xác thực API key, giới hạn kích thước, rate limiter, security headers), qua hành vi quan sát được; trần 250 dòng mỗi file nguồn (trừ `Migrations/`) | Vi phạm quy ước làm test đỏ; thêm kiểu sai chỗ bị phát hiện ngay | P5 |
+| UT-15 | Quy tắc quản trị của override và outcome bằng test double (gói 5.3): thứ tự kiểm tra, idempotency theo payload, quy đổi cọc `rate`/`amount`, hạn duyệt, ranh giới với bản `SHADOW` | Mỗi quy tắc và mỗi nhánh lỗi (400/404/409) có test; không gọi lưu trữ khi từ chối | P5 |
 
 ### 4.2. IT — Integration test trên hạ tầng thật (TADSS, E-TC)
 
@@ -209,6 +214,28 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | UAT-03 | Thời gian từ lúc tạo đơn chờ đến lúc Manager xử lý | Báo cáo trung vị, p90 |
 | UAT-04 | Bộ truy vấn bất biến booking trên dữ liệu pilot | 0 vi phạm |
 
+### 4.12. SEC — Bảo mật (gói 5.3)
+
+| ID | Cơ chế | Kiểm chứng | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| SEC-1 | **Rate limiting** bằng `RateLimiter` có sẵn của ASP.NET Core 8, phân vùng theo `clientId` của API key (token bucket; cấu hình `PermitLimit`, `ReplenishmentPeriod`, `QueueLimit = 0`); vượt ngưỡng → 429 problem+json `code = RATE_LIMITED` kèm `Retry-After`. `/health/*` không bị giới hạn | IT: vượt ngưỡng → 429 đúng dạng; hai client khác nhau không ảnh hưởng nhau | P5 |
+| SEC-2 | **Giới hạn kích thước request:** `MaxRequestBodySize` (mặc định 64 KB, cấu hình được); vượt → 413 problem+json `code = PAYLOAD_TOO_LARGE`, không gọi service | IT: body vượt giới hạn → 413; body sát giới hạn → xử lý bình thường | P5 |
+| SEC-3 | **Security headers** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` cho `/api/*`; HSTS ngoài `Development`/`Testing`; tắt header `Server` của Kestrel | IT: header có mặt ở 200, 4xx, 5xx | P5 |
+| SEC-4 | **Fail-closed khi khởi động:** ngoài `Development`/`Testing`, thiếu API key (NG-2) hoặc thiếu connection string → app không khởi động, message không chứa giá trị bí mật. Lưu ý: connection string được kiểm ở **mọi** môi trường (F-13, kể cả `Development`/`Testing`); chỉ API key mới được miễn ở `Development`/`Testing` | Test khởi động host với cấu hình thiếu → lỗi validate options | P5 |
+| SEC-5 | **Health tách live/ready:** `/health/live` chỉ kiểm tra process; `/health/ready` kiểm tra PostgreSQL (bắt buộc, lỗi → 503) và Redis (lỗi → `Degraded`, vẫn 200 vì cache có fallback); response không lộ chuỗi kết nối hay message hạ tầng | IT: PostgreSQL bị ngắt qua Toxiproxy → ready 503, live 200 | P5 |
+| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER app` của image .NET 8), stage runtime không chứa SDK, không copy file bí mật; compose không bind cổng `0.0.0.0` ở profile expose (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root | P5 |
+| SEC-7 | **Chuỗi cung ứng:** CI chạy `dotnet list package --vulnerable --include-transitive`, có lỗ hổng mức High/Critical → job đỏ; `RestorePackagesWithLockFile` + `packages.lock.json` cho restore tái lập; Dependabot cho NuGet, Docker và GitHub Actions; log không bao giờ ghi giá trị `X-Api-Key` | Job CI; test log: request có `X-Api-Key` không để lại giá trị khóa trong log | P5 |
+
+### 4.13. NG — Expose qua ngrok (gói 5.3)
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| NG-1 | `docker compose config --quiet` hợp lệ cho cả hai chế độ (A, B) | tự động | P5 |
+| NG-2 | Container thăm dò trong cùng network gọi `http://tadss-runtime:8080`: `/health/ready` 200; `POST /api/v2/decisions` không có key → 401, có key → 200; `/swagger` → 404 ở `Staging`; app **không khởi động** khi thiếu API key ở `Staging` | tự động | P5 |
+| NG-3 | Truy cập database: sau POST, `GET /api/v2/decisions/{id}` trả đúng quyết định vừa ghi (chứng minh đường ghi và đọc DB), và ở chế độ A đếm bản ghi bằng `psql` trong container PostgreSQL. `/health/ready` kiểm tra kết nối DB nên lỗi kết nối hiện ngay khi khởi động | tự động (chế độ A); chế độ B do người dùng chạy với Neon của mình | P5 |
+| NG-4 | Qua tunnel thật: `curl https://<domain>/health/ready` 200; POST và GET với `X-Api-Key`; thấy request trong `127.0.0.1:4040` | **người dùng** (cần `NGROK_AUTHTOKEN`) | P5 |
+| NG-5 | Chỉ `127.0.0.1` truy cập được cổng host của `tadss-runtime`, PostgreSQL, Redis, Toxiproxy (kiểm bằng `docker compose ps`); không có cổng nào bind `0.0.0.0` ở profile `ngrok` | tự động | P5 |
+
 ---
 
 ## 5. ĐỊNH NGHĨA KPI
@@ -243,7 +270,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 4. Chụp dashboard Grafana cùng khoảng thời gian (ảnh + JSON snapshot).
 5. Sinh manifest SHA-256 cho mọi file; chạy notebook để sinh báo cáo HTML.
 
-Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION_V1.md`](DATASET_SCHEMA_SPECIFICATION_V1.md).
+Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION.md`](DATASET_SCHEMA_SPECIFICATION.md).
 
 ---
 
@@ -269,4 +296,4 @@ Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`D
 
 ## 9. LƯU TRỮ: MICRO-BENCHMARK PHASE 4
 
-Bộ `tests/TADSS.BenchmarkRunner` (19 kịch bản × 4 mức tải, Tuần 8) chạy trên EF Core InMemory với strategy giả lập bằng `Task.Delay`. Kết quả ([`WEEK8_BENCHMARK_REPORT.md`](benchmarks/WEEK8_BENCHMARK_REPORT.md)) chỉ mô tả **overhead của pipeline trong phòng lab** và **không** được dùng làm minh chứng cho SC1–SC9. Module chuẩn hóa dataset Tuần 9 đã được gỡ bỏ trong Phase R.
+Micro-benchmark Tuần 8 (19 kịch bản × 4 mức tải) chạy trên EF Core InMemory với strategy giả lập bằng `Task.Delay`, nên chỉ mô tả **overhead của pipeline trong phòng lab** và **không** được dùng làm minh chứng cho SC1–SC9. Mã và báo cáo đã gỡ khỏi repo ở Phase 5, tra lại qua tag git `phase4-baseline`; đo hiệu năng của Phase 5 dùng k6 (LT-01…LT-05) trên hạ tầng thật.

@@ -35,19 +35,28 @@ jobs:
       - name: Build Solution
         run: dotnet build --no-restore --configuration Release
 
-      # 5. Chạy toàn bộ Tests với song song 2 loggers:
-      # - GitHubActions: Highlight đỏ trực tiếp lỗi trên dòng code trong PR
-      # - trx: Xuất file báo cáo chuẩn VSTest cho test-reporter
-      - name: Run Automated Tests
+      # 5a. Unit test (không cần Docker)
+      - name: Run Unit Tests
         run: >
-          dotnet test 
-          --no-build 
-          --configuration Release 
-          -m:1 
-          --verbosity normal 
-          --logger "GitHubActions" 
-          --logger "trx;LogFilePrefix=test_results" 
-          --collect:"XPlat Code Coverage" 
+          dotnet test tests/TADSS.UnitTests/TADSS.UnitTests.csproj
+          --no-build
+          --configuration Release
+          --verbosity normal
+          --logger "GitHubActions"
+          --logger "trx;LogFilePrefix=unit"
+          --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+
+      # 5b. Integration test trên PostgreSQL/Redis/Toxiproxy thật (Testcontainers dùng Docker có sẵn của runner)
+      - name: Run Integration Tests (Testcontainers)
+        run: >
+          dotnet test tests/TADSS.IntegrationTests/TADSS.IntegrationTests.csproj
+          --no-build
+          --configuration Release
+          --verbosity normal
+          --logger "GitHubActions"
+          --logger "trx;LogFilePrefix=integration"
+          --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
 
       # 6. Tạo bảng tổng hợp kết quả Test hiển thị trực tiếp lên GitHub Action Summary

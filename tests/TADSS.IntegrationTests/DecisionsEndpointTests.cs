@@ -1,290 +1,97 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc;
-using Shared.DecisionContractSDK.DTOs.Decisions;
-using Shared.DecisionContractSDK.DTOs.Governance;
+using Shared.DecisionContractSDK.Common;
+using Shared.DecisionContractSDK.Enums;
+using TADSS.Application.Abstractions.Persistence;
+using TADSS.IntegrationTests.Infrastructure;
+using TADSS.Runtime.Api.Common;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class DecisionsEndpointTests : IClassFixture<TadssWebApplicationFactory>
+/// <summary>
+/// IT-01: <c>POST /api/v2/decisions</c> đi qua pipeline HTTP thật trên PostgreSQL và Redis thật — đúng một hàng audit <c>PRIMARY</c>
+/// kèm snapshot request/response, response hợp lệ theo schema (CT-01), và trạng thái gốc của strategy được lưu tách khỏi trạng thái
+/// trả cho client khi approval window không khả dụng.
+/// </summary>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class DecisionsEndpointTests : DecisionApiTestBase
 {
-    private readonly HttpClient _client;
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    public DecisionsEndpointTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
-    public DecisionsEndpointTests(TadssWebApplicationFactory factory)
-    {
-        _client = factory.CreateClient();
     }
 
+    /// <summary>Request mẫu hợp lệ: 200, một hàng <c>PRIMARY</c> có snapshot request chuẩn hóa và response, correlation id được echo.</summary>
     [Fact]
-    public async Task PostDecision_ValidRequest_Returns200WithHeadersAndResult()
+    [Trait("CatalogId", "IT-01")]
+    public async Task PostDecision_ValidRequest_Returns200AndPersistsOneRecordWithRequestSnapshot()
     {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 300000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
+        var correlationId = "corr-it01-" + Guid.NewGuid().ToString("N");
+        var key = NewKey();
 
-        var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        message.Headers.Add("X-Idempotency-Key", "integration-idemp-001");
-        message.Headers.Add("X-Correlation-ID", "custom-trace-001");
+        var response = await PostDecisionAsync(DecisionRequests.Valid(), key, correlationId);
 
-        // Act
-        var response = await _client.SendAsync(message);
+        response.Status.Should().Be(HttpStatusCode.OK);
+        response.Header(HttpHeaderNames.CorrelationId).Should().Be(correlationId);
+        var result = response.Result;
+        result.Status.Should().Be(DecisionStatus.APPROVED);
+        result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        var deposit = ContractSamples.Required(result.Deposit);
+        deposit.Rate.Should().Be(0.3m);
+        deposit.Amount.Should().Be(68_400m);
+        result.EvaluatedAt.Should().Be(InitialInstant);
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Headers.Should().ContainKey("X-Correlation-ID")
-            .WhoseValue.First().Should().Be("custom-trace-001");
-        response.Headers.Should().ContainKey("X-Decision-ID");
-
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        result.Should().NotBeNull();
-        result!.Status.Should().Be("APPROVED");
-        result.ReservationId.Should().Be(request.ReservationId);
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+        row.Role.Should().Be(ExecutionRole.PRIMARY);
+        row.DecisionId.Should().Be(result.DecisionId);
+        row.IdempotencyKey.Should().Be(key);
+        row.CorrelationId.Should().Be(correlationId);
+        row.Status.Should().Be(DecisionStatus.APPROVED);
+        row.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        row.CacheHit.Should().BeFalse();
+        row.CreatedAt.Should().Be(InitialInstant);
+        var normalizedRequest = JsonSerializer.Serialize(ContractSamples.DeserializeRequest(DecisionRequests.Valid()), TadssJson.Options);
+        JsonNode.DeepEquals(JsonNode.Parse(row.RequestPayload), JsonNode.Parse(normalizedRequest))
+            .Should().BeTrue("request_payload là snapshot request đã chuẩn hóa");
+        JsonNode.DeepEquals(JsonNode.Parse(row.ResponsePayload), JsonNode.Parse(response.Body))
+            .Should().BeTrue("response_payload là đúng response đã trả cho client");
     }
 
+    /// <summary>
+    /// Strategy trả <c>NEED_APPROVAL</c> (đơn giá trị lớn) nhưng giờ bắt đầu còn gần hơn <c>MinLeadMinutes</c>: client nhận <c>APPROVED</c> cọc 100%,
+    /// cột <c>strategy_status</c> vẫn là <c>NEED_APPROVAL</c> và GET hiển thị cả hai.
+    /// </summary>
     [Fact]
-    public async Task PostDecision_MissingIdempotencyHeader_Returns400ProblemDetails()
+    [Trait("CatalogId", "IT-01")]
+    public async Task PostDecision_WindowUnavailableRequest_PersistsStrategyStatusSeparately()
     {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "Standard",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 200000m,
-            DepositAmount = 100000m,
-            PaymentStatus = "PARTIALLY_PAID",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
+        // 1 giờ nữa mới bắt đầu < MinLeadMinutes (120): không còn chỗ cho bước Manager duyệt
+        var request = DecisionRequests.HighValue(InitialInstant.AddHours(1));
 
-        var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        // Omit X-Idempotency-Key header
+        var response = await PostDecisionAsync(request, NewKey());
 
-        // Act
-        var response = await _client.SendAsync(message);
+        response.Status.Should().Be(HttpStatusCode.OK);
+        var result = response.Result;
+        result.Status.Should().Be(DecisionStatus.APPROVED);
+        result.ReasonCode.Should().Be(ReasonCodes.ApprovalWindowUnavailable);
+        result.ApprovalExpiresAt.Should().BeNull();
+        var deposit = ContractSamples.Required(result.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(DecisionRequests.HighValueTotalPrice);
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(JsonOptions);
-        problem.Should().NotBeNull();
-        problem!.Title.Should().Be("Missing Required Header");
-    }
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+        row.Status.Should().Be(DecisionStatus.APPROVED);
+        row.StrategyStatus.Should().Be(DecisionStatus.NEED_APPROVAL);
+        row.DepositRate.Should().Be(1m);
+        row.ApprovalExpiresAt.Should().BeNull();
 
-    [Fact]
-    public async Task GetDecisionDetail_ExistingDecision_Returns200WithAuditDetail()
-    {
-        // Arrange: Create a decision first
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "Standard",
-            StartTime = DateTime.UtcNow.AddDays(2),
-            EndTime = DateTime.UtcNow.AddDays(2).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 30000m, // 10% -> NeedApproval
-            PaymentStatus = "PARTIALLY_PAID",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
-
-        var postMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        postMsg.Headers.Add("X-Idempotency-Key", "integration-idemp-detail");
-
-        var postRes = await _client.SendAsync(postMsg);
-        postRes.EnsureSuccessStatusCode();
-        var evalResult = await postRes.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-
-        // Act: Get decision detail
-        var getRes = await _client.GetAsync($"/api/v1/decisions/{evalResult!.DecisionId}");
-
-        // Assert
-        getRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        var detail = await getRes.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
-        detail.Should().NotBeNull();
-        detail!.DecisionId.Should().Be(evalResult.DecisionId);
-        detail.Decision.Status.Should().Be("NEED_APPROVAL");
-        detail.Governance.NeedApproval.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task OverrideDecision_EligibleDecision_Returns200AndUpdatesState()
-    {
-        // Arrange: Create a NeedApproval decision
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "Standard",
-            StartTime = DateTime.UtcNow.AddDays(3),
-            EndTime = DateTime.UtcNow.AddDays(3).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 10000m,
-            PaymentStatus = "PARTIALLY_PAID",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
-
-        var postMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        postMsg.Headers.Add("X-Idempotency-Key", "integration-idemp-override");
-
-        var postRes = await _client.SendAsync(postMsg);
-        var evalResult = await postRes.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-
-        var overrideReq = new OverrideDecisionRequestDto
-        {
-            Decision = new OverrideTargetPayloadDto { Status = "APPROVED" },
-            OverriddenBy = "manager-bob",
-            OverrideReason = "Khách đặt tổ chức sinh nhật"
-        };
-
-        // Act: Override the decision
-        var overrideRes = await _client.PostAsJsonAsync(
-            $"/api/v1/decisions/{evalResult!.DecisionId}/override", overrideReq);
-
-        // Assert
-        overrideRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        var overrideResp = await overrideRes.Content.ReadFromJsonAsync<OverrideDecisionResponseDto>(JsonOptions);
-        overrideResp.Should().NotBeNull();
-        overrideResp!.OriginalStatus.Should().Be("NEED_APPROVAL");
-        overrideResp.OverriddenStatus.Should().Be("APPROVED");
-        overrideResp.IsOverridden.Should().BeTrue();
-        overrideResp.OverriddenBy.Should().Be("manager-bob");
-    }
-
-    [Fact]
-    public async Task EvaluateDecision_IdempotencyKeyExceeds128Chars_Returns400BadRequest_While128CharsSucceeds()
-    {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 400000m,
-            DepositAmount = 400000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
-
-        var tooLongKey = new string('k', 129);
-        var validMaxKey = new string('m', 128);
-
-        // Act 1: 129 characters -> 400 Bad Request
-        using var badMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        badMsg.Headers.Add("X-Idempotency-Key", tooLongKey);
-        var badRes = await _client.SendAsync(badMsg);
-
-        // Assert 1
-        badRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        using var doc = await JsonDocument.ParseAsync(await badRes.Content.ReadAsStreamAsync());
-        doc.RootElement.GetProperty("code").GetString().Should().Be("VALIDATION_ERROR");
-
-        // Act 2: 128 characters -> 200 OK
-        using var okMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        okMsg.Headers.Add("X-Idempotency-Key", validMaxKey);
-        var okRes = await _client.SendAsync(okMsg);
-
-        // Assert 2
-        okRes.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task PostDecision_InvalidWireEnum_Returns400BadRequestProblemDetails()
-    {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 300000m,
-            DepositAmount = 150000m,
-            PaymentStatus = "INVALID_WIRE_ENUM",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
-
-        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        message.Headers.Add("X-Idempotency-Key", "idemp-invalid-enum-" + Guid.NewGuid());
-
-        // Act
-        var response = await _client.SendAsync(message);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        doc.RootElement.GetProperty("status").GetInt32().Should().Be(400);
-        doc.RootElement.GetProperty("title").GetString().Should().Be("Contract Validation Error");
-        doc.RootElement.GetProperty("code").GetString().Should().Be("INVALID_PAYMENT_STATUS");
-        doc.RootElement.GetProperty("errors").GetProperty("PaymentStatus")[0].GetString()
-            .Should().Contain("INVALID_WIRE_ENUM");
+        var detail = await GetDecisionAsync(result.DecisionId);
+        detail.Status.Should().Be(HttpStatusCode.OK);
+        detail.Detail.Result.Status.Should().Be(DecisionStatus.APPROVED);
+        detail.Detail.Result.StrategyStatus.Should().Be(DecisionStatus.NEED_APPROVAL);
     }
 }

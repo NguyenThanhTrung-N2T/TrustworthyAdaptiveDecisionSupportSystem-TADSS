@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** bức tranh tổng thể và các sơ đồ dùng cho báo cáo/slide. Thông số chi tiết nằm ở các file sở hữu (xem bản đồ tài liệu tại Mục III của [`THESIS_DEVELOPMENT_PLAYBOOK.md`](planning/THESIS_DEVELOPMENT_PLAYBOOK.md)).
 >
-> **Trạng thái (01/10/2026):** Phase 1–4 hoàn thành (510 test tự động pass trên v1); đang ở Phase R (re-baseline). Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (02/10/2026):** Phase 1–4 và Phase R hoàn thành; Phase 5 đã xong gói 5.1 và 5.2a–5.2c — contract v2 là phiên bản duy nhất (`POST`/`GET /api/v2/decisions`, audit PostgreSQL bất biến, kiểm thử trên Testcontainers). Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 

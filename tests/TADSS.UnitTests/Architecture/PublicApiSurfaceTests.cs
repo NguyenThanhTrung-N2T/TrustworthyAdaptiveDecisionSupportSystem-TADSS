@@ -8,19 +8,20 @@ namespace TADSS.UnitTests.Architecture;
 
 /// <summary>
 /// Architectural Quality Gate: Verifies that the public API surface of Shared.DecisionContractSDK
-/// strictly matches the frozen baseline v1.0.0 without any unauthorized modifications,
+/// strictly matches the committed baseline (v2.0.0-draft, chờ đóng băng M5) without any unauthorized modifications,
 /// additions, or breaking deletions.
 /// </summary>
 public class PublicApiSurfaceTests
 {
     [Fact]
+    [Trait("CatalogId", "CT-02")]
     public void SharedDecisionContractSdk_PublicApiSurface_StrictlyMatchesFrozenBaseline()
     {
         // 1. Generate current Public API surface via reflection
         var sdkAssembly = typeof(Reservation).Assembly;
         var actualSurface = GeneratePublicApiSurface(sdkAssembly);
 
-        // 2. Locate frozen baseline artifact
+        // 2. Locate committed baseline artifact
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var dir = new DirectoryInfo(baseDir);
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TADSS.slnx")))
@@ -40,14 +41,25 @@ public class PublicApiSurfaceTests
         var normalizedActual = NormalizeText(actualSurface);
         var normalizedExpected = NormalizeText(expectedSurface);
 
-        // 4. Strict assertion against frozen baseline (VERIFICATION ONLY - NEVER OVERWRITES IN TEST)
+        // 4. Strict assertion against committed baseline (VERIFICATION ONLY - NEVER OVERWRITES IN TEST)
+        //    Khi lệch: ghi bề mặt thực tế ra TestResults/ để người phát triển so sánh và cập nhật baseline có chủ đích.
+        var testResultsDirectory = Path.GetFullPath(Path.Combine(baselinePath, "..", "..", "..", "TestResults"));
+        var actualSnapshotPath = Path.Combine(testResultsDirectory, "baseline_public_api.actual.txt");
+        if (normalizedActual != normalizedExpected)
+        {
+            Directory.CreateDirectory(testResultsDirectory);
+            File.WriteAllText(actualSnapshotPath, actualSurface, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+
         normalizedActual.Should().Be(
             normalizedExpected,
-            "the public API surface of Shared.DecisionContractSDK must strictly match the frozen baseline v1.0.0. " +
-            "Any change indicates a breaking change or unauthorized contract modification.");
+            "the public API surface of Shared.DecisionContractSDK must strictly match the committed baseline v2.0.0-draft. " +
+            "Any change indicates a breaking change or unauthorized contract modification. " +
+            $"Actual surface written to '{actualSnapshotPath}' for comparison.");
     }
 
     [Fact]
+    [Trait("CatalogId", "CT-02")]
     public void SharedDecisionContractSdk_BreakingChangeSimulation_DetectsMismatch()
     {
         var sdkAssembly = typeof(Reservation).Assembly;
@@ -74,9 +86,9 @@ public class PublicApiSurfaceTests
     public static string GeneratePublicApiSurface(Assembly assembly)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# Shared.DecisionContractSDK Public API Surface Snapshot v1.0.0");
+        sb.AppendLine("# Shared.DecisionContractSDK Public API Surface Snapshot v2.0.0-draft");
         sb.AppendLine($"# Assembly: {assembly.GetName().Name}, Version={assembly.GetName().Version}");
-        sb.AppendLine("# STATUS: FROZEN v1.0.0 BASELINE");
+        sb.AppendLine("# STATUS: DRAFT v2.0.0 BASELINE (chờ đóng băng M5)");
         sb.AppendLine("--------------------------------------------------");
 
         var exportedTypes = assembly.GetExportedTypes().OrderBy(t => t.FullName, StringComparer.Ordinal).ToList();

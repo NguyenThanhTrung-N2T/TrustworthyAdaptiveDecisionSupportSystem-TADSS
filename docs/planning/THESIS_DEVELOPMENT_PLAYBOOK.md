@@ -77,15 +77,13 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | Task chi tiết | [`BACKLOG_SPRINTS.md`](BACKLOG_SPRINTS.md) | |
 | WBS, phụ thuộc, rủi ro | [`PROJECT_WBS_MAPPING.md`](PROJECT_WBS_MAPPING.md) | |
 | Thuật ngữ, phạm vi, RQ, bản đồ tài liệu | Tài liệu này | |
-| Kiến trúc phần mềm (hiện trạng v1 + mục tiêu v2) | [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](../architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md) | |
+| Kiến trúc phần mềm (hiện trạng + mục tiêu Phase 5) | [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](../architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md) | |
 | Bất biến lưu trữ & schema `tadss` | [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md) | |
 | Phân loại lỗi & pipeline chịu lỗi | [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) | |
 | Quyết định kiến trúc | [`ARCHITECTURE_DECISION_RECORDS.md`](../architecture/ARCHITECTURE_DECISION_RECORDS.md) + [`adr/`](../architecture/adr/) | |
-| Contract v1 (đã triển khai, đóng băng) | [`API_CONTRACT_V1.md`](../contracts/API_CONTRACT_V1.md), [`CONTRACT_V1_FREEZE.md`](../contracts/CONTRACT_V1_FREEZE.md), `openapi-v1.yaml`, `schemas/` | Lưu trữ lịch sử |
-| Tích hợp SmashCourt ↔ TADSS + **contract v2** | [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md) | Nguồn cho Phase 5–6 |
+| Tích hợp SmashCourt ↔ TADSS + **contract v2** | [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md), `openapi-v2.yaml`, `schemas/v2/` | Nguồn cho Phase 5–6; contract v1 (Phase 1–4) đã gỡ, tra lại qua tag `phase4-baseline` |
 | Danh mục kiểm thử, KPI, giao thức thực nghiệm | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) | **Nguồn duy nhất về test case & KPI** |
-| Dữ liệu minh chứng & Evidence Pack | [`DATASET_SCHEMA_SPECIFICATION_V1.md`](../research/DATASET_SCHEMA_SPECIFICATION_V1.md) | |
-| Micro-benchmark lab Phase 4 | [`WEEK8_BENCHMARK_REPORT.md`](../research/benchmarks/WEEK8_BENCHMARK_REPORT.md) | Lưu trữ, không dùng làm minh chứng SLA |
+| Dữ liệu minh chứng & Evidence Pack | [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md) | |
 | Định hướng Khóa luận | [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) | |
 | Khảo sát ý tưởng ban đầu | [`RESEARCH_PROBLEM_BACKLOG.md`](../research/RESEARCH_PROBLEM_BACKLOG.md) | Lưu trữ lịch sử |
 

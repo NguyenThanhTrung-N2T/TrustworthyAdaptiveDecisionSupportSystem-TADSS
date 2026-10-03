@@ -9,19 +9,24 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
+    <ProjectReference Include="..\..\src\TADSS.Application\TADSS.Application.csproj" />
+    <ProjectReference Include="..\..\src\TADSS.Infrastructure\TADSS.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\TADSS.Runtime.Api\TADSS.Runtime.Api.csproj" />
-    <ProjectReference Include="..\TADSS.BenchmarkRunner\TADSS.BenchmarkRunner.csproj" />
+    <ProjectReference Include="..\..\src\TADSS.Strategies.Default\TADSS.Strategies.Default.csproj" />
+    <ProjectReference Include="..\..\src\TADSS.Strategies.MockAlternative\TADSS.Strategies.MockAlternative.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.analyzers" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="GitHubActionsTestLogger">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -1,135 +1,140 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Shared.DecisionContractSDK.DTOs.Decisions;
+using Shared.DecisionContractSDK.Decisions;
+using Shared.DecisionContractSDK.Enums;
+using StackExchange.Redis;
+using TADSS.IntegrationTests.Infrastructure;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.IntegrationTests;
 
-public class CacheIntegrationTests : IClassFixture<TadssWebApplicationFactory>
+/// <summary>
+/// IT-13: cache <c>StrategyDecision</c> trên Redis thật. Host test tắt <c>EnableFallbackToMemory</c> nên <c>CACHE_HIT</c> chỉ có thể đến từ Redis;
+/// Redis được dọn trước mỗi test. Kiểm tra khóa <c>tadss:v2:…</c> và giá trị lưu (chỉ <c>StrategyDecision</c>, không có <c>decisionId</c>), thứ tự
+/// replay → cache, strategy tắt cache không bao giờ hit, và approval window được tính lại theo thời điểm của từng lần đánh giá.
+/// </summary>
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class CacheIntegrationTests : DecisionApiTestBase
 {
-    private readonly HttpClient _client;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+    private const string CacheKeyPrefix = "tadss:v2:DefaultDecisionStrategy:2.0.0:";
+    private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromMinutes(60);
 
-    public CacheIntegrationTests(TadssWebApplicationFactory factory)
+    public CacheIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        _client = factory.CreateClient();
     }
 
+    /// <summary>Hai key khác nhau cùng payload: lần 2 là <c>CACHE_HIT</c> từ Redis, <c>decisionId</c> mới, strategy chỉ chạy một lần.</summary>
     [Fact]
-    public async Task PostDecision_DifferentIdempotencyKeysSamePayload_SecondRequestIsCacheHitWithNewDecisionId()
+    [Trait("CatalogId", "IT-13")]
+    public async Task PostDecision_DifferentKeysSamePayload_SecondIsCacheHitFromRealRedisWithNewDecisionId()
     {
-        // Arrange: Prepare identical request payload
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(1),
-            EndTime = DateTime.UtcNow.AddDays(1).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 500000m,
-            DepositAmount = 500000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), NewKey());
+        Clock.Advance(TimeSpan.FromMinutes(1));
 
-        // Act 1: First request with Key A -> Cache Miss (Evaluates strategy & writes to cache)
-        var msg1 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg1.Headers.Add("X-Idempotency-Key", "cache-test-key-01");
-        var res1 = await _client.SendAsync(msg1);
-        res1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var decision1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        decision1.Should().NotBeNull();
+        var second = await PostDecisionAsync(DecisionRequests.Valid(), NewKey());
 
-        // Act 2: Second request with exact SAME payload but DIFFERENT idempotency Key B -> Cache Hit
-        var msg2 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg2.Headers.Add("X-Idempotency-Key", "cache-test-key-02");
-        var res2 = await _client.SendAsync(msg2);
-        res2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var decision2 = await res2.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
-        decision2.Should().NotBeNull();
+        first.Status.Should().Be(HttpStatusCode.OK);
+        second.Status.Should().Be(HttpStatusCode.OK);
+        first.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        second.Result.ExecutionType.Should().Be(ExecutionType.CACHE_HIT);
+        second.Result.DecisionId.Should().NotBe(first.Result.DecisionId);
+        second.Result.Status.Should().Be(first.Result.Status);
+        second.Result.Deposit.Should().BeEquivalentTo(first.Result.Deposit);
+        second.Result.EvaluatedAt.Should().Be(InitialInstant.AddMinutes(1), "response được dựng mới, không lấy từ cache");
+        Strategies.InvocationCount.Should().Be(1, "lần 2 lấy quyết định của strategy từ cache");
 
-        // Assert 1: Decisions have the same status but DIFFERENT DecisionId
-        decision2!.Status.Should().Be(decision1!.Status);
-        decision2.DecisionId.Should().NotBe(decision1.DecisionId); // Must have a fresh DecisionId
+        var rows = await ReadExecutionsAsync();
+        rows.Should().HaveCount(2);
+        rows.Select(row => row.CacheHit).Should().Equal(false, true);
+        rows[1].ExecutionType.Should().Be(ExecutionType.CACHE_HIT);
 
-        // Assert 2: GET detail on second decision verifies it was a CACHE_HIT
-        var detailRes2 = await _client.GetAsync($"/api/v1/decisions/{decision2.DecisionId}");
-        detailRes2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var detail2 = await detailRes2.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
-        detail2.Should().NotBeNull();
-        detail2!.Execution.ExecutionType.Should().Be("CACHE_HIT");
-        detail2.Execution.CacheHit.Should().BeTrue();
-        detail2.Execution.FallbackUsed.Should().BeFalse();
-
-        // Assert 3: GET detail on first decision verifies it was AUTOMATED
-        var detailRes1 = await _client.GetAsync($"/api/v1/decisions/{decision1.DecisionId}");
-        detailRes1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var detail1 = await detailRes1.Content.ReadFromJsonAsync<DecisionDetailDto>(JsonOptions);
-        detail1.Should().NotBeNull();
-        detail1!.Execution.ExecutionType.Should().Be("AUTOMATED");
-        detail1.Execution.CacheHit.Should().BeFalse();
+        var cacheKey = ReadCacheKeys().Should().ContainSingle().Subject;
+        cacheKey.Should().StartWith(CacheKeyPrefix);
+        cacheKey.Split(':').Should().HaveCount(6, "tadss:v2:{strategy}:{version}:{fingerprint}:{requestHash}");
+        var database = Infrastructure.RedisAdmin.GetDatabase();
+        var stored = (string?)await database.StringGetAsync(cacheKey);
+        using var document = JsonDocument.Parse(stored ?? throw new InvalidOperationException("Key cache không có giá trị."));
+        var properties = document.RootElement.EnumerateObject().Select(property => property.Name).ToList();
+        properties.Should().BeEquivalentTo(["status", "depositRate", "reasonCode", "reasons", "recommendations"],
+            "Redis chỉ lưu StrategyDecision, không lưu response");
+        properties.Should().NotContain(["decisionId", "evaluatedAt", "deposit", "approvalExpiresAt"]);
+        var ttl = await database.KeyTimeToLiveAsync(cacheKey);
+        ttl.Should().NotBeNull();
+        ttl.GetValueOrDefault().Should().BeLessThanOrEqualTo(DefaultCacheTtl).And.BeGreaterThan(DefaultCacheTtl - TimeSpan.FromMinutes(2));
     }
 
+    /// <summary>Cùng key và payload ở lần 2: replay bản đã lưu (<c>AUTOMATED</c>), không đọc cache dù key cache đã tồn tại.</summary>
     [Fact]
-    public async Task PostDecision_SameIdempotencyKeySamePayload_TakesPrecedenceAsIdempotencyReplayOverCacheHit()
+    [Trait("CatalogId", "IT-13")]
+    public async Task PostDecision_SameKeySamePayload_ReplayTakesPrecedenceOverCacheHit()
     {
-        // Arrange
-        var request = new DecisionRequestDto
-        {
-            ReservationId = Guid.NewGuid(),
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            StartTime = DateTime.UtcNow.AddDays(2),
-            EndTime = DateTime.UtcNow.AddDays(2).AddHours(2),
-            BookingType = "Single",
-            TotalPrice = 600000m,
-            DepositAmount = 600000m,
-            PaymentStatus = "PAID",
-            Priority = "HIGH",
-            RequestedAt = DateTime.UtcNow
-        };
+        var key = NewKey();
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), key);
 
-        var key = "idemp-over-cache-key";
+        var second = await PostDecisionAsync(DecisionRequests.Valid(), key);
 
-        // First request
-        var msg1 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg1.Headers.Add("X-Idempotency-Key", key);
-        var res1 = await _client.SendAsync(msg1);
-        res1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var decision1 = await res1.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
+        ReadCacheKeys().Should().ContainSingle("lần 1 đã ghi cache nên replay thắng cache chứ không phải cache chưa có");
+        second.Result.DecisionId.Should().Be(first.Result.DecisionId);
+        second.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        second.Bytes.Should().Equal(first.Bytes);
+        (await ReadExecutionsAsync()).Should().ContainSingle().Which.CacheHit.Should().BeFalse();
+    }
 
-        // Second request with SAME key
-        var msg2 = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(request)
-        };
-        msg2.Headers.Add("X-Idempotency-Key", key);
-        var res2 = await _client.SendAsync(msg2);
-        res2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var decision2 = await res2.Content.ReadFromJsonAsync<DecisionResultDto>(JsonOptions);
+    /// <summary>Strategy khai báo không cache: không có key <c>tadss:v2:*</c> trong Redis và hai key khác nhau cùng payload đều chạy strategy.</summary>
+    [Fact]
+    [Trait("CatalogId", "IT-13")]
+    public async Task PostDecision_StrategyWithCacheDisabled_NeverHitsCache()
+    {
+        Strategies.CachePolicyOverride = StrategyCachePolicy.Disabled;
 
-        // Assert: Idempotency replay returns the SAME DecisionId (Replay snapshot, no new decision minted)
-        decision2!.DecisionId.Should().Be(decision1!.DecisionId);
+        var first = await PostDecisionAsync(DecisionRequests.Valid(), NewKey());
+        var second = await PostDecisionAsync(DecisionRequests.Valid(), NewKey());
+
+        first.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        second.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        ReadCacheKeys().Should().BeEmpty();
+        Strategies.InvocationCount.Should().Be(2);
+        (await ReadExecutionsAsync()).Select(row => row.CacheHit).Should().OnlyContain(hit => !hit);
+    }
+
+    /// <summary>
+    /// Quyết định <c>NEED_APPROVAL</c> lấy từ cache nhưng hạn duyệt tính lại từ <c>now</c> của từng lần đánh giá (<c>now + WindowMinutes</c>); khi tới lúc không còn
+    /// đủ <c>MinLeadMinutes</c> trước giờ bắt đầu thì cùng quyết định cache đó thành <c>APPROVED</c> cọc 100%.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "IT-13")]
+    public async Task PostDecision_CacheHitRecomputesApprovalWindow()
+    {
+        var start = InitialInstant.AddHours(5);
+        var request = DecisionRequests.HighValue(start);
+        var window = TimeSpan.FromMinutes(30);
+
+        var first = await PostDecisionAsync(request, NewKey());
+        Clock.Advance(TimeSpan.FromMinutes(7));
+        var second = await PostDecisionAsync(request, NewKey());
+        // now = start - 100 phút: hạn duyệt theo MinLeadMinutes (start - 120 phút) đã qua
+        Clock.SetUtcNow(start.AddMinutes(-100));
+        var third = await PostDecisionAsync(request, NewKey());
+
+        first.Result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        first.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        first.Result.ApprovalExpiresAt.Should().Be(InitialInstant + window);
+
+        second.Result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        second.Result.ExecutionType.Should().Be(ExecutionType.CACHE_HIT);
+        second.Result.ApprovalExpiresAt.Should().Be(InitialInstant.AddMinutes(7) + window, "hạn duyệt tính lại theo now của lần 2");
+
+        third.Result.ExecutionType.Should().Be(ExecutionType.CACHE_HIT);
+        third.Result.Status.Should().Be(DecisionStatus.APPROVED, "không còn đủ thời gian để Manager duyệt");
+        third.Result.ApprovalExpiresAt.Should().BeNull();
+        ContractSamples.Required(third.Result.Deposit).Rate.Should().Be(1m);
+
+        Strategies.InvocationCount.Should().Be(1);
+        var rows = await ReadExecutionsAsync();
+        rows.Select(row => row.StrategyStatus).Should().OnlyContain(status => status == DecisionStatus.NEED_APPROVAL);
+        rows.Select(row => row.ApprovalExpiresAt).Should().Equal(first.Result.ApprovalExpiresAt, second.Result.ApprovalExpiresAt, null);
     }
 }

@@ -1,532 +1,290 @@
+using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Json;
+using System.Text;
 using FluentAssertions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Shared.DecisionContractSDK.Common;
-using Shared.DecisionContractSDK.Domain;
-using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
-using Shared.DecisionContractSDK.Interfaces;
-using TADSS.Runtime.Api.Infrastructure.Caching;
-using TADSS.Runtime.Api.Infrastructure.Data;
-using TADSS.Runtime.Api.Infrastructure.Resilience;
-using TADSS.Runtime.Api.Services;
+using TADSS.Application.Abstractions.Resilience;
+using TADSS.IntegrationTests.Infrastructure;
+using TADSS.Runtime.Api.Common;
+using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 using Xunit;
 
 namespace TADSS.IntegrationTests.FaultInjection;
 
 /// <summary>
-/// Bộ kiểm thử tích hợp tự động cho Ma trận Lỗi (Failure Semantics Matrix F1 ➔ F7)
-/// Đặc tả theo docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md.
+/// Ma trận lỗi v2 của strategy / cache / client (F1–F5, F7 ↔ FI-01…FI-04, FI-06, FI-10 trong RESILIENCE_AND_FAULT_TAXONOMY) chạy qua pipeline HTTP thật
+/// trên PostgreSQL + Redis thật, bằng <b>đồng hồ thật</b> (Polly cần timer thật). Strategy giả là <c>IReservationDecisionStrategy</c> v2 thật được registry giả
+/// trả về; mọi thay thế DI chỉ nằm trong host test (C-10). Mỗi test chọn cấu hình <c>Tadss:Resilience</c> riêng, đều qua <c>ResilienceOptionsValidator</c>
+/// (ngân sách <c>Inner × (Retry + 1) + Delay × Retry ≤ Outer</c>). F6 (<c>DbUpdateException</c> → 500) không chuyển sang v2: lỗi non-transient của store → 500
+/// được phủ bởi test store (Task 6) và bộ phân loại (UT-08); mất kết nối PostgreSQL ở <see cref="PersistenceFaultInjectionTests"/>.
 /// </summary>
-public class FaultInjectionTests
+[Collection(TadssInfrastructureCollection.Name)]
+[Trait("Category", "Integration")]
+public class FaultInjectionTests : FaultInjectionTestBase
 {
-    private static DecisionRequestDto CreateSampleRequest(Guid? reservationId = null)
+    /// <summary>
+    /// Dung sai thời gian thực cho ngưỡng "p99 endpoint ≤ 700 ms" của SC2 (EXPERIMENTAL_DESIGN…, mục SC2): endpoint = pipeline 500 ms + 200 ms cho
+    /// ghi audit, HTTP in-process và độ trễ lập lịch của máy CI. Ngân sách của chính pipeline được khẳng định chặt hơn qua <c>execution_time_ms</c> ≤ 500.
+    /// </summary>
+    private const int EndpointToleranceMs = 200;
+
+    /// <summary>Ngân sách tổng của pipeline (OuterTimeoutMs của cấu hình sản xuất, SLA 500 ms).</summary>
+    private const int PipelineBudgetMs = 500;
+
+    private const string SecretMessage = "Fatal third-party AI provider crashed: api-key=sk-secret-123";
+
+    public FaultInjectionTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
-        return new DecisionRequestDto
-        {
-            ReservationId = reservationId ?? Guid.NewGuid(),
-            CustomerId = Guid.NewGuid(),
-            CustomerTier = "VIP",
-            CourtId = Guid.NewGuid(),
-            BranchId = Guid.NewGuid(),
-            CourtTypeId = null,
-            StartTime = DateTime.UtcNow.AddHours(2),
-            EndTime = DateTime.UtcNow.AddHours(4),
-            TotalPrice = 300000m,
-            DepositAmount = 150000m,
-            PaymentStatus = "PARTIALLY_PAID",
-            BookingType = "SINGLE",
-            Priority = "NORMAL",
-            RequestedAt = DateTime.UtcNow
-        };
     }
 
-    #region Mock Strategy and Interceptor Helpers for Fault Injection
-
-    private class FlakyTransientStrategy : IReservationDecisionStrategy
+    /// <summary>
+    /// F1 (FI-01): lần thử đầu chậm hơn inner timeout (250 ms &gt; 100 ms), lần hai nhanh. Pipeline retry trong ngân sách
+    /// (100 × 3 + 20 × 2 = 340 ms ≤ Outer 1000 ms) và trả kết quả của strategy: <c>AUTOMATED</c>, không fallback, strategy được gọi 2 lần.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-01")]
+    public async Task F1_PerAttemptTimeoutInBudget_RetriesAndReturnsAutomated()
     {
-        public string StrategyName => "FlakyTransientStrategy";
-        public string StrategyVersion => "1.0.0";
-        public int InvocationCount { get; private set; }
-
-        public async Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
+        Resilience = new ResilienceOptions { OuterTimeoutMs = 1000, InnerTimeoutMs = 100, MaxRetryAttempts = 2, RetryBaseDelayMs = 20 };
+        Strategy.Behavior = async (attempt, token) =>
         {
-            InvocationCount++;
-            if (InvocationCount == 1)
+            if (attempt == 1)
             {
-                // Attempt 1: Timeout quá ngưỡng inner attempt (delay 250ms trên inner timeout 100ms)
-                await Task.Delay(250, cancellationToken);
+                await Task.Delay(250, token);
             }
 
-            return new DecisionResultDto
-            {
-                DecisionId = Guid.NewGuid(),
-                ReservationId = reservation.ReservationId,
-                Status = DecisionStatus.APPROVED.ToString(),
-                StrategyName = StrategyName,
-                StrategyVersion = StrategyVersion,
-                ExecutionTimeMs = 15,
-                FallbackUsed = false,
-                PrimaryReason = "RETRY_SUCCEEDED",
-                Reasons = ["Thành công ở lần retry thứ 2"],
-                Recommendations = [],
-                EvaluatedAt = DateTime.UtcNow
-            };
-        }
-    }
+            return ScriptedStrategy.Approve();
+        };
 
-    private class ExhaustiveTimeoutStrategy : IReservationDecisionStrategy
-    {
-        public string StrategyName => "ExhaustiveTimeoutStrategy";
-        public string StrategyVersion => "1.0.0";
-        public int InvocationCount { get; private set; }
-        public TaskCompletionSource<bool> ExecutionStarted { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var response = await PostDecisionAsync(UpcomingRequest(), NewKey());
 
-        public async Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
-        {
-            InvocationCount++;
-            ExecutionStarted.TrySetResult(true);
-            await Task.Delay(500, cancellationToken);
-
-            return new DecisionResultDto
-            {
-                DecisionId = Guid.NewGuid(),
-                ReservationId = reservation.ReservationId,
-                Status = DecisionStatus.APPROVED.ToString(),
-                StrategyName = StrategyName,
-                StrategyVersion = StrategyVersion,
-                ExecutionTimeMs = 500,
-                FallbackUsed = false,
-                PrimaryReason = "UNREACHABLE",
-                Reasons = [],
-                Recommendations = [],
-                EvaluatedAt = DateTime.UtcNow
-            };
-        }
-    }
-
-    private class CrashStrategy : IReservationDecisionStrategy
-    {
-        public string StrategyName => "CrashStrategy";
-        public string StrategyVersion => "1.0.0";
-
-        public Task<DecisionResultDto> EvaluateAsync(Reservation reservation, CancellationToken cancellationToken = default)
-        {
-            throw new InvalidOperationException("Fatal third-party AI provider crashed with code 500.");
-        }
-    }
-
-    private class SingleStrategyResolver : IStrategyResolver
-    {
-        private readonly IReservationDecisionStrategy _strategy;
-
-        public SingleStrategyResolver(IReservationDecisionStrategy strategy)
-        {
-            _strategy = strategy;
-        }
-
-        public IReservationDecisionStrategy ResolveActive() => _strategy;
-        public IReservationDecisionStrategy ResolveByName(string strategyName) => _strategy;
-        public IReadOnlyList<StrategyRegistration> ListRegistered() =>
-            [new StrategyRegistration(_strategy.StrategyName, _strategy.StrategyVersion)];
-    }
-
-    private class FailingCacheService : IDecisionCacheService
-    {
-        public Task<DecisionResultDto?> GetAsync(string key, CancellationToken cancellationToken = default)
-        {
-            throw new InvalidOperationException("Redis connection refused / cluster down.");
-        }
-
-        public Task SetAsync(string key, DecisionResultDto result, TimeSpan? ttl = null, CancellationToken cancellationToken = default)
-        {
-            throw new InvalidOperationException("Redis write timeout / cluster down.");
-        }
-
-        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
-        {
-            throw new InvalidOperationException("Redis remove failed.");
-        }
-    }
-
-    private class FailingSaveChangesInterceptor : SaveChangesInterceptor
-    {
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData,
-            InterceptionResult<int> result,
-            CancellationToken cancellationToken = default)
-        {
-            throw new DbUpdateException("Database connection pool exhausted / disk write failure.");
-        }
-    }
-
-    #endregion
-
-    [Fact]
-    public async Task F1_PerAttemptTimeoutInBudget_RetriesAndReturnsOriginalStrategyResult()
-    {
-        // Arrange
-        var flakyStrategy = new FlakyTransientStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(flakyStrategy));
-                services.Configure<ResilienceOptions>(opts =>
-                {
-                    opts.InnerTimeoutMs = 100;
-                    opts.OuterTimeoutMs = 1000;
-                    opts.MaxRetryAttempts = 2;
-                    opts.RetryBaseDelayMs = 20;
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey = "F1-KEY-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey);
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result.Should().NotBeNull();
-        result!.Status.Should().Be("APPROVED");
-        result.PrimaryReason.Should().Be("RETRY_SUCCEEDED");
+        response.Status.Should().Be(HttpStatusCode.OK);
+        var result = response.Result;
+        result.Status.Should().Be(DecisionStatus.APPROVED);
+        result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         result.FallbackUsed.Should().BeFalse();
+        result.ReasonCode.Should().Be("FI_RULE_APPROVED");
+        Strategy.InvocationCount.Should().Be(2, "lần đầu quá inner timeout, lần hai thành công");
 
-        flakyStrategy.InvocationCount.Should().Be(2); // Attempt 1 timed out -> Attempt 2 succeeded
-
-        // Verify Database Record
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().NotBeNull();
-        audit!.ExecutionType.Should().Be("AUTOMATED");
-        audit.FallbackUsed.Should().BeFalse();
-        audit.FailureReason.Should().BeNull();
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+        row.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        row.FallbackUsed.Should().BeFalse();
+        row.FailureReason.Should().BeNull();
     }
 
+    /// <summary>
+    /// F2 (FI-02): strategy luôn chậm (inner 50 ms, retry 2 × 15 ms) ⇒ <c>NEED_APPROVAL</c> / <c>FALLBACK</c> / <c>FALLBACK_STRATEGY_TIMEOUT</c>, strategy được gọi 3 lần.
+    /// Ngân sách khẳng định ở hai lớp: thời gian pipeline ghi trong audit (<c>execution_time_ms</c>) ≤ 500 ms, và thời gian thực của cả request
+    /// ≤ 500 ms + <see cref="EndpointToleranceMs"/> (ngưỡng p99 endpoint của SC2). Host được làm nóng trước bằng một request thật (xem <c>WarmUpHostAsync</c>) để phép đo không chứa chi phí khởi động lạnh.
+    /// </summary>
     [Fact]
-    public async Task F2_TimeoutExhaustsRetries_ActivatesDeterministicFallbackWithTimeoutReason()
+    [Trait("CatalogId", "FI-02")]
+    public async Task F2_AlwaysSlowStrategy_FallsBackWithTimeoutReason()
     {
-        // Arrange
-        var timeoutStrategy = new ExhaustiveTimeoutStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        Resilience = new ResilienceOptions { OuterTimeoutMs = PipelineBudgetMs, InnerTimeoutMs = 50, MaxRetryAttempts = 2, RetryBaseDelayMs = 15 };
+        Strategy.Behavior = async (_, token) =>
         {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(timeoutStrategy));
-                services.Configure<ResilienceOptions>(opts =>
-                {
-                    opts.InnerTimeoutMs = 50;
-                    opts.OuterTimeoutMs = 500; // Enforces hard 500ms SLA budget
-                    opts.MaxRetryAttempts = 2; // Total 3 attempts (3 x 50ms + 2 x 15ms = 180ms < 500ms)
-                    opts.RetryBaseDelayMs = 15;
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey = "F2-KEY-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey);
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result.Should().NotBeNull();
-        result!.Status.Should().Be("NEED_APPROVAL");
-        result.FallbackUsed.Should().BeTrue();
-
-        timeoutStrategy.InvocationCount.Should().Be(3); // Initial attempt + 2 retries
-
-        // Verify Database Record
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().NotBeNull();
-        audit!.ExecutionType.Should().Be("FALLBACK");
-        audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain(FailureReasonPrefixes.StrategyTimeout);
-    }
-
-    [Fact]
-    public async Task F3_StrategyInternalException_ActivatesDeterministicFallbackWithExceptionReason()
-    {
-        // Arrange
-        var crashStrategy = new CrashStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(crashStrategy));
-                services.Configure<ResilienceOptions>(opts =>
-                {
-                    opts.MaxRetryAttempts = 1;
-                    opts.RetryBaseDelayMs = 10;
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey = "F3-KEY-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey);
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result.Should().NotBeNull();
-        result!.Status.Should().Be("NEED_APPROVAL");
-        result.FallbackUsed.Should().BeTrue();
-
-        // Verify Database Record
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().NotBeNull();
-        audit!.ExecutionType.Should().Be("FALLBACK");
-        audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain(FailureReasonPrefixes.StrategyException);
-    }
-
-    [Fact]
-    public async Task F4_CircuitBreakerOpen_FastFailsDirectlyToFallback()
-    {
-        // Arrange
-        var crashStrategy = new CrashStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(crashStrategy));
-                services.Configure<ResilienceOptions>(opts =>
-                {
-                    opts.CircuitBreakerMinimumThroughput = 2;
-                    opts.CircuitBreakerFailureRatio = 0.5;
-                    opts.CircuitBreakerSamplingSeconds = 30;
-                    opts.CircuitBreakerBreakDurationSeconds = 10;
-                    opts.MaxRetryAttempts = 0;
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-
-        // Trigger circuit to OPEN by sending 2 failed requests
-        for (int i = 0; i < 2; i++)
-        {
-            var req = CreateSampleRequest();
-            using var msg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-            {
-                Content = JsonContent.Create(req)
-            };
-            msg.Headers.Add("X-Idempotency-Key", $"F4-PRE-{i}-{Guid.NewGuid()}");
-            await client.SendAsync(msg);
-        }
-
-        // Act: Third request when Circuit Breaker is OPEN
-        var testRequest = CreateSampleRequest();
-        var idempotencyKey = "F4-KEY-" + Guid.NewGuid();
-        using var testMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
-        {
-            Content = JsonContent.Create(testRequest)
+            await Task.Delay(Timeout.Infinite, token);
+            return ScriptedStrategy.Approve();
         };
-        testMsg.Headers.Add("X-Idempotency-Key", idempotencyKey);
+        var warmUpKey = await WarmUpHostAsync();
+        var invocationsBefore = Strategy.InvocationCount;
+        var key = NewKey();
 
-        var response = await client.SendAsync(testMsg);
+        var stopwatch = Stopwatch.StartNew();
+        var response = await PostDecisionAsync(UpcomingRequest(), key);
+        stopwatch.Stop();
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result.Should().NotBeNull();
-        result!.FallbackUsed.Should().BeTrue();
+        response.Status.Should().Be(HttpStatusCode.OK);
+        var result = response.Result;
+        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        result.FallbackUsed.Should().BeTrue();
+        result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
+        result.ApprovalExpiresAt.Should().NotBeNull("NEED_APPROVAL luôn có hạn duyệt");
+        (Strategy.InvocationCount - invocationsBefore).Should().Be(3, "lượt đầu và 2 lần retry");
 
-        // Verify Database Record
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().NotBeNull();
-        audit!.ExecutionType.Should().Be("FALLBACK");
-        audit.FallbackUsed.Should().BeTrue();
-        audit.FailureReason.Should().Contain(FailureReasonPrefixes.CircuitBreakerOpen);
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle(execution => execution.IdempotencyKey == key).Subject;
+        row.IdempotencyKey.Should().NotBe(warmUpKey);
+        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        row.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
+        row.ExecutionTimeMs.Should().BeLessThanOrEqualTo(PipelineBudgetMs, "thời gian pipeline không được vượt ngân sách 500 ms");
+        row.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(150, "đã chờ đủ 3 lượt inner timeout 50 ms (không fallback sớm)");
+        stopwatch.ElapsedMilliseconds.Should().BeLessThanOrEqualTo(PipelineBudgetMs + EndpointToleranceMs);
     }
 
+    /// <summary>
+    /// F3 (FI-03): strategy ném exception (retry 1 lần rồi fallback) ⇒ <c>FALLBACK_STRATEGY_EXCEPTION</c>; message gốc của exception (có thể chứa bí mật)
+    /// không xuất hiện ở response lẫn bản ghi audit — chỉ tên kiểu exception được ghi.
+    /// </summary>
     [Fact]
-    public async Task F5_RedisUnavailable_DegradesGracefullyWithCacheMissSemantics()
+    [Trait("CatalogId", "FI-03")]
+    public async Task F3_StrategyThrows_FallsBackWithExceptionReason()
     {
-        // Arrange: Inject ResilientDecisionCacheService with Failing Redis and Working Memory cache
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        Resilience = new ResilienceOptions { OuterTimeoutMs = 1000, InnerTimeoutMs = 100, MaxRetryAttempts = 1, RetryBaseDelayMs = 10 };
+        Strategy.Behavior = (_, _) => throw new InvalidOperationException(SecretMessage);
+
+        var response = await PostDecisionAsync(UpcomingRequest(), NewKey());
+
+        response.Status.Should().Be(HttpStatusCode.OK);
+        var result = response.Result;
+        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        result.FallbackUsed.Should().BeTrue();
+        result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
+        response.Body.Should().NotContain(SecretMessage).And.NotContain("sk-secret-123");
+        Strategy.InvocationCount.Should().Be(2, "lượt đầu và 1 lần retry");
+
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
+        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        row.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException).And.NotContain("sk-secret-123");
+        row.ResponsePayload.Should().NotContain("sk-secret-123");
+    }
+
+    /// <summary>
+    /// F4 (FI-04): strategy lỗi liên tục ⇒ hai request đầu fallback do exception và làm breaker mở (throughput 2, tỷ lệ lỗi 100%); request thứ ba
+    /// fast-fail <c>FALLBACK_CIRCUIT_OPEN</c> mà không gọi strategy. Sau <c>BreakDuration</c> (1 s, đồng hồ thật) và khi strategy đã khỏe, request tiếp theo
+    /// là lượt thăm dò half-open → thành công ⇒ breaker đóng, request sau đó chạy strategy bình thường. Chuyển trạng thái được đối chiếu với log của breaker.
+    /// Cấu hình: Outer 500, Inner 100, retry 0 (⇒ ngân sách 100 ms), sampling 30 s, break 1 s.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-04")]
+    public async Task F4_RepeatedFailures_OpensBreakerAndFastFails_ThenRecovers()
+    {
+        const int breakDurationSeconds = 1;
+        Resilience = new ResilienceOptions
         {
-            builder.ConfigureServices(services =>
+            OuterTimeoutMs = PipelineBudgetMs,
+            InnerTimeoutMs = 100,
+            MaxRetryAttempts = 0,
+            RetryBaseDelayMs = 20,
+            CircuitBreakerSamplingSeconds = 30,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerBreakDurationSeconds = breakDurationSeconds
+        };
+        var healthy = false;
+        Strategy.Behavior = (_, _) => healthy
+            ? Task.FromResult(ScriptedStrategy.Approve())
+            : throw new InvalidOperationException("Strategy đang hỏng.");
+
+        var first = await PostDecisionAsync(UpcomingRequest(), NewKey());
+        var second = await PostDecisionAsync(UpcomingRequest(), NewKey());
+        first.Result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
+        second.Result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
+        Strategy.InvocationCount.Should().Be(2);
+
+        // Breaker đã mở: fast-fail, strategy không được gọi thêm
+        var fastFail = await PostDecisionAsync(UpcomingRequest(), NewKey());
+        var fastFailResult = fastFail.Result;
+        fastFailResult.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        fastFailResult.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        fastFailResult.ReasonCode.Should().Be(ReasonCodes.FallbackCircuitOpen);
+        Strategy.InvocationCount.Should().Be(2, "breaker mở thì không gọi strategy");
+
+        // Strategy hồi phục; chờ hết BreakDuration (đồng hồ thật) để lượt kế tiếp là lượt thăm dò half-open
+        healthy = true;
+        await Task.Delay(TimeSpan.FromSeconds(breakDurationSeconds) + TimeSpan.FromMilliseconds(500));
+
+        var probe = await PostDecisionAsync(UpcomingRequest(), NewKey());
+        var closed = await PostDecisionAsync(UpcomingRequest(), NewKey());
+
+        probe.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED, "lượt thăm dò half-open gọi strategy khỏe");
+        probe.Result.FallbackUsed.Should().BeFalse();
+        closed.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED, "breaker đã đóng");
+        Strategy.InvocationCount.Should().Be(4, "thăm dò + request sau khi đóng");
+
+        var rows = await ReadExecutionsAsync();
+        rows.Should().HaveCount(5);
+        rows[2].FailureReason.Should().StartWith(FailureReasonPrefixes.CircuitBreakerOpen);
+        rows[2].ExecutionTimeMs.Should().BeLessThan(100, "fast-fail không chờ strategy");
+
+        var transitions = PipelineLogs.Messages
+            .Select(message => message switch
             {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDecisionCacheService));
-                if (descriptor != null) services.Remove(descriptor);
+                _ when message.Contains("NỬA MỞ", StringComparison.Ordinal) => "half-open",
+                _ when message.Contains("MỞ trong", StringComparison.Ordinal) => "open",
+                _ when message.Contains("ĐÓNG", StringComparison.Ordinal) => "closed",
+                _ => string.Empty
+            })
+            .Where(transition => transition.Length > 0)
+            .ToArray();
+        transitions.Should().Equal(["open", "half-open", "closed"], "breaker đi qua open → half-open → closed đúng một vòng");
+    }
 
-                // Configure ResilientDecisionCacheService with failing Redis decorator
-                services.AddSingleton<IDecisionCacheService>(sp =>
-                {
-                    var memCache = sp.GetRequiredService<MemoryDecisionCacheService>();
-                    var logger = sp.GetRequiredService<ILogger<ResilientDecisionCacheService>>();
-                    var opts = Microsoft.Extensions.Options.Options.Create(new TadssCacheOptions
-                    {
-                        Provider = "Redis",
-                        EnableFallbackToMemory = true
-                    });
-                    return new ResilientDecisionCacheService(memCache, opts, logger, redisCache: new FailingCacheService());
-                });
-            });
-        });
+    /// <summary>
+    /// F5 (FI-06, phần cô lập lỗi): cache double ném ở cả <c>GetAsync</c> lẫn <c>SetAsync</c> (strategy bật cache). Lỗi cache chỉ là miss: 200, <c>AUTOMATED</c>,
+    /// không fallback strategy, có bản ghi audit; hai request cùng nội dung đều chạy strategy (không có CACHE_HIT) và cả hai đường cache đều đã được thử.
+    /// Breaker Redis và Toxiproxy (FI-06 đầy đủ, FI-07) thuộc 5.4–5.5.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-06")]
+    public async Task F5_RedisDown_CacheErrorsAreMissAndRequestSucceeds()
+    {
+        var cache = new ThrowingStrategyDecisionCache();
+        Cache = cache;
+        Strategy.Policy = Shared.DecisionContractSDK.Decisions.StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(5));
+        var body = UpcomingRequest();
 
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey1 = "F5-KEY-1-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey1);
+        var first = await PostDecisionAsync(body, NewKey());
+        var second = await PostDecisionAsync(body, NewKey());
 
-        // Act 1: First request arrives while Redis is down (Cache miss -> Strategy evaluates -> Writes to In-Memory fallback)
-        var response1 = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert 1: System must NOT crash, must NOT fallback strategy, must execute strategy normally
-        response1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result1 = await response1.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result1.Should().NotBeNull();
-        result1!.FallbackUsed.Should().BeFalse();
-
-        using (var scope = factory.Services.CreateScope())
+        foreach (var response in new[] { first, second })
         {
-            var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-            var audit1 = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey1);
-            audit1.Should().NotBeNull();
-            audit1!.CacheHit.Should().BeFalse();
-            audit1.FallbackUsed.Should().BeFalse();
+            response.Status.Should().Be(HttpStatusCode.OK);
+            response.Result.Status.Should().Be(DecisionStatus.APPROVED);
+            response.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+            response.Result.FallbackUsed.Should().BeFalse("lỗi cache không làm strategy fallback");
         }
 
-        // Act 2: Second request with identical payload but different idempotency key (Reads In-Memory fallback -> Cache hit!)
-        var idempotencyKey2 = "F5-KEY-2-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Remove("X-Idempotency-Key");
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey2);
-
-        var response2 = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert 2: Second request gets CACHE_HIT from In-Memory fallback!
-        response2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result2 = await response2.Content.ReadFromJsonAsync<DecisionResultDto>();
-        result2.Should().NotBeNull();
-        result2!.FallbackUsed.Should().BeFalse();
-
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-            var audit2 = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey2);
-            audit2.Should().NotBeNull();
-            audit2!.CacheHit.Should().BeTrue();
-            audit2.ExecutionType.Should().Be("CACHE_HIT");
-        }
+        cache.GetCalls.Should().Be(2, "mỗi request đều thử đọc cache");
+        cache.SetCalls.Should().Be(2, "mỗi kết quả AUTOMATED đều thử ghi cache");
+        Strategy.InvocationCount.Should().Be(2, "cache hỏng ⇒ miss, strategy chạy cho cả hai request");
+        var rows = await ReadExecutionsAsync();
+        rows.Should().HaveCount(2);
+        rows.Should().OnlyContain(row => row.ExecutionType == ExecutionType.AUTOMATED && !row.CacheHit && !row.FallbackUsed);
     }
 
+    /// <summary>
+    /// F7 (FI-10): client hủy request khi strategy đang chạy (inner 2000 ms, outer 7000 ms, retry 2 × 30 ms ⇒ ngân sách 6060 ms ≤ 7000 ms). Host phải quan sát
+    /// hủy (<c>HttpClient</c> hủy → <c>RequestAborted</c> của TestServer → token của strategy), request kết thúc phía server nhanh hơn nhiều so với inner timeout
+    /// (nếu không quan sát hủy, strategy sẽ chạy hết 2 s rồi fallback và ghi audit), không retry và không để lại bản ghi audit.
+    /// </summary>
     [Fact]
-    public async Task F6_DatabasePersistenceFailure_FailsClosedWithHttp500WithoutReturningDecision()
+    [Trait("CatalogId", "FI-10")]
+    public async Task F7_CallerCancellation_AbortsWithoutAuditRecord()
     {
-        // Arrange: Inject failing DbContext interceptor (simulating DB down/write failure)
-        var dbName = Guid.NewGuid().ToString();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
+        const int cancellationObservedWithinMs = 1500;
+        Resilience = new ResilienceOptions { OuterTimeoutMs = 7000, InnerTimeoutMs = 2000, MaxRetryAttempts = 2, RetryBaseDelayMs = 30 };
+        Strategy.Behavior = async (_, token) =>
         {
-            builder.ConfigureServices(services =>
-            {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<TadssDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
-
-                services.AddDbContext<TadssDbContext>((sp, options) =>
-                {
-                    options.UseInMemoryDatabase(dbName);
-                    options.AddInterceptors(new FailingSaveChangesInterceptor());
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey = "F6-KEY-" + Guid.NewGuid();
-        client.DefaultRequestHeaders.Add("X-Idempotency-Key", idempotencyKey);
-
-        // Act: Client submits decision request
-        var response = await client.PostAsJsonAsync("/api/v1/decisions", request);
-
-        // Assert: Policy A (Fail-Closed) => Must return HTTP 500 ProblemDetails and NOT return 200 OK Decision
-        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem.Should().NotBeNull();
-        problem!.Status.Should().Be(500);
-        problem.Extensions.Should().ContainKey("code");
-        problem.Extensions["code"]?.ToString().Should().Be(ErrorCodes.InternalError);
-    }
-
-    [Fact]
-    public async Task F7_CallerCancellation_AbortsPromptlyWithoutCreatingAuditRecord()
-    {
-        // Arrange: Deterministic synchronization — cancel only after strategy has entered execution on server
-        var slowStrategy = new ExhaustiveTimeoutStrategy();
-        var factory = new TadssWebApplicationFactory().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IStrategyResolver>(new SingleStrategyResolver(slowStrategy));
-                services.Configure<ResilienceOptions>(opts =>
-                {
-                    opts.InnerTimeoutMs = 2000;
-                    opts.OuterTimeoutMs = 5000;
-                });
-            });
-        });
-
-        var client = factory.CreateClient();
-        var request = CreateSampleRequest();
-        var idempotencyKey = "F7-KEY-" + Guid.NewGuid();
-
+            await Task.Delay(Timeout.Infinite, token);
+            return ScriptedStrategy.Approve();
+        };
         using var cts = new CancellationTokenSource();
-
-        // Act: Start HTTP request, wait until strategy signals it has entered execution, then trigger cancellation
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/decisions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, DecisionsPath)
         {
-            Content = JsonContent.Create(request)
+            Content = new StringContent(UpcomingRequest(), Encoding.UTF8, "application/json")
         };
-        httpRequest.Headers.Add("X-Idempotency-Key", idempotencyKey);
+        request.Headers.TryAddWithoutValidation(HttpHeaderNames.IdempotencyKey, NewKey());
 
-        var responseTask = client.SendAsync(httpRequest, cts.Token);
+        var inFlight = Api.SendAsync(request, cts.Token);
+        await Strategy.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        var canceledAt = Stopwatch.GetTimestamp();
+        await cts.CancelAsync();
 
-        await slowStrategy.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        cts.Cancel();
+        var act = async () => await inFlight;
+        await act.Should().ThrowAsync<OperationCanceledException>("client nhận hủy ngay, không có response");
+        var completedAt = await Completion.FirstCompleted.WaitAsync(TimeSpan.FromSeconds(10));
+        await Strategy.CancellationObserved.WaitAsync(TimeSpan.FromSeconds(10));
 
-        var act = async () => await responseTask;
-
-        // Assert: Client catches cancellation and no retry occurs
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        slowStrategy.InvocationCount.Should().Be(1);
-
-        // Verify Invariant: NO completed decision record must exist in DB
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TadssDbContext>();
-        var audit = await db.DecisionExecutions.FirstOrDefaultAsync(e => e.IdempotencyKey == idempotencyKey);
-        audit.Should().BeNull(); // Invariant: Zero audit pollution on cancellation!
+        Stopwatch.GetElapsedTime(canceledAt, completedAt).TotalMilliseconds.Should().BeLessThan(
+            cancellationObservedWithinMs,
+            "request phải kết thúc ngay sau khi hủy, không chờ inner timeout 2000 ms");
+        Strategy.InvocationCount.Should().Be(1, "hủy của caller không bị retry");
+        AuditProbe.InsertAttempts.Should().Be(0, "không bao giờ chạm tới bước ghi audit");
+        (await ReadExecutionsAsync()).Should().BeEmpty("hủy giữa chừng không để lại bản ghi audit");
     }
 }
