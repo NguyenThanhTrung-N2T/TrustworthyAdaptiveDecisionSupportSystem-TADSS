@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unit test kiểm các kiểu internal của tầng Application -->
+    <InternalsVisibleTo Include="TADSS.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Application chỉ phụ thuộc SDK (spec 4.2.4); quy tắc khóa bởi ProjectReferenceRulesTests (UT-14) -->
+    <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
+  </ItemGroup>
+</Project>

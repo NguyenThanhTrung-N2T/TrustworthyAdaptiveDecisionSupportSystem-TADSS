@@ -11,6 +11,12 @@
     <PackageVersion Include="StackExchange.Redis" Version="2.8.16" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     
+    <!-- Microsoft.Extensions.* cho TADSS.Application / TADSS.Infrastructure (8.0.x, không thấp hơn bản restore bắc cầu) -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
+
     <!-- Serilog Structured Logging Packages -->
     <PackageVersion Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />

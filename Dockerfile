@@ -10,6 +10,8 @@ COPY ["Directory.Packages.props", "."]
 COPY ["src/Shared.DecisionContractSDK/Shared.DecisionContractSDK.csproj", "src/Shared.DecisionContractSDK/"]
 COPY ["src/TADSS.Strategies.Default/TADSS.Strategies.Default.csproj", "src/TADSS.Strategies.Default/"]
 COPY ["src/TADSS.Strategies.MockAlternative/TADSS.Strategies.MockAlternative.csproj", "src/TADSS.Strategies.MockAlternative/"]
+COPY ["src/TADSS.Application/TADSS.Application.csproj", "src/TADSS.Application/"]
+COPY ["src/TADSS.Infrastructure/TADSS.Infrastructure.csproj", "src/TADSS.Infrastructure/"]
 COPY ["src/TADSS.Runtime.Api/TADSS.Runtime.Api.csproj", "src/TADSS.Runtime.Api/"]
 
 # 3. Restore dependencies chuẩn portable

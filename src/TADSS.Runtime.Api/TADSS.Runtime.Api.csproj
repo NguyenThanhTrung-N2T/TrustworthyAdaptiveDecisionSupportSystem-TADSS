@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shared.DecisionContractSDK\Shared.DecisionContractSDK.csproj" />
+    <ProjectReference Include="..\TADSS.Application\TADSS.Application.csproj" />
+    <ProjectReference Include="..\TADSS.Infrastructure\TADSS.Infrastructure.csproj" />
     <ProjectReference Include="..\TADSS.Strategies.Default\TADSS.Strategies.Default.csproj" />
     <ProjectReference Include="..\TADSS.Strategies.MockAlternative\TADSS.Strategies.MockAlternative.csproj" />
   </ItemGroup>
