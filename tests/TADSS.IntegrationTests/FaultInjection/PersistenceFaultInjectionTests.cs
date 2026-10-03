@@ -52,7 +52,7 @@ public class PersistenceFaultInjectionTests : FaultInjectionTestBase
     }
 
     /// <summary>
-    /// Biến thể: kết nối bị cắt <b>đúng lúc ghi audit</b> — decorator của <c>IDecisionAuditStore</c> tắt proxy ngay trước <c>InsertExecutionAsync</c>, tức là sau khi
+    /// Biến thể: kết nối bị cắt <b>đúng lúc ghi audit</b> — decorator của <c>IDecisionEvaluationStore</c> tắt proxy ngay trước <c>InsertExecutionAsync</c>, tức là sau khi
     /// strategy đã chạy xong và tra idempotency đã thành công. Kỳ vọng: 503 <c>PERSISTENCE_UNAVAILABLE</c> + <c>Retry-After: 5</c>, 0 hàng, strategy đã chạy đúng 1 lần,
     /// đã thử ghi đúng 1 lần và client không nhận bất kỳ quyết định nào (INV-10 trên đường ghi).
     /// </summary>

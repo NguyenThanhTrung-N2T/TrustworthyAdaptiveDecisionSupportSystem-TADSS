@@ -23,6 +23,7 @@ public class ApplicationServiceCollectionExtensionsTests
         { typeof(IDecisionQueryService), ServiceLifetime.Scoped },
         { typeof(IStrategyRegistry), ServiceLifetime.Singleton },
         { typeof(DecisionResponseComposer), ServiceLifetime.Singleton },
+        { typeof(StrategyEvaluator), ServiceLifetime.Singleton },
         { typeof(ApprovalWindowPolicy), ServiceLifetime.Singleton },
         { typeof(DepositCalculator), ServiceLifetime.Singleton },
         { typeof(ItemDurationPolicy), ServiceLifetime.Singleton },
@@ -38,7 +39,7 @@ public class ApplicationServiceCollectionExtensionsTests
         },
     };
 
-    /// <summary>Use case đăng ký đúng vòng đời: service scoped (vì dùng kho audit scoped), registry/policy/composer singleton.</summary>
+    /// <summary>Use case đăng ký đúng vòng đời: service scoped (vì dùng kho audit scoped), registry/policy/composer/evaluator singleton.</summary>
     [Theory]
     [Trait("CatalogId", "UT-14")]
     [MemberData(nameof(ExpectedLifetimes))]

@@ -10,7 +10,7 @@ namespace TADSS.Application;
 
 /// <summary>
 /// Đăng ký DI cho tầng Application: options của use case (có kiểm tra khi khởi động), lịch cao điểm, policy,
-/// bộ ghép response, registry strategy và hai use case. Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
+/// bộ ghép response, bộ đánh giá strategy, registry strategy và hai use case. Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
 /// </summary>
 public static class ApplicationServiceCollectionExtensions
 {
@@ -52,7 +52,10 @@ public static class ApplicationServiceCollectionExtensions
         // Bộ ghép response + bản ghi audit (phép biến đổi thuần)
         services.AddSingleton<DecisionResponseComposer>();
 
-        // Điều phối đánh giá quyết định: scoped vì phụ thuộc kho audit scoped (strategy/pipeline/cache vẫn singleton)
+        // Đánh giá strategy (cache + pipeline): chỉ phụ thuộc pipeline, cache, đồng hồ và logger (đều singleton)
+        services.AddSingleton<StrategyEvaluator>();
+
+        // Điều phối đánh giá quyết định: scoped vì phụ thuộc kho audit scoped (strategy/evaluator vẫn singleton)
         services.AddScoped<IDecisionService, DecisionService>();
 
         // Tra cứu chi tiết quyết định chỉ đọc qua kho audit nên cùng vòng đời scoped với kho

@@ -13,7 +13,7 @@ namespace TADSS.UnitTests.Architecture;
 /// <summary>
 /// UT-09: không còn dấu vết v1 / cấu trúc tạm <c>V2</c> sau khi chuyển hẳn sang contract v2 — không namespace nào có đoạn
 /// <c>V2</c>, không thư mục nguồn tên <c>V2</c>, không còn kiểu dịch vụ v1 đã gỡ, và lõi runtime không phụ thuộc
-/// persistence EF hay MediatR (lõi chỉ nói chuyện với hạ tầng qua interface như <c>IDecisionAuditStore</c>).
+/// persistence EF hay MediatR (lõi chỉ nói chuyện với hạ tầng qua interface như <c>IDecisionEvaluationStore</c>).
 /// </summary>
 public class NoLegacyV1Tests
 {

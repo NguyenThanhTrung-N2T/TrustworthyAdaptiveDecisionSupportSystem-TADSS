@@ -5,12 +5,12 @@ using TADSS.Application.Exceptions;
 namespace TADSS.UnitTests.TestDoubles;
 
 /// <summary>
-/// <see cref="IDecisionAuditStore"/> giả viết tay, thread-safe, trong bộ nhớ: tìm theo idempotency key của bản ghi
+/// Hiện thực giả viết tay của cả <see cref="IDecisionEvaluationStore"/> và <see cref="IDecisionQueryStore"/>, thread-safe, trong bộ nhớ: tìm theo idempotency key của bản ghi
 /// <c>PRIMARY</c>, đếm số lần insert, có thể cấu hình ném <see cref="PersistenceUnavailableException"/> hoặc giả lập thua
-/// tranh chấp (trả một bản thắng định sẵn). Hành vi bám đúng hợp đồng của <see cref="IDecisionAuditStore"/> để Task 9
+/// tranh chấp (trả một bản thắng định sẵn). Hành vi bám đúng hợp đồng của hai port audit để Task 9
 /// kiểm tra <c>DecisionService</c> mà không cần PostgreSQL. Tra chi tiết theo <c>decisionId</c> (mọi role) và cho phép gài sẵn override/outcome.
 /// </summary>
-internal sealed class FakeDecisionAuditStore : IDecisionAuditStore
+internal sealed class FakeDecisionAuditStore : IDecisionEvaluationStore, IDecisionQueryStore
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, DecisionExecutionRecord> _primaryByKey = new(StringComparer.Ordinal);

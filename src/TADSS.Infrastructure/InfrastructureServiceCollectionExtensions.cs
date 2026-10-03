@@ -24,7 +24,7 @@ public static class InfrastructureServiceCollectionExtensions
 {
     /// <summary>
     /// Đăng ký adapter hạ tầng của TADSS: <see cref="TadssDbContext"/>, <see cref="DatabaseOptions"/>, health check PostgreSQL,
-    /// <see cref="IStrategyPipeline"/>, <see cref="IStrategyDecisionCache"/> và <see cref="IDecisionAuditStore"/>.
+    /// <see cref="IStrategyPipeline"/>, <see cref="IStrategyDecisionCache"/> và <see cref="IDecisionEvaluationStore"/> / <see cref="IDecisionQueryStore"/> (cùng một <see cref="EfDecisionAuditStore"/> trong mỗi scope).
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -72,8 +72,10 @@ public static class InfrastructureServiceCollectionExtensions
                 useRedis ? RedisConnectionFactory.ResolveOrWarn(sp, logger) : null);
         });
 
-        // 5. Kho audit scoped vì dùng TadssDbContext của scope (request)
-        services.AddScoped<IDecisionAuditStore, EfDecisionAuditStore>();
+        // 5. Kho audit scoped vì dùng TadssDbContext của scope (request). Đăng ký MỘT lần; hai port (ISP) forward tới cùng instance trong scope
+        services.AddScoped<EfDecisionAuditStore>();
+        services.AddScoped<IDecisionEvaluationStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());
+        services.AddScoped<IDecisionQueryStore>(sp => sp.GetRequiredService<EfDecisionAuditStore>());
 
         return services;
     }

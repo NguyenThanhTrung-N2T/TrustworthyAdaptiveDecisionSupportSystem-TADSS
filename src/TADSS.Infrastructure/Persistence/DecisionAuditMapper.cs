@@ -4,7 +4,7 @@ using TADSS.Infrastructure.Persistence.Entities;
 namespace TADSS.Infrastructure.Persistence;
 
 /// <summary>
-/// Ánh xạ thuần (không I/O, không trạng thái) giữa record của <see cref="IDecisionAuditStore"/> và entity EF Core.
+/// Ánh xạ thuần (không I/O, không trạng thái) giữa record của <see cref="IDecisionEvaluationStore"/>/<see cref="IDecisionQueryStore"/> và entity EF Core.
 /// Là chỗ duy nhất biết cả hai phía để entity không lọt ra ngoài store. Mọi giá trị đi qua nguyên vẹn
 /// (chuỗi jsonb, <c>decimal</c>, <see cref="DateTimeOffset"/>); khóa kỹ thuật <c>Id</c> để trống cho cơ sở dữ liệu sinh.
 /// </summary>

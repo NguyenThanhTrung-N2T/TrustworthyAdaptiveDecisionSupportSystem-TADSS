@@ -20,25 +20,27 @@ public sealed class AuditInsertProbe
 }
 
 /// <summary>
-/// Decorator của <see cref="IDecisionAuditStore"/> chỉ dùng trong host test (C-10): chạy <see cref="AuditInsertProbe.BeforeInsert"/> ngay trước khi
+/// Decorator của <see cref="IDecisionEvaluationStore"/> và <see cref="IDecisionQueryStore"/> chỉ dùng trong host test (C-10): chạy <see cref="AuditInsertProbe.BeforeInsert"/> ngay trước khi
 /// ủy quyền <c>InsertExecutionAsync</c> cho store thật, tức là sau khi strategy đã chạy xong — dùng để cắt kết nối PostgreSQL đúng lúc ghi audit (FI-08).
 /// Mọi thao tác khác đi thẳng tới store thật.
 /// </summary>
-public sealed class CuttableDecisionAuditStore : IDecisionAuditStore
+public sealed class CuttableDecisionAuditStore : IDecisionEvaluationStore, IDecisionQueryStore
 {
-    private readonly IDecisionAuditStore _inner;
+    private readonly IDecisionEvaluationStore _evaluationInner;
+    private readonly IDecisionQueryStore _queryInner;
     private readonly AuditInsertProbe _probe;
 
-    /// <summary>Bọc <paramref name="inner"/>.</summary>
-    public CuttableDecisionAuditStore(IDecisionAuditStore inner, AuditInsertProbe probe)
+    /// <summary>Bọc hai port của cùng một store thật.</summary>
+    public CuttableDecisionAuditStore(IDecisionEvaluationStore evaluationInner, IDecisionQueryStore queryInner, AuditInsertProbe probe)
     {
-        _inner = inner;
+        _evaluationInner = evaluationInner;
+        _queryInner = queryInner;
         _probe = probe;
     }
 
     /// <inheritdoc />
     public Task<DecisionExecutionRecord?> FindPrimaryByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken) =>
-        _inner.FindPrimaryByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
+        _evaluationInner.FindPrimaryByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
 
     /// <inheritdoc />
     public async Task<InsertExecutionResult> InsertExecutionAsync(DecisionExecutionRecord record, CancellationToken cancellationToken)
@@ -49,10 +51,10 @@ public sealed class CuttableDecisionAuditStore : IDecisionAuditStore
             await beforeInsert(cancellationToken).ConfigureAwait(false);
         }
 
-        return await _inner.InsertExecutionAsync(record, cancellationToken).ConfigureAwait(false);
+        return await _evaluationInner.InsertExecutionAsync(record, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public Task<DecisionDetailRecord?> GetDecisionDetailAsync(Guid decisionId, CancellationToken cancellationToken) =>
-        _inner.GetDecisionDetailAsync(decisionId, cancellationToken);
+        _queryInner.GetDecisionDetailAsync(decisionId, cancellationToken);
 }

@@ -8,7 +8,7 @@ using TADSS.Infrastructure.Persistence.Entities;
 namespace TADSS.Infrastructure.Persistence;
 
 /// <summary>
-/// Hiện thực EF Core/PostgreSQL của <see cref="IDecisionAuditStore"/> trên schema <c>tadss</c>. Đăng ký scoped: mỗi scope (request)
+/// Hiện thực EF Core/PostgreSQL của <see cref="IDecisionEvaluationStore"/> và <see cref="IDecisionQueryStore"/> trên schema <c>tadss</c>. Đăng ký scoped: mỗi scope (request)
 /// dùng một <see cref="TadssDbContext"/> riêng, nên store không được chia sẻ giữa các luồng song song.
 /// <para>
 /// Chỉ thêm và đọc (INV-4): không tạo <c>UPDATE</c>/<c>DELETE</c>; mọi truy vấn đọc là <c>AsNoTracking</c>; entity không lọt ra ngoài
@@ -21,7 +21,7 @@ namespace TADSS.Infrastructure.Persistence;
 /// exception gốc. <see cref="OperationCanceledException"/> của caller lan ra nguyên vẹn.
 /// </para>
 /// </summary>
-public sealed class EfDecisionAuditStore : IDecisionAuditStore
+public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQueryStore
 {
     private const string UniqueViolation = "23505";
     private const string IdempotencyConstraint = "uq_decision_idempotency_key";

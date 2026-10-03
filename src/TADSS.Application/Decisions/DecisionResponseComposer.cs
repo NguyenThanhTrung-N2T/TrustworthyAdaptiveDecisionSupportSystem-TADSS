@@ -1,5 +1,3 @@
-using System.Text.Json;
-using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
@@ -104,8 +102,8 @@ public sealed class DecisionResponseComposer
             CacheHit: composition.CacheHit,
             ApprovalExpiresAt: response.ApprovalExpiresAt,
             RequestHash: composition.RequestHash,
-            RequestPayload: JsonSerializer.Serialize(composition.Request, TadssJson.Options),
-            ResponsePayload: JsonSerializer.Serialize(response, TadssJson.Options),
+            RequestPayload: DecisionPayloadSerializer.SerializeRequest(composition.Request),
+            ResponsePayload: DecisionPayloadSerializer.SerializeResponse(response),
             IdempotencyKey: composition.IdempotencyKey,
             CorrelationId: composition.CorrelationId,
             CreatedAt: nowUtc);

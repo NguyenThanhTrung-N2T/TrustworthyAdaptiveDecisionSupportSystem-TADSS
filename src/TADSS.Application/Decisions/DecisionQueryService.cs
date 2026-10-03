@@ -9,7 +9,7 @@ using TADSS.Application.Exceptions;
 namespace TADSS.Application.Decisions;
 
 /// <summary>
-/// Hiện thực <see cref="IDecisionQueryService"/>: đọc <see cref="DecisionDetailRecord"/> qua <see cref="IDecisionAuditStore"/>
+/// Hiện thực <see cref="IDecisionQueryService"/>: đọc <see cref="DecisionDetailRecord"/> qua <see cref="IDecisionQueryStore"/>
 /// (không dùng DbContext) rồi dựng <see cref="DecisionDetailDto"/> theo INTEGRATION_SPEC §3.4. Phép biến đổi thuần: không đọc
 /// đồng hồ, không ghi gì, không chạy lại strategy.
 /// <para>
@@ -23,11 +23,11 @@ namespace TADSS.Application.Decisions;
 /// </summary>
 public sealed class DecisionQueryService : IDecisionQueryService
 {
-    private readonly IDecisionAuditStore _auditStore;
+    private readonly IDecisionQueryStore _auditStore;
 
     /// <summary>Khởi tạo service tra cứu.</summary>
     /// <param name="auditStore">Kho audit (đọc chi tiết theo <c>decisionId</c>).</param>
-    public DecisionQueryService(IDecisionAuditStore auditStore)
+    public DecisionQueryService(IDecisionQueryStore auditStore)
     {
         _auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
     }
@@ -39,8 +39,8 @@ public sealed class DecisionQueryService : IDecisionQueryService
             ?? throw new DecisionNotFoundException(decisionId);
 
         var execution = detail.Execution;
-        var request = Deserialize<DecisionRequestDto>(execution.RequestPayload, "request_payload");
-        var response = Deserialize<DecisionResultDto>(execution.ResponsePayload, "response_payload");
+        var request = DecisionPayloadSerializer.DeserializeRequest(execution.RequestPayload);
+        var response = DecisionPayloadSerializer.DeserializeResponse(execution.ResponsePayload);
 
         return new DecisionDetailDto
         {
@@ -94,9 +94,4 @@ public sealed class DecisionQueryService : IDecisionQueryService
         OccurredAt = record.OccurredAt,
         ReportedAt = record.ReportedAt.ToUniversalTime()
     };
-
-    private static T Deserialize<T>(string payload, string column)
-        where T : class =>
-        JsonSerializer.Deserialize<T>(payload, TadssJson.Options)
-            ?? throw new JsonException($"Cột {column} của bản ghi audit là JSON null.");
 }

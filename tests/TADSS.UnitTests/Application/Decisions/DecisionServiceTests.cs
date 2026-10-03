@@ -29,8 +29,10 @@ namespace TADSS.UnitTests.Application.Decisions;
 /// <summary>
 /// UT-11/UT-13: <see cref="DecisionService"/> điều phối đúng thứ tự idempotency → domain → cache → pipeline → approval
 /// window → audit (fail-closed, INV-10), replay nguyên văn khi trùng key và hash, báo xung đột khi khác hash (kể cả khi
-/// thua tranh chấp), tự cô lập lỗi cache, lấy thời gian từ <see cref="TimeProvider"/> và không ghi gì khi lỗi xảy ra
-/// trước bước ghi audit. Store, cache, pipeline và registry là test double viết tay; quyết định thật lấy từ strategy v2.
+/// thua tranh chấp), lấy thời gian từ <see cref="TimeProvider"/> và không ghi gì khi lỗi xảy ra trước bước ghi audit.
+/// Service được dựng với <see cref="StrategyEvaluator"/> thật; các kịch bản thuần của bộ đánh giá (khóa/TTL cache, chính sách cache tắt,
+/// lỗi hủy nội bộ) nằm ở <c>StrategyEvaluatorTests</c>, ở đây chỉ giữ hệ quả ở cấp service. Store, cache, pipeline và registry là test double viết tay;
+/// quyết định thật lấy từ strategy v2.
 /// </summary>
 public class DecisionServiceTests
 {
@@ -95,8 +97,7 @@ public class DecisionServiceTests
             Service = new DecisionService(
                 Store,
                 Registry,
-                Pipeline,
-                Cache,
+                new StrategyEvaluator(Pipeline, Cache, Time, EvaluatorLogger),
                 new ItemDurationPolicy(MsOptions.Create(new ValidationOptions())),
                 new DecisionResponseComposer(
                     new DepositCalculator(),
@@ -119,6 +120,8 @@ public class DecisionServiceTests
         public FakeStrategyDecisionCache Cache { get; } = new();
 
         public CapturingLogger<DecisionService> Logger { get; } = new();
+
+        public CapturingLogger<StrategyEvaluator> EvaluatorLogger { get; } = new();
 
         public DecisionService Service { get; }
 
@@ -314,27 +317,6 @@ public class DecisionServiceTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task EvaluateAsync_CacheMissAutomated_WritesCacheWithPolicyTtl()
-    {
-        var ttl = TimeSpan.FromMinutes(10);
-        var strategy = new RegisteredStrategy(ApproveStrategy(StrategyCachePolicy.Enabled(ttl)), StrategyFingerprint);
-        var fixture = new Fixture(strategy);
-        var request = Request();
-
-        var response = await fixture.EvaluateAsync(request);
-
-        response.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
-        var expectedKey = CacheKeyOf(strategy, request);
-        fixture.Cache.GetKeys.Should().Equal(expectedKey);
-        var written = fixture.Cache.Sets.Should().ContainSingle().Subject;
-        written.Key.Should().Be(expectedKey);
-        written.Ttl.Should().Be(ttl);
-        written.Decision.Status.Should().Be(DecisionStatus.APPROVED);
-        fixture.Pipeline.InvocationCount.Should().Be(1);
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-13")]
     public async Task EvaluateAsync_FallbackOutcome_NotCached()
     {
         var strategy = new RegisteredStrategy(ApproveStrategy(StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(10))), StrategyFingerprint);
@@ -354,20 +336,6 @@ public class DecisionServiceTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task EvaluateAsync_CacheDisabledPolicy_NeverTouchesCache()
-    {
-        var strategy = new RegisteredStrategy(ApproveStrategy(StrategyCachePolicy.Disabled), StrategyFingerprint);
-        var fixture = new Fixture(strategy);
-
-        await fixture.EvaluateAsync(Request());
-
-        fixture.Cache.GetKeys.Should().BeEmpty();
-        fixture.Cache.Sets.Should().BeEmpty();
-        fixture.Pipeline.InvocationCount.Should().Be(1);
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-13")]
     public async Task EvaluateAsync_CacheThrows_TreatedAsMiss()
     {
         var strategy = new RegisteredStrategy(ApproveStrategy(StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(10))), StrategyFingerprint);
@@ -381,24 +349,9 @@ public class DecisionServiceTests
         response.Status.Should().Be(DecisionStatus.APPROVED);
         fixture.Pipeline.InvocationCount.Should().Be(1);
         fixture.Store.Records.Should().ContainSingle();
-        var warnings = fixture.Logger.Entries.Where(entry => entry.Level == LogLevel.Warning).ToList();
+        var warnings = fixture.EvaluatorLogger.Entries.Where(entry => entry.Level == LogLevel.Warning).ToList();
         warnings.Should().HaveCount(2, "một cảnh báo cho đọc và một cho ghi");
         warnings.Should().OnlyContain(entry => entry.Message.Contains(IdempotencyKey, StringComparison.Ordinal));
-    }
-
-    [Fact]
-    [Trait("CatalogId", "UT-13")]
-    public async Task EvaluateAsync_CacheThrowsCancellationNotFromCaller_TreatedAsMiss()
-    {
-        var strategy = new RegisteredStrategy(ApproveStrategy(StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(10))), StrategyFingerprint);
-        var fixture = new Fixture(strategy);
-        fixture.Cache.FailGets(new TaskCanceledException("Timeout nội bộ của Redis."));
-        fixture.Cache.FailSets(new OperationCanceledException("Timeout nội bộ của Redis."));
-
-        var response = await fixture.EvaluateAsync(Request());
-
-        response.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
-        fixture.Pipeline.InvocationCount.Should().Be(1);
     }
 
     [Fact]

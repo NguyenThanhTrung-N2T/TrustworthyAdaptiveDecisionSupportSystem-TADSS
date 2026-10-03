@@ -43,7 +43,7 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
     /// <summary>Cache thay cho cache thật; <c>null</c> thì giữ cache Redis thật.</summary>
     protected IStrategyDecisionCache? Cache { get; set; }
 
-    /// <summary>Trạng thái dùng chung với decorator của <see cref="IDecisionAuditStore"/> (đếm lần ghi, điểm cắt trước khi ghi).</summary>
+    /// <summary>Trạng thái dùng chung với decorator của hai port audit (<see cref="IDecisionEvaluationStore"/>/<see cref="IDecisionQueryStore"/>) (đếm lần ghi, điểm cắt trước khi ghi).</summary>
     protected AuditInsertProbe AuditProbe { get; } = new();
 
     /// <summary>Đi tới PostgreSQL qua Toxiproxy (để test ngắt được kết nối); mặc định đi thẳng.</summary>
@@ -99,9 +99,15 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
         }
 
         services.AddSingleton(AuditProbe);
-        services.RemoveAll<IDecisionAuditStore>();
-        services.AddScoped<IDecisionAuditStore>(sp =>
-            new CuttableDecisionAuditStore(ActivatorUtilities.CreateInstance<EfDecisionAuditStore>(sp), AuditProbe));
+        services.RemoveAll<IDecisionEvaluationStore>();
+        services.RemoveAll<IDecisionQueryStore>();
+        services.AddScoped(sp =>
+        {
+            var store = sp.GetRequiredService<EfDecisionAuditStore>();
+            return new CuttableDecisionAuditStore(store, store, AuditProbe);
+        });
+        services.AddScoped<IDecisionEvaluationStore>(sp => sp.GetRequiredService<CuttableDecisionAuditStore>());
+        services.AddScoped<IDecisionQueryStore>(sp => sp.GetRequiredService<CuttableDecisionAuditStore>());
 
         if (ProxyPostgres)
         {

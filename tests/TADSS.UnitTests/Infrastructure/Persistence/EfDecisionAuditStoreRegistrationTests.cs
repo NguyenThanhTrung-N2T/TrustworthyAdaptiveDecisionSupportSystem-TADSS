@@ -12,8 +12,8 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Persistence;
 
 /// <summary>
-/// UT-10: <c>AddRuntimeCore</c> đăng ký <see cref="IDecisionAuditStore"/> là <see cref="EfDecisionAuditStore"/> với
-/// vòng đời scoped (cùng scope dùng chung một instance/DbContext, khác scope thì khác instance).
+/// UT-10/UT-14: <c>AddRuntimeCore</c> đăng ký <see cref="IDecisionEvaluationStore"/> và <see cref="IDecisionQueryStore"/> cùng trỏ về một
+/// <see cref="EfDecisionAuditStore"/> với vòng đời scoped (cùng scope dùng chung một instance/DbContext, khác scope thì khác instance).
 /// </summary>
 public class EfDecisionAuditStoreRegistrationTests
 {
@@ -34,13 +34,35 @@ public class EfDecisionAuditStoreRegistrationTests
         using var host = BuildHost();
 
         using var firstScope = host.Services.CreateScope();
-        var first = firstScope.ServiceProvider.GetRequiredService<IDecisionAuditStore>();
-        var sameScope = firstScope.ServiceProvider.GetRequiredService<IDecisionAuditStore>();
+        var first = firstScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
+        var sameScope = firstScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
         using var secondScope = host.Services.CreateScope();
-        var second = secondScope.ServiceProvider.GetRequiredService<IDecisionAuditStore>();
+        var second = secondScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
 
         first.Should().BeOfType<EfDecisionAuditStore>();
         sameScope.Should().BeSameAs(first);
         second.Should().NotBeSameAs(first);
+    }
+
+    /// <summary>Hai port forward tới cùng một <see cref="EfDecisionAuditStore"/> (cùng DbContext) trong một scope, và khác instance giữa hai scope.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-14")]
+    public void AuditStores_ResolveSameScopedInstance()
+    {
+        using var host = BuildHost();
+
+        using var firstScope = host.Services.CreateScope();
+        var evaluation = firstScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
+        var query = firstScope.ServiceProvider.GetRequiredService<IDecisionQueryStore>();
+        var concrete = firstScope.ServiceProvider.GetRequiredService<EfDecisionAuditStore>();
+        using var secondScope = host.Services.CreateScope();
+        var otherEvaluation = secondScope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>();
+        var otherQuery = secondScope.ServiceProvider.GetRequiredService<IDecisionQueryStore>();
+
+        evaluation.Should().BeOfType<EfDecisionAuditStore>();
+        query.Should().BeSameAs(evaluation);
+        concrete.Should().BeSameAs(evaluation);
+        otherQuery.Should().BeSameAs(otherEvaluation);
+        otherEvaluation.Should().NotBeSameAs(evaluation);
     }
 }

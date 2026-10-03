@@ -20,7 +20,9 @@ public class InfrastructureServiceCollectionExtensionsTests
 {
     public static TheoryData<Type, ServiceLifetime> ExpectedLifetimes => new()
     {
-        { typeof(IDecisionAuditStore), ServiceLifetime.Scoped },
+        { typeof(EfDecisionAuditStore), ServiceLifetime.Scoped },
+        { typeof(IDecisionEvaluationStore), ServiceLifetime.Scoped },
+        { typeof(IDecisionQueryStore), ServiceLifetime.Scoped },
         { typeof(TadssDbContext), ServiceLifetime.Scoped },
         { typeof(IStrategyPipeline), ServiceLifetime.Singleton },
         { typeof(IStrategyDecisionCache), ServiceLifetime.Singleton },
@@ -56,7 +58,8 @@ public class InfrastructureServiceCollectionExtensionsTests
         provider.GetRequiredService<IStrategyPipeline>().Should().BeSameAs(provider.GetRequiredService<IStrategyPipeline>());
         provider.GetRequiredService<IStrategyDecisionCache>().Should().BeSameAs(provider.GetRequiredService<IStrategyDecisionCache>());
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetRequiredService<IDecisionAuditStore>().Should().BeOfType<EfDecisionAuditStore>();
+        scope.ServiceProvider.GetRequiredService<IDecisionEvaluationStore>().Should().BeOfType<EfDecisionAuditStore>();
+        scope.ServiceProvider.GetRequiredService<IDecisionQueryStore>().Should().BeOfType<EfDecisionAuditStore>();
         scope.ServiceProvider.GetRequiredService<TadssDbContext>().Should().NotBeNull();
     }
 

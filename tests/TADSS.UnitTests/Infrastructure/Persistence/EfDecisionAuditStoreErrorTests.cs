@@ -11,7 +11,7 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Persistence;
 
 /// <summary>
-/// UT-08: <see cref="EfDecisionAuditStore"/> dịch lỗi PostgreSQL đúng hợp đồng của <see cref="IDecisionAuditStore"/> mà không
+/// UT-08: <see cref="EfDecisionAuditStore"/> dịch lỗi PostgreSQL đúng hợp đồng của <see cref="IDecisionEvaluationStore"/> mà không
 /// cần cơ sở dữ liệu thật — <c>40001</c>/<c>40P01</c> thành <see cref="PersistenceUnavailableException"/> (giữ exception gốc,
 /// thông báo không chứa dữ liệu), vi phạm ràng buộc khác để nguyên exception gốc, và hủy của caller lan ra nguyên vẹn.
 /// Lỗi được gài qua <see cref="TadssDbContext"/> giả ghi đè <c>SaveChangesAsync</c>; không mở kết nối nào.

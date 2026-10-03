@@ -1,7 +1,7 @@
 namespace TADSS.Application.Abstractions.Persistence;
 
 /// <summary>
-/// Kết quả của <see cref="IDecisionAuditStore.InsertExecutionAsync"/>.
+/// Kết quả của <see cref="IDecisionEvaluationStore.InsertExecutionAsync"/>.
 /// </summary>
 /// <param name="Stored">
 /// Bản ghi đang nằm trong store: chính bản vừa ghi khi <paramref name="IsExistingWinner"/> là <c>false</c>,
