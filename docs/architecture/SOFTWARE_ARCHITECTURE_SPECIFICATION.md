@@ -355,7 +355,7 @@ Quy ước đi kèm: interface của **port** (mà Infrastructure hiện thực)
 | `CompositionRootBoundaryTests` | Runtime.Api ngoài `Program.cs`/`Composition/` không dùng kiểu Infrastructure, Npgsql, Polly, Redis, EF Core (văn bản nguồn và reflection trên chữ ký/trường); không file nào, kể cả `Composition/`, có `global using` tới các namespace đó và csproj không có `<Using Include>` tới chúng |
 | `NamingConventionTests` | Namespace khớp project + thư mục; không còn "V2" trong tên kiểu/namespace; `*Options`/`*OptionsValidator` ở `Options/`; exception chỉ ở `Application.Exceptions` |
 | `SourceFileConventionTests` | Mỗi file một kiểu public, tên file = tên kiểu; file nguồn ≤ 250 dòng (trừ `Migrations/`); số kiểu public bộ quét văn bản tìm thấy bằng số kiểu public không lồng của assembly (bắt kiểu thụt lề/namespace dạng khối) |
-| `AppSettingsValidationTests` | `appsettings.json` qua mọi validator khi host khởi động; mọi options có hằng `SectionName` (tìm bằng reflection) có đúng một `IValidateOptions<T>` và đăng ký `ValidateOnStart`, ngoại lệ khai báo duy nhất là `DatabaseOptions` (chỉ có một bool) |
+| `AppSettingsValidationTests` | `appsettings.json` qua mọi validator khi host khởi động; mọi options có hằng `SectionName` (tìm bằng reflection) có đúng một `IValidateOptions<T>` và đăng ký `ValidateOnStart` (không có ngoại lệ; `DatabaseOptions` kiểm chuỗi kết nối, chuỗi giữ chỗ trong `appsettings.json` được test thay bằng chuỗi test) |
 
 Danh mục đầy đủ các test UT-14: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
