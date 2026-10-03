@@ -8,17 +8,16 @@ using Moq;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
 using TADSS.Application.Abstractions.Caching;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestDoubles;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Caching;
-using TADSS.UnitTests.TestDoubles;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Infrastructure.Caching;
 
 /// <summary>
-/// UT-13: nối DI của cache trong <c>AddDecisionRuntime</c> — <see cref="IStrategyDecisionCache"/> là singleton,
+/// UT-13: nối DI của cache trong <c>AddRuntimeCore</c> — <see cref="IStrategyDecisionCache"/> là singleton,
 /// tự đăng ký đủ phụ thuộc (<c>IMemoryCache</c>, <c>TadssCacheOptions</c>), dùng multiplexer Redis nếu có và
 /// chỉ khi <c>Provider = Redis</c> (không kết nối Redis khi dùng provider Memory).
 /// </summary>
@@ -55,7 +54,7 @@ public class StrategyDecisionCacheRegistrationTests
             services.AddSingleton(existingMultiplexer);
         }
 
-        services.AddDecisionRuntime(configuration);
+        services.AddRuntimeCore(configuration);
         return services;
     }
 
@@ -75,10 +74,10 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task AddDecisionRuntime_WithoutV1Registrations_ResolvesSingletonCache()
+    public async Task AddRuntimeCore_WithoutV1Registrations_ResolvesSingletonCache()
     {
         var builder = CreateBuilder(("Tadss:Cache:Provider", "Memory"));
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
 
         var first = host.Services.GetRequiredService<IStrategyDecisionCache>();
@@ -92,7 +91,7 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task AddDecisionRuntime_RedisProviderWithRegisteredMultiplexer_WritesToRedis()
+    public async Task AddRuntimeCore_RedisProviderWithRegisteredMultiplexer_WritesToRedis()
     {
         var database = new Mock<IDatabase>();
         database
@@ -101,7 +100,7 @@ public class StrategyDecisionCacheRegistrationTests
         var multiplexer = CreateMultiplexer(database);
         var builder = CreateBuilder(("Tadss:Cache:Provider", "Redis"));
         builder.Services.AddSingleton(multiplexer.Object);
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
         var cache = host.Services.GetRequiredService<IStrategyDecisionCache>();
 
@@ -114,12 +113,12 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public void AddDecisionRuntime_MemoryProvider_DoesNotResolveMultiplexer()
+    public void AddRuntimeCore_MemoryProvider_DoesNotResolveMultiplexer()
     {
         var builder = CreateBuilder(("Tadss:Cache:Provider", "Memory"));
         builder.Services.AddSingleton<IConnectionMultiplexer>(
             _ => throw new InvalidOperationException("Provider Memory không được kết nối Redis"));
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
 
         var act = () => host.Services.GetRequiredService<IStrategyDecisionCache>();
@@ -129,7 +128,7 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task AddDecisionRuntime_RedisProviderWithUnusableConnectionString_FallsBackToMemoryWithSingleWarning()
+    public async Task AddRuntimeCore_RedisProviderWithUnusableConnectionString_FallsBackToMemoryWithSingleWarning()
     {
         var logger = new CapturingLogger<StrategyDecisionCache>();
         var provider = CreateHostlessProvider(
@@ -148,7 +147,7 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public void AddDecisionRuntime_RedisProvider_RegistersMultiplexerWithoutConnecting()
+    public void AddRuntimeCore_RedisProvider_RegistersMultiplexerWithoutConnecting()
     {
         var logger = new CapturingLogger<StrategyDecisionCache>();
         var services = CreateHostlessServices(
@@ -172,7 +171,7 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public void AddDecisionRuntime_MemoryProvider_NeverCreatesOwnMultiplexer()
+    public void AddRuntimeCore_MemoryProvider_NeverCreatesOwnMultiplexer()
     {
         // Chuỗi kết nối không parse được: nếu multiplexer bị resolve khi Provider = Memory thì cache đã ghi Warning
         var logger = new CapturingLogger<StrategyDecisionCache>();
@@ -189,7 +188,7 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public void AddDecisionRuntime_RedisProviderWithExistingMultiplexerRegistration_KeepsExistingOne()
+    public void AddRuntimeCore_RedisProviderWithExistingMultiplexerRegistration_KeepsExistingOne()
     {
         var existing = new Mock<IConnectionMultiplexer>();
         var services = CreateHostlessServices(
@@ -204,11 +203,11 @@ public class StrategyDecisionCacheRegistrationTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public async Task AddDecisionRuntime_SharedMemoryCacheWithSizeLimit_StillCaches()
+    public async Task AddRuntimeCore_SharedMemoryCacheWithSizeLimit_StillCaches()
     {
         var builder = CreateBuilder(("Tadss:Cache:Provider", "Memory"));
         builder.Services.AddMemoryCache(options => options.SizeLimit = 100);
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
         host.Services.GetRequiredService<IMemoryCache>().Should().NotBeNull();
         var cache = host.Services.GetRequiredService<IStrategyDecisionCache>();

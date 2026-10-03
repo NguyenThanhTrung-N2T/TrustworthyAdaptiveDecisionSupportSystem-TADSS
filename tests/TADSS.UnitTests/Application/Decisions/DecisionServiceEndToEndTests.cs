@@ -8,15 +8,14 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Decisions;
-using TADSS.Runtime.Api.Configuration;
-using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.UnitTests.Application.Decisions;
 
 /// <summary>
-/// UT-11 / CT-01: chạy <see cref="DecisionService"/> trên đồ thị DI thật của <c>AddDecisionRuntime</c> với
+/// UT-11 / CT-01: chạy <see cref="DecisionService"/> trên đồ thị DI thật của <c>AddRuntimeCore</c> với
 /// <c>appsettings.json</c> được phát hành (registry, pipeline Polly, cache memory và composer thật; chỉ kho audit và đồng hồ
 /// là test double) để chứng minh các thành phần đã được kiểm riêng lẻ ghép lại đúng: response hợp lệ theo
 /// <c>decision-result.schema.json</c>, replay idempotency, và cache hit cho khóa mới cùng payload.
@@ -35,7 +34,7 @@ public class DecisionServiceEndToEndTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<TimeProvider>(new FakeTimeProvider(Now));
-        services.AddDecisionRuntime(configuration);
+        services.AddRuntimeCore(configuration);
         return services.BuildServiceProvider();
     }
 

@@ -3,19 +3,17 @@ using TADSS.Runtime.Api.ErrorHandling;
 using TADSS.Runtime.Api.Middlewares;
 using TADSS.Runtime.Api.OpenApi;
 
-namespace TADSS.Runtime.Api.Configuration;
+namespace TADSS.Runtime.Api.Composition;
 
-public static class DependencyInjection
+/// <summary>
+/// Đăng ký DI của tầng presentation: exception handler, ProblemDetails, controller + JSON v2 và Swagger.
+/// </summary>
+public static class PresentationServiceCollectionExtensions
 {
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
-    {
-        // Lõi runtime: use case (Application), adapter hạ tầng (Infrastructure) và strategy — nơi đăng ký duy nhất cho lõi
-        services.AddDecisionRuntime(configuration);
-
-        return services;
-    }
-
-    public static IServiceCollection AddApiServices(this IServiceCollection services)
+    /// <summary>
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure).
+    /// </summary>
+    public static IServiceCollection AddPresentation(this IServiceCollection services)
     {
         services.AddExceptionHandler<GlobalExceptionHandler>();
         // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa

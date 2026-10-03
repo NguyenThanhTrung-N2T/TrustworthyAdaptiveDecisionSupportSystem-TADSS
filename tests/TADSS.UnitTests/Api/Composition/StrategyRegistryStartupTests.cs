@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Strategies;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestDoubles;
 using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
@@ -12,7 +12,7 @@ using Xunit;
 namespace TADSS.UnitTests.Api.Composition;
 
 /// <summary>
-/// UT-04 / UT-10: nối DI của registry strategy v2 (<c>AddDecisionRuntime</c>) và chứng minh cấu hình sai chặn khởi
+/// UT-04 / UT-10: nối DI của registry strategy v2 (<c>AddRuntimeCore</c>) và chứng minh cấu hình sai chặn khởi
 /// động — <c>ValidateOnStart</c> chặn <c>Host.StartAsync</c> với options sai, còn tham số strategy sai làm registry
 /// không dựng được (<c>Program.cs</c> resolve sớm nên ứng dụng không khởi động).
 /// </summary>
@@ -27,13 +27,13 @@ public class StrategyRegistryStartupTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDecisionRuntime(configuration);
+        services.AddRuntimeCore(configuration);
         return services.BuildServiceProvider();
     }
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
-    public void AddDecisionRuntime_DefaultAppsettings_ResolvesRegistryWithBothStrategies()
+    public void AddRuntimeCore_DefaultAppsettings_ResolvesRegistryWithBothStrategies()
     {
         var configuration = new ConfigurationBuilder()
             .AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false)
@@ -49,7 +49,7 @@ public class StrategyRegistryStartupTests
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
-    public void AddDecisionRuntime_AppsettingsDefaults_EqualPocoDefaults()
+    public void AddRuntimeCore_AppsettingsDefaults_EqualPocoDefaults()
     {
         var calendar = DomainTestData.StandardCalendar();
         var appsettings = new ConfigurationBuilder()
@@ -65,7 +65,7 @@ public class StrategyRegistryStartupTests
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
-    public void AddDecisionRuntime_ActiveStrategyConfigured_RegistryUsesIt()
+    public void AddRuntimeCore_ActiveStrategyConfigured_RegistryUsesIt()
     {
         using var provider = BuildProvider(InMemory(("Tadss:Strategy:ActiveStrategyName", "MockAlternativeDecisionStrategy")));
 
@@ -75,7 +75,7 @@ public class StrategyRegistryStartupTests
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
-    public void AddDecisionRuntime_InvalidStrategyOptions_RegistryResolutionThrowsNamingSection()
+    public void AddRuntimeCore_InvalidStrategyOptions_RegistryResolutionThrowsNamingSection()
     {
         using var provider = BuildProvider(InMemory(("Tadss:Strategies:Default:GoldDepositRate", "1.5")));
 
@@ -86,7 +86,7 @@ public class StrategyRegistryStartupTests
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
-    public void AddDecisionRuntime_UnknownActiveStrategy_RegistryResolutionThrows()
+    public void AddRuntimeCore_UnknownActiveStrategy_RegistryResolutionThrows()
     {
         using var provider = BuildProvider(InMemory(("Tadss:Strategy:ActiveStrategyName", "Foo")));
 
@@ -102,7 +102,7 @@ public class StrategyRegistryStartupTests
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Approval:WindowMinutes"] = "0", [TestConnectionStrings.Key] = TestConnectionStrings.Value });
         builder.Services.AddLogging();
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
 
         var act = async () => await host.StartAsync();
@@ -117,7 +117,7 @@ public class StrategyRegistryStartupTests
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
         builder.Services.AddLogging();
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
 
         await host.StartAsync();

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TADSS.Application.Abstractions.Persistence;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestDoubles;
 using TADSS.Infrastructure.Persistence;
 using TADSS.UnitTests.TestData;
 using Xunit;
@@ -12,7 +12,7 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Persistence;
 
 /// <summary>
-/// UT-10: <c>AddDecisionRuntime</c> đăng ký <see cref="IDecisionAuditStore"/> là <see cref="EfDecisionAuditStore"/> với
+/// UT-10: <c>AddRuntimeCore</c> đăng ký <see cref="IDecisionAuditStore"/> là <see cref="EfDecisionAuditStore"/> với
 /// vòng đời scoped (cùng scope dùng chung một instance/DbContext, khác scope thì khác instance).
 /// </summary>
 public class EfDecisionAuditStoreRegistrationTests
@@ -22,14 +22,14 @@ public class EfDecisionAuditStoreRegistrationTests
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Tadss:Cache:Provider"] = "Memory", [TestConnectionStrings.Key] = TestConnectionStrings.Value });
         builder.Services.AddLogging();
-        builder.Services.AddDbContext<TadssDbContext>(options => options.UseNpgsql("Host=127.0.0.1;Port=1;Database=none"));
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddDbContext<TadssDbContext>(options => options.UseNpgsql(TestConnectionStrings.Value));
+        builder.Services.AddRuntimeCore(builder.Configuration);
         return builder.Build();
     }
 
     [Fact]
     [Trait("CatalogId", "UT-10")]
-    public void AddDecisionRuntime_RegistersEfAuditStoreAsScoped()
+    public void AddRuntimeCore_RegistersEfAuditStoreAsScoped()
     {
         using var host = BuildHost();
 

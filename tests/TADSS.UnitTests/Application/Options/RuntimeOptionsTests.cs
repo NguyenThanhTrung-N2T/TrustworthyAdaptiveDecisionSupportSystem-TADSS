@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Decisions;
 using TADSS.Application.Options;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestDoubles;
 using TADSS.UnitTests.TestData;
 using Xunit;
 
@@ -195,7 +195,7 @@ public class RuntimeOptionsTests
 
     [Fact]
     [Trait("CatalogId", "UT-09")]
-    public void AddDecisionRuntime_DefaultConfiguration_ResolvesRegisteredServices()
+    public void AddRuntimeCore_DefaultConfiguration_ResolvesRegisteredServices()
     {
         using var provider = BuildProvider(InMemory());
 
@@ -212,7 +212,7 @@ public class RuntimeOptionsTests
     private static ServiceProvider BuildProvider(IConfiguration configuration)
     {
         var services = new ServiceCollection();
-        services.AddDecisionRuntime(configuration);
+        services.AddRuntimeCore(configuration);
         return services.BuildServiceProvider();
     }
 

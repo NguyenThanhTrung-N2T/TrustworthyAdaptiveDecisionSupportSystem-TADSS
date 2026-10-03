@@ -2,7 +2,7 @@ using System.Reflection;
 using FluentAssertions;
 using Shared.DecisionContractSDK.Domain;
 using TADSS.Application.Abstractions.Persistence;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.Runtime.Api.Composition;
 using TADSS.Strategies.Default;
 using TADSS.Strategies.MockAlternative;
 using TADSS.UnitTests.TestData;
@@ -36,7 +36,7 @@ public class NoLegacyV1Tests
     [Theory]
     [Trait("CatalogId", "UT-09")]
     [InlineData(typeof(Reservation))]
-    [InlineData(typeof(DependencyInjection))]
+    [InlineData(typeof(PresentationServiceCollectionExtensions))]
     [InlineData(typeof(DefaultDecisionStrategy))]
     [InlineData(typeof(MockAlternativeDecisionStrategy))]
     public void Assemblies_NoNamespaceContainsV2Segment_Theory(Type anchorType)
@@ -77,7 +77,7 @@ public class NoLegacyV1Tests
     [Trait("CatalogId", "UT-09")]
     public void Runtime_DoesNotReferenceRemovedV1Types()
     {
-        var assembly = typeof(DependencyInjection).Assembly;
+        var assembly = typeof(PresentationServiceCollectionExtensions).Assembly;
 
         var removedTypes = assembly.GetTypes()
             .Where(type => RemovedV1TypeNames.Contains(type.Name, StringComparer.Ordinal))
@@ -95,7 +95,7 @@ public class NoLegacyV1Tests
     [Trait("CatalogId", "UT-09")]
     public void RuntimeCore_DoesNotReferenceEfPersistenceTypesOrMediatR()
     {
-        var coreTypes = typeof(DependencyInjection).Assembly.GetTypes()
+        var coreTypes = typeof(PresentationServiceCollectionExtensions).Assembly.GetTypes()
             .Where(type => type.Namespace is { } ns
                 && RuntimeCoreNamespaces.Any(root => ns == root || ns.StartsWith(root + ".", StringComparison.Ordinal)))
             .ToList();

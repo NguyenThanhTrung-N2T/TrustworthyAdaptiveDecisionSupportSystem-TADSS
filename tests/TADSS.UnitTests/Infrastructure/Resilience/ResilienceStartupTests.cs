@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Abstractions.Resilience;
-using TADSS.Runtime.Api.Configuration;
+using TADSS.UnitTests.TestDoubles;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
@@ -13,7 +13,7 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Resilience;
 
 /// <summary>
-/// UT-07 / UT-10: nối DI của pipeline v2 trong <c>AddDecisionRuntime</c> — ngân sách thời gian sai chặn khởi động
+/// UT-07 / UT-10: nối DI của pipeline v2 trong <c>AddRuntimeCore</c> — ngân sách thời gian sai chặn khởi động
 /// (<c>ValidateOnStart</c>), cấu hình <c>appsettings.json</c> mặc định hợp lệ và <see cref="IStrategyPipeline"/> là
 /// singleton resolve được.
 /// </summary>
@@ -24,7 +24,7 @@ public class ResilienceStartupTests
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddInMemoryCollection(values.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)).Append(TestConnectionStrings.Pair));
         builder.Services.AddLogging();
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         return builder;
     }
 
@@ -54,12 +54,12 @@ public class ResilienceStartupTests
 
     [Fact]
     [Trait("CatalogId", "UT-07")]
-    public async Task AddDecisionRuntime_DefaultAppsettings_HostStartsAndResolvesSingletonPipeline()
+    public async Task AddRuntimeCore_DefaultAppsettings_HostStartsAndResolvesSingletonPipeline()
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Configuration.AddJsonFile(RepositoryPaths.Resolve("src", "TADSS.Runtime.Api", "appsettings.json"), optional: false);
         builder.Services.AddLogging();
-        builder.Services.AddDecisionRuntime(builder.Configuration);
+        builder.Services.AddRuntimeCore(builder.Configuration);
         using var host = builder.Build();
 
         await host.StartAsync();

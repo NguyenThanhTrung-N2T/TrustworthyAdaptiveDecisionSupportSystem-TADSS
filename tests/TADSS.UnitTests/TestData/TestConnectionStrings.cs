@@ -1,7 +1,7 @@
 namespace TADSS.UnitTests.TestData;
 
 /// <summary>
-/// Chuỗi kết nối giả cho test dựng DI qua <c>AddDecisionRuntime</c>/<c>AddInfrastructure</c>: đăng ký DbContext và health check
+/// Chuỗi kết nối giả cho test dựng DI qua <c>AddRuntimeCore</c> / <c>AddInfrastructure</c>: đăng ký DbContext và health check
 /// PostgreSQL cần chuỗi kết nối nhưng không bao giờ mở kết nối (cổng 1 không có dịch vụ nào lắng nghe).
 /// </summary>
 internal static class TestConnectionStrings
