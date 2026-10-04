@@ -218,23 +218,23 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 
 | ID | Cơ chế | Kiểm chứng | Xây dựng |
 | :--- | :--- | :--- | :--- |
-| SEC-1 | **Rate limiting** bằng `RateLimiter` có sẵn của ASP.NET Core 8, phân vùng theo `clientId` của API key (token bucket; cấu hình `PermitLimit`, `ReplenishmentPeriod`, `QueueLimit = 0`); vượt ngưỡng → 429 problem+json `code = RATE_LIMITED` kèm `Retry-After`. `/health/*` không bị giới hạn | IT: vượt ngưỡng → 429 đúng dạng; hai client khác nhau không ảnh hưởng nhau | P5 |
-| SEC-2 | **Giới hạn kích thước request:** `MaxRequestBodySize` (mặc định 64 KB, cấu hình được); vượt → 413 problem+json `code = PAYLOAD_TOO_LARGE`, không gọi service | IT: body vượt giới hạn → 413; body sát giới hạn → xử lý bình thường | P5 |
-| SEC-3 | **Security headers** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` cho `/api/*`; HSTS ngoài `Development`/`Testing`; tắt header `Server` của Kestrel | IT: header có mặt ở 200, 4xx, 5xx | P5 |
+| SEC-1 | **Rate limiting** bằng `RateLimiter` có sẵn của ASP.NET Core 8, phân vùng theo `clientId` của API key (token bucket; cấu hình `Tadss:Security:RateLimiting:{PermitLimit, TokensPerPeriod, ReplenishmentPeriodSeconds}`, `QueueLimit = 0`; tính theo từng instance); vượt ngưỡng → 429 problem+json `code = RATE_LIMITED` kèm `Retry-After`. `/health/*` không bị giới hạn | Test host in-process (`TADSS.UnitTests`, F-11): vượt ngưỡng → 429 đúng dạng; hai client khác nhau không ảnh hưởng nhau | P5 |
+| SEC-2 | **Giới hạn kích thước request:** `MaxRequestBodySize` (mặc định 64 KB, cấu hình được); vượt → 413 problem+json `code = PAYLOAD_TOO_LARGE`, không gọi service | Test host in-process (`TADSS.UnitTests`): body vượt giới hạn → 413; body sát giới hạn → xử lý bình thường | P5 |
+| SEC-3 | **Security headers** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` cho `/api/*`; HSTS ngoài `Development`/`Testing`; tắt header `Server` của Kestrel | Test host in-process (`TADSS.UnitTests`): header có mặt ở 200, 4xx, 5xx | P5 |
 | SEC-4 | **Fail-closed khi khởi động:** ngoài `Development`/`Testing`, thiếu API key (NG-2) hoặc thiếu connection string → app không khởi động, message không chứa giá trị bí mật. Lưu ý: connection string được kiểm ở **mọi** môi trường (F-13, kể cả `Development`/`Testing`); chỉ API key mới được miễn ở `Development`/`Testing` | Test khởi động host với cấu hình thiếu → lỗi validate options | P5 |
 | SEC-5 | **Health tách live/ready:** `/health/live` chỉ kiểm tra process; `/health/ready` kiểm tra PostgreSQL (bắt buộc, lỗi → 503) và Redis (lỗi → `Degraded`, vẫn 200 vì cache có fallback); response không lộ chuỗi kết nối hay message hạ tầng | IT: PostgreSQL bị ngắt qua Toxiproxy → ready 503, live 200 | P5 |
-| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER app` của image .NET 8), stage runtime không chứa SDK, không copy file bí mật; compose không bind cổng `0.0.0.0` ở profile expose (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root | P5 |
+| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER $APP_UID`, user `app` của image .NET 8), stage runtime không chứa SDK, `.dockerignore` loại file bí mật; `docker-compose.ngrok.yml` không bind cổng host ngoài `127.0.0.1` (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root | P5 |
 | SEC-7 | **Chuỗi cung ứng:** CI chạy `dotnet list package --vulnerable --include-transitive`, có lỗ hổng mức High/Critical → job đỏ; `RestorePackagesWithLockFile` + `packages.lock.json` cho restore tái lập; Dependabot cho NuGet, Docker và GitHub Actions; log không bao giờ ghi giá trị `X-Api-Key` | Job CI; test log: request có `X-Api-Key` không để lại giá trị khóa trong log | P5 |
 
 ### 4.13. NG — Expose qua ngrok (gói 5.3)
 
 | ID | Kiểm chứng | Ai chạy | Xây dựng |
 | :--- | :--- | :--- | :--- |
-| NG-1 | `docker compose config --quiet` hợp lệ cho cả hai chế độ (A, B) | tự động | P5 |
+| NG-1 | `docker compose config --quiet` hợp lệ cho cả hai chế độ (A, B) và cho `docker-compose.neon.yml` dùng riêng; thiếu `TADSS_DB_CONNECTION`/`TADSS_API_KEY_SHA256` thì bị từ chối | tự động | P5 |
 | NG-2 | Container thăm dò trong cùng network gọi `http://tadss-runtime:8080`: `/health/ready` 200; `POST /api/v2/decisions` không có key → 401, có key → 200; `/swagger` → 404 ở `Staging`; app **không khởi động** khi thiếu API key ở `Staging` | tự động | P5 |
 | NG-3 | Truy cập database: sau POST, `GET /api/v2/decisions/{id}` trả đúng quyết định vừa ghi (chứng minh đường ghi và đọc DB), và ở chế độ A đếm bản ghi bằng `psql` trong container PostgreSQL. `/health/ready` kiểm tra kết nối DB nên lỗi kết nối hiện ngay khi khởi động | tự động (chế độ A); chế độ B do người dùng chạy với Neon của mình | P5 |
 | NG-4 | Qua tunnel thật: `curl https://<domain>/health/ready` 200; POST và GET với `X-Api-Key`; thấy request trong `127.0.0.1:4040` | **người dùng** (cần `NGROK_AUTHTOKEN`) | P5 |
-| NG-5 | Chỉ `127.0.0.1` truy cập được cổng host của `tadss-runtime`, PostgreSQL, Redis, Toxiproxy (kiểm bằng `docker compose ps`); không có cổng nào bind `0.0.0.0` ở profile `ngrok` | tự động | P5 |
+| NG-5 | Chỉ `127.0.0.1` truy cập được cổng host của `tadss-runtime`, PostgreSQL, Redis, Toxiproxy (kiểm bằng `docker compose ps`); không có cổng nào bind `0.0.0.0` khi dùng `docker-compose.ngrok.yml` (với base + neon riêng chỉ cổng `tadss-runtime` là loopback) | tự động | P5 |
 
 ---
 

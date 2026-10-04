@@ -243,6 +243,7 @@ Trả chi tiết của một quyết định:
 ```
 
 - `action`: `APPROVE` (bắt buộc **đúng một** trong `deposit.rate` hoặc `deposit.amount`) \| `REJECT` (không gửi `deposit`). `reason` 5..500 ký tự (code point), không chỉ gồm khoảng trắng. Schema: `override-request.schema.json`, `override-response.schema.json`.
+- **`REJECT` kèm `"deposit": null`:** runtime chấp nhận (DTO cho phép `null`, coi như không gửi `deposit`), nhưng JSON schema `override-request` từ chối vì chỉ sự có mặt của khóa `deposit` đã vi phạm nhánh `REJECT` (có test `reject-with-null-deposit`). Schema là nguồn chuẩn: client phải bỏ hẳn khóa `deposit` khi `REJECT`, không gửi `null`.
 - **Mức cọc khi `APPROVE`** (một nơi quy đổi): gửi `rate` thì `amount = round(totalPrice × rate)` theo số chữ số thập phân của tiền tệ; gửi `amount` thì giữ nguyên `amount` và `rate = round(amount / totalPrice, 4)` (làm tròn xa số 0; `totalPrice = 0` thì `amount` phải là 0 và `rate = 0`). `totalPrice` và `currency` lấy từ request đã lưu của quyết định. Từ chối bằng 400 `VALIDATION_ERROR` (không làm tròn âm thầm) khi: `rate` ngoài `[0, 1]` hoặc quá 4 chữ số thập phân; `amount` âm, lớn hơn `totalPrice` hoặc nhiều chữ số thập phân hơn tiền tệ cho phép (VND: 0).
 - Mỗi quyết định có **tối đa một** override (ràng buộc `UNIQUE(decision_id)` trên bảng `decision_overrides`). Bản ghi đánh giá bất biến nên chi tiết quyết định (3.4) vẫn hiện `result.status = NEED_APPROVAL` kèm `override`; quyết định đã override rời hàng chờ (3.5).
 - **Thứ tự kiểm tra**, dừng ở bước đầu tiên không đạt:
@@ -339,6 +340,15 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 - Hóa đơn: số tiền cọc, tỷ lệ cọc, `tadss_decision_id`, nguồn áp dụng cọc; trạng thái `PARTIALLY_PAID` (đã có) dùng sau khi thanh toán cọc.
 - Job: hết hạn duyệt (hủy + giải phóng sân), báo outcome.
 - Script SQL cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` theo quy trình hiện có của SmashCourt-BE.
+
+### 4.5. Ghi chú triển khai: kết nối tới TADSS qua ngrok (dev, demo, pilot)
+
+TADSS chạy trong Docker có thể được expose qua ngrok (`docker-compose.ngrok.yml`; cách chạy và biến môi trường: [`README.md`](../../README.md) mục "Expose qua ngrok"). Phía `SmashCourt-BE`:
+
+- `TadssConfig.BaseUrl` (4.1) trỏ tới URL https của ngrok. URL của ngrok bản miễn phí đổi mỗi lần chạy: đặt `NGROK_DOMAIN` cố định ở phía TADSS, hoặc cập nhật `BaseUrl` mỗi lần. Chạy E-LOCAL thì `http://localhost:8081`; khi BE và TADSS cùng Docker network (Phase 7) thì không cần ngrok.
+- `TadssClient` gửi `X-Api-Key` (giá trị **khóa**, không phải mã băm) trên mọi request tới `/api/*`; khóa lấy từ user-secrets/biến môi trường của BE. Phía TADSS chỉ lưu SHA-256 của khóa (`TADSS_API_KEY_SHA256`) và `ClientId` (`TADSS_API_CLIENT_ID`, mặc định `smashcourt-be`). Thiếu hoặc sai khóa → 401, BE áp dụng cọc 100% (4.3).
+- `HttpClient` của `TadssClient` gửi thêm header `ngrok-skip-browser-warning: true` như `FastApiClient` đang làm, để ngrok không chèn trang cảnh báo vào response.
+- Mỗi `ClientId` có một xô rate limit riêng, mặc định 100 request mỗi giây cho mỗi instance TADSS (429 `RATE_LIMITED` kèm `Retry-After`, xem 3.8 và 4.3).
 
 ---
 

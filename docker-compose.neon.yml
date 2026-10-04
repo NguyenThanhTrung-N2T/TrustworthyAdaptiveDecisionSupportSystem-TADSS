@@ -1,7 +1,8 @@
 # Override chế độ B: TADSS trong container nhưng dùng PostgreSQL ngoài (Neon) thay cho tadss-postgres (gói 5.3, T5.30, NG-1).
 #   docker compose -f docker-compose.yml -f docker-compose.ngrok.yml -f docker-compose.neon.yml --profile ngrok up -d --build tadss-runtime ngrok
 # File này an toàn khi dùng riêng với docker-compose.yml (chạy local với Neon, không ngrok): cũng ép Staging, bắt buộc khóa riêng TADSS_API_KEY_SHA256
-# (không dùng khóa local công khai) và chỉ bind cổng host vào 127.0.0.1, giống docker-compose.ngrok.yml.
+# (không dùng khóa local công khai) và bind cổng host CỦA tadss-runtime vào 127.0.0.1. Cổng host của các dịch vụ khác (PostgreSQL 5433, Redis 6380,
+# Toxiproxy 8474, Grafana 3001, OTLP 4317/4318) KHÔNG đổi, vẫn bind mọi interface như E-LOCAL; chỉ docker-compose.ngrok.yml đưa mọi cổng host về 127.0.0.1 (NG-5).
 # Chuỗi kết nối chỉ đi qua biến môi trường TADSS_DB_CONNECTION (đặt trong .env, không commit).
 # Migration KHÔNG bao giờ chạy lúc khởi động với database ngoài: giá trị "false" bên dưới là literal, không đọc từ biến.
 # Redis mặc định là tadss-redis của compose (cổng nội bộ 6379, không qua Toxiproxy); đổi bằng TADSS_REDIS_CONNECTION.

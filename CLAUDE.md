@@ -2,8 +2,8 @@
 
 Nền tảng thực thi quyết định đặt chỗ chịu lỗi (Đồ án 2 → khoá luận). SmashCourt-BE gửi `POST /api/v2/decisions`;
 runtime chọn strategy qua `IStrategyRegistry`, bọc trong Polly v8 pipeline (budget 500ms → fallback `NEED_APPROVAL`),
-cache `StrategyDecision` (Redis L2 / IMemoryCache L1), ghi audit bất biến vào PostgreSQL schema `tadss`; có `GET /api/v2/decisions/{id}`.
-Chưa có (gói 5.3): `X-Api-Key`, override, outcome, hàng chờ duyệt. Thuộc workspace 4 repo — xem `../CLAUDE.md`.
+cache `StrategyDecision` (Redis L2 / IMemoryCache L1), ghi audit bất biến vào PostgreSQL schema `tadss`; có `GET /api/v2/decisions/{id}`,
+`GET /api/v2/decisions/pending-approvals`, `POST .../override`, `POST .../outcome`. Mọi `/api/*` cần `X-Api-Key` (gói 5.3). Thuộc workspace 4 repo — xem `../CLAUDE.md`.
 
 ## Lệnh
 ```bash
@@ -12,20 +12,22 @@ dotnet build TADSS.slnx -c Release -nologo -v q --warnaserror          # PHẢI 
 dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS.UnitTests"
 dotnet test  TADSS.slnx -c Release --no-build --filter "FullyQualifiedName~TADSS.IntegrationTests"   # cần Docker (Testcontainers)
 docker compose up -d --build                                            # môi trường E-LOCAL tự chứa; dừng + xóa dữ liệu: docker compose down -v
-dotnet run --project src/TADSS.Runtime.Api                              # http://localhost:5296/swagger
+dotnet run --project src/TADSS.Runtime.Api                              # http://localhost:5296/swagger; mọi /api/* cần X-Api-Key (thiếu key trong appsettings.Development.json thì 401)
+bash tools/expose/verify-expose.sh                                      # NG-1/2/3/5 + SEC-6 bằng Docker thật (project compose riêng, không cần ngrok)
 ASPNETCORE_ENVIRONMENT=Testing ConnectionStrings__DefaultConnection="Host=localhost;Database=x" dotnet ef migrations list --no-connect --project src/TADSS.Infrastructure --startup-project src/TADSS.Runtime.Api   # EF chỉ đọc; migration nằm ở Infrastructure; chuỗi kết nối giả vì design-time khởi động host mà validator từ chối ô giữ chỗ trong appsettings.json (không phải secret, không mở kết nối)
 ```
-CI: restore → build Release → unit test → integration test (Testcontainers) → Docker build. Nhánh làm việc chính: `develop`.
+CI: restore `--locked-mode` → quét lỗ hổng (`tools/ci/check-vulnerable-packages.sh`) → build Release → unit test → integration test (Testcontainers) → Docker build + kiểm user non-root; job `expose-check` chạy `verify-expose.sh`. Nhánh làm việc chính: `develop`.
+Expose qua ngrok: `docker compose -f docker-compose.yml -f docker-compose.ngrok.yml [-f docker-compose.neon.yml] --profile ngrok up -d --build` (biến trong `.env`, mẫu `.env.example`; chi tiết README mục "Expose qua ngrok"). `packages.lock.json` lệch sau khi nâng package: `dotnet restore --force-evaluate` rồi commit lock file.
 
 ## Cấu trúc (chi tiết: skill `tadss-architecture`)
 | Project | Vai trò | Phụ thuộc cho phép |
 |---|---|---|
 | `src/Shared.DecisionContractSDK` | Contract v2 (v2.0.0-draft): Domain `Reservation` (rich model, invariant), DTOs (Decisions/Governance/Outcomes/Mappings), Decisions (`StrategyDecision`, `DecisionContext`), Enums, `IReservationDecisionStrategy` | chỉ BCL — 0 NuGet |
-| `src/TADSS.Application` | Use case + port + options nghiệp vụ: `Abstractions/{Caching,Persistence,Resilience}` (port), `Common/ContractLimits`, `Decisions/` (DecisionService, DecisionQueryService, StrategyEvaluator, DecisionPayloadSerializer, composer, policies), `Exceptions/`, `Options/`, `Strategies/` (registry). `AddApplication` | SDK + `Microsoft.Extensions.*` abstraction (cấm hạ tầng/ASP.NET Core/EF/Redis/Polly) |
-| `src/TADSS.Infrastructure` | Adapter của port: `Caching/` (Redis + memory), `Options/` (Cache/Database/Resilience), `Persistence/` (TadssDbContext, EfDecisionAuditStore, Entities `*Entity`, Configurations, **Migrations**, health check), `Resilience/` (Polly pipeline, fallback). `AddInfrastructure` | Application + SDK + EF/Npgsql/Redis/Polly (cấm Runtime.Api, ASP.NET Core: không `Microsoft.AspNetCore.*`, `FrameworkReference`, Web SDK) |
-| `src/TADSS.Runtime.Api` | Composition root + presentation: `Program.cs` (mỏng), `Composition/` (`AddPresentation`, `AddStrategies`, `UseTadssRequestPipeline`, `StartupTasks`, `StrategyRegistrations`), `Controllers/`, `ErrorHandling/` (ExceptionClassifier), `Middlewares/`, `OpenApi/`, `Options/` (ErrorHandling) | Tất cả; chỉ `Program.cs` + `Composition/` được dùng kiểu Infrastructure |
+| `src/TADSS.Application` | Use case + port + options nghiệp vụ: `Abstractions/{Caching,Persistence,Resilience}` (port), `Common/` (`ContractLimits`, `AuditTimestamps`), `Decisions/` (DecisionService, DecisionQueryService gồm hàng chờ, StrategyEvaluator, DecisionPayloadSerializer, composer, policies), `Governance/` (OverrideService + validator), `Outcomes/` (OutcomeService), `Exceptions/`, `Options/`, `Strategies/` (registry). `AddApplication` | SDK + `Microsoft.Extensions.*` abstraction (cấm hạ tầng/ASP.NET Core/EF/Redis/Polly) |
+| `src/TADSS.Infrastructure` | Adapter của port: `Caching/` (Redis + memory), `Options/` (Cache/Database/Resilience), `Persistence/` (TadssDbContext, EfDecisionAuditStore, EfDecisionGovernanceStore, PendingApprovalsQuery, Entities `*Entity`, Configurations, **Migrations**, health check), `Resilience/` (Polly pipeline, fallback). `AddInfrastructure` | Application + SDK + EF/Npgsql/Redis/Polly (cấm Runtime.Api, ASP.NET Core: không `Microsoft.AspNetCore.*`, `FrameworkReference`, Web SDK) |
+| `src/TADSS.Runtime.Api` | Composition root + presentation: `Program.cs` (mỏng), `Composition/` (`AddPresentation`, `AddStrategies`, `UseTadssRequestPipeline`, `StartupTasks`, `StrategyRegistrations`), `Controllers/`, `ErrorHandling/` (ExceptionClassifier, `ProblemResponseWriter`), `Middlewares/` (gồm bảo mật: API key, giới hạn kích thước, security headers), `Security/` (ApiKeyVerifier), `OpenApi/`, `Options/` (ErrorHandling, Security) | Tất cả; chỉ `Program.cs` + `Composition/` được dùng kiểu Infrastructure |
 | `src/TADSS.Strategies.Default` / `.MockAlternative` | Mỗi project một strategy | chỉ SDK |
-| `tests/TADSS.UnitTests` | Cây mirror `src/`: `Sdk/`, `Strategies/`, `Application/`, `Infrastructure/`, `Api/` (gồm drift OpenAPI), `TestData/`, `TestDoubles/`, **`Architecture/`** (UT-14 quy tắc tầng/quy ước, dependency purity, public API surface, `NoLegacyV1Tests`) | |
+| `tests/TADSS.UnitTests` | Cây mirror `src/`: `Sdk/`, `Strategies/`, `Application/`, `Infrastructure/`, `Api/` (gồm drift OpenAPI và `Api/Security/` = test bảo mật không cần DB), `TestData/`, `TestDoubles/`, **`Architecture/`** (UT-14 quy tắc tầng/quy ước, dependency purity, public API surface, `NoLegacyV1Tests`) | |
 | `tests/TADSS.IntegrationTests` | Testcontainers PostgreSQL 16 / Redis 7 / Toxiproxy: WebApplicationFactory E2E, idempotency, cache, persistence, fault injection, migration | |
 
 Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml` sinh từ mã, `schemas/v2/`, `baseline_public_api.txt`),
@@ -38,13 +40,14 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
 
 ## Điểm cần nhớ
 - Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `src/TADSS.Infrastructure/Persistence/Migrations/` để lịch sử migration trên Neon khớp — không xóa.
-- **Contract v2** là bản duy nhất, đặc tả tại `docs/contracts/INTEGRATION_SPEC.md`; đã hiện thực `POST /api/v2/decisions` và `GET /api/v2/decisions/{id}`.
+- **Contract v2** là bản duy nhất, đặc tả tại `docs/contracts/INTEGRATION_SPEC.md`; đã hiện thực năm endpoint (`POST /api/v2/decisions`, `GET /{id}`, `GET /pending-approvals`, `POST /{id}/override`, `POST /{id}/outcome`).
   Thay đổi wire nằm ngoài đặc tả ⇒ dừng lại hỏi người dùng. `openapi-v2.yaml` sinh từ mã (test `OpenApiDriftTests` báo lệch; muốn cập nhật thì chép file sinh ra theo hướng dẫn trong test).
   Không sửa `baseline_public_api.txt` để test xanh — baseline v2 là bản nháp (`2.0.0-draft`), chỉ đổi có chủ đích khi đóng băng v2.
 - Minh chứng/kiểm thử mới chạy trên hạ tầng thật (Testcontainers PostgreSQL/Redis, Toxiproxy); **không viết thêm test dùng EF InMemory**.
   Integration test kế thừa `IntegrationTestBase` + `[Collection(TadssInfrastructureCollection.Name)]` (fixture `TadssInfrastructureFixture`, mỗi test một database riêng).
 - `docker-compose.yml` = môi trường E-LOCAL tự chứa (postgres `5433`, redis `6380`, toxiproxy `8474`, runtime `8081`, Grafana `3001`, OTLP `4317/4318`).
-  `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ compose đặt `true`.
+  `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ compose đặt `true`. Cổng/image đọc từ biến `TADSS_*` (mặc định như trên). Compose có sẵn khóa **công khai** `tadss-local-dev-key` (client `local`) chỉ hợp lệ ở Development/Testing. `docker-compose.ngrok.yml` (Staging, khóa riêng bắt buộc, mọi cổng host `127.0.0.1`, ngrok ghim digest) và `docker-compose.neon.yml` (DB ngoài, cờ migration ép `false`, ép Staging + khóa riêng) là file override; `NGROK_AUTHTOKEN`/`TADSS_DB_CONNECTION` chỉ qua `.env`/env, không vào repo.
+- Bảo mật (`Tadss:Security:*`, validator + `ValidateOnStart`): `ApiKeys` = `{ClientId, KeySha256}` (rỗng → 401 ở Development/Testing, không khởi động nơi khác; chặn mã băm khóa công khai ngoài Dev/Testing), `MaxRequestBodyBytes` 64 KB → 413, `RateLimiting` token bucket theo `ClientId` (per instance) → 429, `TrustForwardedHeaders`. Chuỗi kết nối PostgreSQL thiếu/giữ chỗ → không khởi động ở mọi môi trường (`DatabaseOptionsValidator`). Health: chỉ `/health/live`, `/health/ready` (không còn `/health`). Mọi phản hồi từ chối của middleware (401/413/429) đi qua `ProblemResponseWriter`; thứ tự middleware khai báo một nơi, khóa bằng UT-14.
 - Lỗi → `ExceptionClassifier` (hàm thuần) + `GlobalExceptionHandler`: mất kết nối PostgreSQL (lỗi tạm thời) → 503 `PERSISTENCE_UNAVAILABLE`; mã lỗi ở `ErrorCodes` của SDK. Audit ghi đồng bộ (fail-closed), `created_at` do `DecisionService` gán (µs, UTC) — không còn interceptor.
 - `TreatWarningsAsErrors` + XML doc bắt buộc ở SDK/Strategies; version package chỉ khai báo trong `Directory.Packages.props`.
 - Options: `{X}Options` với `SectionName = "Tadss:{X}"` + `{X}OptionsValidator` + `ValidateOnStart()`, đặt trong thư mục `Options/` của project sở hữu; strategy active chọn qua `Tadss:Strategy:ActiveStrategyName` (định tuyến theo request thuộc 5.4).
