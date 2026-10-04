@@ -374,6 +374,46 @@ public class OverrideServiceTests
         fixture.Store.OverrideInsertCount.Should().Be(0, "mọi nhánh trên đều dừng trước khi insert");
     }
 
+    /// <summary>
+    /// Replay (F-03) trên nhánh <c>amount</c> và nhánh <c>REJECT</c>: gửi lại cùng key + cùng nội dung trả đúng bản đã lưu (không ghi thêm, không đóng dấu lại);
+    /// cùng key nhưng amount khác hoặc action khác → <see cref="IdempotencyConflictException"/>.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [InlineData("Amount", false)]
+    [InlineData("Amount", true)]
+    [InlineData("Reject", false)]
+    [InlineData("Reject", true)]
+    public async Task Override_ReplayOnAmountAndRejectPaths_ReturnsStoredOrConflicts_Theory(string path, bool changePayload)
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+        var original = path == "Amount" ? ApproveAmount(50_000m) : Reject();
+        var first = await fixture.OverrideAsync(original);
+        fixture.Time.Advance(TimeSpan.FromMinutes(1));
+        var retry = (path, changePayload) switch
+        {
+            ("Amount", true) => ApproveAmount(60_000m),
+            ("Reject", true) => ApproveRate(0.3m),
+            _ => original,
+        };
+
+        var act = () => fixture.OverrideAsync(retry);
+
+        if (changePayload)
+        {
+            (await act.Should().ThrowAsync<IdempotencyConflictException>()).Which.IdempotencyKey.Should().Be(Key);
+        }
+        else
+        {
+            var replay = await act();
+            replay.Should().BeEquivalentTo(first, "replay trả đúng bản đã lưu");
+            replay.OverriddenAt.Should().Be(Now, "không đóng dấu lại thời điểm");
+        }
+
+        fixture.Store.OverrideInsertCount.Should().Be(1, "chỉ lần đầu ghi");
+    }
+
     /// <summary>Thua tranh chấp <c>UNIQUE(decision_id)</c>: cùng key + payload → 200 với bản thắng; khác key → <c>ALREADY_OVERRIDDEN</c>.</summary>
     [Theory]
     [Trait("CatalogId", "UT-15")]

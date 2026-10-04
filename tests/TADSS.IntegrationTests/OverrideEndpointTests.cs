@@ -110,6 +110,36 @@ public class OverrideEndpointTests : DecisionApiTestBase
         (await ReadOverridesAsync()).Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Replay (F-03) trên nhánh <c>amount</c> và <c>REJECT</c>: cùng key + cùng nội dung → 200 với bản cũ (không đóng dấu lại thời điểm, vẫn một hàng);
+    /// cùng key nhưng amount khác → 409 <c>IDEMPOTENCY_KEY_REUSE</c>.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "IT-06")]
+    [InlineData(ApproveAmountBody)]
+    [InlineData(RejectBody)]
+    public async Task Override_ReplayOnAmountAndRejectPaths_ReturnsStoredBody_Theory(string body)
+    {
+        var pending = await CreatePendingDecisionAsync();
+        var key = NewKey();
+        var first = await PostOverrideAsync(pending.DecisionId, body, key, ActorId);
+        Clock.Advance(TimeSpan.FromMinutes(1));
+
+        var replay = await PostOverrideAsync(pending.DecisionId, body, key, ActorId);
+        var changed = await PostOverrideAsync(
+            pending.DecisionId,
+            body == RejectBody ? ApproveRateBody : """{"action":"APPROVE","deposit":{"amount":120000},"reason":"Khách quen, chi nhánh bảo lãnh"}""",
+            key,
+            ActorId);
+
+        first.Status.Should().Be(HttpStatusCode.OK);
+        replay.Status.Should().Be(HttpStatusCode.OK);
+        replay.Override.Should().BeEquivalentTo(first.Override, "replay trả đúng bản đã lưu, không đóng dấu lại thời điểm");
+        changed.Status.Should().Be(HttpStatusCode.Conflict);
+        changed.Problem.GetProperty("code").GetString().Should().Be("IDEMPOTENCY_KEY_REUSE");
+        (await ReadOverridesAsync()).Should().ContainSingle();
+    }
+
     /// <summary>20 request song song với key và actor khác nhau: đúng một thắng (200), 19 còn lại <c>ALREADY_OVERRIDDEN</c>; chỉ một hàng.</summary>
     [Fact]
     [Trait("CatalogId", "IT-07")]

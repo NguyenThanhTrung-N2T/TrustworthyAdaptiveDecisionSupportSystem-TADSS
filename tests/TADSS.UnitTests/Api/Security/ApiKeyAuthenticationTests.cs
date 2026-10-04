@@ -112,6 +112,34 @@ public class ApiKeyAuthenticationTests : IClassFixture<DecisionsApiFactory>
         _factory.DecisionService.Calls.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Cổng xác thực đọc cùng <c>Request.Path</c> đã giải mã với routing: khác hoa thường, <c>/api</c> trần, dấu gạch chéo cuối, HEAD/OPTIONS đều bị 401 khi thiếu khóa;
+    /// đường dẫn lệch chuẩn không khớp route nào (404, không bao giờ 200) và <c>/health/live/x</c> không được hưởng miễn trừ của health.
+    /// Service double không bị gọi trong mọi ca.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "SEC-4")]
+    [InlineData("GET", "/API/v2/decisions", HttpStatusCode.Unauthorized)]
+    [InlineData("GET", "/api", HttpStatusCode.Unauthorized)]
+    [InlineData("GET", "/api/", HttpStatusCode.Unauthorized)]
+    [InlineData("GET", "/api/v2/decisions/", HttpStatusCode.Unauthorized)]
+    [InlineData("HEAD", "/api/v2/decisions/0f9c7e5a-0000-4000-8000-00000000d001", HttpStatusCode.Unauthorized)]
+    [InlineData("OPTIONS", "/api/v2/decisions", HttpStatusCode.Unauthorized)]
+    [InlineData("GET", "//api/v2/decisions/0f9c7e5a-0000-4000-8000-00000000d001", HttpStatusCode.NotFound)]
+    [InlineData("GET", "/api%2Fv2/decisions/0f9c7e5a-0000-4000-8000-00000000d001", HttpStatusCode.NotFound)]
+    [InlineData("GET", "/health/live/x", HttpStatusCode.NotFound)]
+    public async Task Request_PathVariantsWithoutKey_AreNeverServed_Theory(string method, string path, HttpStatusCode expected)
+    {
+        using var client = TestApiKeys.CreateClientWithoutKey(_factory);
+        using var request = new HttpRequestMessage(new HttpMethod(method), new Uri(client.BaseAddress!.GetLeftPart(UriPartial.Authority) + path));
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(expected);
+        _factory.DecisionService.Calls.Should().BeEmpty();
+        _factory.QueryService.RequestedIds.Should().BeEmpty();
+    }
+
     /// <summary>Khóa đúng của client mặc định đi qua xác thực tới service double.</summary>
     [Fact]
     [Trait("CatalogId", "IT-11")]
