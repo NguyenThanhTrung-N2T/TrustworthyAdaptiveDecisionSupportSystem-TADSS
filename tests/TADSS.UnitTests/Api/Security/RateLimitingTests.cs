@@ -1,8 +1,14 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Moq;
 using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.Options;
@@ -94,8 +100,8 @@ public class RateLimitingTests
         using var baseFactory = CreateBaseFactory();
         using var factory = WithTightLimit(baseFactory);
         using var client = TestApiKeys.CreateClientWithoutKey(factory);
-        await StatusOf(client, PendingPath, TestApiKeys.DefaultKey);
-        await StatusOf(client, PendingPath, TestApiKeys.DefaultKey);
+        (await StatusOf(client, PendingPath, TestApiKeys.DefaultKey)).Should().Be(HttpStatusCode.OK);
+        (await StatusOf(client, PendingPath, TestApiKeys.DefaultKey)).Should().Be(HttpStatusCode.OK);
         (await StatusOf(client, PendingPath, TestApiKeys.DefaultKey)).Should().Be(HttpStatusCode.TooManyRequests);
 
         (await StatusOf(client, PendingPath, TestApiKeys.SecondKey)).Should().Be(HttpStatusCode.OK);
@@ -116,7 +122,7 @@ public class RateLimitingTests
         }
     }
 
-    /// <summary>Năm request không có khóa: đều 401 (xác thực đứng trước rate limiter) và không tốn lượt của client hợp lệ.</summary>
+    /// <summary>Năm request không có khóa với trần 2 request: đều 401, không có 429 nào, chứng minh xác thực đứng trước rate limiter (nếu đảo thứ tự thì request thứ ba đã bị 429).</summary>
     [Fact]
     [Trait("CatalogId", "UT-14")]
     public async Task Unauthenticated_Gets401Not429()
@@ -129,8 +135,6 @@ public class RateLimitingTests
         {
             (await StatusOf(client, PendingPath, apiKey: null)).Should().Be(HttpStatusCode.Unauthorized, $"lần {i + 1}");
         }
-
-        (await StatusOf(client, PendingPath, TestApiKeys.DefaultKey)).Should().Be(HttpStatusCode.OK);
     }
 
     /// <summary>
@@ -167,6 +171,106 @@ public class RateLimitingTests
         if (!expectedValid)
         {
             result.Failures.Should().Contain(failure => failure.Contains(failingField), "thông báo phải nêu tên khóa sai");
+        }
+    }
+
+    private static SecurityOptionsValidator CreateValidator(string environmentName) =>
+        new(Mock.Of<IHostEnvironment>(environment => environment.EnvironmentName == environmentName));
+
+    /// <summary>
+    /// <c>ClientId</c> trùng khóa phân vùng của rate limiter (<c>health</c>, <c>anonymous</c>, không phân biệt hoa thường) bị từ chối ở mọi môi trường;
+    /// thông báo nêu chỉ số phần tử và không chứa mã băm; <c>ClientId</c> chỉ chứa tên đó như một phần (<c>health-check</c>) thì hợp lệ.
+    /// </summary>
+    [Theory]
+    [InlineData("health", false)]
+    [InlineData("HEALTH", false)]
+    [InlineData("anonymous", false)]
+    [InlineData("Anonymous", false)]
+    [InlineData("health-check", true)]
+    [InlineData("anonymous1", true)]
+    [Trait("CatalogId", "SEC-1")]
+    public void Validate_ReservedClientId_Theory(string clientId, bool expectedValid)
+    {
+        var hash = TestApiKeys.Sha256Hex("rate-limit-reserved-key");
+        var options = new SecurityOptions
+        {
+            ApiKeys =
+            [
+                new ApiKeyClientOptions { ClientId = "be", KeySha256 = TestApiKeys.Sha256Hex("rate-limit-first-key") },
+                new ApiKeyClientOptions { ClientId = clientId, KeySha256 = hash }
+            ]
+        };
+
+        foreach (var environmentName in new[] { "Testing", "Production" })
+        {
+            var result = CreateValidator(environmentName).Validate(null, options);
+
+            result.Succeeded.Should().Be(expectedValid, environmentName);
+            if (!expectedValid)
+            {
+                result.FailureMessage.Should().Contain("Tadss:Security:ApiKeys:1:ClientId");
+                result.FailureMessage.Should().NotContainEquivalentOf(hash);
+            }
+        }
+    }
+
+    /// <summary>Section <c>RateLimiting</c> bị gán <c>null</c>: validator không ném mà báo lỗi rõ ràng nêu tên section (cùng cách xử lý phần tử <c>ApiKeys</c> null).</summary>
+    [Fact]
+    [Trait("CatalogId", "SEC-1")]
+    public void Validate_NullRateLimitingSection_FailsClearly()
+    {
+        // Thuộc tính không nullable: gán null bằng reflection như khi cấu hình nguồn ép section về null
+        var options = new SecurityOptions();
+        typeof(SecurityOptions).GetProperty(nameof(SecurityOptions.RateLimiting))?.SetValue(options, null);
+
+        var result = CreateValidator("Testing").Validate(null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("Tadss:Security:RateLimiting");
+    }
+
+    /// <summary>
+    /// Callback <c>OnRejected</c> trực tiếp: không có metadata <c>RetryAfter</c> thì <c>Retry-After</c> = chu kỳ nạp cấu hình (3600);
+    /// metadata 0,2 giây làm tròn lên thành tối thiểu 1; 1,2 giây thành 2. Header và <c>retryAfterSeconds</c> của body luôn khớp.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 3600)]
+    [InlineData(0.0, 1)]
+    [InlineData(0.2, 1)]
+    [InlineData(1.0, 1)]
+    [InlineData(1.2, 2)]
+    [Trait("CatalogId", "SEC-1")]
+    public async Task OnRejected_RetryAfter_FallsBackAndHasMinimumOne(double? metadataSeconds, int expectedSeconds)
+    {
+        using var baseFactory = CreateBaseFactory();
+        using var factory = WithTightLimit(baseFactory);
+        var onRejected = factory.Services.GetRequiredService<IOptions<RateLimiterOptions>>().Value.OnRejected
+            ?? throw new InvalidOperationException("OnRejected chưa được cấu hình.");
+        var body = new MemoryStream();
+        var httpContext = new DefaultHttpContext { RequestServices = factory.Services };
+        httpContext.Response.Body = body;
+        var lease = new FakeLease(metadataSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null);
+
+        await onRejected(new OnRejectedContext { HttpContext = httpContext, Lease = lease }, CancellationToken.None);
+
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status429TooManyRequests);
+        httpContext.Response.Headers.RetryAfter.ToString().Should().Be(expectedSeconds.ToString(CultureInfo.InvariantCulture));
+        using var problem = JsonDocument.Parse(body.ToArray());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("RATE_LIMITED");
+        problem.RootElement.GetProperty("retryAfterSeconds").GetInt32().Should().Be(expectedSeconds);
+    }
+
+    /// <summary>Lease bị từ chối giả: chỉ có metadata <c>RetryAfter</c> khi được cấp.</summary>
+    private sealed class FakeLease(TimeSpan? retryAfter) : RateLimitLease
+    {
+        public override bool IsAcquired => false;
+
+        public override IEnumerable<string> MetadataNames => retryAfter is null ? [] : [MetadataName.RetryAfter.Name];
+
+        public override bool TryGetMetadata(string metadataName, out object? metadata)
+        {
+            metadata = metadataName == MetadataName.RetryAfter.Name ? retryAfter : null;
+            return metadata is not null;
         }
     }
 }
