@@ -4,7 +4,7 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành trên contract v1; **Phase R — Re-baseline** đã đóng Gate MR (01/10/2026). Contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. **Phase 5** hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project) và 5.3 (quản trị và bảo mật) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình expose qua ngrok (`docker-compose.ngrok.yml`, `docker-compose.neon.yml`); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); hiện có **1504 unit + 186 integration test**. Chưa có: định tuyến strategy theo request và shadow (gói 5.4), observability (gói 5.5). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành trên contract v1; **Phase R — Re-baseline** đã đóng Gate MR (01/10/2026). Contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. **Phase 5** hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project) và 5.3 (quản trị và bảo mật) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình expose qua ngrok (`docker-compose.ngrok.yml`, `docker-compose.neon.yml`); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); hiện có **1517 unit + 188 integration test**. Chưa có: định tuyến strategy theo request và shadow (gói 5.4), observability (gói 5.5). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -53,7 +53,7 @@ Phiên bản package khai báo tập trung trong `Directory.Packages.props`.
 ```bash
 dotnet restore TADSS.slnx
 dotnet build TADSS.slnx -c Release --warnaserror        # bắt buộc 0 warning
-dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1504 unit + 186 integration; integration cần Docker Desktop đang chạy
+dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1517 unit + 188 integration; integration cần Docker Desktop đang chạy
 dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296/swagger (mọi /api/* cần X-Api-Key, xem mục Bảo mật)
 ```
 
@@ -96,7 +96,7 @@ Mọi cổng host và image đọc từ biến môi trường (mặc định nh�
 
 ## Bảo mật
 
-Mọi request `/api/*` phải mang `X-Api-Key`. Thứ tự middleware (khai báo tại `Composition/RequestPipelineExtensions.UseTadssRequestPipeline`, khóa bằng test UT-14): forwarded headers (chỉ khi `TrustForwardedHeaders`) → correlation id → exception handler → security headers + HSTS → request logging → https redirection → giới hạn kích thước → Swagger (chỉ `Development`) → xác thực API key → rate limiter → routing. Mã lỗi và contract: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) mục 3.2 và 3.8. Mọi phản hồi từ chối (401, 413, 429, lỗi) đi qua một bộ ghi `ProblemResponseWriter` nên cùng dạng `application/problem+json`.
+Mọi request `/api/*` phải mang `X-Api-Key`. Thứ tự middleware (khai báo tại `Composition/RequestPipelineExtensions.UseTadssRequestPipeline`, khóa bằng test UT-14): forwarded headers (chỉ khi `TrustForwardedHeaders`) → correlation id → exception handler → security headers + HSTS → request logging → https redirection → giới hạn kích thước → Swagger (chỉ `Development`) → xác thực API key → rate limiter → routing. Mã lỗi và contract: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) mục 3.2 và 3.8. Các phản hồi từ chối do middleware tạo (401, 413, 429) và mọi lỗi do exception (qua `GlobalExceptionHandler`) đi qua một bộ ghi `ProblemResponseWriter` nên cùng dạng `application/problem+json`; ngoại lệ là 415 (do MVC), 404/405 của framework và một số lỗi mức Kestrel, không có `code` (INTEGRATION_SPEC §3.8).
 
 ### Cấu hình `Tadss:Security:*`
 
@@ -118,12 +118,14 @@ Khóa là chuỗi bất kỳ do bạn sinh; app chỉ lưu SHA-256 của khóa. 
 ```bash
 # bash (Git Bash, Linux, macOS)
 KEY=$(openssl rand -hex 32)
+echo "Khóa (đưa cho client, không commit): $KEY"
 printf '%s' "$KEY" | sha256sum | cut -d' ' -f1        # macOS: printf '%s' "$KEY" | shasum -a 256 | cut -d' ' -f1
 ```
 
 ```powershell
 # PowerShell 7
-$key = -join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
+$key = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLower()
+"Khóa (đưa cho client, không commit): $key"
 [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($key))).ToLower()
 ```
 
@@ -139,7 +141,7 @@ Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằn
 - **Health:** `/health/live` (không kiểm tra gì, 200 khi tiến trình còn chạy) và `/health/ready` (PostgreSQL bắt buộc: lỗi → 503; Redis: lỗi → 200 `Degraded` vì cache có fallback memory). Cả hai miễn `X-Api-Key` ở mọi môi trường, không bị rate limit, body chỉ là chữ trạng thái (không lộ chuỗi kết nối). Không còn endpoint `/health` gộp.
 - **Rate limit** (token bucket, một xô cho mỗi `ClientId`; hết token là 429 `RATE_LIMITED` kèm `Retry-After`): tính **theo từng instance** của app, không chia sẻ giữa nhiều instance (đánh giá khi scale thuộc gói 5.5). Mặc định cho phép bùng nổ 100 request và nạp 100 request mỗi giây cho một client. Để k6 tải cao hơn, tăng bằng biến môi trường của tiến trình app: `Tadss__Security__RateLimiting__PermitLimit`, `Tadss__Security__RateLimiting__TokensPerPeriod`, `Tadss__Security__RateLimiting__ReplenishmentPeriodSeconds` (với compose: thêm vào `environment` của `tadss-runtime` trong một file override cục bộ).
 - **Header bảo mật** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; `Cache-Control: no-store` cho `/api/*`; `Strict-Transport-Security` với request https ngoài `Development`/`Testing`; Kestrel không gửi header `Server`.
-- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace; dòng log hoàn tất request của Serilog **không** mang `ClientId` vì bước request logging đứng trước bước xác thực.
+- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace. Dòng log hoàn tất request của Serilog **không** mang `ClientId` vì bước request logging đứng trước bước xác thực. Ngoài ra `UseSerilogRequestLogging` nằm **trong** exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error; 401/413/429 do middleware tạo thì ghi đúng. Đây là hạn chế đã biết, xử lý ở gói 5.4/5.5 vì sửa sẽ đổi thứ tự pipeline (F-09).
 
 ### Chuỗi cung ứng và container
 
@@ -184,21 +186,26 @@ Compose chỉ đọc `NGROK_AUTHTOKEN` và các biến dưới đây từ môi t
 bash tools/expose/verify-expose.sh
 ```
 
-Script dựng project compose riêng (`tadss-expose-check`, cổng `18081`...; khóa ngẫu nhiên không in ra, không mở tunnel, không kết nối database ngoài) rồi in bảng kết quả và dọn container, volume, network, image. Kiểm: NG-1 (`docker compose config` hợp lệ cho ngrok, ngrok + neon, neon riêng; thiếu biến bắt buộc bị từ chối), NG-2 (Staging không có khóa thì không khởi động, log nêu `Tadss:Security`, không lộ chuỗi kết nối), NG-3 (`/health/ready` 200, POST không khóa 401 và có khóa 200, GET theo `decisionId` 200, Swagger 404, DB có bản ghi), NG-5 (mọi cổng publish chỉ ở `127.0.0.1`), SEC-6 (user non-root). CI chạy script này ở job `expose-check`.
+Script dựng project compose riêng (`tadss-expose-check`, cổng `18081`...; khóa ngẫu nhiên không in ra, không mở tunnel, không kết nối database ngoài) rồi in bảng kết quả và dọn container, volume, network, image. Kiểm theo danh mục NG: NG-1 (`docker compose config` hợp lệ cho ngrok, ngrok + neon, neon riêng; thiếu biến bắt buộc bị từ chối), NG-2 (dòng `NG-2a`: `/health/ready` 200, POST không khóa 401 và có khóa 200, Swagger 404; dòng `NG-2b`: Staging không có khóa thì không khởi động, log nêu `Tadss:Security`, không lộ chuỗi kết nối), NG-3 (GET theo `decisionId` 200 đúng quyết định vừa ghi, DB có bản ghi), NG-5 (mọi cổng publish chỉ ở `127.0.0.1`), SEC-6 (user non-root). CI chạy script này ở job `expose-check`.
 
 ### NG-4: thử qua tunnel thật (người dùng tự chạy)
 
 1. Sinh khóa và mã băm (mục Bảo mật). Tạo `.env` từ `.env.example`, điền `NGROK_AUTHTOKEN` và `TADSS_API_KEY_SHA256` (và `NGROK_DOMAIN` nếu có domain tĩnh; với chế độ B thêm `TADSS_DB_CONNECTION`).
 2. Chạy lệnh của chế độ A (hoặc B) ở bảng trên; chờ `tadss-runtime` healthy.
-3. Lấy URL công khai: `curl -s http://127.0.0.1:4040/api/tunnels` hoặc mở `http://127.0.0.1:4040` (giao diện kiểm tra của ngrok, chỉ loopback), hoặc dùng `https://$NGROK_DOMAIN`.
+3. Lấy URL công khai: `curl -s http://127.0.0.1:4040/api/tunnels` hoặc mở `http://127.0.0.1:4040` (giao diện kiểm tra của ngrok, chỉ loopback), hoặc dùng `https://$NGROK_DOMAIN`. **Lưu ý bảo mật:** giao diện này lưu header của mọi request đi qua tunnel, kể cả `X-Api-Key`, ở dạng chữ thường (đọc được qua `http://127.0.0.1:4040/api/requests/http`) và cho phép phát lại request; vì vậy chỉ nghe loopback, và nên dừng stack ngay sau khi thử NG-4 (bước 5).
 4. Thử:
 
 ```bash
 URL=https://<domain-ngrok>; KEY=<khóa ở bước 1>
 curl -sS -H "ngrok-skip-browser-warning: true" "$URL/health/ready"                        # 200
 hex=$(openssl rand -hex 16); RES="${hex:0:8}-${hex:8:4}-4${hex:13:3}-8${hex:17:3}-${hex:20:12}"
+if date -u -d '+7 days' >/dev/null 2>&1; then   # GNU date (Linux, Git Bash)
+  START=$(date -u -d '+7 days' +%Y-%m-%dT%H:00:00Z); END=$(date -u -d '+7 days +2 hours' +%Y-%m-%dT%H:00:00Z)
+else                                              # BSD date (macOS)
+  START=$(date -u -v+7d +%Y-%m-%dT%H:00:00Z); END=$(date -u -v+7d -v+2H +%Y-%m-%dT%H:00:00Z)
+fi
 body=$(sed -e "s/__RESERVATION_ID__/$RES/" -e "s/__REQUESTED_AT__/$(date -u +%Y-%m-%dT%H:%M:%SZ)/" \
-  -e "s/__START_TIME__/$(date -u -d '+7 days' +%Y-%m-%dT%H:00:00Z)/" -e "s/__END_TIME__/$(date -u -d '+7 days +2 hours' +%Y-%m-%dT%H:00:00Z)/" tools/expose/sample-decision-request.json)
+  -e "s/__START_TIME__/$START/" -e "s/__END_TIME__/$END/" tools/expose/sample-decision-request.json)
 curl -sS -X POST "$URL/api/v2/decisions" -H "Content-Type: application/json" -H "X-Api-Key: $KEY" \
   -H "X-Idempotency-Key: $RES" -H "ngrok-skip-browser-warning: true" -d "$body"            # 200 + decisionId
 curl -sS -X POST "$URL/api/v2/decisions" -H "Content-Type: application/json" -d "$body"   # 401 UNAUTHORIZED

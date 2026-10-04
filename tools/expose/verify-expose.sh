@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của TADSS bằng Docker thật (không mở tunnel ngrok, không kết nối database ngoài).
 #   NG-1  : docker compose config hợp lệ cho ngrok (chế độ A) và ngrok + neon (chế độ B), biến giả.
-#   NG-2  : TADSS khởi động với khóa; Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
-#   NG-3  : /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200, GET theo decisionId 200, swagger 404, DB có bản ghi.
+#   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200, swagger 404 ở Staging.
+#   NG-2b : (danh mục NG-2) Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
+#   NG-3  : truy cập database: GET theo decisionId trả đúng quyết định vừa ghi, và psql đếm được bản ghi (chế độ A).
 #   NG-5  : mọi cổng host chỉ bind 127.0.0.1.
 #   SEC-6 : image chạy bằng user non-root.
 # Chạy trong project compose riêng (tadss-expose-check) và cổng host riêng nên không đụng stack đang chạy của người dùng.
@@ -53,7 +54,7 @@ sha256_hex() { # đọc stdin, in hex SHA-256
 dc() { docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml "$@"; }
 
 cleanup() {
-  # Chỉ dọn tài nguyên của đúng project này: container, volume, network, image build ra, và container thăm dò NG-2.
+  # Chỉ dọn tài nguyên của đúng project này: container, volume, network, image build ra, và container thăm dò NG-2b.
   docker rm -f "$NOKEY_CONTAINER" >/dev/null 2>&1
   if [ -f "$ENV_FILE" ]; then
     dc down -v --rmi local --remove-orphans >/dev/null 2>&1
@@ -154,9 +155,16 @@ if [ "$stack_up" = PASS ]; then
   swagger="$(code_of "${BASE_URL}/swagger/index.html")"
   rows="$(dc exec -T tadss-postgres psql -U tadss -d tadss -tAc 'select count(*) from tadss.decision_executions' 2>/dev/null | tr -d '[:space:]')"
 
-  detail="ready=${ready} không-khóa=${no_key} có-khóa=${with_key} GET=${get_code} swagger=${swagger} bản-ghi=${rows:-?}"
-  if [ "$ready" = 200 ] && [ "$no_key" = 401 ] && [ "$with_key" = 200 ] && [ -n "$decision_id" ] \
-     && [ "$get_code" = 200 ] && [ "$get_id" = "$decision_id" ] && [ "$swagger" = 404 ] && [ "${rows:-0}" -ge 1 ] 2>/dev/null; then
+  detail="ready=${ready} không-khóa=${no_key} có-khóa=${with_key} swagger=${swagger}"
+  if [ "$ready" = 200 ] && [ "$no_key" = 401 ] && [ "$with_key" = 200 ] && [ "$swagger" = 404 ]; then
+    record "NG-2a" PASS "$detail"
+  else
+    record "NG-2a" FAIL "$detail"
+    dc logs --tail 30 tadss-runtime >&2
+  fi
+
+  detail="GET=${get_code} bản-ghi=${rows:-?}"
+  if [ -n "$decision_id" ] && [ "$get_code" = 200 ] && [ "$get_id" = "$decision_id" ] && [ "${rows:-0}" -ge 1 ] 2>/dev/null; then
     record "NG-3" PASS "$detail"
   else
     record "NG-3" FAIL "$detail"
@@ -174,11 +182,12 @@ if [ "$stack_up" = PASS ]; then
     record "NG-5" FAIL "published=${published:-0} URL không phải loopback: '${bad}'"
   fi
 else
+  record "NG-2a" FAIL "không dựng được stack"
   record "NG-3" FAIL "không dựng được stack"
   record "NG-5" FAIL "không dựng được stack"
 fi
 
-# ── NG-2 (không khởi động): Staging không có khóa ──
+# ── NG-2b (không khởi động): Staging không có khóa ──
 IMAGE="$(docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml images tadss-runtime --format json 2>/dev/null \
           | grep -o '"Repository" *: *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
 IMAGE="${IMAGE:-${PROJECT}-tadss-runtime}"
@@ -200,9 +209,9 @@ if [ "$stack_up" = PASS ] && docker image inspect "$IMAGE" >/dev/null 2>&1; then
   printf '%s' "$logs" | grep -q -e 'SENTINEL_NOT_A_SECRET' -e 'expose-check-db.invalid' && leaks="yes"
   docker rm -f "$NOKEY_CONTAINER" >/dev/null 2>&1
   if [ "$state" = exited ] && [ "${exit_code:-0}" != 0 ] && [ "$has_section" = yes ] && [ "$leaks" = no ]; then
-    record "NG-2" PASS "thoát mã ${exit_code} sau ${waited}s; log nêu Tadss:Security, không lộ chuỗi kết nối"
+    record "NG-2b" PASS "thoát mã ${exit_code} sau ${waited}s; log nêu Tadss:Security, không lộ chuỗi kết nối"
   else
-    record "NG-2" FAIL "trạng thái=${state:-?} mã=${exit_code:-?} sau ${waited}s; nêu-Tadss:Security=${has_section} lộ-chuỗi-kết-nối=${leaks}"
+    record "NG-2b" FAIL "trạng thái=${state:-?} mã=${exit_code:-?} sau ${waited}s; nêu-Tadss:Security=${has_section} lộ-chuỗi-kết-nối=${leaks}"
   fi
 
   # ── SEC-6: user non-root ──
@@ -212,7 +221,7 @@ if [ "$stack_up" = PASS ] && docker image inspect "$IMAGE" >/dev/null 2>&1; then
     *) record "SEC-6" PASS "Config.User='${user}'" ;;
   esac
 else
-  record "NG-2" FAIL "không có image tadss-runtime để thử"
+  record "NG-2b" FAIL "không có image tadss-runtime để thử"
   record "SEC-6" FAIL "không có image tadss-runtime để kiểm tra"
 fi
 

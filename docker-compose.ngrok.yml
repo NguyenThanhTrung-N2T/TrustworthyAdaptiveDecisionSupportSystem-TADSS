@@ -36,7 +36,7 @@ services:
       Tadss__Security__TrustForwardedHeaders: "true"
 
   ngrok:
-    # F-20: ghim tag + digest (ngrok 3.39.11-alpine, kéo ngày 2026-10-04); đổi bản qua TADSS_NGROK_IMAGE hoặc Dependabot (docker).
+    # F-20: ghim tag + digest (ngrok 3.39.11-alpine, kéo ngày 2026-10-04); đổi bản bằng tay qua TADSS_NGROK_IMAGE hoặc sửa mặc định ở đây (Dependabot ecosystem docker chỉ quét Dockerfile, không quét file compose).
     image: ${TADSS_NGROK_IMAGE:-ngrok/ngrok:3.39.11-alpine@sha256:187e588f6c4efe3b29cd3eea9fcd768a1afa7342319e3cee9aeb5af6a9cf64fd}
     profiles: ["ngrok"]
     restart: unless-stopped
@@ -50,7 +50,8 @@ services:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Đặt NGROK_AUTHTOKEN trong .env}
       NGROK_DOMAIN: ${NGROK_DOMAIN:-}
     ports:
-      # Giao diện kiểm tra của ngrok (tunnel URL, request log); chỉ loopback
+      # Giao diện kiểm tra của ngrok (tunnel URL, request log); chỉ loopback. Nó lưu header request kể cả X-Api-Key ở dạng chữ thường và cho phép phát lại request:
+      # chỉ dùng trên máy dev và dừng stack sau khi thử NG-4.
       - "127.0.0.1:4040:4040"
     depends_on:
       tadss-runtime:

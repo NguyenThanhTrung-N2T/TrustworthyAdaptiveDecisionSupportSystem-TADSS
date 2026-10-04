@@ -98,7 +98,7 @@ Thứ tự middleware của request pipeline khai báo tại một nơi: `Compos
 
 - Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). Đánh giá khi scale (SC-1, SC-3) thuộc gói 5.4–5.5; rate limit phân tán thuộc 5.5.
 - Tranh chấp override ↔ outcome trên cùng quyết định không được khóa nguyên tử (INV-5, INTEGRATION_SPEC §4.3); tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm.
-- Dòng log hoàn tất request của Serilog không mang `ClientId` (request logging đứng trước bước xác thực); `ClientId` có ở log scope của log trong controller/service và ở tag `tadss.client_id` của trace.
+- Dòng log hoàn tất request của Serilog không mang `ClientId` (request logging đứng trước bước xác thực); `ClientId` có ở log scope của log trong controller/service và ở tag `tadss.client_id` của trace. Ngoài ra `UseSerilogRequestLogging` nằm trong exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error (401/413/429 do middleware tạo thì đúng); sửa sẽ đổi thứ tự pipeline (F-09), để gói 5.4/5.5.
 - Inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken` (`IsolatedStrategyInvoker`, 5.4).
 - Redis lỗi thì mỗi lần gọi cache chờ tới `RedisTimeoutMs` (circuit breaker + metric `bypass`, 5.4).
 - Chọn strategy theo cấu hình toàn cục `Tadss:Strategy:ActiveStrategyName`; định tuyến theo request thuộc 5.4.
