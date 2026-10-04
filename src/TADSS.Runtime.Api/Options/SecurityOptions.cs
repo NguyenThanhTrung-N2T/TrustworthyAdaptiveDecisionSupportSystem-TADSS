@@ -1,7 +1,7 @@
 namespace TADSS.Runtime.Api.Options;
 
 /// <summary>
-/// Cấu hình bảo mật của Runtime.Api: danh sách API key được chấp nhận cho <c>/api/*</c>, trần kích thước body và việc tin header chuyển tiếp.
+/// Cấu hình bảo mật của Runtime.Api: danh sách API key được chấp nhận cho <c>/api/*</c>, trần kích thước body, giới hạn tốc độ theo client và việc tin header chuyển tiếp.
 /// </summary>
 public class SecurityOptions
 {
@@ -25,6 +25,9 @@ public class SecurityOptions
     /// Trần kích thước body của request (byte, <see cref="MinRequestBodyBytes"/>..<see cref="MaxRequestBodyBytesLimit"/>); vượt thì 413 <c>PAYLOAD_TOO_LARGE</c> trước khi xác thực. Mặc định 64 KB.
     /// </summary>
     public long MaxRequestBodyBytes { get; set; } = 65536;
+
+    /// <summary>Giới hạn tốc độ theo client (token bucket); vượt thì 429 <c>RATE_LIMITED</c>. <c>/health/*</c> không bị giới hạn.</summary>
+    public RateLimitingOptions RateLimiting { get; set; } = new();
 
     /// <summary>
     /// Tin <c>X-Forwarded-For/Proto/Host</c> từ reverse proxy (ngrok). Chỉ bật khi chỉ proxy chạm được ứng dụng; mặc định <c>false</c>

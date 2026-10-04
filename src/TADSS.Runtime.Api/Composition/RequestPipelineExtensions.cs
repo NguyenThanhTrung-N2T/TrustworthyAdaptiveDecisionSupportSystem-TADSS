@@ -12,8 +12,8 @@ public static class RequestPipelineExtensions
 {
     /// <summary>
     /// Dựng pipeline: forwarded headers (khi bật) → correlation id → exception handler → security headers + HSTS → request logging → https redirection →
-    /// giới hạn kích thước → Swagger (chỉ Development) → xác thực API key → routing (rate limiter thêm trước routing ở Task 7).
-    /// Logging đứng trước các bước từ chối nên ghi được cả 401/413; kích thước kiểm tra trước xác thực; Swagger đứng trước xác thực nên được miễn ở Development;
+    /// giới hạn kích thước → Swagger (chỉ Development) → xác thực API key → rate limiter → routing.
+    /// Logging đứng trước các bước từ chối nên ghi được cả 401/413/429; rate limiter đứng sau xác thực nên request thiếu khóa nhận 401 chứ không tốn lượt giới hạn; kích thước kiểm tra trước xác thực; Swagger đứng trước xác thực nên được miễn ở Development;
     /// routing gọi tường minh để định tuyến chạy sau các bước bảo mật. Endpoint (controller, health check) do <c>Program.cs</c> map sau lời gọi này.
     /// Không có <c>UseAuthorization</c>: không có policy nào, xác thực do <see cref="ApiKeyAuthenticationMiddleware"/> đảm nhiệm.
     /// </summary>
@@ -53,7 +53,8 @@ public static class RequestPipelineExtensions
         // 9. Xác thực API key cho /api/*
         app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 
-        // 10. Rate limiter: Task 7 thêm tại đây
+        // 10. Rate limiter theo client (ApiClientIdentity do bước 9 gắn); /health/* không bị giới hạn
+        app.UseRateLimiter();
 
         // 11. Routing tường minh: định tuyến chạy sau các bước bảo mật (WebApplication mặc định chèn routing ở đầu pipeline)
         app.UseRouting();

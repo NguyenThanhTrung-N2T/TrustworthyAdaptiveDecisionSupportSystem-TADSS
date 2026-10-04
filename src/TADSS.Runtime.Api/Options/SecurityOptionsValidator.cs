@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace TADSS.Runtime.Api.Options;
 
 /// <summary>
-/// Kiểm tra <see cref="SecurityOptions"/> khi khởi động (fail-fast): <c>MaxRequestBodyBytes</c> trong khoảng cho phép, <c>ClientId</c> hợp lệ và duy nhất, <c>KeySha256</c> là hex 64 ký tự và duy nhất.
+/// Kiểm tra <see cref="SecurityOptions"/> khi khởi động (fail-fast): <c>MaxRequestBodyBytes</c> và các tham số <c>RateLimiting</c> trong khoảng cho phép, <c>ClientId</c> hợp lệ và duy nhất, <c>KeySha256</c> là hex 64 ký tự và duy nhất.
 /// Ngoài <c>Development</c>/<c>Testing</c>, <c>ApiKeys</c> không được rỗng và không được chứa mã băm của khóa local công khai
 /// (<see cref="LocalDevelopmentKeySha256"/>). Thông báo chỉ nêu chỉ số phần tử và tên trường, không bao giờ chứa mã băm.
 /// </summary>
@@ -42,6 +42,8 @@ public sealed partial class SecurityOptionsValidator(IHostEnvironment environmen
             failures.Add($"{SecurityOptions.SectionName}:{nameof(options.MaxRequestBodyBytes)} phải nằm trong khoảng {SecurityOptions.MinRequestBodyBytes}..{SecurityOptions.MaxRequestBodyBytesLimit} byte.");
         }
 
+        ValidateRateLimiting(options.RateLimiting, failures);
+
         var clientIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var hashes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < apiKeys.Count; i++)
@@ -50,6 +52,31 @@ public sealed partial class SecurityOptionsValidator(IHostEnvironment environmen
         }
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateRateLimiting(RateLimitingOptions? rateLimiting, List<string> failures)
+    {
+        const string prefix = SecurityOptions.SectionName + ":" + nameof(SecurityOptions.RateLimiting);
+        if (rateLimiting is null)
+        {
+            failures.Add($"{prefix} không được rỗng.");
+            return;
+        }
+
+        if (rateLimiting.PermitLimit is < 1 or > RateLimitingOptions.MaxPermitLimit)
+        {
+            failures.Add($"{prefix}:{nameof(rateLimiting.PermitLimit)} phải nằm trong khoảng 1..{RateLimitingOptions.MaxPermitLimit}.");
+        }
+
+        if (rateLimiting.TokensPerPeriod < 1 || rateLimiting.TokensPerPeriod > rateLimiting.PermitLimit)
+        {
+            failures.Add($"{prefix}:{nameof(rateLimiting.TokensPerPeriod)} phải nằm trong khoảng 1..{nameof(rateLimiting.PermitLimit)}.");
+        }
+
+        if (rateLimiting.ReplenishmentPeriodSeconds is < 1 or > RateLimitingOptions.MaxReplenishmentPeriodSeconds)
+        {
+            failures.Add($"{prefix}:{nameof(rateLimiting.ReplenishmentPeriodSeconds)} phải nằm trong khoảng 1..{RateLimitingOptions.MaxReplenishmentPeriodSeconds} giây.");
+        }
     }
 
     private static void ValidateEntry(

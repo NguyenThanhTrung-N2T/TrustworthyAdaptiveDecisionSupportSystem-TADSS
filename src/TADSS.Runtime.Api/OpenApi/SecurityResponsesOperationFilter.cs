@@ -7,13 +7,14 @@ namespace TADSS.Runtime.Api.OpenApi;
 
 /// <summary>
 /// Mọi operation đều yêu cầu <c>X-Api-Key</c> (INTEGRATION_SPEC §3.2) nên cùng có phản hồi 401 <c>UNAUTHORIZED</c> dạng problem+json
-/// kèm header <c>WWW-Authenticate</c>. Operation có body còn có phản hồi 413 <c>PAYLOAD_TOO_LARGE</c> (body vượt <c>Tadss:Security:MaxRequestBodyBytes</c>);
+/// kèm header <c>WWW-Authenticate</c>, và 429 <c>RATE_LIMITED</c> (vượt giới hạn tốc độ theo client) kèm header <c>Retry-After</c>. Operation có body còn có phản hồi 413 <c>PAYLOAD_TOO_LARGE</c> (body vượt <c>Tadss:Security:MaxRequestBodyBytes</c>);
 /// các phản hồi khác do controller khai báo.
 /// </summary>
 public class SecurityResponsesOperationFilter : IOperationFilter
 {
     private const string UnauthorizedStatus = "401";
     private const string PayloadTooLargeStatus = "413";
+    private const string TooManyRequestsStatus = "429";
 
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
@@ -27,6 +28,23 @@ public class SecurityResponsesOperationFilter : IOperationFilter
                 {
                     Description = "Cách xác thực: ApiKey header=\"X-Api-Key\".",
                     Schema = new OpenApiSchema { Type = "string" }
+                }
+            },
+            Content = new Dictionary<string, OpenApiMediaType>
+            {
+                [ProblemResponseWriter.ContentType] = new OpenApiMediaType { Schema = problemSchema }
+            }
+        };
+
+        operation.Responses[TooManyRequestsStatus] = new OpenApiResponse
+        {
+            Description = "Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.",
+            Headers = new Dictionary<string, OpenApiHeader>
+            {
+                ["Retry-After"] = new OpenApiHeader
+                {
+                    Description = "Số giây nên chờ trước khi thử lại.",
+                    Schema = new OpenApiSchema { Type = "integer", Format = "int32" }
                 }
             },
             Content = new Dictionary<string, OpenApiMediaType>

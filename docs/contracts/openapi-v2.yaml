@@ -76,6 +76,18 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}/override':
     post:
       tags:
@@ -175,6 +187,18 @@ paths:
               description: 'Cách xác thực: ApiKey header="X-Api-Key".'
               schema:
                 type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
           content:
             application/problem+json:
               schema:
@@ -279,6 +303,18 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '413':
           description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
           content:
@@ -372,6 +408,18 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '413':
           description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
           content:
@@ -429,6 +477,18 @@ paths:
               description: 'Cách xác thực: ApiKey header="X-Api-Key".'
               schema:
                 type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
           content:
             application/problem+json:
               schema:
