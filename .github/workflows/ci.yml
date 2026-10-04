@@ -27,9 +27,13 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # 3. Khôi phục dependencies
-      - name: Restore Dependencies
-        run: dotnet restore
+      # 3. Khôi phục dependencies ở chế độ locked-mode: packages.lock.json lệch đồ thị phụ thuộc thì job đỏ (SEC-7)
+      - name: Restore Dependencies (locked mode)
+        run: dotnet restore --locked-mode
+
+      # 3b. Quét package có lỗ hổng (kể cả bắc cầu); mức High/Critical hoặc lỗi quét thì job đỏ (SEC-7)
+      - name: Check Vulnerable Packages
+        run: bash tools/ci/check-vulnerable-packages.sh
 
       # 4. Build toàn bộ Solution (Release mode)
       - name: Build Solution
