@@ -343,10 +343,10 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 
 ### 4.5. Ghi chú triển khai: kết nối tới TADSS qua ngrok (dev, demo, pilot)
 
-TADSS chạy trong Docker có thể được expose qua ngrok (`docker-compose.ngrok.yml`; cách chạy và biến môi trường: [`README.md`](../../README.md) mục "Expose qua ngrok"). Phía `SmashCourt-BE`:
+TADSS chạy trong Docker có thể được expose qua ngrok (`docker-compose.yml`, file compose duy nhất: một lệnh `docker compose up -d --build` chạy `tadss-runtime`, `ngrok` và Grafana; cách chạy và biến môi trường: [`README.md`](../../README.md) mục "Chạy bằng Docker và expose qua ngrok"). Phía `SmashCourt-BE`:
 
-- `TadssConfig.BaseUrl` (4.1) trỏ tới URL https của ngrok. URL của ngrok bản miễn phí đổi mỗi lần chạy: đặt `NGROK_DOMAIN` cố định ở phía TADSS, hoặc cập nhật `BaseUrl` mỗi lần. Chạy E-LOCAL thì `http://localhost:8081`; khi BE và TADSS cùng Docker network (Phase 7) thì không cần ngrok.
-- `TadssClient` gửi `X-Api-Key` (giá trị **khóa**, không phải mã băm) trên mọi request tới `/api/*`; khóa lấy từ user-secrets/biến môi trường của BE. Phía TADSS chỉ lưu SHA-256 của khóa (`TADSS_API_KEY_SHA256`) và `ClientId` (`TADSS_API_CLIENT_ID`, mặc định `smashcourt-be`). Thiếu hoặc sai khóa → 401, BE áp dụng cọc 100% (4.3).
+- `TadssConfig.BaseUrl` (4.1) trỏ tới URL https của ngrok. URL của ngrok bản miễn phí đổi mỗi lần khởi động lại: phải cập nhật `BaseUrl` mỗi lần (muốn URL cố định thì thêm `--url=<domain>` của domain tĩnh miễn phí vào lệnh ngrok trong compose). Không qua ngrok: TADSS chạy `dotnet run` thì `http://localhost:5296` (BE trong container dùng `http://host.docker.internal:5296`); TADSS chạy compose thì `http://localhost:8081` từ BE `dotnet run` trên host, hoặc `http://tadss-runtime:8080` từ BE trong Docker (cả hai cùng mạng external `smashcourt-network`) và khi đó không cần ngrok.
+- `TadssClient` gửi `X-Api-Key` (giá trị **khóa**, không phải mã băm) trên mọi request tới `/api/*`; khóa lấy từ user-secrets/biến môi trường của BE. Phía TADSS chỉ lưu SHA-256 của khóa và `ClientId` (`smashcourt-be`) trong `Tadss:Security:ApiKeys` của `appsettings.Development.json` (file này được copy vào image local như SmashCourt-BE, container chạy `Development`, nên `dotnet run` và Docker dùng chung một khóa; khi expose phải là khóa riêng thật, không dùng `tadss-local-dev-key`, vì Swagger công khai ở Development). Thiếu hoặc sai khóa → 401, BE áp dụng cọc 100% (4.3).
 - `HttpClient` của `TadssClient` gửi thêm header `ngrok-skip-browser-warning: true` như `FastApiClient` đang làm, để ngrok không chèn trang cảnh báo vào response.
 - Mỗi `ClientId` có một xô rate limit riêng, mặc định 100 request mỗi giây cho mỗi instance TADSS (429 `RATE_LIMITED` kèm `Retry-After`, xem 3.8 và 4.3).
 

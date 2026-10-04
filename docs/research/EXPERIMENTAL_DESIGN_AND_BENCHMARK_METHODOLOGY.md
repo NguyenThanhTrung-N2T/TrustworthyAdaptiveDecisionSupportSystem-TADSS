@@ -31,8 +31,10 @@
 | Mã | Môi trường | Thành phần | Dùng cho |
 | :--- | :--- | :--- | :--- |
 | **E-TC** | Testcontainers (trong `dotnet test`) | PostgreSQL 16, Redis 7, Toxiproxy | UT, IT, CT-01/02/04, BE-IT, một phần FI |
-| **E-LOCAL** | `docker compose` trên máy dev | TADSS, PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm`; SmashCourt-BE/FE khi chạy E2E | FI, LT, CT-03, MT, RP, PT |
+| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose --profile evaluation up` (profile `evaluation` của `docker-compose.yml`; **kế hoạch gói 5.5, chưa hiện thực**; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); SmashCourt-BE/FE nối thêm khi chạy LT-04 (Phase 6) | FI, LT-01/02/03/05, CT-03, MT, SC-1, SC-2; RP, PT (dữ liệu của gói 5.6) |
 | **E-STAGING** | Máy chủ staging (chốt ở W10) | SmashCourt FE/BE + TADSS + PostgreSQL + Redis + VNPay sandbox | E2E trên hệ thống thật, UAT |
+
+Ba chế độ chạy của repo (D-12): **dev hằng ngày** `dotnet run` (Neon + Redis Cloud, chỉ app + Swagger, không Docker/Grafana); **vận hành / demo** `docker compose up -d --build` (TADSS + ngrok + Grafana); **đánh giá** `docker compose --profile evaluation up` (E-EVAL). Chỉ chế độ đánh giá tạo số liệu dùng làm minh chứng; test tự động trong CI vẫn chạy ở E-TC (`dotnet test`).
 
 Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docker, digest của image, commit của cả 3 repo và file cấu hình đã dùng.
 
@@ -47,12 +49,12 @@ Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docke
 | `Microsoft.AspNetCore.Mvc.Testing` | Chạy API trong test qua HTTP pipeline thật | TADSS, SmashCourt-BE | IT, BE-IT |
 | **WireMock.Net** | Giả lập TADSS cho BE-IT, response kiểm tra theo JSON schema v2 | SmashCourt-BE | BE-IT, CT-04 |
 | **JsonSchema.Net** | Kiểm tra response theo JSON schema v2 | TADSS, SmashCourt-BE | CT-01, CT-04 |
-| **Schemathesis** (Docker) | Sinh request tự động từ OpenAPI v2 để dò lỗi contract | E-LOCAL | CT-03 |
+| **Schemathesis** (Docker) | Sinh request tự động từ OpenAPI v2 để dò lỗi contract | E-EVAL | CT-03 |
 | **Stryker.NET** | Mutation testing — đo khả năng phát hiện lỗi của bộ test | TADSS | MT |
 | coverlet + **ReportGenerator** | Độ bao phủ mã (báo cáo HTML) | TADSS, SmashCourt-BE | Bổ trợ MT |
-| **Toxiproxy** | Tiêm lỗi mạng: ngắt, trễ, giới hạn băng thông, reset kết nối | E-TC, E-LOCAL | FI |
-| **k6** | Tải: TADSS trực tiếp và E2E qua SmashCourt-BE; xuất summary JSON và đẩy metric | E-LOCAL | LT |
-| **OpenTelemetry .NET** + **`grafana/otel-lgtm`** | Trace, metric, log tập trung; dashboard Grafana làm minh chứng trực quan | E-LOCAL, E-STAGING | FI, LT, E2E |
+| **Toxiproxy** | Tiêm lỗi mạng: ngắt, trễ, giới hạn băng thông, reset kết nối | E-TC, E-EVAL | FI |
+| **k6** | Tải: TADSS trực tiếp (E-EVAL) và E2E qua SmashCourt-BE (LT-04, Phase 6); xuất summary JSON và đẩy metric | E-EVAL | LT |
+| **OpenTelemetry .NET** + **`grafana/otel-lgtm`** | Trace, metric, log tập trung; dashboard Grafana làm minh chứng trực quan | E-EVAL, E-STAGING | FI, LT, E2E |
 | **Playwright** | E2E UI: video, trace viewer, HTML report | smashcourt-fe | E2E, FE |
 | **MSW** (Mock Service Worker) | Mock API cho FE trong Phase 6 theo API contract đã chốt | smashcourt-fe | FE |
 | **Jupyter notebook** (pandas, plotly) | Sinh báo cáo minh chứng HTML từ dữ liệu thô | TADSS `docs/research/` | Toàn bộ |
@@ -111,7 +113,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | :--- | :--- | :--- |
 | CT-01 | Mọi response trong IT hợp lệ theo JSON schema v2 | 0 vi phạm |
 | CT-02 | Public API surface SDK so với baseline v2 | Khớp |
-| CT-03 | Schemathesis trên `openapi-v2.yaml` (E-LOCAL) | 0 lỗi 5xx; 0 response sai schema |
+| CT-03 | Schemathesis trên `openapi-v2.yaml` (E-EVAL, do evaluator chạy) | 0 lỗi 5xx; 0 response sai schema |
 | CT-04 | `TadssClient` của SmashCourt-BE với response mẫu hợp lệ theo schema v2 | Parse đúng mọi trạng thái và mã lỗi |
 
 ### 4.4. MT — Mutation testing (Stryker.NET)
@@ -143,7 +145,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 
 Sau **mỗi** kịch bản FI ở mức E2E (FI-11…FI-14), chạy bộ truy vấn bất biến booking (Mục 5, SC6).
 
-### 4.6. LT — Tải (k6, E-LOCAL)
+### 4.6. LT — Tải (k6, E-EVAL)
 
 | ID | Hồ sơ tải | Đo |
 | :--- | :--- | :--- |
@@ -153,7 +155,7 @@ Sau **mỗi** kịch bản FI ở mức E2E (FI-11…FI-14), chạy bộ truy v�
 | LT-04 | E2E qua SmashCourt-BE: 20 VU tạo booking trên các slot khác nhau trong 10 phút | Độ trễ API tạo booking, tỷ lệ thành công, tính đúng của mức cọc |
 | LT-05 | TADSS soak 50 RPS trong 60 phút | Trôi độ trễ, bộ nhớ, kết nối DB |
 
-Pha warm-up 1 phút bị loại khỏi thống kê. Kết quả kèm dashboard Grafana cùng khoảng thời gian.
+Pha warm-up 1 phút bị loại khỏi thống kê. Kết quả kèm dashboard Grafana cùng khoảng thời gian. Evaluator của chế độ đánh giá (Mục 6.1) chạy LT-01, LT-02, LT-05 và LT-03 (kèm tiêm lỗi); LT-04 (E2E qua SmashCourt-BE) để Phase 6 khi BE tích hợp TADSS. Ở **bản nhanh** của chế độ đánh giá, thời lượng các kịch bản tải được rút ngắn nên số liệu chỉ để diễn tập, không dùng làm số liệu chính thức.
 
 ### 4.7. BE — SmashCourt-BE (Testcontainers + WireMock.Net)
 
@@ -223,18 +225,18 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | SEC-3 | **Security headers** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` cho `/api/*`; HSTS ngoài `Development`/`Testing`; tắt header `Server` của Kestrel | Test host in-process (`TADSS.UnitTests`): header có mặt ở 200, 4xx, 5xx | P5 |
 | SEC-4 | **Fail-closed khi khởi động:** ngoài `Development`/`Testing`, thiếu API key (NG-2) hoặc thiếu connection string → app không khởi động, message không chứa giá trị bí mật. Lưu ý: connection string được kiểm ở **mọi** môi trường (F-13, kể cả `Development`/`Testing`); chỉ API key mới được miễn ở `Development`/`Testing` | Test khởi động host với cấu hình thiếu → lỗi validate options | P5 |
 | SEC-5 | **Health tách live/ready:** `/health/live` chỉ kiểm tra process; `/health/ready` kiểm tra PostgreSQL (bắt buộc, lỗi → 503) và Redis (lỗi → `Degraded`, vẫn 200 vì cache có fallback); response không lộ chuỗi kết nối hay message hạ tầng | IT: PostgreSQL bị ngắt qua Toxiproxy → ready 503, live 200 | P5 |
-| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER $APP_UID`, user `app` của image .NET 8), stage runtime không chứa SDK, `.dockerignore` loại file bí mật; `docker-compose.ngrok.yml` không bind cổng host ngoài `127.0.0.1` (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root | P5 |
+| SEC-6 | **Container cứng:** image runtime chạy user non-root (`USER $APP_UID`, user `app` của image .NET 8), stage runtime không chứa SDK, `.dockerignore` loại `.env`/khóa riêng (`appsettings.Development.json` vào image local như SmashCourt-BE, image không được push); `docker-compose.yml` không bind cổng host ngoài `127.0.0.1` (NG-5) | Kiểm tra `docker inspect` trong job CI hoặc test script: `Config.User` ≠ root | P5 |
 | SEC-7 | **Chuỗi cung ứng:** CI chạy `dotnet list package --vulnerable --include-transitive`, có lỗ hổng mức High/Critical → job đỏ; `RestorePackagesWithLockFile` + `packages.lock.json` cho restore tái lập; Dependabot cho NuGet, Docker và GitHub Actions; log không bao giờ ghi giá trị `X-Api-Key` | Job CI; test log: request có `X-Api-Key` không để lại giá trị khóa trong log | P5 |
 
 ### 4.13. NG — Expose qua ngrok (gói 5.3)
 
 | ID | Kiểm chứng | Ai chạy | Xây dựng |
 | :--- | :--- | :--- | :--- |
-| NG-1 | `docker compose config --quiet` hợp lệ cho cả hai chế độ (A, B) và cho `docker-compose.neon.yml` dùng riêng; thiếu `TADSS_DB_CONNECTION`/`TADSS_API_KEY_SHA256` thì bị từ chối | tự động | P5 |
-| NG-2 | Container thăm dò trong cùng network gọi `http://tadss-runtime:8080`: `/health/ready` 200; `POST /api/v2/decisions` không có key → 401, có key → 200; `/swagger` → 404 ở `Staging`; app **không khởi động** khi thiếu API key ở `Staging` | tự động | P5 |
-| NG-3 | Truy cập database: sau POST, `GET /api/v2/decisions/{id}` trả đúng quyết định vừa ghi (chứng minh đường ghi và đọc DB), và ở chế độ A đếm bản ghi bằng `psql` trong container PostgreSQL. `/health/ready` kiểm tra kết nối DB nên lỗi kết nối hiện ngay khi khởi động | tự động (chế độ A); chế độ B do người dùng chạy với Neon của mình | P5 |
+| NG-1 | `docker compose config --quiet` của `docker-compose.yml` (file compose duy nhất) hợp lệ (với `NGROK_AUTHTOKEN` giả) và `config --services` liệt kê đủ `tadss-runtime`, `ngrok`, `grafana` (không profile); môi trường `Development`, không mount file, compose không chứa biến chuỗi kết nối/khóa; `ApplyMigrationsOnStartup` là literal `"false"` | tự động | P5 |
+| NG-2 | Container thăm dò trong cùng network gọi `http://tadss-runtime:8080`: `/health/ready` 200; `POST /api/v2/decisions` không có key → 401, có key → 200; app **không khởi động** khi thiếu API key ở `Staging` (Swagger được phục vụ ở Development nên không kiểm 404) | tự động | P5 |
+| NG-3 | Truy cập database: sau POST, `GET /api/v2/decisions/{id}` trả đúng quyết định vừa ghi (chứng minh đường ghi và đọc DB), và đếm bản ghi bằng `psql` trong container PostgreSQL tạm của `verify-expose.sh`. `/health/ready` kiểm tra kết nối DB nên lỗi kết nối hiện ngay khi khởi động | tự động (PostgreSQL tạm); với Neon thật do người dùng chạy ở NG-4 | P5 |
 | NG-4 | Qua tunnel thật: `curl https://<domain>/health/ready` 200; POST và GET với `X-Api-Key`; thấy request trong `127.0.0.1:4040` | **người dùng** (cần `NGROK_AUTHTOKEN`) | P5 |
-| NG-5 | Chỉ `127.0.0.1` truy cập được cổng host của `tadss-runtime`, PostgreSQL, Redis, Toxiproxy (kiểm bằng `docker compose ps`); không có cổng nào bind `0.0.0.0` khi dùng `docker-compose.ngrok.yml` (với base + neon riêng chỉ cổng `tadss-runtime` là loopback) | tự động | P5 |
+| NG-5 | Mọi cổng host của `docker-compose.yml` (`tadss-runtime`, giao diện ngrok `4040`, Grafana `3001` và OTLP `4317`/`4318`) chỉ bind `127.0.0.1` (kiểm cả cấu hình render ra và `docker compose ps`); không có cổng nào bind `0.0.0.0` | tự động | P5 |
 
 ---
 
@@ -242,7 +244,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 
 | Mã | Chỉ số | Cách đo | Mục tiêu thiết kế |
 | :--- | :--- | :--- | :--- |
-| **SC1** | Độ trễ quyết định bình thường | p95 thời gian xử lý phía server của `POST /api/v2/decisions` trong LT-01 (E-LOCAL, PostgreSQL/Redis thật); báo cáo thêm p95 API tạo booking của LT-04 | p95 TADSS < 150ms; p95 tạo booking E2E < 1000ms |
+| **SC1** | Độ trễ quyết định bình thường | p95 thời gian xử lý phía server của `POST /api/v2/decisions` trong LT-01 (E-EVAL, PostgreSQL/Redis thật); báo cáo thêm p95 API tạo booking của LT-04 | p95 TADSS < 150ms; p95 tạo booking E2E < 1000ms |
 | **SC2** | Độ trễ khi strategy lỗi | Trong FI-02/FI-03/FI-04 và LT-03 | 100% request có thời gian pipeline ≤ 500ms; p99 endpoint ≤ 700ms |
 | **SC3** | Toàn vẹn & bất biến audit | Mỗi lượt chạy: số response 200 = số bản ghi `PRIMARY`; thử `UPDATE/DELETE` | 0 thiếu, 0 thừa; 0 lần sửa thành công |
 | **SC4** | Idempotency & chống ghi đè đồng thời | IT-04, IT-07 và các lượt LT | 0 bản ghi quyết định trùng; 0 override kép |
@@ -272,6 +274,26 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 
 Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION.md`](DATASET_SCHEMA_SPECIFICATION.md).
 
+Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thực hiện tự động trong một lượt (Mục 6.1), không còn script rời cho từng nhóm.
+
+### 6.1. Chế độ đánh giá một lệnh (D-12)
+
+> **Hiện trạng:** kế hoạch gói 5.5, chưa hiện thực. Thiết kế chi tiết: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
+
+`docker compose --profile evaluation up` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt:
+
+| Bước | Nội dung |
+| :--- | :--- |
+| **a** | Toàn bộ bộ test gộp một lượt: unit, integration, contract, fault injection FI-01…10, nhiều instance SC-1, bảo mật; kết quả gom theo mã danh mục (UT/IT/CT/FI/SEC/NG…) |
+| **b** | Kịch bản tải k6: LT-01, LT-02, LT-05 (LT-04 E2E qua SmashCourt-BE để Phase 6) |
+| **c** | Sự cố dưới tải: LT-03 + FI qua Toxiproxy (cắt PostgreSQL, làm chậm Redis, strategy lỗi); quan sát trực tiếp trên dashboard Grafana: độ trễ tăng, fallback `NEED_APPROVAL`, 503, hồi phục |
+| **d** | Schemathesis (CT-03) và Stryker mutation (MT-01…03) |
+| **e** | Gom minh chứng vào `evidence/<run_id>/`: `report.html` (đạt/không đạt theo SC1…SC8, biểu đồ p50/p95/p99, biểu đồ dòng thời gian sự cố vẽ từ metric Grafana đã thu, số test từng nhóm), dữ liệu thô (trx theo `CatalogId`, kết quả k6, metric export, `chaos_log`) và `manifest.json` chứa SHA-256 từng file (EV-1…EV-5) |
+
+**Hai độ dài:** **bản nhanh** (~15 phút, tải rút ngắn) để diễn tập; **bản đầy đủ** (~1,5–2 giờ, LT-05 soak 60 phút) để lấy số liệu chính thức. Replay 215 booking (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01/PT-02) đổ vào cùng Evidence Pack và báo cáo (dữ liệu của gói 5.6).
+
+**Giới hạn đo lường:** toàn bộ chạy trên một máy (k6, TADSS và cơ sở dữ liệu tranh nhau CPU) nên số liệu là số liệu phòng lab; báo cáo ghi thông số máy (CPU/RAM) và liệt kê vào Mục 8.
+
 ---
 
 ## 7. PHÂN TÍCH & TRÌNH BÀY
@@ -289,7 +311,7 @@ Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`D
 | 215 booking SmashCourt là dữ liệu môi trường phát triển; nhãn `NO_SHOW` do job tự gán khi không check-in, `CANCELLED` phần lớn do hết hạn thanh toán | Không phản ánh hành vi khách thật | Chỉ dùng làm input có hình dạng thực tế (RP); mọi số liệu theo nhãn chỉ mang tính mô tả |
 | Replay là phân tích phản thực tế: mức cọc có thể làm thay đổi chính hành vi khách | Không suy ra được "đã ngăn bao nhiêu no-show" | Không đưa kết luận nhân quả; để Khóa luận xử lý bằng đánh giá off-policy/shadow mode |
 | Dataset khách sạn khác domain | Chỉ là proxy | Dùng cho kiểm chứng độc lập domain và mô tả, không kết luận về sân cầu lông |
-| E-LOCAL chạy trên một máy | Số tuyệt đối khác production | Báo cáo kèm thông số máy; so sánh tương đối giữa kịch bản trên cùng máy |
+| E-EVAL chạy trên một máy: k6, TADSS, PostgreSQL, Redis, Toxiproxy và Grafana tranh nhau CPU/RAM | Số tuyệt đối là số liệu phòng lab, khác production; độ trễ đo được gồm cả nhiễu do tải của chính bộ công cụ | Báo cáo kèm thông số máy (CPU/RAM) và liệt kê vào giới hạn; so sánh tương đối giữa kịch bản trên cùng máy; ghi nhận bản nhanh chỉ để diễn tập |
 | Pilot cỡ mẫu nhỏ | Sai số lớn | Báo cáo cỡ mẫu, trung vị và phân vị; không khái quát hóa |
 
 ---

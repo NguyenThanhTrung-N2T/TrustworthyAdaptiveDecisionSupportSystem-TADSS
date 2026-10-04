@@ -1,83 +1,50 @@
-# Môi trường E-LOCAL của TADSS (Phase 5): TADSS + PostgreSQL + Redis + Toxiproxy + Grafana LGTM.
-# Chạy: docker compose up -d --build   ·   Dừng và xóa dữ liệu: docker compose down -v
-# TADSS kết nối PostgreSQL/Redis QUA Toxiproxy để kịch bản FI tiêm lỗi được mà không phải khởi động lại.
-# Mọi cổng host và image đọc từ biến (mặc định như bên dưới) để chạy song song với stack khác; xem .env.example.
-# Nối vào smashcourt-network của SmashCourt-BE làm ở Phase 7 bằng file override.
-name: tadss-local
+# `docker compose up -d --build` chạy TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001; chưa có dữ liệu TADSS đến khi có OpenTelemetry ở gói 5.5).
+# Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
+#            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
+# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok".
+name: tadss
 
 services:
-  tadss-postgres:
-    image: ${TADSS_POSTGRES_IMAGE:-postgres:16.15-alpine}
-    environment:
-      POSTGRES_DB: tadss
-      POSTGRES_USER: ${TADSS_PG_USER:-tadss}
-      POSTGRES_PASSWORD: ${TADSS_PG_PASSWORD:-tadss_local}
-    ports:
-      - "${TADSS_PG_PORT:-5433}:5432"
-    volumes:
-      - tadss-pg-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  tadss-redis:
-    image: ${TADSS_REDIS_IMAGE:-redis:7.4-alpine}
-    ports:
-      - "${TADSS_REDIS_PORT:-6380}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  toxiproxy:
-    image: ${TADSS_TOXIPROXY_IMAGE:-ghcr.io/shopify/toxiproxy:2.12.0}
-    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
-    volumes:
-      - ./docker/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
-    ports:
-      - "${TADSS_TOXIPROXY_PORT:-8474}:8474"
-    depends_on:
-      tadss-postgres:
-        condition: service_healthy
-      tadss-redis:
-        condition: service_healthy
-
   tadss-runtime:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: on-failure
+    build: .
+    restart: unless-stopped
     ports:
-      - "${TADSS_PORT:-8081}:8080"
+      - "127.0.0.1:8081:8080"   # chỉ máy này truy cập được
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=toxiproxy;Port=15432;Database=tadss;Username=${TADSS_PG_USER:-tadss};Password=${TADSS_PG_PASSWORD:-tadss_local}"
-      Tadss__Cache__Provider: Redis
-      Tadss__Cache__RedisConnectionString: "toxiproxy:16379"
-      Tadss__Database__ApplyMigrationsOnStartup: "true"
-      # F-18: khóa công khai của E-LOCAL (tadss-local-dev-key, ghi trong README); chỉ hợp lệ ở Development/Testing.
-      # Mặc định phải bằng SecurityOptionsValidator.LocalDevelopmentKeySha256 (ComposeFixtureAlignmentTests khóa điều này).
-      Tadss__Security__ApiKeys__0__ClientId: local
-      Tadss__Security__ApiKeys__0__KeySha256: ${TADSS_API_KEY_SHA256:-0472e99d9ccd889b6e6781cf0920a9b39910c1c430393d62839465c4901a6268}
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Database__ApplyMigrationsOnStartup: "false"   # không bao giờ tự migrate Neon
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
       interval: 5s
-      timeout: 3s
       retries: 20
-      start_period: 10s
-    depends_on:
-      toxiproxy:
-        condition: service_started
+    networks:
+      - smashcourt-network
 
-  otel-lgtm:
-    image: ${TADSS_GRAFANA_IMAGE:-grafana/otel-lgtm:0.34.0}
+  ngrok:
+    image: ngrok/ngrok:3.39.11-alpine
+    restart: unless-stopped
+    command: http tadss-runtime:8080
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     ports:
-      - "${TADSS_GRAFANA_PORT:-3001}:3000"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:4040:4040"   # trang theo dõi của ngrok
+    depends_on:
+      tadss-runtime:
+        condition: service_healthy
+    networks:
+      - smashcourt-network
 
-volumes:
-  tadss-pg-data:
+  grafana:
+    image: grafana/otel-lgtm:0.34.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"   # Grafana
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+    networks:
+      - smashcourt-network
+
+networks:
+  smashcourt-network:
+    external: true

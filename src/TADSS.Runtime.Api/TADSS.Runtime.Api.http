@@ -2,7 +2,7 @@
 @idempotencyKey = booking-0001
 @decisionId = 0f9c7e5a-0000-4000-8000-00000000d001
 @branchId = 1f2e3d4c-0000-4000-8000-000000000001
-# Khóa API thô (không phải mã băm). Đặt giá trị của bạn khi chạy; E-LOCAL docker compose dùng khóa công khai tadss-local-dev-key.
+# Khóa API thô (không phải mã băm). Đặt giá trị của bạn khi chạy; Development (appsettings.Development.json) dùng khóa công khai tadss-local-dev-key; expose qua ngrok dùng khóa riêng.
 @apiKey = <khóa-api-của-bạn>
 
 ### Đánh giá quyết định đặt sân (INTEGRATION_SPEC §3.3). Cùng X-Idempotency-Key + cùng nội dung thì trả lại response đã lưu.

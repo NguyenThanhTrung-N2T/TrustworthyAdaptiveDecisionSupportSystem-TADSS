@@ -44,7 +44,7 @@
 | Contract SDK v2, runtime, strategies quy tắc (Default theo hạng, MockAlternative theo khung giờ), định tuyến theo request, shadow mode | Thuật toán Adaptive Trust Score, mô hình học máy dự báo no-show |
 | Audit bất biến (execution, override, outcome) — nguồn dữ liệu cho Khóa luận | Decision Trace API giải thích quyết định |
 | Tích hợp SmashCourt: cọc, chờ duyệt, dashboard Manager, feature flag, job hết hạn/outcome | Mô phỏng đa tác tử, ablation study, ràng buộc công bằng |
-| Hạ tầng kiểm thử & minh chứng: Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, notebook | Event sourcing / outbox phân tán |
+| Hạ tầng kiểm thử & minh chứng: Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, notebook báo cáo — gộp trong chế độ đánh giá một lệnh (`docker compose --profile evaluation up`) | Event sourcing / outbox phân tán |
 | Replay 215 booking SmashCourt, adapter Hotel Booking Demand, pilot UAT | |
 
 ### Ranh giới kiến trúc
@@ -101,4 +101,4 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | 4 — Đánh giá | KPI SC1–SC9, chaos, tải, replay, portability, pilot | Evidence Pack + notebook | W17–W18 |
 | 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | RESEARCH_THESIS_DEFENSE | W18 |
 
-**Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (local docker-compose hay staging) và cỡ mẫu.
+**Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (chế độ đánh giá E-EVAL — `docker compose --profile evaluation up`, chạy trên một máy nên là số liệu phòng lab kèm cấu hình CPU/RAM — hay staging) và cỡ mẫu.

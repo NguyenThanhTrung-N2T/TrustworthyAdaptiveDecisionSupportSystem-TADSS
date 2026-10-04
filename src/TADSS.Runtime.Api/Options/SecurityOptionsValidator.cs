@@ -11,7 +11,7 @@ namespace TADSS.Runtime.Api.Options;
 public sealed partial class SecurityOptionsValidator(IHostEnvironment environment) : IValidateOptions<SecurityOptions>
 {
     /// <summary>
-    /// SHA-256 (hex thường) của khóa local công khai <c>tadss-local-dev-key</c> (docker-compose E-LOCAL, ghi trong README).
+    /// SHA-256 (hex thường) của khóa local công khai <c>tadss-local-dev-key</c> (dùng ở Development qua appsettings.Development.json, ghi trong README).
     /// Ai cũng biết khóa này nên ngoài <c>Development</c>/<c>Testing</c> mã băm này bị từ chối.
     /// </summary>
     public const string LocalDevelopmentKeySha256 = "0472e99d9ccd889b6e6781cf0920a9b39910c1c430393d62839465c4901a6268";

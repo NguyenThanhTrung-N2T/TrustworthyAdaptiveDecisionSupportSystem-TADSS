@@ -2,13 +2,13 @@
 
 > **Vai trò của tài liệu:** định nghĩa cấu trúc Evidence Pack, các bộ dữ liệu minh chứng, quy tắc ẩn danh hóa và kiểm tra toàn vẹn. Test case và KPI tạo ra dữ liệu: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 >
-> **Thay đổi so với v1.0:** ba bộ dữ liệu v1 (`resilience_evaluation`, `latency_caching`, `governance_audit`) sinh từ EF Core InMemory và strategy giả lập đã bị gỡ trong Phase R, vì không phản ánh hành vi trên hạ tầng thật. Tên file đã bỏ hậu tố `_V1` để tránh gây hiểu lầm; nội dung là đặc tả v2.0.
+> **Thay đổi so với v1.0:** ba bộ dữ liệu v1 (`resilience_evaluation`, `latency_caching`, `governance_audit`) sinh từ EF Core InMemory và strategy giả lập đã bị gỡ ở bước 0 của Phase 5 (rà soát và điều chỉnh kế hoạch), vì không phản ánh hành vi trên hạ tầng thật. Tên file đã bỏ hậu tố `_V1` để tránh gây hiểu lầm; nội dung là đặc tả v2.0.
 
 ---
 
 ## 1. NGUYÊN TẮC
 
-1. Dữ liệu minh chứng chỉ được sinh từ các lượt chạy trên hạ tầng thật (E-TC, E-LOCAL, E-STAGING).
+1. Dữ liệu minh chứng chỉ được sinh từ các lượt chạy trên hạ tầng thật (E-TC, E-EVAL, E-STAGING; E-EVAL là chế độ đánh giá một lệnh `docker compose --profile evaluation up`, thay cho E-LOCAL ở bản trước — D-12).
 2. Schema production không chứa cột phục vụ thực nghiệm; thông tin lượt chạy nằm trong manifest của Evidence Pack.
 3. Không lưu dữ liệu cá nhân (tên, số điện thoại, email, ghi chú tự do); định danh được ẩn danh hóa theo Mục 4.
 4. Mỗi file dữ liệu có SHA-256 trong manifest; báo cáo dẫn về `run_id` và file cụ thể.
@@ -23,8 +23,10 @@ docs/research/evidence-packs/{run_id}/
 ├── config/              # cấu hình đã dùng (đã loại secret), k6 options, cấu hình Toxiproxy
 ├── raw/                 # dữ liệu thô: k6 summary/time series, báo cáo test (trx/HTML), export audit, kết quả truy vấn bất biến
 ├── grafana/             # ảnh chụp + JSON snapshot dashboard cùng khoảng thời gian
-└── report.html          # báo cáo do notebook sinh ra
+└── report.html          # báo cáo do bộ sinh báo cáo (notebook) sinh ra
 ```
+
+> **Chế độ đánh giá một lệnh (D-12, kế hoạch gói 5.5, chưa hiện thực):** container **evaluator** của profile `evaluation` tự dựng Evidence Pack của cả lượt đánh giá tại `evidence/<run_id>/` (cùng cấu trúc trên; thư mục làm việc, không commit), gồm `report.html`, dữ liệu thô và `manifest.json`; không còn bước dựng Evidence Pack bằng script chạy riêng. Bản cuối của lượt đầy đủ được chốt vào `docs/research/evidence-packs/{run_id}/`. Với lượt đánh giá trọn gói, `run_id` dùng nhóm `EVAL` (đề xuất: `EV-{yyyyMMdd}-EVAL-{quick|full}-{lần}`, chốt khi hiện thực).
 
 - `run_id`: `EV-{yyyyMMdd}-{nhóm}-{mã}-{lần}` (ví dụ `EV-20261216-FI-02-r1`).
 - File thô lớn hơn 20 MB được đính kèm vào GitHub Release; manifest vẫn ghi đường dẫn và SHA-256.
@@ -37,7 +39,7 @@ docs/research/evidence-packs/{run_id}/
   "schemaVersion": "2.0.0",
   "runId": "EV-20261216-LT-01-r1",
   "createdAtUtc": "2026-12-16T03:00:00Z",
-  "environment": "E-LOCAL",
+  "environment": "E-EVAL",
   "commits": { "tadss": "<sha>", "smashcourtBe": "<sha>", "smashcourtFe": "<sha>" },
   "images": { "postgres": "postgres:16@sha256:...", "redis": "redis:7@sha256:..." },
   "machine": { "cpu": "...", "logicalCores": 8, "ramGb": 16, "os": "...", "docker": "..." },
@@ -107,4 +109,4 @@ Nguồn dữ liệu chính cho Đồ án 2 và Khóa luận. Một dòng = một
 | EV-4 | Không có cột dữ liệu cá nhân trong mọi file |
 | EV-5 | Có đủ commit, cấu hình và thông số máy trong manifest |
 
-Notebook chạy EV-1…EV-5 trước khi sinh `report.html`; nếu có kiểm tra không đạt thì báo cáo ghi rõ và không dùng lượt chạy đó làm minh chứng.
+Bộ sinh báo cáo (notebook; ở chế độ đánh giá một lệnh do evaluator gọi) chạy EV-1…EV-5 trước khi sinh `report.html`; nếu có kiểm tra không đạt thì báo cáo ghi rõ và không dùng lượt chạy đó làm minh chứng.

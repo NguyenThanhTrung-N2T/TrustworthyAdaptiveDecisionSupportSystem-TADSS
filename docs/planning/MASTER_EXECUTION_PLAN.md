@@ -39,7 +39,7 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 
 ## I. NGUYÊN TẮC THỰC THI
 
-1. **Tuần tự theo khối:** TADSS hoàn thiện trước (kể cả hạ tầng kiểm thử và kịch bản kiểm thử) → **BE và FE phát triển song song** → **Integrate** → **Test & Fix** (chỉ kiểm thử và sửa lỗi, không thêm tính năng).
+1. **Tuần tự theo khối:** TADSS hoàn thiện trước (kể cả hạ tầng kiểm thử và kịch bản kiểm thử) → **BE và FE phát triển song song** → **Integrate** → **Kiểm thử & đánh giá** (chỉ kiểm thử và sửa lỗi, không thêm tính năng).
 2. **Chuẩn bị kiểm thử trước khi code tính năng:** toàn bộ công cụ kiểm thử (Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, notebook báo cáo) được dựng trong Phase 5; danh mục kiểm thử của toàn hệ thống được viết xong tại Milestone 5.
 3. **Không cắt giảm kiểm thử:** mọi test case trong danh mục là bắt buộc, phải chạy và đạt. Không có phân tầng Must/Should/Could cho kiểm thử.
 4. **Minh chứng phải chạy trên hạ tầng thật:** PostgreSQL 16 và Redis 7 thật (container), lỗi được tiêm ở tầng mạng (Toxiproxy). EF Core InMemory và độ trễ giả lập bằng `Task.Delay` không được dùng làm minh chứng.
@@ -52,7 +52,7 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 | Cấu phần | Owner | Reviewer | Deliverable |
 |:---|:---:|:---:|:---|
 | TADSS: SDK, Runtime, Strategies, Contract v2 | SV1 | SV2 (góc nhìn consumer) | `Shared.DecisionContractSDK` v2, `TADSS.Runtime.Api`, strategies v2 |
-| Hạ tầng kiểm thử & observability | SV1 | SV2 | Testcontainers, docker-compose (Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`), Stryker.NET, Schemathesis, notebook minh chứng |
+| Hạ tầng kiểm thử & observability | SV1 | SV2 | Testcontainers; chế độ đánh giá một lệnh `docker compose --profile evaluation up` (D-12: TADSS, Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`, evaluator điều phối k6, Schemathesis, Stryker.NET và dựng báo cáo minh chứng) |
 | Harness replay & portability | SV1 | SV2 | Replay 215 booking SmashCourt, adapter Hotel Booking Demand |
 | SmashCourt-BE (tích hợp cọc, duyệt, job) | SV1 | SV2 | API booking cọc, proxy duyệt, job hết hạn, job báo outcome |
 | smashcourt-fe (khách + Manager) | SV2 | SV1 | Màn hình cọc, chờ duyệt, dashboard duyệt |
@@ -70,11 +70,10 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 | **2 — Contract SDK v1** | W03 | 14/09 – 20/09 (thực tế 13/09 – 18/09) | SDK, Rich Domain Model, đóng băng v1 | ✅ M2 |
 | **3 — Runtime Engine** | W03–W04 | thực tế 19/09 – 22/09 | Web API, chọn strategy qua DI, Default/Mock | ✅ M3 |
 | **4 — Resilience & Audit** | W04–W05 | thực tế 23/09 – 01/10 | Polly v8, cache, audit đồng bộ, micro-benchmark lab | ✅ M4 |
-| **R — Re-baseline** | W05–W06 | 01/10 – 11/10 | Audit, đồng bộ tài liệu, dọn repo | ✅ MR (01/10) |
-| **5 — Hoàn thiện TADSS + hạ tầng kiểm thử** | W07–W10 | 12/10 – 08/11 | Contract v2, sửa lõi, toàn bộ công cụ kiểm thử, danh mục kiểm thử toàn hệ thống | ⏳ M5 |
+| **5 — Hoàn thiện TADSS + hạ tầng kiểm thử** | W05–W10 | 02/10 – 08/11 | Rà soát và điều chỉnh kế hoạch (Gate MR đạt 01/10), contract v2, sửa lõi, toàn bộ công cụ kiểm thử, danh mục kiểm thử toàn hệ thống | ⏳ M5 |
 | **6 — BE ∥ FE** | W11–W14 | 09/11 – 06/12 | SmashCourt-BE và smashcourt-fe phát triển song song theo API contract đã chốt | ⏳ M6 |
 | **7 — Integrate** | W15 | 07/12 – 13/12 | Ghép FE ↔ BE ↔ TADSS, staging, **feature freeze** | ⏳ M7 |
-| **8 — Test & Fix** | W16–W17 | 14/12 – 27/12 | Chạy toàn bộ danh mục, pilot UAT, Evidence Pack, chỉ sửa lỗi | ⏳ M8 |
+| **8 — Kiểm thử & đánh giá** | W16–W17 | 14/12 – 27/12 | Chạy toàn bộ kế hoạch kiểm thử (chế độ đánh giá một lệnh), E2E qua SmashCourt, pilot UAT, báo cáo minh chứng; chỉ sửa lỗi | ⏳ M8 |
 | **9 — Đóng gói & bảo vệ** | W18 | 28/12/2026 – 03/01/2027 | Báo cáo, slide, video, diễn tập | ⏳ M9 |
 
 ```mermaid
@@ -87,16 +86,14 @@ gantt
     Phase 2 Contract SDK v1       :done, p2, 2026-09-13, 2026-09-18
     Phase 3 Runtime Engine        :done, p3, 2026-09-19, 2026-09-22
     Phase 4 Resilience & Audit    :done, p4, 2026-09-23, 2026-10-01
-    section Re-baseline
-    Phase R                       :active, pr, 2026-10-01, 2026-10-11
     section TADSS
-    Phase 5 TADSS + test infra    :p5, 2026-10-12, 2026-11-08
+    Phase 5 TADSS + test infra    :active, p5, 2026-10-02, 2026-11-08
     section Song song
     Phase 6 SmashCourt-BE (SV1)   :p6b, 2026-11-09, 2026-12-06
     Phase 6 smashcourt-fe (SV2)   :p6f, 2026-11-09, 2026-12-06
     section Hoàn thiện
     Phase 7 Integrate             :p7, 2026-12-07, 2026-12-13
-    Phase 8 Test & Fix + Pilot    :p8, 2026-12-14, 2026-12-27
+    Phase 8 Kiểm thử & đánh giá   :p8, 2026-12-14, 2026-12-27
     Phase 9 Đóng gói              :p9, 2026-12-28, 2027-01-03
 ```
 
@@ -123,28 +120,30 @@ gantt
 
 - **Đã làm:** pipeline Polly v8 (Outer Timeout 500ms → Fallback → Retry 2 lần/30ms → Circuit Breaker → Inner Timeout 120ms); `FallbackDecisionStrategy` trả `NEED_APPROVAL`; cache theo request-hash (Redis + `IMemoryCache`); ghi audit đồng bộ qua MediatR; bộ kiểm thử tiêm lỗi F1–F7; micro-benchmark 19 kịch bản × 4 mức tải.
 - **Milestone 4:** 510 test tự động pass (483 unit + 27 integration).
-- **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ trong Phase R vì dữ liệu sinh từ DB in-memory. Báo cáo benchmark Tuần 8 đã gỡ khỏi repo ở Phase 5, tra lại qua tag `phase4-baseline`.
+- **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ ở bước rà soát đầu Phase 5 vì dữ liệu sinh từ DB in-memory. Báo cáo benchmark Tuần 8 đã gỡ khỏi repo ở Phase 5, tra lại qua tag `phase4-baseline`.
 
-### ✅ Phase R — Re-baseline (W05–W06, kế hoạch 01/10 – 11/10, Gate MR đạt 01/10)
+### ⏳ Phase 5 — Hoàn thiện TADSS + hạ tầng kiểm thử (W05–W10, 02/10 – 08/11)
+
+#### ✅ Bước 0 — Rà soát và điều chỉnh kế hoạch (01/10 – 11/10, Gate MR đạt 01/10)
 
 - **SV1:** audit mã nguồn và tài liệu; đồng bộ toàn bộ tài liệu theo kế hoạch v2.0; gỡ module `Normalization` cùng 6 dataset tổng hợp; build + test xanh.
 - **SV2:** review tài liệu từ góc nhìn FE/UX; xác nhận luồng nghiệp vụ cọc và duyệt.
 - **Gate MR:** `git status` sạch ở cả 4 repo; không còn tài liệu mâu thuẫn với mã nguồn; TADSS build `--warnaserror` và test pass; tag `phase4-baseline` được tạo trước khi dọn.
 - **Kết quả Gate MR (01/10/2026):** 4 repo sạch; build 0 warning; 473 unit + 27 integration test pass, CI `develop` xanh; tag `phase4-baseline` (`243a421`) đã đẩy lên remote. Review của SV2 (TR.4) tiếp tục đến 11/10 và gộp góp ý vào T5.24.
 
-### ⏳ Phase 5 — Hoàn thiện TADSS + hạ tầng kiểm thử (W07–W10, 12/10 – 08/11)
+#### Kế hoạch theo tuần
 
 | Tuần | SV1 (TADSS + hạ tầng) | SV2 (chuẩn bị kiểm thử) |
 |:---|:---|:---|
-| **W07** (12–18/10) | Chốt bản nháp contract v2 (OpenAPI + JSON schema + SDK); thiết kế migration DB v2; chuyển toàn bộ integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7), gỡ EF InMemory; dựng `docker-compose` (TADSS, Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`) | Review contract v2 từ phía consumer; dựng **Playwright** trong `smashcourt-fe`; dựng dự án **k6**; bắt đầu viết kịch bản E2E/UAT |
+| **W07** (12–18/10) | Chốt bản nháp contract v2 (OpenAPI + JSON schema + SDK); thiết kế migration DB v2; chuyển toàn bộ integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7), gỡ EF InMemory; dựng `docker-compose` (TADSS, Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`; *sau D-11/D-12: gỡ khỏi compose, dựng lại ở W09 thành chế độ đánh giá `--profile evaluation`*) | Review contract v2 từ phía consumer; dựng **Playwright** trong `smashcourt-fe`; dựng dự án **k6**; bắt đầu viết kịch bản E2E/UAT |
 | **W08** (19–25/10) | Hiện thực v2: số cọc trong response, strategies v2 theo ngữ nghĩa cọc, lưu snapshot request, bảng `decision_overrides` / `decision_outcomes` append-only + trigger chặn sửa, hàng chờ thay thế bản cũ và có hạn, lọc chi nhánh, xác thực API key, sửa múi giờ, sửa map exception | Viết script k6 cho TADSS (tải danh nghĩa, tăng dần, soak); tiếp tục danh mục E2E |
-| **W09** (26/10–01/11) | Định tuyến strategy theo từng request + shadow mode; cách ly timeout cho strategy không hợp tác; chính sách cache theo strategy + breaker cho Redis; gắn **OpenTelemetry** và dựng dashboard **Grafana**; kịch bản lỗi **Toxiproxy**; **Schemathesis**; baseline **Stryker.NET** | Khung kịch bản Playwright (đặc tả từng bước, chờ FE); kịch bản pilot UAT và phiếu khảo sát SUS |
-| **W10** (02–08/11) | Harness **replay** 215 booking (xuất ẩn danh) và adapter **Hotel Booking Demand**; pipeline **notebook** sinh báo cáo minh chứng + mẫu Evidence Pack; chạy toàn bộ danh mục kiểm thử TADSS → đạt 100%; **đóng băng contract v2**; chốt **API contract BE ↔ FE** cho Phase 6; chốt môi trường staging cho pilot | Review API contract BE ↔ FE; hoàn tất danh mục kiểm thử E2E/FE/UAT |
+| **W09** (26/10–01/11) | Định tuyến strategy theo từng request + shadow mode; cách ly timeout cho strategy không hợp tác; chính sách cache theo strategy + breaker cho Redis; gắn **OpenTelemetry** và dựng dashboard **Grafana**; dựng **chế độ đánh giá một lệnh** (`docker compose --profile evaluation up`, D-12) với evaluator điều phối kịch bản lỗi **Toxiproxy**, k6, **Schemathesis**, **Stryker.NET** và bộ sinh báo cáo | Khung kịch bản Playwright (đặc tả từng bước, chờ FE); kịch bản pilot UAT và phiếu khảo sát SUS |
+| **W10** (02–08/11) | Harness **replay** 215 booking (xuất ẩn danh) và adapter **Hotel Booking Demand**; đổ dữ liệu vào Evidence Pack/báo cáo của chế độ đánh giá (mẫu Evidence Pack); chạy **bản đầy đủ** của chế độ đánh giá (toàn bộ danh mục TADSS, ~1,5–2 giờ) → đạt 100%; **đóng băng contract v2**; chốt **API contract BE ↔ FE** cho Phase 6; chốt môi trường staging cho pilot | Review API contract BE ↔ FE; hoàn tất danh mục kiểm thử E2E/FE/UAT |
 
 - **Gate M5 — TADSS Complete & Test-Ready:**
   - Toàn bộ test case TADSS trong danh mục (UT, IT, CT, FI, LT mức TADSS, MT) đạt trên hạ tầng thật; không còn EF InMemory trong solution.
   - Contract v2 đóng băng (OpenAPI v2, JSON schema v2, public API baseline v2).
-  - Dashboard Grafana, kịch bản Toxiproxy, k6, Schemathesis, Stryker, notebook chạy được bằng một lệnh và đã có lượt chạy mẫu.
+  - Dashboard Grafana, kịch bản Toxiproxy, k6, Schemathesis, Stryker và bộ sinh báo cáo chạy được bằng một lệnh (`docker compose --profile evaluation up`, chế độ đánh giá, D-12) và đã có lượt chạy đầy đủ sinh `evidence/<run_id>/`.
   - Danh mục kiểm thử **toàn hệ thống** (gồm BE, FE, E2E, UAT) viết xong; API contract BE ↔ FE đã chốt.
 
 ### ⏳ Phase 6 — SmashCourt-BE ∥ smashcourt-fe (W11–W14, 09/11 – 06/12)
@@ -164,13 +163,32 @@ gantt
 - **Feature freeze cuối W15.**
 - **Gate M7 — Integrated:** các luồng E2E chính chạy thông trên staging (APPROVED, NEED_APPROVAL → duyệt, từ chối, hết hạn, tắt flag, TADSS sập).
 
-### ⏳ Phase 8 — Test & Fix (W16–W17, 14/12 – 27/12)
+### ⏳ Phase 8 — Kiểm thử & đánh giá (W16–W17, 14/12 – 27/12)
 
-- Chạy **toàn bộ** danh mục: UT/IT/CT/MT, ma trận lỗi FI (Toxiproxy), tải LT (k6), E2E (Playwright trên staging), replay RP, portability PT.
+- Chạy **bản đầy đủ** của chế độ đánh giá một lệnh (`docker compose --profile evaluation up`, D-12) trên hạ tầng cô lập; quan sát trực tiếp trên Grafana.
+- Chạy E2E (Playwright) và LT-04 (k6 qua SmashCourt-BE) trên staging.
 - **Pilot UAT** trong 2 tuần với người dùng thật; thu khảo sát SUS.
 - Chỉ sửa lỗi; mọi lần sửa phải chạy lại các test case liên quan.
-- Sinh **Evidence Pack** và báo cáo notebook.
-- **Gate M8 — Evaluation Complete:** 100% test case đạt; đo đủ KPI SC1–SC9; Evidence Pack hoàn chỉnh.
+- **Gate M8 — Evaluation Complete:** 100% test case đạt; đo đủ KPI SC1–SC9; báo cáo HTML và Evidence Pack hoàn chỉnh.
+
+**Kế hoạch kiểm thử** (công cụ và test case được chuẩn bị ở Phase 5, chạy liên tục khi phát triển, chạy đầy đủ ở Phase 8; mọi kiểm thử dùng PostgreSQL/Redis thật):
+
+| Nội dung kiểm thử | Mã danh mục | Cách thực hiện | Công cụ | Kết quả mong đợi |
+| :--- | :--- | :--- | :--- | :--- |
+| Kiểm thử đơn vị | UT | Kiểm tra từng thành phần: tính tiền cọc, cửa sổ phê duyệt, chọn strategy, băm request, ánh xạ lỗi | xUnit, FluentAssertions, Moq | 100% test case đạt |
+| Chất lượng bộ kiểm thử | MT-01…03 | Gây đột biến mã nguồn và kiểm tra bộ test có phát hiện | Stryker.NET | Mutation score ≥ 70% (SC8) |
+| Kiểm thử tích hợp | IT | Gọi API thật với PostgreSQL/Redis thật trong container: tạo quyết định, gửi trùng, phê duyệt, ghi đè, ghi nhận kết quả | xUnit, Testcontainers | 0 quyết định trùng, 0 override kép (SC4); số response 200 = số bản ghi `PRIMARY`, sửa/xóa audit bị chặn (SC3) |
+| Kiểm thử hợp đồng API | CT | Kiểm tra theo JSON Schema; sinh request tự động từ OpenAPI | JsonSchema.Net, Schemathesis | 0 lỗi 5xx, 0 response sai schema (CT-03) |
+| Kiểm thử chịu lỗi | FI-01…10 | Strategy chậm/lỗi; cắt hoặc làm chậm PostgreSQL, Redis; client hủy request | Toxiproxy, decorator tiêm lỗi | Fallback `NEED_APPROVAL`, pipeline ≤ 500 ms (SC2); mất DB → 503, không bản ghi dở dang; mất Redis → vẫn phục vụ |
+| Kiểm thử tải | LT-01…03, LT-05 | 50 RPS × 10 phút; tăng dần 10 → 400 RPS; 50 RPS × 60 phút; tải khi có sự cố | k6 | p95 < 150 ms (SC1); p99 ≤ 700 ms khi có sự cố (SC2); không rò rỉ khi chạy dài |
+| Kiểm thử bảo mật | SEC-1…7 | Thiếu/sai API key, vượt giới hạn tốc độ, request quá lớn, log không chứa bí mật | xUnit, k6 | Đúng 401/429/413; không lộ secret |
+| Feature flag & toàn vẹn đặt sân | FI-11…14 | Tắt TADSS bằng cờ khi đang đặt sân; truy vấn bất biến sau mỗi kịch bản | xUnit, SQL | Cờ hiệu lực < 2 giây, cọc 100% khi tắt (SC5); 0 booking hỏng (SC6) |
+| Giao diện đầu–cuối | E2E, LT-04 | Đặt sân → cọc → VNPay → Manager duyệt/từ chối trên trình duyệt | Playwright, k6 | Luồng chính chạy thông; p95 tạo booking < 1000 ms (SC1) |
+| Độc lập nghiệp vụ | PT-01…02 | ≥ 10.000 đơn đặt phòng khách sạn công khai gửi qua TADSS | Python | 0 lỗi contract, 0 thay đổi mã runtime/SDK (SC7) |
+| Chạy lại dữ liệu thật | RP-01…02 | 215 booking SmashCourt (ẩn danh) qua TADSS; so sánh với cọc 100% | Python | Phân bố quyết định/mức cọc theo hạng khách, khung giờ; bảng so sánh hai chính sách |
+| Pilot người dùng thật | UAT | ≥ 15 người, 2 tuần trên staging, khảo sát | Phiếu SUS | ≥ 50 booking; SUS ≥ 68 (SC9) |
+
+**Kết quả đầu ra:** báo cáo HTML (đạt/không đạt theo SC1–SC9, biểu đồ p50/p95/p99, biểu đồ diễn biến sự cố, số test đạt theo nhóm) cùng dữ liệu thô và `manifest.json` (SHA-256) trong `evidence/<run_id>/` — nguồn số liệu cho Chương 3–4 của báo cáo và phần trình bày trước hội đồng.
 
 ### ⏳ Phase 9 — Đóng gói & bảo vệ (W18, 28/12/2026 – 03/01/2027)
 

@@ -48,6 +48,10 @@ ENV ASPNETCORE_URLS=http://+:8080
 
 COPY --from=publish /app/publish .
 
+# Serilog File sink ghi vào logs/ (đường dẫn tương đối trong appsettings.Development.json): /app thuộc root nên phải tạo sẵn thư mục ghi được
+# cho user non-root, nếu không sink im lặng bỏ log. Đặt TRƯỚC USER vì mkdir/chown cần root.
+RUN mkdir -p /app/logs && chown $APP_UID /app/logs
+
 # SEC-6: chạy bằng user non-root của image .NET 8 (APP_UID); đặt SAU apk add vì apk cần root
 USER $APP_UID
 ENTRYPOINT ["dotnet", "TADSS.Runtime.Api.dll"]

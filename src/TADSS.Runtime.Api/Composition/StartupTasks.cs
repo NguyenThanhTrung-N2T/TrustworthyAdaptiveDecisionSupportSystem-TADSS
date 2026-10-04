@@ -28,7 +28,7 @@ public static class StartupTasks
                 SecurityOptions.SectionName);
         }
 
-        // Tự áp migration khi khởi động — chỉ bật ở E-LOCAL (docker compose); Neon/staging giữ mặc định false
+        // Tự áp migration khi khởi động — chỉ bật cho database thử dùng một lần (verify-expose.sh, Testcontainers, lab E-LOCAL); Neon/staging giữ mặc định false
         if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.ApplyMigrationsOnStartup)
         {
             app.Logger.LogWarning(

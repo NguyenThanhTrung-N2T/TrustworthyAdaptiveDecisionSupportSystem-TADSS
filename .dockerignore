@@ -11,11 +11,9 @@ docs/
 docker/
 *.md
 *.user
-src/TADSS.Runtime.Api/appsettings.Development.json
 
-# SEC-6: file bí mật không được vào build context / image
+# SEC-6: .env/khóa riêng không vào build context. appsettings.Development.json CÓ vào image (như SmashCourt-BE): image chỉ dùng local, không push registry
 .env
 .env.*
-**/appsettings.Development.json
 **/appsettings.*.local.json
 **/*.pfx

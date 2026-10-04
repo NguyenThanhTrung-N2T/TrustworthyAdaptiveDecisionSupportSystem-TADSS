@@ -26,7 +26,7 @@
 
 ---
 
-## PHASE R — RE-BASELINE (W05–W06)
+## PHASE 5 — BƯỚC 0: RÀ SOÁT VÀ ĐIỀU CHỈNH KẾ HOẠCH (W05–W06, Gate MR đạt 01/10)
 
 | Mã | Task | Owner | Tiêu chí nghiệm thu |
 |:---|:---|:---:|:---|
@@ -38,13 +38,13 @@
 
 ---
 
-## PHASE 5 — HOÀN THIỆN TADSS + HẠ TẦNG KIỂM THỬ (W07–W10)
+## PHASE 5 — HOÀN THIỆN TADSS + HẠ TẦNG KIỂM THỬ (W05–W10, 02/10 – 08/11): CÁC GÓI 5.1–5.7
 
 ### Epic 5A — Contract v2 & lõi TADSS (SV1)
 
-> **Gói 5.2d — Clean Architecture và SOLID: ✅ hoàn tất (03/10/2026).** Tách `TADSS.Runtime.Api` thành `TADSS.Application`, `TADSS.Infrastructure`, `TADSS.Runtime.Api` (ADR-013); port audit tách theo consumer, `StrategyEvaluator`/`DecisionPayloadSerializer` tách khỏi `DecisionService`, bỏ hardcode, đổi tên entity EF; thêm bộ test kiến trúc UT-14. Không đổi wire, JSON schema, `openapi-v2.yaml`, baseline SDK và ID migration. Hiện có 1112 unit + 121 integration test (trước gói: 965 + 121). Tiếp theo: gói 5.3.
+> **Gói 5.2d — Clean Architecture và SOLID: ✅ hoàn tất (03/10/2026).** Tách `TADSS.Runtime.Api` thành `TADSS.Application`, `TADSS.Infrastructure`, `TADSS.Runtime.Api` (ADR-013); port audit tách theo consumer, `StrategyEvaluator`/`DecisionPayloadSerializer` tách khỏi `DecisionService`, bỏ hardcode, đổi tên entity EF; thêm bộ test kiến trúc UT-14. Không đổi wire, JSON schema, `openapi-v2.yaml`, baseline SDK và ID migration. Khi xong gói có 1112 unit + 121 integration test (trước gói: 965 + 121). Tiếp theo: gói 5.3.
 
-> **Gói 5.3 — Quản trị và bảo mật: ✅ hoàn tất (04/10/2026).** Override, outcome, hàng chờ duyệt (T5.5, T5.6); `X-Api-Key`, rate limiting, giới hạn kích thước, security headers, health live/ready, container non-root, lock file + quét lỗ hổng (T5.7); compose tham số hóa + ngrok/neon + `tools/expose/verify-expose.sh` (T5.30). Thêm hai mã lỗi `RATE_LIMITED` (429), `PAYLOAD_TOO_LARGE` (413), 5 JSON schema và 3 endpoint vào `openapi-v2.yaml`; không đổi `baseline_public_api.txt` và migration. Hiện có 1517 unit + 188 integration test (trước gói: 1112 + 121). **Chờ người dùng:** NG-4 (tunnel ngrok thật, cần `NGROK_AUTHTOKEN`), NG-3 chế độ B (Neon). Tiếp theo: gói 5.4.
+> **Gói 5.3 — Quản trị và bảo mật: ✅ hoàn tất (04/10/2026).** Override, outcome, hàng chờ duyệt (T5.5, T5.6); `X-Api-Key`, rate limiting, giới hạn kích thước, security headers, health live/ready, container non-root, lock file + quét lỗ hổng (T5.7); compose + ngrok + `tools/expose/verify-expose.sh` (T5.30; sau D-11 cùng ngày: một `docker-compose.yml` không profile chạy `tadss-runtime` + `ngrok` + `grafana`, `appsettings.Development.json` copy vào image local). Thêm hai mã lỗi `RATE_LIMITED` (429), `PAYLOAD_TOO_LARGE` (413), 5 JSON schema và 3 endpoint vào `openapi-v2.yaml`; không đổi `baseline_public_api.txt` và migration. Hiện có 1516 unit + 196 integration test (sau điều chỉnh D-11; trước gói: 1112 + 121). **Chờ người dùng:** NG-4 (tunnel ngrok thật với Neon thật, cần `NGROK_AUTHTOKEN`). Tiếp theo: gói 5.4.
 
 | Mã | Task | Tuần | Test case liên quan |
 |:---|:---|:---:|:---|
@@ -62,21 +62,23 @@
 
 ### Epic 5B — Hạ tầng kiểm thử & observability (SV1)
 
+> **Chế độ đánh giá một lệnh (D-12, 04/10/2026):** T5.14…T5.20 được hiện thực quanh `docker compose --profile evaluation up` (kế hoạch gói 5.5, **chưa làm**): một container evaluator điều phối test gộp, k6, sự cố dưới tải qua Toxiproxy, Schemathesis, Stryker rồi dựng `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`). Các script rời đã dự kiến trước đây được evaluator thay thế; profile `lab` / môi trường E-LOCAL được thay bằng profile `evaluation` / E-EVAL. Gói 5.5 dựng chế độ đánh giá; 5.6 thêm dữ liệu (replay, adapter khách sạn); 5.7 chạy bản đầy đủ để đóng băng (Gate M5).
+
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
 | T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W07 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration; sau gói 5.2c: 965 unit + 121 integration; sau gói 5.2d: 1112 unit + 121 integration |
-| T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | ✅ (gói 5.1) `docker compose up -d --build` một lệnh; môi trường E-LOCAL tự chứa |
-| T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) | W09 | Dashboard JSON lưu trong repo |
-| T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) | W09 | Script chạy ma trận FI |
-| T5.16 | **Schemathesis** chạy trên OpenAPI v2 | W09 | CT-03 |
-| T5.17 | **Stryker.NET** cho SDK, Strategies, service lõi; báo cáo coverage bằng ReportGenerator | W09 | MT-01…MT-03 |
-| T5.18 | Harness **replay**: truy vấn chỉ đọc xuất 215 booking SmashCourt (ẩn danh) → request v2 → kết quả | W10 | RP-01, RP-02 |
-| T5.19 | Adapter **Hotel Booking Demand** → contract v2 (chứng minh độc lập domain) | W10 | PT-01, PT-02 |
-| T5.20 | **Notebook** (Python, pandas, plotly) sinh báo cáo minh chứng HTML từ Evidence Pack; mẫu Evidence Pack + manifest SHA-256 | W10 | Notebook chạy lại được |
-| T5.21 | Chạy toàn bộ danh mục TADSS; đóng băng contract v2 | W10 | Gate M5 |
+| T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W07 | ✅ (gói 5.1) đã dựng môi trường E-LOCAL tự chứa; *04/10/2026 đã gỡ khỏi compose* (compose hiện chỉ để deploy/expose). Các service (PostgreSQL, Redis, Toxiproxy, Grafana) được dựng lại ở gói 5.5 trong profile `evaluation` của `docker-compose.yml` (D-12; thay cho profile `lab` đã dự kiến), cùng container evaluator — trạng thái phần dựng lại: chưa làm |
+| T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS; dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, độ dài hàng chờ) — dashboard là nơi xem sự cố trực tiếp khi evaluator chạy kịch bản dưới tải | W09 | Dashboard JSON lưu trong repo |
+| T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) — một bước của evaluator (test gộp + sự cố dưới tải, ghi `chaos_log`), không còn script rời | W09 | Ma trận FI chạy trong chế độ đánh giá |
+| T5.16 | **Schemathesis** chạy trên OpenAPI v2 — một bước của evaluator | W09 | CT-03 |
+| T5.17 | **Stryker.NET** cho SDK, Strategies, service lõi; báo cáo coverage bằng ReportGenerator — một bước của evaluator | W09 | MT-01…MT-03 |
+| T5.18 | Harness **replay**: truy vấn chỉ đọc xuất 215 booking SmashCourt (ẩn danh) → request v2 → kết quả; đổ vào cùng Evidence Pack/báo cáo của chế độ đánh giá | W10 | RP-01, RP-02 |
+| T5.19 | Adapter **Hotel Booking Demand** → contract v2 (chứng minh độc lập domain); đổ vào cùng Evidence Pack/báo cáo | W10 | PT-01, PT-02 |
+| T5.20 | **Evidence/report builder** (Python, pandas, plotly) nằm trong chế độ đánh giá: sinh `report.html` (đạt/không đạt SC1…SC8, p50/p95/p99, biểu đồ dòng thời gian sự cố) + `manifest.json` SHA-256 trong `evidence/<run_id>/` | W10 | Một lệnh sinh trọn Evidence Pack |
+| T5.21 | Chạy **bản đầy đủ** của chế độ đánh giá (toàn bộ danh mục TADSS, ~1,5–2 giờ); đóng băng contract v2 | W10 | Gate M5 |
 | T5.22 | Chốt **API contract BE ↔ FE** cho Phase 6 (endpoint SmashCourt cho cọc, chờ duyệt, duyệt) | W10 | OpenAPI SmashCourt cập nhật |
 | T5.23 | Chốt môi trường staging cho pilot (máy chủ, tên miền, VNPay sandbox) | W10 | Ghi trong MASTER_EXECUTION_PLAN |
-| T5.30 | **E-NGROK** — expose TADSS qua ngrok và truy cập được database: `docker-compose.ngrok.yml` (+ `docker-compose.neon.yml`), `X-Api-Key` fail-closed ngoài Development/Testing, `ForwardedHeaders`, tham số hóa cổng/image của compose (theo [`PHASE5_DESIGN_SPEC.md`](../../spec/PHASE5_DESIGN_SPEC.md) Mục 4.3.1). *Tiến độ: ✅ gói 5.3 — NG-1, NG-2, NG-3 (chế độ A), NG-5 tự động bằng `tools/expose/verify-expose.sh` (job CI `expose-check`) và `ComposeFixtureAlignmentTests`; **chờ người dùng:** NG-4 (tunnel thật) và NG-3 chế độ B (Neon)* | W08 | NG-1…NG-5 |
+| T5.30 | **E-NGROK** — expose TADSS qua ngrok và truy cập được database: một `docker-compose.yml` duy nhất (tadss-runtime + ngrok + grafana, cấu hình như SmashCourt-BE: `appsettings.Development.json` copy vào image local, container chạy Development; một lệnh `docker compose up -d --build` chạy cả ba, không profile; ngrok chỉ cần `NGROK_AUTHTOKEN`, URL đổi mỗi lần khởi động lại; cổng chỉ loopback), `X-Api-Key` fail-closed ngoài Development/Testing, `ForwardedHeaders`, image ngrok/Grafana ghim tag (theo [`PHASE5_DESIGN_SPEC.md`](../../spec/PHASE5_DESIGN_SPEC.md) Mục 4.3.1 và D-11). *Tiến độ: ✅ gói 5.3 — NG-1, NG-2, NG-3, NG-5 tự động (trên PostgreSQL/Redis tạm do `verify-expose.sh` dựng) bằng `tools/expose/verify-expose.sh` (job CI `expose-check`) và `ComposeFixtureAlignmentTests`; **chờ người dùng:** NG-4 (tunnel thật, kèm Neon thật)* | W08 | NG-1…NG-5 |
 
 > **Ghi chú gói 5.1 (T5.12, T5.13):** hai lỗi V-1 và V-8 được phát hiện khi phân tích (spec Mục 2), cả hai đã sửa. **V-8:** mất kết nối PostgreSQL bị ánh xạ thành 400 (nay `GlobalExceptionHandler` trả 503 `PERSISTENCE_UNAVAILABLE`); FI-08 chạy trên PostgreSQL thật qua Toxiproxy xác nhận chuỗi exception thật `InvalidOperationException → NpgsqlException(IsTransient) → EndOfStreamException`, nếu không sửa sẽ bị ánh xạ thành 400 (chưa quan sát trực tiếp trạng thái 400 trên hạ tầng thật). **V-1:** `docker-compose` truyền `Redis__ConnectionString` (không được bind), nay là `Tadss__Cache__RedisConnectionString`; xác nhận bằng compose (thấy khóa Redis `tadss:decision:*`). 27 test cũ chuyển sang hạ tầng thật đều đạt mà không sửa kỳ vọng và không lộ lỗi mới.
 
@@ -86,7 +88,7 @@
 |:---|:---|:---:|:---|
 | T5.24 | Review contract v2 từ phía consumer | W07 | Góp ý được chốt trước khi đóng băng |
 | T5.25 | Dựng **Playwright** trong `smashcourt-fe` (cấu hình, trace, video, chạy trên CI) | W07 | Một test mẫu chạy được |
-| T5.26 | Dựng dự án **k6**; script LT-01…LT-05 | W07–W08 | Script chạy được với docker-compose |
+| T5.26 | Dựng dự án **k6**; script LT-01…LT-05 | W07–W08 | Script chạy được; evaluator của chế độ đánh giá (D-12) chạy LT-01/02/03/05, LT-04 để Phase 6 |
 | T5.27 | Đặc tả từng bước kịch bản E2E-01…E2E-10 | W08–W09 | Danh mục E2E hoàn chỉnh |
 | T5.28 | Kịch bản pilot UAT + phiếu khảo sát **SUS** | W09 | UAT-01…UAT-03 |
 | T5.29 | Review API contract BE ↔ FE | W10 | Chốt cùng T5.22 |
@@ -133,11 +135,11 @@
 
 ---
 
-## PHASE 8 — TEST & FIX (W16–W17)
+## PHASE 8 — KIỂM THỬ & ĐÁNH GIÁ (W16–W17)
 
 | Mã | Task | Owner |
 |:---|:---|:---:|
-| T8.1 | Chạy UT/IT/CT/MT trên cả 3 repo | SV1 |
+| T8.1 | Chạy UT/IT/CT/MT trên cả 3 repo (phần TADSS bằng bản đầy đủ của chế độ đánh giá một lệnh `docker compose --profile evaluation up`, D-12) | SV1 |
 | T8.2 | Ma trận lỗi FI-01…FI-14 (Toxiproxy) + truy vấn bất biến booking sau mỗi kịch bản | SV1 |
 | T8.3 | Tải LT-01…LT-05 (k6) | SV2 |
 | T8.4 | Playwright E2E-01…E2E-10 trên staging (video + trace) | SV2 |

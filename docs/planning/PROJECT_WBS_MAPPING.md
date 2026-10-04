@@ -36,18 +36,19 @@ TADSS — Đồ án 2
 ├── 2. Contract SDK v1 (✅)            → Reservation, DTO, schema v1, đóng băng
 ├── 3. Runtime Engine (✅)             → API v1, StrategyResolver, Default/Mock, idempotency
 ├── 4. Resilience & Audit (✅)         → Polly v8, fallback, cache, audit đồng bộ, F1–F7
-├── R. Re-baseline                     → audit, đồng bộ tài liệu, dọn repo
 ├── 5. TADSS Complete + Test Infra
+│   ├── Bước 0 rà soát kế hoạch (✅)   → audit, đồng bộ tài liệu, dọn repo (Gate MR 01/10)
 │   ├── 5A Contract v2 & lõi           → cọc trong response, domain v2, DB bất biến, override/outcome,
 │   │                                     hàng chờ, API key, múi giờ, routing + shadow, cache policy
-│   ├── 5B Hạ tầng kiểm thử            → Testcontainers, docker-compose, Toxiproxy, OTel + Grafana,
-│   │                                     Schemathesis, Stryker.NET, replay, adapter khách sạn, notebook
+│   ├── 5B Hạ tầng kiểm thử            → Testcontainers, OTel + Grafana, chế độ đánh giá một lệnh
+│   │                                     (compose profile evaluation: evaluator, Toxiproxy, k6, Schemathesis,
+│   │                                     Stryker.NET, báo cáo + Evidence Pack), replay, adapter khách sạn
 │   └── 5C Chuẩn bị E2E (SV2)          → Playwright, k6, đặc tả E2E, kịch bản UAT + SUS
 ├── 6. SmashCourt-BE ∥ smashcourt-fe
 │   ├── 6A BE (SV1)                    → TadssClient, flag, luồng cọc, proxy duyệt, job hết hạn/outcome
 │   └── 6B FE (SV2)                    → UI cọc, chờ duyệt, dashboard Manager, realtime
 ├── 7. Integrate                       → ghép 3 hệ thống, staging, feature freeze
-├── 8. Test & Fix                      → toàn bộ danh mục, pilot UAT, Evidence Pack
+├── 8. Kiểm thử & đánh giá             → toàn bộ danh mục, pilot UAT, Evidence Pack
 └── 9. Đóng gói & bảo vệ               → báo cáo, slide, video
 ```
 
@@ -60,7 +61,7 @@ flowchart TD
     P1[Phase 1 Foundation ✅] --> P2[Phase 2 Contract SDK v1 ✅]
     P2 --> P3[Phase 3 Runtime Engine ✅]
     P3 --> P4[Phase 4 Resilience & Audit ✅]
-    P4 --> PR[Phase R Re-baseline]
+    P4 --> PR[Phase 5 · bước 0: rà soát kế hoạch ✅]
     PR --> P5A[5A Contract v2 & lõi TADSS]
     PR --> P5B[5B Hạ tầng kiểm thử]
     PR --> P5C[5C Chuẩn bị E2E - SV2]
@@ -72,7 +73,7 @@ flowchart TD
     P6A --> M6{{M6: BE & FE complete}}
     P6B --> M6
     M6 --> P7[Phase 7 Integrate + feature freeze]
-    P7 --> P8[Phase 8 Test & Fix + Pilot]
+    P7 --> P8[Phase 8 Kiểm thử & đánh giá + Pilot]
     P8 --> P9[Phase 9 Đóng gói & bảo vệ]
 ```
 
@@ -91,7 +92,7 @@ flowchart TD
 | **M2** | 18/09/2026 | Contract v1 đóng băng | ✅ |
 | **M3** | 22/09/2026 | Runtime chạy độc lập | ✅ |
 | **M4** | 01/10/2026 | Resilience & audit baseline (510 test pass) | ✅ |
-| **MR** | 11/10/2026 | Tài liệu đồng bộ, repo sạch | ✅ 01/10/2026 |
+| **MR** | 01/10/2026 | Phase 5 bước 0: tài liệu đồng bộ, repo sạch | ✅ |
 | **M5** | 08/11/2026 | TADSS complete, hạ tầng kiểm thử sẵn sàng, danh mục kiểm thử toàn hệ thống | ⏳ |
 | **M6** | 06/12/2026 | SmashCourt-BE & smashcourt-fe complete | ⏳ |
 | **M7** | 13/12/2026 | Tích hợp xong, feature freeze | ⏳ |
@@ -107,13 +108,13 @@ Tiêu chí chi tiết của từng milestone: Mục IV và V trong [`MASTER_EXEC
 | Mã | Rủi ro | Khả năng / Ảnh hưởng | Phòng ngừa | Phương án khi xảy ra |
 |:---|:---|:---:|:---|:---|
 | **R1** | Phase 5 kéo dài vì khối lượng lớn (contract v2 + toàn bộ hạ tầng kiểm thử) | Cao / Cao | Làm hạ tầng kiểm thử ở W07 trước khi sửa lõi; mỗi tuần có đầu ra chạy được | Dùng 2 ngày đệm đầu W11 trước khi chốt M5; không cắt test case, chỉ lùi thời điểm bắt đầu Phase 6 |
-| **R2** | Docker/Testcontainers không chạy ổn định trên máy dev hoặc CI | Trung bình / Cao | Kiểm tra Docker Desktop + GitHub Actions runner ngay W07; cố định phiên bản image | Chạy integration test trên CI Linux; dev dùng `docker compose` dùng chung |
+| **R2** | Docker/Testcontainers không chạy ổn định trên máy dev hoặc CI | Trung bình / Cao | Kiểm tra Docker Desktop + GitHub Actions runner ngay W07; cố định phiên bản image | Chạy integration test trên CI Linux; dev chạy app bằng `dotnet run` với Neon (D-04) |
 | **R3** | Thay đổi DB SmashCourt (enum `booking_status`, trường cọc) làm vỡ luồng cũ | Trung bình / Cao | Toàn bộ thay đổi qua script SQL có review; test hồi quy BE trước khi merge | Feature flag tắt → luồng 100% như Đồ án 1 |
 | **R4** | Manager không duyệt kịp, đơn chờ quá lâu | Trung bình / Trung bình | Hạn duyệt cấu hình; ngưỡng thời gian bắt đầu gần → SmashCourt áp 100% thay vì chờ | Job hết hạn hủy đơn, không tự duyệt |
 | **R5** | Không tuyển đủ người dùng pilot | Trung bình / Trung bình | Chốt danh sách người tham gia từ W14; kịch bản UAT ngắn ≤ 15 phút | Kéo dài pilot sang đầu W18, báo cáo đúng cỡ mẫu thực tế |
 | **R6** | Môi trường staging/VNPay sandbox trục trặc | Thấp / Cao | Chốt staging ở W10, chạy thử ở W15 | Pilot trên máy local có tunnel công khai |
 | **R7** | Dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn NO_SHOW/CANCELLED do job tự sinh) | Đã xảy ra / Trung bình | Chỉ dùng 215 booking làm input có hình dạng thực tế cho replay; không dùng làm nhãn hành vi | Dùng dataset công khai (Hotel Booking Demand) và dữ liệu pilot cho phân tích có nhãn |
-| **R8** | Lộ bí mật cấu hình (connection string, khóa VNPay/JWT) | Đã xảy ra / Cao | Không đọc/in file `appsettings.Development.json`, `.env`; secret chỉ ở user-secrets/biến môi trường | Đổi mật khẩu/khóa đã lộ ngay khi phát hiện |
+| **R8** | Lộ bí mật cấu hình (connection string, khóa VNPay/JWT) | Đã xảy ra / Cao | Không đọc/in file `appsettings.Development.json`, `.env`; secret chỉ ở các file đó hoặc user-secrets (gitignore, không commit); image Docker chứa `appsettings.Development.json` chỉ dùng local, không push registry | Đổi mật khẩu/khóa đã lộ ngay khi phát hiện |
 | **R9** | Mutation score thấp hơn ngưỡng G5 | Trung bình / Trung bình | Chạy Stryker từ W09 để có thời gian bổ sung test | Bổ sung test cho mutant sống sót trước M5 |
 
 ---

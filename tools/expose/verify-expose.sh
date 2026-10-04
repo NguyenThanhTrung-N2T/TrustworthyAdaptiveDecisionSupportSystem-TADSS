@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của TADSS bằng Docker thật (không mở tunnel ngrok, không kết nối database ngoài).
-#   NG-1  : docker compose config hợp lệ cho ngrok (chế độ A) và ngrok + neon (chế độ B), biến giả.
-#   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200, swagger 404 ở Staging.
-#   NG-2b : (danh mục NG-2) Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
-#   NG-3  : truy cập database: GET theo decisionId trả đúng quyết định vừa ghi, và psql đếm được bản ghi (chế độ A).
-#   NG-5  : mọi cổng host chỉ bind 127.0.0.1.
+# T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của docker-compose.yml bằng Docker thật (không mở tunnel ngrok, không khởi động Grafana, không kết nối database ngoài).
+#   NG-1  : docker compose config hợp lệ (với NGROK_AUTHTOKEN giả) và `config --services` liệt kê đủ tadss-runtime, ngrok, grafana (không profile nào);
+#           môi trường Development (giống SmashCourt-BE), migration "false", không mount file, không biến ConnectionStrings/RedisConnectionString/ApiKeys trong compose.
+#   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200 (Swagger được phục vụ ở Development nên không kiểm 404).
+#   NG-2b : (danh mục NG-2) môi trường Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
+#   NG-3  : truy cập database: GET theo decisionId trả đúng quyết định vừa ghi, và psql đếm được bản ghi.
+#   NG-5  : mọi cổng host của file compose đã commit chỉ bind 127.0.0.1 (cấu hình render ra, và cổng đang publish thật).
 #   SEC-6 : image chạy bằng user non-root.
-# Chạy trong project compose riêng (tadss-expose-check) và cổng host riêng nên không đụng stack đang chạy của người dùng.
+# Hermetic: image dựng ra có thể chứa appsettings.Development.json thật của người dùng (secret Neon/Redis; file này được copy vào image như SmashCourt-BE) nhưng script
+# KHÔNG đọc nó. Script sinh MỘT FILE OVERRIDE TẠM (thư mục tạm, xóa khi thoát, không bao giờ nằm trong repo) thêm postgres/redis dùng một lần và đặt biến môi trường
+# ConnectionStrings__DefaultConnection, Tadss__Cache__RedisConnectionString, Tadss__Security__ApiKeys__0__ClientId/KeySha256 (mã băm của khóa ngẫu nhiên)
+# cho tadss-runtime: biến môi trường ghi đè file json nên container thử không bao giờ chạm Neon/Redis thật. Cổng publish đổi sang một cổng trống
+# (`ports: !override`) để không tranh cổng 8081 với stack đang chạy. Phần còn lại của file compose đã commit được thử nguyên trạng.
+# Không bao giờ khởi động service ngrok hay grafana (chỉ `up tadss-runtime`; hai service đó không phải dependency của tadss-runtime nên compose không tự kéo lên). Chạy trong project compose riêng (tadss-expose-check) nên không đụng project `tadss` của người dùng.
+# Image build ra bị xóa khi thoát (có thể chứa secret). Mạng external smashcourt-network chỉ được tạo nếu chưa có và chỉ bị xóa khi thoát nếu chính script này tạo ra.
 # Khóa API sinh ngẫu nhiên mỗi lần chạy, không bao giờ được in ra. Chạy được trên Git Bash (Windows) và Ubuntu.
 set -uo pipefail
 
@@ -16,24 +23,31 @@ export MSYS2_ARG_CONV_EXCL='*'
 
 cd "$(dirname "$0")/../.." || exit 1
 
-# Hermetic: biến shell của người dùng (cổng, khóa, chuỗi kết nối, COMPOSE_*) được compose ưu tiên hơn --env-file nên phải bỏ hết,
-# nếu không project kiểm tra có thể tranh cổng với stack đang chạy hoặc dùng nhầm khóa/chuỗi kết nối thật.
+# Hermetic: biến shell của người dùng (khóa, chuỗi kết nối, COMPOSE_*) được compose ưu tiên hơn --env-file nên phải bỏ hết,
+# nếu không project kiểm tra có thể dùng nhầm khóa/chuỗi kết nối thật.
 for name in $(compgen -e); do
   case "$name" in TADSS_*|NGROK_*|COMPOSE_*) unset "$name" ;; esac
 done
 
 PROJECT="tadss-expose-check"
-NETWORK="${PROJECT}_default"
+NETWORK="smashcourt-network"  # mạng external cố định của compose; chỉ xóa khi script này tự tạo (NETWORK_CREATED=yes)
+NETWORK_CREATED="no"
 CURL_IMAGE="curlimages/curl:8.22.0"
-MIN_COMPOSE_VERSION="2.24.4"
-ENV_FILE=".env.expose-check"  # đường dẫn tương đối: docker compose.exe trên Windows không hiểu /tmp của Git Bash
-ERR_FILE="${ENV_FILE}.err"
-NOKEY_ENV_FILE="${ENV_FILE}.nokey"
-NOKEY_CONTAINER="${PROJECT}-nokey"
+MIN_COMPOSE_VERSION="2.24.4"  # cần cho `ports: !override` trong override tạm
 SAMPLE="tools/expose/sample-decision-request.json"
+NOKEY_CONTAINER="${PROJECT}-nokey"
 
-# Cổng host riêng (khác mặc định 8081/5433/6380/8474/3001 của stack E-LOCAL).
+# Thư mục tạm chứa env + override. docker compose.exe trên Windows không hiểu /tmp của Git Bash nên đổi sang đường dẫn gốc (cygpath -m) khi có.
+TMP_DIR="$(mktemp -d)" || { echo "LỖI: không tạo được thư mục tạm." >&2; exit 1; }
+if command -v cygpath >/dev/null 2>&1; then TMP_DIR="$(cygpath -m "$TMP_DIR")"; fi
+ENV_FILE="${TMP_DIR}/runtime.env"
+FAKE_ENV_FILE="${TMP_DIR}/fake.env"
+OVERRIDE_FILE="${TMP_DIR}/override.yml"
+ERR_FILE="${TMP_DIR}/up.err"
+
+# Cổng host riêng cho override tạm: lấy cổng trống đầu tiên từ 18081 (khác 8081 cố định trong file compose đã commit).
 HOST_PORT=18081
+while (exec 3<>"/dev/tcp/127.0.0.1/${HOST_PORT}") 2>/dev/null; do HOST_PORT=$((HOST_PORT + 1)); done
 
 declare -a RESULT_IDS=() RESULT_STATES=() RESULT_NOTES=()
 failures=0
@@ -51,17 +65,22 @@ sha256_hex() { # đọc stdin, in hex SHA-256
   fi
 }
 
-dc() { docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml "$@"; }
+# Chạy stack thử: file compose đã commit + override tạm.
+dc() { docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f "$OVERRIDE_FILE" "$@"; }
+# Chỉ file compose đã commit, với env-file ($1).
+dc_main() { local env_file="$1"; shift; docker compose -p "$PROJECT" --env-file "$env_file" -f docker-compose.yml "$@"; }
 
 cleanup() {
-  # Chỉ dọn tài nguyên của đúng project này: container, volume, network, image build ra, và container thăm dò NG-2b.
+  # Chỉ dọn tài nguyên của đúng project này: container, volume, image build ra, và container thăm dò NG-2b.
   docker rm -f "$NOKEY_CONTAINER" >/dev/null 2>&1
-  if [ -f "$ENV_FILE" ]; then
+  if [ -f "$ENV_FILE" ] && [ -f "$OVERRIDE_FILE" ]; then
     dc down -v --rmi local --remove-orphans >/dev/null 2>&1
-  else
-    docker compose -p "$PROJECT" -f docker-compose.yml down -v --rmi local --remove-orphans >/dev/null 2>&1
   fi
-  rm -f "$ENV_FILE" "$ERR_FILE" "$NOKEY_ENV_FILE"
+  # Image build ra có thể chứa appsettings.Development.json thật (secret): xóa chắc chắn, kể cả khi `down` không tìm thấy (build dở, env-file chưa ghi).
+  docker image rm -f "${PROJECT}-tadss-runtime" >/dev/null 2>&1
+  # Mạng external không do compose quản lý; chỉ xóa nếu script này đã tạo (mạng có sẵn của người dùng được giữ nguyên).
+  if [ "$NETWORK_CREATED" = yes ]; then docker network rm "$NETWORK" >/dev/null 2>&1; fi
+  rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -72,47 +91,105 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
 fi
 compose_version="$(docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*$//')"
 if [ -z "$compose_version" ] || [ "$(printf '%s\n%s\n' "$MIN_COMPOSE_VERSION" "$compose_version" | sort -V | head -n1)" != "$MIN_COMPOSE_VERSION" ]; then
-  echo "LỖI: cần docker compose >= ${MIN_COMPOSE_VERSION} (có '${compose_version:-không rõ}'); các file override dùng !override/!reset." >&2; exit 1
+  echo "LỖI: cần docker compose >= ${MIN_COMPOSE_VERSION} (có '${compose_version:-không rõ}')." >&2; exit 1
 fi
 if ! command -v openssl >/dev/null 2>&1; then
   echo "LỖI: cần openssl để sinh khóa ngẫu nhiên." >&2; exit 1
 fi
 
+# Mạng external smashcourt-network phải tồn tại trước khi up: dùng mạng có sẵn nếu có, nếu không thì tạo và nhớ để xóa khi thoát.
+if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
+  if ! docker network create "$NETWORK" >/dev/null 2>&1; then
+    echo "LỖI: không tạo được mạng ${NETWORK}." >&2; exit 1
+  fi
+  NETWORK_CREATED="yes"
+fi
+
 # ── Khóa ngẫu nhiên + biến cho project (không in khóa) ──
 API_KEY="$(openssl rand -hex 32)"
 API_KEY_SHA256="$(printf %s "$API_KEY" | sha256_hex)"
-cat >"$ENV_FILE" <<EOF
-TADSS_API_KEY_SHA256=${API_KEY_SHA256}
-NGROK_AUTHTOKEN=fake-token-for-compose-config-only
-TADSS_PORT=${HOST_PORT}
-TADSS_PG_PORT=15433
-TADSS_REDIS_PORT=16380
-TADSS_TOXIPROXY_PORT=18474
-TADSS_GRAFANA_PORT=13001
-EOF
+FAKE_NGROK="fake-token-for-compose-config-only"  # compose cần NGROK_AUTHTOKEN để render service ngrok; chỉ dùng thử cấu hình, không bao giờ khởi động ngrok
 
-# ── NG-1: compose config ──
-cfg_a="FAIL"; cfg_b="FAIL"
-if docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet >/dev/null 2>&1; then cfg_a="PASS"; fi
-if TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;Password=fake" \
-   docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then cfg_b="PASS"; fi
-# Thiếu biến bắt buộc phải bị từ chối: neon không có TADSS_DB_CONNECTION, ngrok không có TADSS_API_KEY_SHA256.
-neg_db="FAIL"; neg_key="FAIL"
-if ! docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then neg_db="PASS"; fi
-: >"$NOKEY_ENV_FILE"
-if ! NGROK_AUTHTOKEN=fake docker compose -p "$PROJECT" --env-file "$NOKEY_ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet >/dev/null 2>&1; then neg_key="PASS"; fi
-# Neon dùng riêng với base (không ngrok) cũng phải hợp lệ khi đủ biến, và bị từ chối khi thiếu khóa.
-cfg_c="FAIL"; neg_c="FAIL"
-if TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;Password=fake"    docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then cfg_c="PASS"; fi
-if ! TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;Password=fake"    docker compose -p "$PROJECT" --env-file "$NOKEY_ENV_FILE" -f docker-compose.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then neg_c="PASS"; fi
-rm -f "$NOKEY_ENV_FILE"
-if [ "$cfg_a" = PASS ] && [ "$cfg_b" = PASS ] && [ "$cfg_c" = PASS ] && [ "$neg_db" = PASS ] && [ "$neg_key" = PASS ] && [ "$neg_c" = PASS ]; then
-  record "NG-1" PASS "config hợp lệ cho ngrok, ngrok+neon và neon riêng; thiếu TADSS_DB_CONNECTION/TADSS_API_KEY_SHA256 bị từ chối"
+# ── NG-1: compose config của file đã commit ──
+# NGROK_AUTHTOKEN là biến duy nhất file compose cần (ngrok); env-file giả chỉ chứa token giả, đồng thời cô lập khỏi .env của người dùng.
+printf '%s\n' "NGROK_AUTHTOKEN=${FAKE_NGROK}" >"$FAKE_ENV_FILE"
+# Một lệnh `up` khởi động cả ba service (không profile): config phải hợp lệ và liệt kê đủ tadss-runtime, ngrok, grafana.
+cfg="FAIL"
+if dc_main "$FAKE_ENV_FILE" config --quiet >/dev/null 2>&1; then cfg="PASS"; fi
+services="$(dc_main "$FAKE_ENV_FILE" config --services 2>/dev/null | tr -d '\r' | sort | tr '\n' ' ')"
+svc="FAIL"
+if [ "$services" = "grafana ngrok tadss-runtime " ]; then svc="PASS"; fi
+# Môi trường Development (giống SmashCourt-BE), migration "false", không mount file, và compose đã render không có biến chuỗi kết nối/Redis/ApiKeys nào.
+rendered_main="$(dc_main "$FAKE_ENV_FILE" config --format json 2>/dev/null)"
+env_bad=""
+printf '%s' "$rendered_main" | grep -q '"ASPNETCORE_ENVIRONMENT" *: *"Development"' || env_bad="${env_bad}Development "
+printf '%s' "$rendered_main" | grep -q '"Tadss__Database__ApplyMigrationsOnStartup" *: *"false"' || env_bad="${env_bad}migration "
+if printf '%s' "$rendered_main" | grep -q -e '"volumes"' -e 'appsettings\.'; then env_bad="${env_bad}có-mount "; fi
+if printf '%s' "$rendered_main" | grep -q -e 'ConnectionStrings__' -e 'RedisConnectionString' -e 'ApiKeys'; then env_bad="${env_bad}có-biến-secret "; fi
+if [ "$cfg" = PASS ] && [ "$svc" = PASS ] && [ -z "$env_bad" ]; then
+  record "NG-1" PASS "config hợp lệ (NGROK_AUTHTOKEN giả); services: ${services}; Development, migration false, không mount, không biến secret"
 else
-  record "NG-1" FAIL "ngrok=${cfg_a} ngrok+neon=${cfg_b} neon-riêng=${cfg_c} thiếu-khóa-neon-riêng-bị-từ-chối=${neg_c} thiếu-DB-bị-từ-chối=${neg_db} thiếu-khóa-bị-từ-chối=${neg_key}"
+  record "NG-1" FAIL "config=${cfg} services=${svc} (${services}); môi-trường-sai: ${env_bad:-không}"
 fi
 
-# ── Chế độ A: dựng stack (không bật profile ngrok) ──
+# ── NG-5 (tĩnh): mọi cổng trong cấu hình render ra đều bind 127.0.0.1 ──
+rendered="$rendered_main"  # gồm cổng 4040 của ngrok và cổng Grafana/OTLP
+cfg_published="$(printf '%s' "$rendered" | grep -c '"published" *:')"
+cfg_loopback="$(printf '%s' "$rendered" | grep -c '"host_ip" *: *"127\.0\.0\.1"')"
+cfg_ports="FAIL"
+if [ "${cfg_published:-0}" -ge 1 ] && [ "$cfg_published" = "$cfg_loopback" ]; then cfg_ports="PASS"; fi
+
+# ── Override tạm: PostgreSQL + Redis dùng một lần (chỉ để chạy thử, KHÔNG nằm trong file compose đã commit) ──
+# Tên service có tiền tố expose- để không trùng tên DNS với container khác trên smashcourt-network của người dùng.
+cat >"$OVERRIDE_FILE" <<'EOF'
+services:
+  expose-postgres:
+    image: postgres:16.15-alpine
+    networks:
+      - smashcourt-network
+    environment:
+      POSTGRES_DB: tadss
+      POSTGRES_USER: tadss
+      POSTGRES_PASSWORD: tadss_check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  expose-redis:
+    image: redis:7.4-alpine
+    networks:
+      - smashcourt-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  tadss-runtime:
+    # Cổng host trống thay cho 8081 cố định của file đã commit (không tranh cổng với TADSS đang chạy của người dùng); vẫn chỉ bind loopback.
+    ports: !override
+      - "127.0.0.1:${CHECK_HOST_PORT}:8080"
+    environment:
+      # Biến môi trường ghi đè appsettings.Development.json trong image (có thể chứa secret Neon/Redis thật): container thử CHỈ nối postgres/redis dùng một lần ở trên
+      # và chỉ nhận khóa ngẫu nhiên của lần chạy này (ClientId smashcourt-be + mã băm, không phải khóa thật).
+      ConnectionStrings__DefaultConnection: "Host=expose-postgres;Port=5432;Database=tadss;Username=tadss;Password=tadss_check"
+      Tadss__Cache__RedisConnectionString: "expose-redis:6379"
+      Tadss__Security__ApiKeys__0__ClientId: "smashcourt-be"
+      Tadss__Security__ApiKeys__0__KeySha256: "${CHECK_API_KEY_SHA256}"
+      # CHỈ cho database dùng một lần ở trên (compose đã commit luôn là "false", không bao giờ tự migrate Neon): cần bật để có schema mà thử.
+      Tadss__Database__ApplyMigrationsOnStartup: "true"
+    depends_on:
+      expose-postgres:
+        condition: service_healthy
+      expose-redis:
+        condition: service_healthy
+EOF
+# NGROK_AUTHTOKEN giả chỉ để compose nội suy được biến của service ngrok (service này không bao giờ được khởi động).
+printf '%s\n' "CHECK_HOST_PORT=${HOST_PORT}" "CHECK_API_KEY_SHA256=${API_KEY_SHA256}" "NGROK_AUTHTOKEN=${FAKE_NGROK}" >"$ENV_FILE"
+
+# ── Dựng stack (chỉ tadss-runtime và postgres/redis tạm; không khởi động ngrok/grafana) ──
 echo ">> Dựng project ${PROJECT} (build image, có thể mất vài phút)..."
 stack_up="FAIL"
 if dc up -d --build --wait tadss-runtime >/dev/null 2>"$ERR_FILE"; then stack_up="PASS"; fi
@@ -123,10 +200,14 @@ rm -f "$ERR_FILE"
 
 probe() { docker run --rm --network "$NETWORK" "$CURL_IMAGE" -s -m 20 "$@"; }
 code_of() { probe -o /dev/null -w '%{http_code}' "$@"; }
-BASE_URL="http://tadss-runtime:8080"
+BASE_URL=""
 
 if [ "$stack_up" = PASS ]; then
-  # /health/ready cần PostgreSQL qua Toxiproxy; chờ tối đa 60 giây.
+  # Gọi thẳng IP của container trên smashcourt-network: tên DNS tadss-runtime có thể trùng với stack `tadss` đang chạy của người dùng.
+  rt_ip="$(docker inspect -f '{{(index .NetworkSettings.Networks "smashcourt-network").IPAddress}}' "$(dc ps -q tadss-runtime)" 2>/dev/null)"
+  BASE_URL="http://${rt_ip}:8080"
+
+  # /health/ready cần PostgreSQL và Redis; chờ tối đa 60 giây.
   ready=""
   for _ in $(seq 1 30); do
     ready="$(code_of "${BASE_URL}/health/ready")"
@@ -152,11 +233,10 @@ if [ "$stack_up" = PASS ]; then
   get_out="$(probe -H "X-Api-Key: ${API_KEY}" -w $'\n%{http_code}' "${BASE_URL}/api/v2/decisions/${decision_id}")"
   get_code="${get_out##*$'\n'}"
   get_id="$(printf '%s' "${get_out%$'\n'*}" | grep -o '"decisionId" *: *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
-  swagger="$(code_of "${BASE_URL}/swagger/index.html")"
-  rows="$(dc exec -T tadss-postgres psql -U tadss -d tadss -tAc 'select count(*) from tadss.decision_executions' 2>/dev/null | tr -d '[:space:]')"
+  rows="$(dc exec -T expose-postgres psql -U tadss -d tadss -tAc 'select count(*) from tadss.decision_executions' 2>/dev/null | tr -d '[:space:]')"
 
-  detail="ready=${ready} không-khóa=${no_key} có-khóa=${with_key} swagger=${swagger}"
-  if [ "$ready" = 200 ] && [ "$no_key" = 401 ] && [ "$with_key" = 200 ] && [ "$swagger" = 404 ]; then
+  detail="ready=${ready} không-khóa=${no_key} có-khóa=${with_key}"
+  if [ "$ready" = 200 ] && [ "$no_key" = 401 ] && [ "$with_key" = 200 ]; then
     record "NG-2a" PASS "$detail"
   else
     record "NG-2a" FAIL "$detail"
@@ -171,30 +251,31 @@ if [ "$stack_up" = PASS ]; then
     dc logs --tail 30 tadss-runtime >&2
   fi
 
-  # ── NG-5: mọi cổng publish chỉ ở 127.0.0.1 ──
+  # ── NG-5 (động): mọi cổng đang publish chỉ ở 127.0.0.1 ──
   ps_json="$(dc ps --format json 2>/dev/null)"
   urls="$(printf '%s' "$ps_json" | grep -o '"URL" *: *"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' | sort -u | tr '\n' ' ')"
   published="$(printf '%s' "$ps_json" | grep -o '"PublishedPort" *: *[1-9][0-9]*' | wc -l | tr -d '[:space:]')"
   bad="$(printf '%s' "$urls" | tr ' ' '\n' | grep -v -e '^$' -e '^127\.0\.0\.1$' | tr '\n' ' ')"
-  if [ "${published:-0}" -ge 1 ] && [ -z "$bad" ]; then
-    record "NG-5" PASS "${published} cổng publish; URL: ${urls}"
+  if [ "$cfg_ports" = PASS ] && [ "${published:-0}" -ge 1 ] && [ -z "$bad" ]; then
+    record "NG-5" PASS "cấu hình: ${cfg_published} cổng đều 127.0.0.1; đang chạy: ${published} cổng publish, URL: ${urls}"
   else
-    record "NG-5" FAIL "published=${published:-0} URL không phải loopback: '${bad}'"
+    record "NG-5" FAIL "cấu hình=${cfg_ports} (${cfg_loopback}/${cfg_published} loopback); published=${published:-0} URL không phải loopback: '${bad}'"
   fi
 else
   record "NG-2a" FAIL "không dựng được stack"
   record "NG-3" FAIL "không dựng được stack"
-  record "NG-5" FAIL "không dựng được stack"
+  record "NG-5" FAIL "không dựng được stack (cấu hình tĩnh: ${cfg_ports})"
 fi
 
-# ── NG-2b (không khởi động): Staging không có khóa ──
-IMAGE="$(docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml images tadss-runtime --format json 2>/dev/null \
+# ── NG-2b (không khởi động): Staging không có khóa; chuỗi kết nối DB/Redis là host chết nên không bao giờ chạm Neon/Redis thật (image có thể chứa appsettings.Development.json) ──
+IMAGE="$(dc images tadss-runtime --format json 2>/dev/null \
           | grep -o '"Repository" *: *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
 IMAGE="${IMAGE:-${PROJECT}-tadss-runtime}"
 if [ "$stack_up" = PASS ] && docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker rm -f "$NOKEY_CONTAINER" >/dev/null 2>&1
   docker run -d --name "$NOKEY_CONTAINER" -e ASPNETCORE_ENVIRONMENT=Staging \
     -e "ConnectionStrings__DefaultConnection=Host=expose-check-db.invalid;Port=5432;Database=x;Username=u;Password=SENTINEL_NOT_A_SECRET" \
+    -e "Tadss__Cache__RedisConnectionString=expose-check-redis.invalid:6379" \
     "$IMAGE" >/dev/null 2>&1
   state=""; waited=0
   while [ "$waited" -lt 30 ]; do

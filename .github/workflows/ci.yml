@@ -104,9 +104,9 @@ jobs:
             exit 1
           fi
 
-  # T5.30 (NG-1, NG-2, NG-3, NG-5, SEC-6): dựng compose thật với khóa ngẫu nhiên, không mở tunnel ngrok và không dùng database ngoài
+  # T5.30 (NG-1, NG-2, NG-3, NG-5, SEC-6): dựng docker-compose.yml thật với khóa ngẫu nhiên + PostgreSQL/Redis tạm, không mở tunnel ngrok và không dùng database ngoài
   expose-check:
-    name: Verify Expose Configuration (ngrok/neon compose)
+    name: Verify Expose Configuration (docker-compose.yml)
     runs-on: ubuntu-latest
     needs: build-and-test
 

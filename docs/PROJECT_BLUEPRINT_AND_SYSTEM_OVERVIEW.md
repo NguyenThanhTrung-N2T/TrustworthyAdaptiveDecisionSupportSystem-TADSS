@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** bức tranh tổng thể và các sơ đồ dùng cho báo cáo/slide. Thông số chi tiết nằm ở các file sở hữu (xem bản đồ tài liệu tại Mục III của [`THESIS_DEVELOPMENT_PLAYBOOK.md`](planning/THESIS_DEVELOPMENT_PLAYBOOK.md)).
 >
-> **Trạng thái (02/10/2026):** Phase 1–4 và Phase R hoàn thành; Phase 5 đã xong gói 5.1 và 5.2a–5.2c — contract v2 là phiên bản duy nhất (`POST`/`GET /api/v2/decisions`, audit PostgreSQL bất biến, kiểm thử trên Testcontainers). Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành; Phase 5 (02/10 – 08/11) đã qua bước 0 (rà soát và điều chỉnh kế hoạch, Gate MR 01/10) và xong gói 5.1, 5.2a–5.2d, 5.3 — contract v2 là phiên bản duy nhất (năm endpoint `/api/v2/decisions`: đánh giá, chi tiết, hàng chờ, override, outcome; audit PostgreSQL bất biến; API key, rate limit, health live/ready; Docker Compose + ngrok; kiểm thử trên Testcontainers). Còn lại: gói 5.4–5.7. Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -129,9 +129,9 @@ Mọi chuyển trạng thái được ghi bằng bản ghi mới (quyết địn
 
 | Hạng mục | Trạng thái |
 | :--- | :--- |
-| Contract SDK v1, Runtime v1, pipeline chịu lỗi, audit đồng bộ, 510 test tại M4 (InMemory; còn 500 sau Phase R) | ✅ Phase 1–4 |
-| Đồng bộ tài liệu, dọn repo | ✅ Phase R (Gate MR 01/10) |
-| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (12/10 – 08/11) |
+| Contract SDK v1, Runtime v1, pipeline chịu lỗi, audit đồng bộ, 510 test tại M4 (InMemory; còn 500 sau bước rà soát đầu Phase 5) | ✅ Phase 1–4 |
+| Đồng bộ tài liệu, dọn repo | ✅ Phase 5, bước 0 (Gate MR 01/10) |
+| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (02/10 – 08/11): xong 5.1, 5.2a–5.2d, 5.3; còn 5.4–5.7 |
 | SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (09/11 – 06/12) |
 | Tích hợp, kiểm thử & sửa lỗi, pilot, Evidence Pack | ⏳ Phase 7–8 (07/12 – 27/12) |
 | Báo cáo & bảo vệ | ⏳ Phase 9 (28/12 – 03/01/2027) |
