@@ -1,7 +1,7 @@
 # TADSS-Runtime — Decision Runtime Platform
 
 Nền tảng thực thi quyết định đặt chỗ chịu lỗi (Đồ án 2 → khoá luận). SmashCourt-BE gửi `POST /api/v2/decisions`;
-runtime chọn strategy qua `IStrategyRegistry`, bọc trong Polly v8 pipeline (budget 500ms → fallback `NEED_APPROVAL`),
+runtime chọn strategy qua `IStrategyRegistry`, bọc trong Polly v8 pipeline (budget 500ms → fallback `APPROVED` cọc 100%, D-13),
 cache `StrategyDecision` (Redis L2 / IMemoryCache L1), ghi audit bất biến vào PostgreSQL schema `tadss`; có `GET /api/v2/decisions/{id}`,
 `GET /api/v2/decisions/pending-approvals`, `POST .../override`, `POST .../outcome`. Mọi `/api/*` cần `X-Api-Key` (gói 5.3). Thuộc workspace 4 repo — xem `../CLAUDE.md`.
 

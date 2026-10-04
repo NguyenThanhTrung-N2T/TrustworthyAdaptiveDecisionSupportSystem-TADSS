@@ -146,7 +146,17 @@ public class DecisionResponseComposerTests
         composed.Response.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         composed.Response.FallbackUsed.Should().BeTrue();
         composed.Response.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
+        composed.Response.Status.Should().Be(DecisionStatus.APPROVED);
+        var deposit = ContractSamples.Required(composed.Response.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(composition.Reservation.TotalPrice);
+        composed.Response.ApprovalExpiresAt.Should().BeNull();
 
+        composed.Record.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        composed.Record.Status.Should().Be(DecisionStatus.APPROVED);
+        composed.Record.DepositRate.Should().Be(1m);
+        composed.Record.DepositAmount.Should().Be(composition.Reservation.TotalPrice);
+        composed.Record.ApprovalExpiresAt.Should().BeNull();
         composed.Record.StrategyName.Should().Be(composition.Strategy.Strategy.StrategyName);
         composed.Record.StrategyVersion.Should().Be(composition.Strategy.Strategy.StrategyVersion);
         composed.Record.ExecutionType.Should().Be(ExecutionType.FALLBACK);

@@ -124,7 +124,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
         strategy.InvocationCount.Should().Be(options.MaxRetryAttempts + 1);
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException)
@@ -180,7 +181,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
         outcome.FailureReason.Should().Be(FailureReasonPrefixes.FormatTimeout(options.InnerTimeoutMs));
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
@@ -207,6 +209,8 @@ public class StrategyPipelineTests
         invocationsBeforeOpen.Should().Be(2);
         third.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         third.FallbackUsed.Should().BeTrue();
+        third.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        third.Decision.DepositRate.Should().Be(1m);
         third.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackCircuitOpen);
         third.FailureReason.Should().Be(FailureReasonPrefixes.FormatCircuitBreakerOpen());
         strategy.InvocationCount.Should().Be(invocationsBeforeOpen, "circuit mở thì không chạm strategy");
@@ -248,7 +252,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException)
             .And.Contain(nameof(TaskCanceledException))

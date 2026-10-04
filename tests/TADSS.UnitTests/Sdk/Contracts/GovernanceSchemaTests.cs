@@ -395,7 +395,7 @@ public class GovernanceSchemaTests
             EarliestStart = new DateTimeOffset(2026, 11, 20, 18, 0, 0, TimeSpan.FromHours(7)),
             Customer = new PendingApprovalCustomerDto { IsGuest = true, Tier = Shared.DecisionContractSDK.Enums.CustomerTier.STANDARD },
             ReasonCode = "HIGH_VALUE_NEED_APPROVAL",
-            FallbackUsed = true,
+            FallbackUsed = false,
             ApprovalExpiresAt = GovernanceTestData.Now.AddMinutes(30),
             CreatedAt = GovernanceTestData.Now,
         };

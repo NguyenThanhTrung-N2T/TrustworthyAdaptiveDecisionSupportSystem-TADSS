@@ -7,9 +7,9 @@ using Xunit;
 namespace TADSS.UnitTests.Infrastructure.Resilience;
 
 /// <summary>
-/// UT-07 (phần fallback): <see cref="FallbackDecisionPolicy"/> tạo quyết định an toàn của v2 cho từng nguyên nhân —
-/// luôn <c>NEED_APPROVAL</c> với đúng <c>reasonCode</c> và một khuyến nghị <c>REQUIRE_APPROVAL</c>; lý do không nhắc
-/// "100%" vì mức cọc 100% là chính sách của SmashCourt, không phải của TADSS.
+/// UT-07 (phần fallback): <see cref="FallbackDecisionPolicy"/> tạo quyết định an toàn cho từng nguyên nhân —
+/// luôn <c>APPROVED</c> với tỷ lệ cọc 100%, đúng <c>reasonCode</c> và không kèm khuyến nghị (D-13: mọi sự cố kỹ thuật
+/// đều cọc 100%, <c>NEED_APPROVAL</c> chỉ dành cho bất định nghiệp vụ do strategy quyết định).
 /// </summary>
 public class FallbackDecisionPolicyTests
 {
@@ -18,18 +18,24 @@ public class FallbackDecisionPolicyTests
     [InlineData(FallbackCause.Timeout, ReasonCodes.FallbackStrategyTimeout)]
     [InlineData(FallbackCause.Exception, ReasonCodes.FallbackStrategyException)]
     [InlineData(FallbackCause.CircuitOpen, ReasonCodes.FallbackCircuitOpen)]
-    public void Create_EachCause_RequireApprovalWithMatchingCode_Theory(FallbackCause cause, string expectedReasonCode)
+    public void Create_EachCause_ApprovedFullDepositWithMatchingCode_Theory(FallbackCause cause, string expectedReasonCode)
     {
         var decision = FallbackDecisionPolicy.Create(cause);
 
-        decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        decision.DepositRate.Should().BeNull();
+        decision.Status.Should().Be(DecisionStatus.APPROVED);
+        decision.DepositRate.Should().Be(1m);
         decision.ReasonCode.Should().Be(expectedReasonCode);
-        decision.Reasons.Should().NotBeEmpty().And.OnlyContain(reason => !string.IsNullOrWhiteSpace(reason));
-        decision.Reasons.Should().OnlyContain(reason => !reason.Contains("100%"));
-        decision.Recommendations.Should().ContainSingle()
-            .Which.Type.Should().Be(RecommendationType.REQUIRE_APPROVAL);
-        decision.Recommendations[0].Description.Should().NotContain("100%");
+        decision.Reasons.Should().HaveCount(2).And.OnlyContain(reason => !string.IsNullOrWhiteSpace(reason));
+        decision.Reasons[0].Should().StartWith("Chế độ an toàn tự động kích hoạt: ");
+        decision.Reasons[1].Should().Contain("100%");
+        decision.Recommendations.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public void FullDepositRate_IsOne()
+    {
+        FallbackDecisionPolicy.FullDepositRate.Should().Be(1m);
     }
 
     [Fact]

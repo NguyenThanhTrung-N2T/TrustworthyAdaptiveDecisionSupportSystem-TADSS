@@ -11,8 +11,9 @@ TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống 
 ## Nghiệp vụ cốt lõi
 
 - TADSS xác định được mức cọc → `APPROVED` kèm số tiền cọc.
-- Không xác định được hoặc strategy lỗi → `NEED_APPROVAL`, Manager duyệt kèm mức cọc hoặc từ chối; không bao giờ tự duyệt.
-- SmashCourt áp cọc 100% khi tắt feature flag hoặc TADSS không phản hồi.
+- Nghiệp vụ cần người xem xét (giá trị lớn, lịch sử không đến…) → `NEED_APPROVAL`, Manager duyệt kèm mức cọc hoặc từ chối; không bao giờ tự duyệt.
+- Mọi sự cố đều cọc 100%: strategy lỗi / timeout / circuit mở → fallback `APPROVED` cọc 100% (`executionType = FALLBACK`, không vào hàng chờ duyệt);
+  SmashCourt áp cọc 100% khi tắt feature flag hoặc TADSS lỗi / không phản hồi; không kịp duyệt trước giờ chơi → `APPROVED` cọc 100%.
 
 Chi tiết và contract v2: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md).
 

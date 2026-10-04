@@ -129,9 +129,9 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | ID | Lỗi tiêm | Cách tiêm | Kết quả kỳ vọng |
 | :--- | :--- | :--- | :--- |
 | FI-01 | Strategy chậm hơn inner timeout ở lần thử đầu | Decorator kiểm thử | Retry thành công; `AUTOMATED`; không fallback |
-| FI-02 | Strategy luôn chậm | Decorator kiểm thử | `NEED_APPROVAL`, `FALLBACK`, `STRATEGY_TIMEOUT`; thời gian pipeline ≤ 500ms |
-| FI-03 | Strategy ném lỗi | Decorator kiểm thử | Fallback, `STRATEGY_EXCEPTION` |
-| FI-04 | Lỗi liên tục | Decorator kiểm thử | Circuit mở, fast-fail; sau `BreakDuration` half-open → closed khi strategy hồi phục |
+| FI-02 | Strategy luôn chậm | Decorator kiểm thử | `APPROVED` cọc 100% (`deposit.amount = totalPrice`, không hạn duyệt), `FALLBACK`, `FALLBACK_STRATEGY_TIMEOUT` / `STRATEGY_TIMEOUT`; thời gian pipeline ≤ 500ms |
+| FI-03 | Strategy ném lỗi | Decorator kiểm thử | Fallback `APPROVED` cọc 100%, `FALLBACK_STRATEGY_EXCEPTION` / `STRATEGY_EXCEPTION`; không lộ message lỗi; quyết định không vào hàng chờ duyệt, override → 409 `NOT_PENDING_APPROVAL` |
+| FI-04 | Lỗi liên tục | Decorator kiểm thử | Circuit mở, fast-fail `APPROVED` cọc 100% với `FALLBACK_CIRCUIT_OPEN` (không đẩy đơn sang Manager); sau `BreakDuration` half-open → closed khi strategy hồi phục |
 | FI-05 | Strategy không hợp tác (bỏ qua `CancellationToken`, bận CPU) | Decorator kiểm thử | Vẫn bị cắt trong ngân sách; request không bị treo |
 | FI-06 | Redis mất kết nối | Toxiproxy (ngắt) | Không fallback strategy; độ trễ tăng có giới hạn nhờ breaker Redis |
 | FI-07 | Redis trễ 200ms | Toxiproxy (latency) | Bỏ qua cache; độ trễ có giới hạn |
@@ -245,7 +245,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | Mã | Chỉ số | Cách đo | Mục tiêu thiết kế |
 | :--- | :--- | :--- | :--- |
 | **SC1** | Độ trễ quyết định bình thường | p95 thời gian xử lý phía server của `POST /api/v2/decisions` trong LT-01 (E-EVAL, PostgreSQL/Redis thật); báo cáo thêm p95 API tạo booking của LT-04 | p95 TADSS < 150ms; p95 tạo booking E2E < 1000ms |
-| **SC2** | Độ trễ khi strategy lỗi | Trong FI-02/FI-03/FI-04 và LT-03 | 100% request có thời gian pipeline ≤ 500ms; p99 endpoint ≤ 700ms |
+| **SC2** | Độ trễ khi strategy lỗi | Trong FI-02/FI-03/FI-04 và LT-03 | 100% request kết thúc bằng quyết định fallback an toàn (`APPROVED` cọc 100%, `executionType = FALLBACK`) với thời gian pipeline ≤ 500ms; p99 endpoint ≤ 700ms |
 | **SC3** | Toàn vẹn & bất biến audit | Mỗi lượt chạy: số response 200 = số bản ghi `PRIMARY`; thử `UPDATE/DELETE` | 0 thiếu, 0 thừa; 0 lần sửa thành công |
 | **SC4** | Idempotency & chống ghi đè đồng thời | IT-04, IT-07 và các lượt LT | 0 bản ghi quyết định trùng; 0 override kép |
 | **SC5** | Feature flag | FI-13 | Hiệu lực < 2 giây; 100% booking trong lúc tắt áp cọc 100% |
@@ -286,7 +286,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 | :--- | :--- |
 | **a** | Toàn bộ bộ test gộp một lượt: unit, integration, contract, fault injection FI-01…10, nhiều instance SC-1, bảo mật; kết quả gom theo mã danh mục (UT/IT/CT/FI/SEC/NG…) |
 | **b** | Kịch bản tải k6: LT-01, LT-02, LT-05 (LT-04 E2E qua SmashCourt-BE để Phase 6) |
-| **c** | Sự cố dưới tải: LT-03 + FI qua Toxiproxy (cắt PostgreSQL, làm chậm Redis, strategy lỗi); quan sát trực tiếp trên dashboard Grafana: độ trễ tăng, fallback `NEED_APPROVAL`, 503, hồi phục |
+| **c** | Sự cố dưới tải: LT-03 + FI qua Toxiproxy (cắt PostgreSQL, làm chậm Redis, strategy lỗi); quan sát trực tiếp trên dashboard Grafana: độ trễ tăng, fallback `APPROVED` cọc 100%, 503, hồi phục |
 | **d** | Schemathesis (CT-03) và Stryker mutation (MT-01…03) |
 | **e** | Gom minh chứng vào `evidence/<run_id>/`: `report.html` (đạt/không đạt theo SC1…SC8, biểu đồ p50/p95/p99, biểu đồ dòng thời gian sự cố vẽ từ metric Grafana đã thu, số test từng nhóm), dữ liệu thô (trx theo `CatalogId`, kết quả k6, metric export, `chaos_log`) và `manifest.json` chứa SHA-256 từng file (EV-1…EV-5) |
 

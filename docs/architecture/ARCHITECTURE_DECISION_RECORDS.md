@@ -26,7 +26,7 @@ Tóm tắt (chi tiết trong file riêng):
 
 - **ADR-001:** runtime chỉ làm việc qua `IReservationDecisionStrategy`; strategy được đăng ký qua DI và tra cứu theo tên. Ở v2, strategy chỉ trả quyết định nghiệp vụ (`StrategyDecision`), runtime lo định danh/thời gian/telemetry.
 - **ADR-002:** một thư viện hợp đồng dùng chung, không phụ thuộc NuGet ngoài; v1 đóng băng tại Milestone 2, v2 đóng băng tại Milestone 5.
-- **ADR-003:** Outer Timeout 500ms → Fallback → Retry 2 lần → Circuit Breaker → Inner Timeout 120ms; v2 bổ sung cách ly strategy không hợp tác và breaker cho Redis.
+- **ADR-003:** Outer Timeout 500ms → Fallback → Retry 2 lần → Circuit Breaker → Inner Timeout 120ms; v2 bổ sung cách ly strategy không hợp tác và breaker cho Redis. Từ 04/10/2026 (D-13) fallback trả `APPROVED` cọc 100% thay cho `NEED_APPROVAL`.
 - **ADR-004:** bất biến nghiệp vụ nằm trong `Reservation` và value object (`EnsureValid`, `CanBeCancelledWithoutPenalty`, `CalculateDepositRatio`, `Schedule.Duration`).
 - **ADR-005:** định hướng mô hình học máy cho Khóa luận, ngoài phạm vi Đồ án 2.
 
@@ -37,6 +37,7 @@ Tóm tắt (chi tiết trong file riêng):
 - **Bối cảnh:** contract v1 chỉ trả trạng thái; số tiền cọc nằm trong chuỗi mô tả; strategy v1 thẩm định số cọc khách đã trả, trong khi lúc tạo booking khách chưa trả gì.
 - **Quyết định:** TADSS xác định mức cọc → `APPROVED` + `deposit`; không xác định được hoặc fallback → `NEED_APPROVAL`, Manager duyệt kèm mức cọc hoặc từ chối; SmashCourt áp 100% **chỉ khi** tắt flag hoặc TADSS không phản hồi; không bao giờ tự duyệt; khách không chọn mức cọc. Khi không còn đủ thời gian duyệt trước giờ chơi, runtime trả `APPROVED` 100% (`APPROVAL_WINDOW_UNAVAILABLE`).
 - **Hệ quả:** SmashCourt phải hỗ trợ thanh toán cọc một phần và thu phần còn lại khi checkout; cần job hết hạn duyệt.
+- **Điều chỉnh 04/10/2026 (D-13, thay thế phần "hoặc fallback → `NEED_APPROVAL`" và "100% **chỉ khi** tắt flag hoặc TADSS không phản hồi"):** fallback của runtime (strategy lỗi, timeout, circuit mở) trả `APPROVED` cọc 100%; `NEED_APPROVAL` chỉ khi nghiệp vụ cần người xem xét. Mọi sự cố (fallback, TADSS lỗi/không phản hồi, tắt flag, không kịp duyệt) đều cọc 100%; vẫn không bao giờ tự duyệt.
 
 ## ADR-007: Contract v2 thay thế v1
 

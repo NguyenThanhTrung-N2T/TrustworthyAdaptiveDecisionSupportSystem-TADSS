@@ -12,7 +12,7 @@ Mục tiêu của tầng chịu lỗi không phải chứng minh "zero downtime"
 
 ```text
 Outer Timeout 500ms ─ deadline cho toàn bộ phần thực thi strategy
- └─ Fallback ─ FallbackDecisionPolicy → NEED_APPROVAL (fallbackUsed = true)
+ └─ Fallback ─ FallbackDecisionPolicy → APPROVED cọc 100% (fallbackUsed = true)
      └─ Retry ─ tối đa 2 lần, delay cố định 30ms (tổng 3 lần thử)
          └─ Circuit Breaker ─ FailureRatio 0.5, SamplingDuration 30s, MinimumThroughput 10, BreakDuration 15s
              └─ Inner Timeout 120ms ─ mỗi lần thử
@@ -48,7 +48,7 @@ Outer Timeout 500ms ─ deadline cho toàn bộ phần thực thi strategy
 2. **Cô lập miền lỗi cache:** lỗi Redis không kích hoạt fallback của strategy, không đổi kết quả nghiệp vụ, không gây bão retry; cache được coi như miss.
 3. **Audit bắt buộc (fail-closed):** không ghi được audit thì không trả quyết định — trả 503 `PERSISTENCE_UNAVAILABLE`. (Outbox bất đồng bộ là future work.)
 4. **Client hủy request:** dừng xử lý, không tạo bản ghi audit, chỉ ghi log vận hành kèm correlation id.
-5. **Fallback tất định, tách khỏi chính sách nghiệp vụ:** `FallbackDecisionPolicy` không gọi I/O, không ném lỗi, luôn trả `NEED_APPROVAL`; tách biệt với `DefaultDecisionStrategy`. Mức cọc 100% khi TADSS không khả dụng là chính sách của SmashCourt, không phải của TADSS.
+5. **Fallback tất định, tách khỏi chính sách nghiệp vụ:** `FallbackDecisionPolicy` không gọi I/O, không ném lỗi, luôn trả `APPROVED` với cọc 100% (tỷ lệ 1, số tiền = `totalPrice`), giữ `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT` / `FALLBACK_STRATEGY_EXCEPTION` / `FALLBACK_CIRCUIT_OPEN`); tách biệt với `DefaultDecisionStrategy`. Mọi sự cố kỹ thuật dùng chung một quy tắc cọc 100% — giống khi SmashCourt tắt flag hoặc không gọi được TADSS; `NEED_APPROVAL` chỉ dành cho bất định nghiệp vụ do strategy quyết định, nên circuit mở không đẩy hàng loạt đơn sang Manager. Quyết định fallback không vào hàng chờ duyệt và không override được (D-13, 04/10/2026; trước đó fallback trả `NEED_APPROVAL`).
 6. **Bất biến audit:** bản ghi quyết định, override và outcome không bị sửa sau khi ghi (DB trigger — xem [`DECISION_PERSISTENCE_INVARIANTS.md`](DECISION_PERSISTENCE_INVARIANTS.md)).
 7. **SmashCourt không phụ thuộc cứng vào TADSS:** mọi lỗi phía TADSS (timeout, 5xx, 401, mất mạng) → SmashCourt áp cọc 100%, booking vẫn hợp lệ.
 
@@ -66,7 +66,7 @@ timeout, lỗi,     Redis, PostgreSQL   hủy request           TADSS dừng/ch�
 circuit mở                                                  flag tắt
    │                  │                   │                      │
 Fallback →        Redis: bỏ qua cache   Dừng ngay,            SmashCourt áp 100%,
-NEED_APPROVAL     PG: fail-closed 503   không ghi audit       booking nhất quán
+APPROVED 100%     PG: fail-closed 503   không ghi audit       booking nhất quán
 ```
 
 ---
@@ -76,10 +76,10 @@ NEED_APPROVAL     PG: fail-closed 503   không ghi audit       booking nhất qu
 | Mã F (tên test) | Kịch bản | Miền | Xử lý | Kết quả | `execution_type` / `failure_reason` | Kiểm thử |
 | :---: | :--- | :---: | :--- | :--- | :--- | :---: |
 | F1 | Strategy chậm ở lần thử đầu, lần sau thành công | 1 | Retry | Kết quả của strategy | `AUTOMATED` / `null` | FI-01 |
-| F2 | Strategy chậm ở mọi lần thử | 1 | Fallback | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-02 |
-| F3 | Strategy ném lỗi | 1 | Retry → Fallback | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_EXCEPTION` | FI-03 |
-| F4 | Circuit đang mở | 1 | Fast-fail → Fallback | `NEED_APPROVAL` | `FALLBACK` / `CIRCUIT_BREAKER_OPEN` | FI-04 |
-| — | Strategy không hợp tác (bỏ qua token, bận CPU) | 1 | Cách ly + timeout | `NEED_APPROVAL` | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-05 |
+| F2 | Strategy chậm ở mọi lần thử | 1 | Fallback | `APPROVED` cọc 100% | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-02 |
+| F3 | Strategy ném lỗi | 1 | Retry → Fallback | `APPROVED` cọc 100% | `FALLBACK` / `STRATEGY_EXCEPTION` | FI-03 |
+| F4 | Circuit đang mở | 1 | Fast-fail → Fallback | `APPROVED` cọc 100% | `FALLBACK` / `CIRCUIT_BREAKER_OPEN` | FI-04 |
+| — | Strategy không hợp tác (bỏ qua token, bận CPU) | 1 | Cách ly + timeout | `APPROVED` cọc 100% | `FALLBACK` / `STRATEGY_TIMEOUT` | FI-05 |
 | F5 | Redis mất kết nối / chậm | 2 | Bỏ qua cache (breaker Redis) | Kết quả bình thường | `AUTOMATED` / `null` | FI-06, FI-07 |
 | F6 | PostgreSQL mất kết nối | 2 | Fail-closed | 503 `PERSISTENCE_UNAVAILABLE` | không ghi được | FI-08 |
 | — | PostgreSQL chậm | 2 | Chờ trong giới hạn | Kết quả bình thường, độ trễ tăng | — | FI-09 |

@@ -9,6 +9,7 @@ using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Common;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Resilience;
+using TADSS.UnitTests.TestData;
 using Xunit;
 
 namespace TADSS.IntegrationTests.FaultInjection;
@@ -34,6 +35,8 @@ public class FaultInjectionTests : FaultInjectionTestBase
     private const int PipelineBudgetMs = 500;
 
     private const string SecretMessage = "Fatal third-party AI provider crashed: api-key=sk-secret-123";
+
+    private const string OverrideApproveBody = """{"action":"APPROVE","deposit":{"rate":0.3},"reason":"Khách quen, chi nhánh bảo lãnh"}""";
 
     public FaultInjectionTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
     {
@@ -75,7 +78,7 @@ public class FaultInjectionTests : FaultInjectionTestBase
     }
 
     /// <summary>
-    /// F2 (FI-02): strategy luôn chậm (inner 50 ms, retry 2 × 15 ms) ⇒ <c>NEED_APPROVAL</c> / <c>FALLBACK</c> / <c>FALLBACK_STRATEGY_TIMEOUT</c>, strategy được gọi 3 lần.
+    /// F2 (FI-02): strategy luôn chậm (inner 50 ms, retry 2 × 15 ms) ⇒ <c>APPROVED</c> cọc 100% / <c>FALLBACK</c> / <c>FALLBACK_STRATEGY_TIMEOUT</c>, strategy được gọi 3 lần.
     /// Ngân sách khẳng định ở hai lớp: thời gian pipeline ghi trong audit (<c>execution_time_ms</c>) ≤ 500 ms, và thời gian thực của cả request
     /// ≤ 500 ms + <see cref="EndpointToleranceMs"/> (ngưỡng p99 endpoint của SC2). Host được làm nóng trước bằng một request thật (xem <c>WarmUpHostAsync</c>) để phép đo không chứa chi phí khởi động lạnh.
     /// </summary>
@@ -92,23 +95,18 @@ public class FaultInjectionTests : FaultInjectionTestBase
         var warmUpKey = await WarmUpHostAsync();
         var invocationsBefore = Strategy.InvocationCount;
         var key = NewKey();
+        var body = UpcomingRequest();
 
         var stopwatch = Stopwatch.StartNew();
-        var response = await PostDecisionAsync(UpcomingRequest(), key);
+        var response = await PostDecisionAsync(body, key);
         stopwatch.Stop();
 
         response.Status.Should().Be(HttpStatusCode.OK);
-        var result = response.Result;
-        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
-        result.FallbackUsed.Should().BeTrue();
-        result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
-        result.ApprovalExpiresAt.Should().NotBeNull("NEED_APPROVAL luôn có hạn duyệt");
         (Strategy.InvocationCount - invocationsBefore).Should().Be(3, "lượt đầu và 2 lần retry");
 
         var row = (await ReadExecutionsAsync()).Should().ContainSingle(execution => execution.IdempotencyKey == key).Subject;
         row.IdempotencyKey.Should().NotBe(warmUpKey);
-        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        AssertFallbackFullDeposit(response.Result, row, body, ReasonCodes.FallbackStrategyTimeout);
         row.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
         row.ExecutionTimeMs.Should().BeLessThanOrEqualTo(PipelineBudgetMs, "thời gian pipeline không được vượt ngân sách 500 ms");
         row.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(150, "đã chờ đủ 3 lượt inner timeout 50 ms (không fallback sớm)");
@@ -126,21 +124,51 @@ public class FaultInjectionTests : FaultInjectionTestBase
         Resilience = new ResilienceOptions { OuterTimeoutMs = 1000, InnerTimeoutMs = 100, MaxRetryAttempts = 1, RetryBaseDelayMs = 10 };
         Strategy.Behavior = (_, _) => throw new InvalidOperationException(SecretMessage);
 
-        var response = await PostDecisionAsync(UpcomingRequest(), NewKey());
+        var body = UpcomingRequest();
+
+        var response = await PostDecisionAsync(body, NewKey());
 
         response.Status.Should().Be(HttpStatusCode.OK);
-        var result = response.Result;
-        result.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
-        result.FallbackUsed.Should().BeTrue();
-        result.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
         response.Body.Should().NotContain(SecretMessage).And.NotContain("sk-secret-123");
         Strategy.InvocationCount.Should().Be(2, "lượt đầu và 1 lần retry");
 
         var row = (await ReadExecutionsAsync()).Should().ContainSingle().Subject;
-        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        AssertFallbackFullDeposit(response.Result, row, body, ReasonCodes.FallbackStrategyException);
         row.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException).And.NotContain("sk-secret-123");
         row.ResponsePayload.Should().NotContain("sk-secret-123");
+    }
+
+    /// <summary>
+    /// F3 (FI-03, hệ quả nghiệp vụ D-13): quyết định fallback là <c>APPROVED</c> cọc 100% nên không vào hàng chờ duyệt của chi nhánh và không thể
+    /// override (override chỉ áp cho <c>NEED_APPROVAL</c>) — <c>POST /override</c> trả 409 <c>NOT_PENDING_APPROVAL</c> và không ghi hàng override.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-03")]
+    public async Task F3_FallbackDecision_NotPendingAndOverrideReturns409()
+    {
+        Resilience = new ResilienceOptions { OuterTimeoutMs = 1000, InnerTimeoutMs = 100, MaxRetryAttempts = 0, RetryBaseDelayMs = 10 };
+        Strategy.Behavior = (_, _) => throw new InvalidOperationException("Strategy đang hỏng.");
+        var body = UpcomingRequest();
+        var branchId = ContractSamples.DeserializeRequest(body).BranchId;
+
+        var posted = await PostDecisionAsync(body, NewKey());
+        posted.Status.Should().Be(HttpStatusCode.OK);
+        var decision = posted.Result;
+        decision.Status.Should().Be(DecisionStatus.APPROVED);
+        decision.FallbackUsed.Should().BeTrue();
+
+        var pending = await GetPendingApprovalsAsync($"?branchId={branchId}");
+        pending.Status.Should().Be(HttpStatusCode.OK);
+        pending.Pending.TotalItems.Should().Be(0, "quyết định fallback không chờ Manager duyệt");
+        pending.Pending.Items.Should().BeEmpty();
+
+        var overridden = await PostOverrideAsync(decision.DecisionId, OverrideApproveBody, NewKey(), "manager-01");
+
+        overridden.Status.Should().Be(HttpStatusCode.Conflict);
+        overridden.ContentType.Should().Be("application/problem+json");
+        overridden.Problem.GetProperty("code").GetString().Should().Be("NOT_PENDING_APPROVAL");
+        overridden.Problem.GetProperty("status").GetInt32().Should().Be(409);
+        (await ReadOverridesAsync()).Should().BeEmpty();
     }
 
     /// <summary>
@@ -177,11 +205,8 @@ public class FaultInjectionTests : FaultInjectionTestBase
         Strategy.InvocationCount.Should().Be(2);
 
         // Breaker đã mở: fast-fail, strategy không được gọi thêm
-        var fastFail = await PostDecisionAsync(UpcomingRequest(), NewKey());
-        var fastFailResult = fastFail.Result;
-        fastFailResult.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        fastFailResult.ExecutionType.Should().Be(ExecutionType.FALLBACK);
-        fastFailResult.ReasonCode.Should().Be(ReasonCodes.FallbackCircuitOpen);
+        var fastFailBody = UpcomingRequest();
+        var fastFail = await PostDecisionAsync(fastFailBody, NewKey());
         Strategy.InvocationCount.Should().Be(2, "breaker mở thì không gọi strategy");
 
         // Strategy hồi phục; chờ hết BreakDuration (đồng hồ thật) để lượt kế tiếp là lượt thăm dò half-open
@@ -198,6 +223,7 @@ public class FaultInjectionTests : FaultInjectionTestBase
 
         var rows = await ReadExecutionsAsync();
         rows.Should().HaveCount(5);
+        AssertFallbackFullDeposit(fastFail.Result, rows[2], fastFailBody, ReasonCodes.FallbackCircuitOpen);
         rows[2].FailureReason.Should().StartWith(FailureReasonPrefixes.CircuitBreakerOpen);
         rows[2].ExecutionTimeMs.Should().BeLessThan(100, "fast-fail không chờ strategy");
 

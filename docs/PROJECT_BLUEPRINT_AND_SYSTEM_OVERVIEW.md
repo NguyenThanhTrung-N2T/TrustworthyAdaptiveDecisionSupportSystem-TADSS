@@ -89,6 +89,7 @@ flowchart TD
     Flag -- bật --> Call[Gọi TADSS]
     Call -- lỗi / timeout --> Full
     Call -- APPROVED --> Dep[Cọc theo số tiền TADSS trả]
+    Call -- "APPROVED (fallback khi strategy lỗi)" --> Full
     Call -- NEED_APPROVAL --> Wait[Đơn chờ duyệt, giữ slot]
     Call -- REJECTED --> Cancel([Hủy đơn])
     Wait --> M{Manager}
@@ -107,7 +108,8 @@ flowchart TD
 stateDiagram-v2
     [*] --> Evaluating: Nhận request
     Evaluating --> Approved: Strategy xác định được mức cọc
-    Evaluating --> NeedApproval: Cần xem xét / fallback
+    Evaluating --> Approved: Fallback khi strategy lỗi (cọc 100%)
+    Evaluating --> NeedApproval: Nghiệp vụ cần xem xét
     Evaluating --> Rejected: Chính sách từ chối
     NeedApproval --> Approved: Không còn cửa sổ duyệt (cọc 100%)
     NeedApproval --> ManagerApproved: Manager duyệt + mức cọc

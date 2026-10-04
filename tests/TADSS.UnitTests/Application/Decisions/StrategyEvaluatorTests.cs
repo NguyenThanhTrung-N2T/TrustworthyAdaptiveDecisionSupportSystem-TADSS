@@ -160,6 +160,8 @@ public class StrategyEvaluatorTests
         evaluation.CacheHit.Should().BeFalse();
         evaluation.Outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         evaluation.Outcome.FallbackUsed.Should().BeTrue();
+        evaluation.Outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        evaluation.Outcome.Decision.DepositRate.Should().Be(1m);
         fixture.Cache.Sets.Should().BeEmpty("chỉ kết quả AUTOMATED mới được cache");
     }
 

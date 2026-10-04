@@ -14,7 +14,8 @@
 | Tình huống | Bên quyết định | Kết quả |
 | :--- | :--- | :--- |
 | Strategy xác định được mức cọc | TADSS | `APPROVED` + `deposit.amount` → SmashCourt tạo thanh toán VNPay đúng số tiền cọc |
-| Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) hoặc strategy lỗi (fallback) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
+| Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
+| Strategy lỗi / timeout / circuit breaker mở (fallback của runtime) | TADSS | `APPROVED` với cọc **100%**, `executionType = FALLBACK`, `fallbackUsed = true`, `reasonCode` ∈ `FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`. Không vào hàng chờ duyệt, không override được |
 | Cần duyệt nhưng không còn đủ thời gian duyệt trước giờ chơi (quy tắc *approval window*, Mục 1.1) | TADSS | `APPROVED` với cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE` |
 | Strategy từ chối theo chính sách | TADSS | `REJECTED` → SmashCourt hủy booking |
 | Feature flag tắt, hoặc TADSS không phản hồi / timeout / lỗi 5xx / lỗi xác thực | SmashCourt | Cọc **100%** (hành vi Đồ án 1), không chặn khách |
@@ -22,10 +23,14 @@
 
 Khách hàng **không** tự chọn mức cọc. Phần còn lại (tổng tiền − cọc) được thu khi checkout tại quầy.
 
+**Nguyên tắc:** mọi sự cố kỹ thuật (strategy lỗi → fallback, TADSS lỗi/không phản hồi, tắt flag, không kịp duyệt) đều dẫn tới cọc 100%;
+`NEED_APPROVAL` chỉ dành cho bất định **nghiệp vụ** do strategy quyết định (đơn giá trị lớn, lịch sử không đến…), nên circuit breaker mở
+không đẩy hàng loạt đơn sang Manager (quyết định D-13, 04/10/2026 — trước đó fallback trả `NEED_APPROVAL`).
+
 ### 1.1. Quy tắc approval window (runtime TADSS)
 
 - `approvalExpiresAt = min(createdAt + Tadss:Approval:WindowMinutes, earliestStart − Tadss:Approval:MinLeadMinutes)`; mặc định `WindowMinutes = 30`, `MinLeadMinutes = 120`.
-- Nếu strategy (hoặc fallback) trả `NEED_APPROVAL` nhưng `approvalExpiresAt ≤ createdAt` → runtime trả `APPROVED`, cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE`. Kết quả gốc của strategy vẫn được lưu nguyên trong audit (`strategy_status`).
+- Nếu strategy trả `NEED_APPROVAL` nhưng `approvalExpiresAt ≤ createdAt` → runtime trả `APPROVED`, cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE`. Kết quả gốc của strategy vẫn được lưu nguyên trong audit (`strategy_status`).
 
 ---
 
@@ -329,7 +334,7 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 
 ### 4.3. Xử lý kết quả
 
-- Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát.
+- Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát. Quyết định fallback của runtime (`APPROVED` cọc 100%, `fallbackUsed = true`) là một quyết định `TADSS` hợp lệ: BE xử lý như mọi `APPROVED` (thanh toán `deposit.amount`), không cần nhánh riêng.
 - Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
 - **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.

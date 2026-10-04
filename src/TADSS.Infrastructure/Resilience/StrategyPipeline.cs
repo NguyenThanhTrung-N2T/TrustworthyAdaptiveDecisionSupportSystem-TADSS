@@ -107,7 +107,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
             }
         });
 
-        // 2. Fallback: timeout / lỗi / circuit mở của strategy -> quyết định NEED_APPROVAL; hủy từ caller không bị bắt
+        // 2. Fallback: timeout / lỗi / circuit mở của strategy -> quyết định APPROVED cọc 100%; hủy từ caller không bị bắt
         builder.AddFallback(new FallbackStrategyOptions<StrategyExecutionOutcome>
         {
             ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: true)),

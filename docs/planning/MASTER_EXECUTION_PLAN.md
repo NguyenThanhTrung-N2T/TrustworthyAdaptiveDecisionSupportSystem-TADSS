@@ -31,8 +31,8 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 **Nghiệp vụ đặt cọc đã chốt (áp dụng cho toàn bộ tài liệu):**
 
 - TADSS **xác định được** mức cọc → trả `APPROVED` kèm **số tiền cọc**; SmashCourt tạo thanh toán VNPay theo đúng số tiền đó.
-- TADSS **không xác định được** (rủi ro cao, giá trị lớn, hoặc fallback do sự cố) → trả `NEED_APPROVAL`; **Manager quyết định** mức cọc hoặc từ chối.
-- **Chỉ khi TADSS bị tắt (feature flag) hoặc không phản hồi** thì SmashCourt mới áp dụng cọc **100%**.
+- TADSS **không xác định được** vì lý do nghiệp vụ (rủi ro cao, giá trị lớn) → trả `NEED_APPROVAL`; **Manager quyết định** mức cọc hoặc từ chối.
+- **Mọi sự cố đều cọc 100%:** strategy lỗi/timeout/circuit mở → fallback của TADSS trả `APPROVED` cọc 100% (`executionType = FALLBACK`; D-13, 04/10/2026 — trước đó fallback trả `NEED_APPROVAL`); TADSS bị tắt (feature flag), lỗi hoặc không phản hồi → SmashCourt áp dụng cọc **100%**; không kịp duyệt trước giờ chơi → `APPROVED` cọc 100%.
 - Khách hàng **không** tự chọn mức cọc. Không bao giờ tự động duyệt (No Auto-Approve).
 
 ---
@@ -118,7 +118,7 @@ gantt
 
 ### ✅ Phase 4 — Resilience, Cache & Audit (W04–W05, thực tế 23/09 – 01/10)
 
-- **Đã làm:** pipeline Polly v8 (Outer Timeout 500ms → Fallback → Retry 2 lần/30ms → Circuit Breaker → Inner Timeout 120ms); `FallbackDecisionStrategy` trả `NEED_APPROVAL`; cache theo request-hash (Redis + `IMemoryCache`); ghi audit đồng bộ qua MediatR; bộ kiểm thử tiêm lỗi F1–F7; micro-benchmark 19 kịch bản × 4 mức tải.
+- **Đã làm:** pipeline Polly v8 (Outer Timeout 500ms → Fallback → Retry 2 lần/30ms → Circuit Breaker → Inner Timeout 120ms); `FallbackDecisionStrategy` trả `NEED_APPROVAL` (hành vi Phase 4; từ D-13 fallback trả `APPROVED` cọc 100%); cache theo request-hash (Redis + `IMemoryCache`); ghi audit đồng bộ qua MediatR; bộ kiểm thử tiêm lỗi F1–F7; micro-benchmark 19 kịch bản × 4 mức tải.
 - **Milestone 4:** 510 test tự động pass (483 unit + 27 integration).
 - **Ghi chú sau audit:** micro-benchmark Tuần 8 chạy trên EF Core InMemory với strategy giả lập, chỉ được dùng để mô tả **overhead của pipeline trong phòng lab**, không dùng làm minh chứng SLA. Module chuẩn hóa dataset Tuần 9 bị gỡ bỏ ở bước rà soát đầu Phase 5 vì dữ liệu sinh từ DB in-memory. Báo cáo benchmark Tuần 8 đã gỡ khỏi repo ở Phase 5, tra lại qua tag `phase4-baseline`.
 
@@ -179,7 +179,7 @@ gantt
 | Chất lượng bộ kiểm thử | MT-01…03 | Gây đột biến mã nguồn và kiểm tra bộ test có phát hiện | Stryker.NET | Mutation score ≥ 70% (SC8) |
 | Kiểm thử tích hợp | IT | Gọi API thật với PostgreSQL/Redis thật trong container: tạo quyết định, gửi trùng, phê duyệt, ghi đè, ghi nhận kết quả | xUnit, Testcontainers | 0 quyết định trùng, 0 override kép (SC4); số response 200 = số bản ghi `PRIMARY`, sửa/xóa audit bị chặn (SC3) |
 | Kiểm thử hợp đồng API | CT | Kiểm tra theo JSON Schema; sinh request tự động từ OpenAPI | JsonSchema.Net, Schemathesis | 0 lỗi 5xx, 0 response sai schema (CT-03) |
-| Kiểm thử chịu lỗi | FI-01…10 | Strategy chậm/lỗi; cắt hoặc làm chậm PostgreSQL, Redis; client hủy request | Toxiproxy, decorator tiêm lỗi | Fallback `NEED_APPROVAL`, pipeline ≤ 500 ms (SC2); mất DB → 503, không bản ghi dở dang; mất Redis → vẫn phục vụ |
+| Kiểm thử chịu lỗi | FI-01…10 | Strategy chậm/lỗi; cắt hoặc làm chậm PostgreSQL, Redis; client hủy request | Toxiproxy, decorator tiêm lỗi | Fallback `APPROVED` cọc 100% (không vào hàng chờ duyệt), pipeline ≤ 500 ms (SC2); mất DB → 503, không bản ghi dở dang; mất Redis → vẫn phục vụ |
 | Kiểm thử tải | LT-01…03, LT-05 | 50 RPS × 10 phút; tăng dần 10 → 400 RPS; 50 RPS × 60 phút; tải khi có sự cố | k6 | p95 < 150 ms (SC1); p99 ≤ 700 ms khi có sự cố (SC2); không rò rỉ khi chạy dài |
 | Kiểm thử bảo mật | SEC-1…7 | Thiếu/sai API key, vượt giới hạn tốc độ, request quá lớn, log không chứa bí mật | xUnit, k6 | Đúng 401/429/413; không lộ secret |
 | Feature flag & toàn vẹn đặt sân | FI-11…14 | Tắt TADSS bằng cờ khi đang đặt sân; truy vấn bất biến sau mỗi kịch bản | xUnit, SQL | Cờ hiệu lực < 2 giây, cọc 100% khi tắt (SC5); 0 booking hỏng (SC6) |

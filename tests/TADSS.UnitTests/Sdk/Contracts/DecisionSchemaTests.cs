@@ -67,12 +67,39 @@ public class DecisionSchemaTests
             Deposit = null,
             StrategyName = "DefaultDecisionStrategy",
             StrategyVersion = "2.0.0",
-            ExecutionType = ExecutionType.FALLBACK,
-            FallbackUsed = true,
-            ReasonCode = ReasonCodes.FallbackStrategyTimeout,
+            ExecutionType = ExecutionType.AUTOMATED,
+            FallbackUsed = false,
+            ReasonCode = ReasonCodes.HighValueReview,
             Reasons = [],
             Recommendations = [],
             ApprovalExpiresAt = new DateTimeOffset(2026, 11, 18, 2, 45, 0, TimeSpan.Zero),
+            EvaluatedAt = new DateTimeOffset(2026, 11, 18, 2, 15, 0, TimeSpan.Zero)
+        };
+
+        var results = ContractSchemas.Evaluate(ResultSchema, JsonSerializer.Serialize(result, TadssJson.Options));
+
+        results.IsValid.Should().BeTrue(ContractSchemas.Describe(results));
+    }
+
+    /// <summary>Quyết định fallback (D-13): <c>APPROVED</c> cọc 100%, <c>executionType = FALLBACK</c>, không hạn duyệt — hợp lệ theo schema.</summary>
+    [Fact]
+    [Trait("CatalogId", "CT-01")]
+    public void ResultSchema_SdkSerializedFallbackFullDeposit_IsValid()
+    {
+        var result = new DecisionResultDto
+        {
+            DecisionId = Guid.NewGuid(),
+            ReservationId = Guid.NewGuid(),
+            Status = DecisionStatus.APPROVED,
+            Deposit = new DepositDto { Rate = 1m, Amount = 228_000m, Currency = "VND" },
+            StrategyName = "DefaultDecisionStrategy",
+            StrategyVersion = "2.0.0",
+            ExecutionType = ExecutionType.FALLBACK,
+            FallbackUsed = true,
+            ReasonCode = ReasonCodes.FallbackStrategyTimeout,
+            Reasons = ["Chế độ an toàn tự động kích hoạt: Chiến lược đánh giá không phản hồi kịp thời hạn cho phép.", "Áp dụng đặt cọc 100% theo chính sách an toàn."],
+            Recommendations = [],
+            ApprovalExpiresAt = null,
             EvaluatedAt = new DateTimeOffset(2026, 11, 18, 2, 15, 0, TimeSpan.Zero)
         };
 

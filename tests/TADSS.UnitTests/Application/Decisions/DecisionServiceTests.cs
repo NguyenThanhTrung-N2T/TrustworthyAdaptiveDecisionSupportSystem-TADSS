@@ -325,13 +325,22 @@ public class DecisionServiceTests
             $"{FailureReasonPrefixes.StrategyTimeout}: vượt 400 ms");
         var fixture = new Fixture(strategy, pipeline);
 
-        var response = await fixture.EvaluateAsync(Request());
+        var request = Request();
+
+        var response = await fixture.EvaluateAsync(request);
 
         fixture.Cache.Sets.Should().BeEmpty("chỉ kết quả AUTOMATED mới được cache");
-        response.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        response.ApprovalExpiresAt.Should().NotBeNull();
+        response.Status.Should().Be(DecisionStatus.APPROVED);
+        var deposit = ContractSamples.Required(response.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(request.TotalPrice);
+        response.ApprovalExpiresAt.Should().BeNull();
+        response.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
         response.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         response.FallbackUsed.Should().BeTrue();
+        var record = fixture.Store.Records.Should().ContainSingle().Subject;
+        record.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        record.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
     }
 
     [Fact]

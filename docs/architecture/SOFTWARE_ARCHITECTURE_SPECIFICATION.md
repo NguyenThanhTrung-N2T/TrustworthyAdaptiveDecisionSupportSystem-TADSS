@@ -189,7 +189,7 @@ Giờ cao điểm (theo giờ chi nhánh, `Tadss:Calendar:PeakWindows`): thứ H
 
 **Định tuyến mặc định** (`Tadss:Routing`): request có giờ cao điểm → `MockAlternativeDecisionStrategy`; còn lại → `DefaultDecisionStrategy`. Shadow mode tắt mặc định.
 
-**Fallback (`FallbackDecisionPolicy`)**: luôn `NEED_APPROVAL`; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`; riêng khi approval window không khả dụng thì `reasonCode` bị thay bằng `APPROVAL_WINDOW_UNAVAILABLE` (cọc 100%), nên chỉ `executionType`/`fallbackUsed` là tín hiệu đáng tin cậy. Kết quả fallback không được ghi cache.
+**Fallback (`FallbackDecisionPolicy`)**: luôn `APPROVED` với cọc 100% (tỷ lệ 1, `deposit.amount = totalPrice`), không có khuyến nghị và không có hạn duyệt; `reasonCode` theo nguyên nhân (`FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`). Mọi sự cố kỹ thuật dùng chung quy tắc cọc 100% (như khi SmashCourt tắt flag hoặc không gọi được TADSS); `NEED_APPROVAL` chỉ dành cho bất định nghiệp vụ do strategy quyết định, nên quyết định fallback không vào hàng chờ duyệt và không override được (D-13, 04/10/2026; trước đó fallback trả `NEED_APPROVAL`). Khi fallback thì `strategyName`/`strategyVersion` trong response và audit vẫn là của **strategy đã được chọn** (không đổi thành tên fallback); nhận biết fallback qua `executionType = FALLBACK`, `fallbackUsed = true` và `reasonCode` `FALLBACK_*`. Approval window không tác động lên fallback (chỉ áp cho `NEED_APPROVAL`), nên `strategy_status` trong audit cũng là `APPROVED`. Kết quả fallback không được ghi cache.
 
 ### 4.4. Luồng xử lý `POST /api/v2/decisions`
 
@@ -252,7 +252,7 @@ sequenceDiagram
                         EV->>CA: SetAsync (lỗi ghi cache bị bỏ qua)
                     end
                 else Strategy lỗi, quá hạn inner timeout hoặc breaker mở
-                    PL-->>EV: Fallback NEED_APPROVAL (FALLBACK, không ghi cache)
+                    PL-->>EV: Fallback APPROVED cọc 100% (FALLBACK, không ghi cache)
                 end
                 EV-->>DS: StrategyEvaluation
             end
