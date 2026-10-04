@@ -131,7 +131,8 @@ public class ApiKeyAuthenticationTests : IClassFixture<DecisionsApiFactory>
     public async Task Request_PathVariantsWithoutKey_AreNeverServed_Theory(string method, string path, HttpStatusCode expected)
     {
         using var client = TestApiKeys.CreateClientWithoutKey(_factory);
-        using var request = new HttpRequestMessage(new HttpMethod(method), new Uri(client.BaseAddress!.GetLeftPart(UriPartial.Authority) + path));
+        var baseAddress = client.BaseAddress ?? throw new InvalidOperationException("Client kiểm thử thiếu BaseAddress.");
+        using var request = new HttpRequestMessage(new HttpMethod(method), new Uri(baseAddress.GetLeftPart(UriPartial.Authority) + path));
 
         using var response = await client.SendAsync(request);
 
