@@ -1,5 +1,7 @@
 # Override chế độ B: TADSS trong container nhưng dùng PostgreSQL ngoài (Neon) thay cho tadss-postgres (gói 5.3, T5.30, NG-1).
 #   docker compose -f docker-compose.yml -f docker-compose.ngrok.yml -f docker-compose.neon.yml --profile ngrok up -d --build tadss-runtime ngrok
+# File này an toàn khi dùng riêng với docker-compose.yml (chạy local với Neon, không ngrok): cũng ép Staging, bắt buộc khóa riêng TADSS_API_KEY_SHA256
+# (không dùng khóa local công khai) và chỉ bind cổng host vào 127.0.0.1, giống docker-compose.ngrok.yml.
 # Chuỗi kết nối chỉ đi qua biến môi trường TADSS_DB_CONNECTION (đặt trong .env, không commit).
 # Migration KHÔNG bao giờ chạy lúc khởi động với database ngoài: giá trị "false" bên dưới là literal, không đọc từ biến.
 # Redis mặc định là tadss-redis của compose (cổng nội bộ 6379, không qua Toxiproxy); đổi bằng TADSS_REDIS_CONNECTION.
@@ -7,7 +9,12 @@ name: tadss-local
 
 services:
   tadss-runtime:
+    ports: !override
+      - "127.0.0.1:${TADSS_PORT:-8081}:8080"
     environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Tadss__Security__ApiKeys__0__ClientId: ${TADSS_API_CLIENT_ID:-smashcourt-be}
+      Tadss__Security__ApiKeys__0__KeySha256: ${TADSS_API_KEY_SHA256:?Đặt TADSS_API_KEY_SHA256 (SHA-256 hex của khóa riêng, không dùng khóa local công khai) trong .env}
       ConnectionStrings__DefaultConnection: ${TADSS_DB_CONNECTION:?Đặt TADSS_DB_CONNECTION (chuỗi kết nối PostgreSQL ngoài) trong .env}
       Tadss__Database__ApplyMigrationsOnStartup: "false"
       Tadss__Cache__RedisConnectionString: ${TADSS_REDIS_CONNECTION:-tadss-redis:6379}

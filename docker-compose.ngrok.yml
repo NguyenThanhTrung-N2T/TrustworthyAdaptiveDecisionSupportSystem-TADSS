@@ -40,10 +40,12 @@ services:
     image: ${TADSS_NGROK_IMAGE:-ngrok/ngrok:3.39.11-alpine@sha256:187e588f6c4efe3b29cd3eea9fcd768a1afa7342319e3cee9aeb5af6a9cf64fd}
     profiles: ["ngrok"]
     restart: unless-stopped
+    # --config /var/lib/ngrok/ngrok.yml: entrypoint gốc của image luôn nạp file này (web_addr 0.0.0.0:4040); ghi đè entrypoint bằng sh -c thì phải tự truyền,
+    # nếu không giao diện kiểm tra chỉ nghe loopback BÊN TRONG container và cổng host 127.0.0.1:4040 không truy cập được. Authtoken đi qua biến NGROK_AUTHTOKEN.
     # Chạy qua sh -c vì compose không truyền tham số có điều kiện: có NGROK_DOMAIN thì dùng domain tĩnh, không có thì ngrok cấp domain ngẫu nhiên.
     entrypoint: ["sh", "-c"]
     command:
-      - 'if [ -n "$${NGROK_DOMAIN}" ]; then exec ngrok http --url "$${NGROK_DOMAIN}" tadss-runtime:8080; else exec ngrok http tadss-runtime:8080; fi'
+      - 'if [ -n "$${NGROK_DOMAIN}" ]; then exec ngrok http --config /var/lib/ngrok/ngrok.yml --url "$${NGROK_DOMAIN}" tadss-runtime:8080; else exec ngrok http --config /var/lib/ngrok/ngrok.yml tadss-runtime:8080; fi'
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Đặt NGROK_AUTHTOKEN trong .env}
       NGROK_DOMAIN: ${NGROK_DOMAIN:-}

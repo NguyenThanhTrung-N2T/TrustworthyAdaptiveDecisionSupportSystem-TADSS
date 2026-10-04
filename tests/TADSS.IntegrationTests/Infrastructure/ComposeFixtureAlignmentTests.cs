@@ -81,6 +81,42 @@ public class ComposeFixtureAlignmentTests
             "TADSS_DB_CONNECTION phải bắt buộc (cú pháp :?)");
     }
 
+    /// <summary>
+    /// Cả hai nhánh lệnh <c>ngrok http</c> phải truyền <c>--config /var/lib/ngrok/ngrok.yml</c>: <c>entrypoint: sh -c</c> bỏ entrypoint gốc của image
+    /// (vốn luôn nạp file này, <c>web_addr 0.0.0.0:4040</c>), thiếu cờ thì giao diện kiểm tra chỉ nghe loopback trong container và cổng host không truy cập được.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "NG-4")]
+    public void NgrokOverride_InspectorUsesImageConfig()
+    {
+        var compose = string.Join(Environment.NewLine, ActiveLines("docker-compose.ngrok.yml"));
+
+        var invocations = Regex.Matches(compose, @"exec ngrok http(?<rest> [^;]*)");
+        invocations.Should().HaveCount(2, "lệnh có hai nhánh (có và không có NGROK_DOMAIN)");
+        invocations.Select(match => match.Groups["rest"].Value).Should()
+            .OnlyContain(rest => rest.StartsWith(" --config /var/lib/ngrok/ngrok.yml ", StringComparison.Ordinal),
+                "mỗi nhánh ngrok http phải nạp config của image để giao diện kiểm tra nghe 0.0.0.0:4040 trong container");
+    }
+
+    /// <summary>
+    /// Override neon an toàn khi dùng riêng với base (không kèm ngrok): ép <c>Staging</c>, bắt buộc khóa riêng (<c>:?</c>, không rơi về khóa local công khai)
+    /// và chỉ bind cổng host của <c>tadss-runtime</c> vào loopback.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "NG-5")]
+    public void NeonOverride_IsSafeOnItsOwn()
+    {
+        var neon = ActiveLines("docker-compose.neon.yml");
+
+        neon.Should().Contain(line => line.Trim() == "ASPNETCORE_ENVIRONMENT: Staging", "neon dùng riêng không được chạy ở Development");
+        neon.Should().Contain(line => line.Contains("Tadss__Security__ApiKeys__0__KeySha256: ${TADSS_API_KEY_SHA256:?", StringComparison.Ordinal),
+            "khóa API riêng phải bắt buộc, không có mặc định");
+        neon.Should().Contain(line => line.Trim() == "ports: !override", "cổng host của base phải bị thay hẳn");
+        var ports = PortEntries(neon);
+        ports.Should().NotBeEmpty();
+        ports.Should().OnlyContain(entry => entry.StartsWith(LoopbackPrefix, StringComparison.Ordinal));
+    }
+
     private static string ReadCompose(string fileName) => File.ReadAllText(RepositoryPaths.Resolve(fileName));
 
     /// <summary>Các dòng không phải comment (comment được phép nhắc tới 0.0.0.0 để giải thích).</summary>

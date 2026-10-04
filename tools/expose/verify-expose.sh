@@ -15,11 +15,19 @@ export MSYS2_ARG_CONV_EXCL='*'
 
 cd "$(dirname "$0")/../.." || exit 1
 
+# Hermetic: biến shell của người dùng (cổng, khóa, chuỗi kết nối, COMPOSE_*) được compose ưu tiên hơn --env-file nên phải bỏ hết,
+# nếu không project kiểm tra có thể tranh cổng với stack đang chạy hoặc dùng nhầm khóa/chuỗi kết nối thật.
+for name in $(compgen -e); do
+  case "$name" in TADSS_*|NGROK_*|COMPOSE_*) unset "$name" ;; esac
+done
+
 PROJECT="tadss-expose-check"
 NETWORK="${PROJECT}_default"
 CURL_IMAGE="curlimages/curl:8.22.0"
 MIN_COMPOSE_VERSION="2.24.4"
 ENV_FILE=".env.expose-check"  # đường dẫn tương đối: docker compose.exe trên Windows không hiểu /tmp của Git Bash
+ERR_FILE="${ENV_FILE}.err"
+NOKEY_ENV_FILE="${ENV_FILE}.nokey"
 NOKEY_CONTAINER="${PROJECT}-nokey"
 SAMPLE="tools/expose/sample-decision-request.json"
 
@@ -52,7 +60,7 @@ cleanup() {
   else
     docker compose -p "$PROJECT" -f docker-compose.yml down -v --rmi local --remove-orphans >/dev/null 2>&1
   fi
-  rm -f "$ENV_FILE"
+  rm -f "$ENV_FILE" "$ERR_FILE" "$NOKEY_ENV_FILE"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -90,23 +98,27 @@ if TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;
 # Thiếu biến bắt buộc phải bị từ chối: neon không có TADSS_DB_CONNECTION, ngrok không có TADSS_API_KEY_SHA256.
 neg_db="FAIL"; neg_key="FAIL"
 if ! docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then neg_db="PASS"; fi
-: >"${ENV_FILE}.nokey"
-if ! NGROK_AUTHTOKEN=fake docker compose -p "$PROJECT" --env-file "${ENV_FILE}.nokey" -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet >/dev/null 2>&1; then neg_key="PASS"; fi
-rm -f "${ENV_FILE}.nokey"
-if [ "$cfg_a" = PASS ] && [ "$cfg_b" = PASS ] && [ "$neg_db" = PASS ] && [ "$neg_key" = PASS ]; then
-  record "NG-1" PASS "config hợp lệ cho ngrok và ngrok+neon; thiếu TADSS_DB_CONNECTION/TADSS_API_KEY_SHA256 bị từ chối"
+: >"$NOKEY_ENV_FILE"
+if ! NGROK_AUTHTOKEN=fake docker compose -p "$PROJECT" --env-file "$NOKEY_ENV_FILE" -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet >/dev/null 2>&1; then neg_key="PASS"; fi
+# Neon dùng riêng với base (không ngrok) cũng phải hợp lệ khi đủ biến, và bị từ chối khi thiếu khóa.
+cfg_c="FAIL"; neg_c="FAIL"
+if TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;Password=fake"    docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then cfg_c="PASS"; fi
+if ! TADSS_DB_CONNECTION="Host=fake.invalid;Port=5432;Database=fake;Username=fake;Password=fake"    docker compose -p "$PROJECT" --env-file "$NOKEY_ENV_FILE" -f docker-compose.yml -f docker-compose.neon.yml config --quiet >/dev/null 2>&1; then neg_c="PASS"; fi
+rm -f "$NOKEY_ENV_FILE"
+if [ "$cfg_a" = PASS ] && [ "$cfg_b" = PASS ] && [ "$cfg_c" = PASS ] && [ "$neg_db" = PASS ] && [ "$neg_key" = PASS ] && [ "$neg_c" = PASS ]; then
+  record "NG-1" PASS "config hợp lệ cho ngrok, ngrok+neon và neon riêng; thiếu TADSS_DB_CONNECTION/TADSS_API_KEY_SHA256 bị từ chối"
 else
-  record "NG-1" FAIL "ngrok=${cfg_a} ngrok+neon=${cfg_b} thiếu-DB-bị-từ-chối=${neg_db} thiếu-khóa-bị-từ-chối=${neg_key}"
+  record "NG-1" FAIL "ngrok=${cfg_a} ngrok+neon=${cfg_b} neon-riêng=${cfg_c} thiếu-khóa-neon-riêng-bị-từ-chối=${neg_c} thiếu-DB-bị-từ-chối=${neg_db} thiếu-khóa-bị-từ-chối=${neg_key}"
 fi
 
 # ── Chế độ A: dựng stack (không bật profile ngrok) ──
 echo ">> Dựng project ${PROJECT} (build image, có thể mất vài phút)..."
 stack_up="FAIL"
-if dc up -d --build --wait tadss-runtime >/dev/null 2>"${ENV_FILE}.err"; then stack_up="PASS"; fi
+if dc up -d --build --wait tadss-runtime >/dev/null 2>"$ERR_FILE"; then stack_up="PASS"; fi
 if [ "$stack_up" != "PASS" ]; then
-  echo "LỖI: không dựng được stack:" >&2; tail -n 20 "${ENV_FILE}.err" >&2; dc logs --tail 30 tadss-runtime >&2
+  echo "LỖI: không dựng được stack:" >&2; tail -n 20 "$ERR_FILE" >&2; dc logs --tail 30 tadss-runtime >&2
 fi
-rm -f "${ENV_FILE}.err"
+rm -f "$ERR_FILE"
 
 probe() { docker run --rm --network "$NETWORK" "$CURL_IMAGE" -s -m 20 "$@"; }
 code_of() { probe -o /dev/null -w '%{http_code}' "$@"; }
@@ -140,7 +152,7 @@ if [ "$stack_up" = PASS ]; then
   get_code="${get_out##*$'\n'}"
   get_id="$(printf '%s' "${get_out%$'\n'*}" | grep -o '"decisionId" *: *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
   swagger="$(code_of "${BASE_URL}/swagger/index.html")"
-  rows="$(dc exec -T tadss-postgres psql -U "${TADSS_PG_USER:-tadss}" -d tadss -tAc 'select count(*) from tadss.decision_executions' 2>/dev/null | tr -d '[:space:]')"
+  rows="$(dc exec -T tadss-postgres psql -U tadss -d tadss -tAc 'select count(*) from tadss.decision_executions' 2>/dev/null | tr -d '[:space:]')"
 
   detail="ready=${ready} không-khóa=${no_key} có-khóa=${with_key} GET=${get_code} swagger=${swagger} bản-ghi=${rows:-?}"
   if [ "$ready" = 200 ] && [ "$no_key" = 401 ] && [ "$with_key" = 200 ] && [ -n "$decision_id" ] \
