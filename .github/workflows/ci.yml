@@ -91,4 +91,15 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
           tags: tadss-runtime:ci-test
+
+      # 9. SEC-6: image phải chạy bằng user non-root (Config.User không rỗng, không phải root/0)
+      - name: Verify Container Runs As Non-Root
+        run: |
+          user="$(docker inspect --format '{{.Config.User}}' tadss-runtime:ci-test)"
+          echo "Config.User = '${user}'"
+          if [ -z "${user}" ] || [ "${user}" = "root" ] || [ "${user}" = "0" ] || [[ "${user}" == 0:* ]] || [[ "${user}" == root:* ]]; then
+            echo "Image chạy bằng root (Config.User='${user}')" >&2
+            exit 1
+          fi

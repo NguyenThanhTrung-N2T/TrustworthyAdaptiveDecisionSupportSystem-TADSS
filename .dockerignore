@@ -12,3 +12,10 @@ docker/
 *.md
 *.user
 src/TADSS.Runtime.Api/appsettings.Development.json
+
+# SEC-6: file bí mật không được vào build context / image
+.env
+.env.*
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/*.pfx
