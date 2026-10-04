@@ -134,6 +134,35 @@ public class SecurityHeadersTests : IClassFixture<DecisionsApiFactory>
         response.Headers.Contains(HstsHeader).Should().Be(expectHsts, environment);
     }
 
+    /// <summary>
+    /// HSTS (Staging, https) có cả trên response lỗi do exception handler ghi (400 body sai, 500 service ném): header gắn qua <c>OnStarting</c> nên
+    /// sống sót qua <c>Response.Clear()</c>. Host <c>localhost</c> thuộc <c>ExcludedHosts</c> nên không có HSTS.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "SEC-3")]
+    [InlineData("bad-body-400", "tadss.example", HttpStatusCode.BadRequest, true)]
+    [InlineData("internal-500", "tadss.example", HttpStatusCode.InternalServerError, true)]
+    [InlineData("ok-200", "tadss.example", HttpStatusCode.OK, true)]
+    [InlineData("bad-body-400", "localhost", HttpStatusCode.BadRequest, false)]
+    public async Task Hsts_PresentOnErrorResponses_Theory(string kind, string host, HttpStatusCode expectedStatus, bool expectHsts)
+    {
+        using var factory = SecurityTestHost.WithEnvironment(_factory, "Staging", ("Tadss:Security:TrustForwardedHeaders", "true"));
+        if (kind == "internal-500")
+        {
+            _factory.DecisionService.Behavior = _ => throw new InvalidOperationException("boom-hsts");
+        }
+
+        using var client = TestApiKeys.CreateClientWithoutKey(factory);
+        using var request = SecurityTestHost.Post(kind == "bad-body-400" ? "{" : ContractSamples.RequestJson, TestApiKeys.DefaultKey);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+        request.Headers.Host = host;
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(expectedStatus, kind);
+        response.Headers.Contains(HstsHeader).Should().Be(expectHsts, $"{kind} {host}");
+    }
+
     /// <summary>Kestrel không gửi header <c>Server</c> (không lộ phần mềm máy chủ).</summary>
     [Fact]
     [Trait("CatalogId", "SEC-3")]

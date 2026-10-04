@@ -31,12 +31,8 @@ public static class RequestPipelineExtensions
         // 3. Pipeline xử lý lỗi RFC 7807 ProblemDetails
         app.UseExceptionHandler();
 
-        // 4. Header bảo mật (có cả trên response của exception handler) và HSTS ngoài Development/Testing
+        // 4. Header bảo mật và HSTS (ngoài Development/Testing, chỉ https): gắn qua OnStarting nên có cả trên response của exception handler
         app.UseMiddleware<SecurityHeadersMiddleware>();
-        if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
-        {
-            app.UseHsts();
-        }
 
         // 5. Request logging: đứng trước các bước từ chối để ghi cả 401/413
         app.UseSerilogRequestLogging();

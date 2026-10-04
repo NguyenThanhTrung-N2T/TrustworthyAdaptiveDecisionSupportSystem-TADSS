@@ -46,7 +46,7 @@ internal static class InvalidModelStateTranslator
 
         var detail = errors.Count == 0
             ? "Request body không hợp lệ."
-            : "Request body không hợp lệ: " + string.Join(" ", errors.Take(MaxReportedErrors).Select(error => error.Message));
+            : string.Join(" ", errors.Take(MaxReportedErrors).Select(error => error.Message));
 
         return new ContractValidationException(ErrorCodes.ValidationError, detail, errors.Count == 0 ? null : errors[0].Field);
     }
