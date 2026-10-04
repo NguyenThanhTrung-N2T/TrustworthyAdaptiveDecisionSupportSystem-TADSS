@@ -963,7 +963,7 @@ components:
           description: Lý do (5..500 ký tự).
           nullable: true
       additionalProperties: false
-      description: "Request `POST /api/v2/decisions/{decisionId}/override` (INTEGRATION_SPEC §3.6). `APPROVE` bắt buộc\nđúng một trong `deposit.rate`/`deposit.amount`; `REJECT` không gửi `deposit` — runtime kiểm tra (gói 5.3)."
+      description: "Request `POST /api/v2/decisions/{decisionId}/override` (INTEGRATION_SPEC §3.6). `APPROVE` bắt buộc\nđúng một trong `deposit.rate`/`deposit.amount`; `REJECT` không gửi `deposit` — runtime kiểm tra các ràng buộc này khi nhận request."
     OverrideResponseDto:
       required:
         - action
