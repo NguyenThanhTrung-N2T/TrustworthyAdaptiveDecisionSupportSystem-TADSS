@@ -84,7 +84,7 @@ tests/
 └── TADSS.IntegrationTests/            # API qua WebApplicationFactory trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy): Migrations, Persistence, FaultInjection, endpoint/idempotency/cache
 ```
 
-Health check: `/health/live`, `/health/ready` (PostgreSQL, tên check `postgresql`), `/health` — map trong `Program.cs`, đăng ký trong `AddInfrastructure`.
+Health check: `/health/live` (không check nào) và `/health/ready` (PostgreSQL, tên check `postgresql`, lỗi → 503; Redis, tên check `redis`, lỗi → `Degraded` vẫn 200) — map trong `Composition/EndpointMappingExtensions.MapTadssEndpoints`, đăng ký trong `AddInfrastructure`. Không còn endpoint `/health` gộp (F-16); body chỉ là chữ trạng thái.
 
 Thứ tự middleware của request pipeline khai báo tại một nơi: `Composition/RequestPipelineExtensions.UseTadssRequestPipeline` (correlation id → exception handler → Swagger chỉ ở Development → request logging → https redirection → authorization).
 

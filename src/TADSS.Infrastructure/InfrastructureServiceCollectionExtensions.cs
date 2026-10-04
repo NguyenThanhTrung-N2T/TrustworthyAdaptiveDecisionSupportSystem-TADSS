@@ -59,6 +59,8 @@ public static class InfrastructureServiceCollectionExtensions
             .Bind(configuration.GetSection(CacheOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<CacheOptions>, CacheOptionsValidator>();
+        // Health check Redis (chỉ khi Provider = Redis): lỗi Redis chỉ làm readiness Degraded
+        services.AddCacheHealthChecks(configuration);
         services.TryAddSingleton<IConnectionMultiplexer>(sp =>
             RedisConnectionFactory.Create(sp.GetRequiredService<IOptions<CacheOptions>>().Value));
         services.AddSingleton<IStrategyDecisionCache>(sp =>

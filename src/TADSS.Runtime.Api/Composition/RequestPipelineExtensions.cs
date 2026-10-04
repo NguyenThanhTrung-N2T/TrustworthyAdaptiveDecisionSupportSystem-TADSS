@@ -14,7 +14,7 @@ public static class RequestPipelineExtensions
     /// Dựng pipeline: forwarded headers (khi bật) → correlation id → exception handler → security headers + HSTS → request logging → https redirection →
     /// giới hạn kích thước → Swagger (chỉ Development) → xác thực API key → rate limiter → routing.
     /// Logging đứng trước các bước từ chối nên ghi được cả 401/413/429; rate limiter đứng sau xác thực nên request thiếu khóa nhận 401 chứ không tốn lượt giới hạn; kích thước kiểm tra trước xác thực; Swagger đứng trước xác thực nên được miễn ở Development;
-    /// routing gọi tường minh để định tuyến chạy sau các bước bảo mật. Endpoint (controller, health check) do <c>Program.cs</c> map sau lời gọi này.
+    /// routing gọi tường minh để định tuyến chạy sau các bước bảo mật. Endpoint (controller, health check) do <see cref="EndpointMappingExtensions.MapTadssEndpoints"/> map sau lời gọi này.
     /// Không có <c>UseAuthorization</c>: không có policy nào, xác thực do <see cref="ApiKeyAuthenticationMiddleware"/> đảm nhiệm.
     /// </summary>
     public static WebApplication UseTadssRequestPipeline(this WebApplication app)
