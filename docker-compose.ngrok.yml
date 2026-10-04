@@ -1,0 +1,55 @@
+# Override expose TADSS qua ngrok (gói 5.3, T5.30, NG-1…NG-5). Chạy cùng docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.ngrok.yml --profile ngrok up -d --build
+# Chế độ A (PostgreSQL local trong compose): chỉ cần NGROK_AUTHTOKEN và TADSS_API_KEY_SHA256 (mã băm KHÔNG phải khóa local công khai).
+# Chế độ B (Neon): thêm -f docker-compose.neon.yml và TADSS_DB_CONNECTION.
+# Khác E-LOCAL: chạy ở Staging (validator từ chối khóa công khai, F-07/F-18), tin forwarded headers của ngrok (F-10),
+# và MỌI cổng host chỉ bind 127.0.0.1 (NG-5): ngoài ngrok không ai chạm được vào máy dev qua mạng LAN.
+# Không bật profile `ngrok` thì chỉ có TADSS + hạ tầng chạy (dùng cho verify-expose.sh).
+name: tadss-local
+
+services:
+  tadss-postgres:
+    ports: !override
+      - "127.0.0.1:${TADSS_PG_PORT:-5433}:5432"
+
+  tadss-redis:
+    ports: !override
+      - "127.0.0.1:${TADSS_REDIS_PORT:-6380}:6379"
+
+  toxiproxy:
+    ports: !override
+      - "127.0.0.1:${TADSS_TOXIPROXY_PORT:-8474}:8474"
+
+  otel-lgtm:
+    ports: !override
+      - "127.0.0.1:${TADSS_GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+
+  tadss-runtime:
+    ports: !override
+      - "127.0.0.1:${TADSS_PORT:-8081}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Tadss__Security__ApiKeys__0__ClientId: ${TADSS_API_CLIENT_ID:-smashcourt-be}
+      Tadss__Security__ApiKeys__0__KeySha256: ${TADSS_API_KEY_SHA256:?Đặt TADSS_API_KEY_SHA256 (SHA-256 hex của khóa riêng, không dùng khóa local công khai) trong .env}
+      Tadss__Security__TrustForwardedHeaders: "true"
+
+  ngrok:
+    # F-20: ghim tag + digest (ngrok 3.39.11-alpine, kéo ngày 2026-10-04); đổi bản qua TADSS_NGROK_IMAGE hoặc Dependabot (docker).
+    image: ${TADSS_NGROK_IMAGE:-ngrok/ngrok:3.39.11-alpine@sha256:187e588f6c4efe3b29cd3eea9fcd768a1afa7342319e3cee9aeb5af6a9cf64fd}
+    profiles: ["ngrok"]
+    restart: unless-stopped
+    # Chạy qua sh -c vì compose không truyền tham số có điều kiện: có NGROK_DOMAIN thì dùng domain tĩnh, không có thì ngrok cấp domain ngẫu nhiên.
+    entrypoint: ["sh", "-c"]
+    command:
+      - 'if [ -n "$${NGROK_DOMAIN}" ]; then exec ngrok http --url "$${NGROK_DOMAIN}" tadss-runtime:8080; else exec ngrok http tadss-runtime:8080; fi'
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Đặt NGROK_AUTHTOKEN trong .env}
+      NGROK_DOMAIN: ${NGROK_DOMAIN:-}
+    ports:
+      # Giao diện kiểm tra của ngrok (tunnel URL, request log); chỉ loopback
+      - "127.0.0.1:4040:4040"
+    depends_on:
+      tadss-runtime:
+        condition: service_healthy

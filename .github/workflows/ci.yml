@@ -103,3 +103,16 @@ jobs:
             echo "Image chạy bằng root (Config.User='${user}')" >&2
             exit 1
           fi
+
+  # T5.30 (NG-1, NG-2, NG-3, NG-5, SEC-6): dựng compose thật với khóa ngẫu nhiên, không mở tunnel ngrok và không dùng database ngoài
+  expose-check:
+    name: Verify Expose Configuration (ngrok/neon compose)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Expose Configuration
+        run: bash tools/expose/verify-expose.sh
