@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Shared.DecisionContractSDK.Common;
@@ -170,6 +171,33 @@ public class ExceptionClassifierTests
         classification.ExposeMessage.Should().BeFalse();
         classification.HasRetryAfter.Should().BeTrue();
         classification.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>Body chunked vượt <c>MaxRequestBodySize</c>: Kestrel ném <see cref="BadHttpRequestException"/> 413 → 413 <c>PAYLOAD_TOO_LARGE</c>, không lộ message.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_BadHttpRequest413_IsPayloadTooLarge()
+    {
+        var result = ExceptionClassifier.Classify(
+            new BadHttpRequestException("Request body too large. The max request body size is 65536 bytes.", StatusCodes.Status413PayloadTooLarge),
+            requestAborted: false);
+
+        var classification = Require(result);
+        classification.StatusCode.Should().Be(413);
+        classification.Code.Should().Be(ErrorCodes.PayloadTooLarge);
+        classification.ExposeMessage.Should().BeFalse();
+        classification.HasRetryAfter.Should().BeFalse();
+        classification.Title.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary><see cref="BadHttpRequestException"/> với status khác 413 (request sai khung của Kestrel) không bị nhận nhầm thành 413.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_BadHttpRequestOtherStatus_IsNotPayloadTooLarge()
+    {
+        var result = ExceptionClassifier.Classify(new BadHttpRequestException("bad", StatusCodes.Status400BadRequest), requestAborted: false);
+
+        Require(result).Code.Should().NotBe(ErrorCodes.PayloadTooLarge);
     }
 
     [Theory]

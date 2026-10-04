@@ -10,7 +10,8 @@ using TADSS.Runtime.Api.Options;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Đăng ký DI của tầng presentation: bảo mật (API key), exception handler, ProblemDetails, controller + JSON và Swagger.
+/// Đăng ký DI của tầng presentation: bảo mật (API key, giới hạn kích thước, header chuyển tiếp, HSTS), exception handler, ProblemDetails, controller + JSON và Swagger.
+/// Thứ tự middleware tương ứng khai báo ở <see cref="RequestPipelineExtensions.UseTadssRequestPipeline"/>.
 /// </summary>
 public static class PresentationServiceCollectionExtensions
 {
@@ -18,7 +19,7 @@ public static class PresentationServiceCollectionExtensions
     private const string ApiKeySchemeName = "ApiKey";
 
     /// <summary>
-    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc section <c>Tadss:ErrorHandling</c> từ <paramref name="configuration"/>.
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc hai section <c>Tadss:ErrorHandling</c> và <c>Tadss:Security</c> từ <paramref name="configuration"/>.
     /// </summary>
     public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration)
     {
@@ -28,7 +29,7 @@ public static class PresentationServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<ErrorHandlingOptions>, ErrorHandlingOptionsValidator>();
 
-        // Xác thực API key (Tadss:Security)
+        // Bảo mật (Tadss:Security): API key, trần kích thước body, forwarded headers, HSTS, header Server của Kestrel
         services.AddTadssSecurity(configuration);
 
         services.AddExceptionHandler<GlobalExceptionHandler>();

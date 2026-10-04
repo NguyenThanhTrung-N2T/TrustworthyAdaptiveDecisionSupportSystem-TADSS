@@ -281,6 +281,8 @@ Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể c
 | 413 | `PAYLOAD_TOO_LARGE` | Body request lớn hơn giới hạn (mặc định 65536 byte, cấu hình `Tadss:Security:MaxRequestBodyBytes`). Kiểm tra trước xác thực nên request quá lớn không cần khóa vẫn nhận 413 |
 | 429 | `RATE_LIMITED` | Client vượt giới hạn tần suất request; response kèm header `Retry-After` (giây) và `retryAfterSeconds` trong body |
 
+Mọi response (kể cả lỗi) mang các header bảo mật `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; response của `/api/*` thêm `Cache-Control: no-store`. Ngoài môi trường `Development`/`Testing`, response https còn có `Strict-Transport-Security`. Server không gửi header `Server`. Lỗi giải mã body (400 `VALIDATION_ERROR`) chỉ nêu tên trường (đường dẫn JSON do client gửi), không chứa thông điệp nội bộ của bộ giải mã JSON.
+
 ### 3.9. Idempotency
 
 | Trạng thái key | Payload | Hành vi |
@@ -327,7 +329,7 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 ### 4.3. Xử lý kết quả
 
 - Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát.
-- Timeout `TimeoutMs`, lỗi 5xx, 401 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id. Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
+- Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
 - **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.
 

@@ -175,9 +175,9 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         var post = document.Paths["/api/v2/decisions"].Operations.Should().ContainSingle().Which.Value;
         var get = document.Paths["/api/v2/decisions/{decisionId}"].Operations.Should().ContainSingle().Which.Value;
         var overrideOperation = document.Paths["/api/v2/decisions/{decisionId}/override"].Operations.Should().ContainSingle().Which.Value;
-        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "415", "500", "503", "504"]);
+        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "413", "415", "500", "503", "504"]);
         get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "500", "503"]);
-        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "413", "415", "500", "503"]);
         overrideOperation.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.ActorId).Which.Required.Should().BeTrue();
         var idempotency = post.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.IdempotencyKey).Which;
         idempotency.Required.Should().BeTrue();

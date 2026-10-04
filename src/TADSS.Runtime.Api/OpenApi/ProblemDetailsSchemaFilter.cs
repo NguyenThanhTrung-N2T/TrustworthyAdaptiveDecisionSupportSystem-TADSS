@@ -32,7 +32,7 @@ public class ProblemDetailsSchemaFilter : ISchemaFilter
         {
             Type = "integer",
             Format = "int32",
-            Description = "Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 503/504."
+            Description = "Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 429/503/504."
         };
         schema.Properties["errors"] = new OpenApiSchema
         {

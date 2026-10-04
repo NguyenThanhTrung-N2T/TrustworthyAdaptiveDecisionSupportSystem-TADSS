@@ -92,6 +92,26 @@ public class ApiKeyAuthenticationTests : IClassFixture<DecisionsApiFactory>
         _factory.QueryService.RequestedIds.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Nhiều giá trị <c>X-Api-Key</c> (hai header cùng tên) là mơ hồ nên bị từ chối như thiếu khóa dù một trong hai là khóa đúng: 401, service không bị gọi.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "SEC-4")]
+    public async Task Request_WithMultipleApiKeyValues_Is401()
+    {
+        using var client = TestApiKeys.CreateClientWithoutKey(_factory);
+        using var request = Build("POST", PostPath, TestApiKeys.DefaultKey);
+        request.Headers.TryAddWithoutValidation(HttpHeaderNames.ApiKey, TestApiKeys.SecondKey);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.Headers.WwwAuthenticate.ToString().Should().Be("ApiKey header=\"X-Api-Key\"");
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("UNAUTHORIZED");
+        _factory.DecisionService.Calls.Should().BeEmpty();
+    }
+
     /// <summary>Khóa đúng của client mặc định đi qua xác thực tới service double.</summary>
     [Fact]
     [Trait("CatalogId", "IT-11")]
@@ -236,8 +256,10 @@ public class ApiKeyAuthenticationTests : IClassFixture<DecisionsApiFactory>
         var quotedClientId = $"\"{TestApiKeys.DefaultClientId}\"";
         events.Count(logEvent => logEvent.Properties.TryGetValue("ClientId", out var value) && value.ToString() == quotedClientId)
             .Should().BePositive("log trong phạm vi request đã xác thực phải mang ClientId");
-        events.Count(logEvent => logEvent.Level == LogEventLevel.Warning)
-            .Should().BePositive("request bị từ chối phải để lại dấu vết (không kèm khóa)");
+        events.Count(logEvent => logEvent.Level == LogEventLevel.Information && logEvent.RenderMessage().Contains("Từ chối request", StringComparison.Ordinal))
+            .Should().BePositive("request bị từ chối phải để lại dấu vết mức Information (không kèm khóa; client sai khóa là việc thường, không phải cảnh báo của máy chủ)");
+        events.Any(logEvent => logEvent.Level >= LogEventLevel.Warning && logEvent.RenderMessage().Contains("Từ chối request", StringComparison.Ordinal))
+            .Should().BeFalse("từ chối khóa sai không được ghi ở mức Warning trở lên");
         foreach (var logEvent in events)
         {
             var text = CapturingLogEventSink.FullText(logEvent);

@@ -9,6 +9,7 @@ namespace TADSS.Runtime.Api.ErrorHandling;
 /// Chỉ biết exception của SDK và Application: adapter hạ tầng đã dịch lỗi Npgsql/Polly thành <see cref="PersistenceUnavailableException"/>
 /// và <see cref="DecisionTimeoutException"/>, nên exception thô của thư viện hạ tầng lọt tới đây là lỗi lập trình (500).
 /// <see cref="PersistenceUnavailableException"/> được tìm ở mọi tầng inner (kể cả mọi nhánh của <see cref="AggregateException"/>) và kiểm tra trước mọi nhánh khác.
+/// <see cref="BadHttpRequestException"/> 413 (body chunked vượt trần kích thước) được map sang <c>PAYLOAD_TOO_LARGE</c>.
 /// <see cref="ContractValidationException"/> chỉ được mang mã <c>VALIDATION_ERROR</c> hoặc <c>MISSING_HEADER</c> ra wire (tập đóng).
 /// Được <c>GlobalExceptionHandler</c> dùng để dựng phản hồi lỗi.
 /// </summary>
@@ -52,6 +53,9 @@ public static class ExceptionClassifier
                 StatusCodes.Status409Conflict, ErrorCodes.IdempotencyKeyReuse, "Idempotency Key Reuse", ExposeMessage: true, HasRetryAfter: false),
             DecisionStateConflictException conflict => new ErrorClassification(
                 StatusCodes.Status409Conflict, conflict.ErrorCode, "Decision State Conflict", ExposeMessage: true, HasRetryAfter: false),
+            // Body chunked vượt MaxRequestBodySize: Kestrel ném BadHttpRequestException trong lúc đọc body
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } => new ErrorClassification(
+                StatusCodes.Status413PayloadTooLarge, ErrorCodes.PayloadTooLarge, "Payload Too Large", ExposeMessage: false, HasRetryAfter: false),
             DecisionTimeoutException => new ErrorClassification(
                 StatusCodes.Status504GatewayTimeout, ErrorCodes.GatewayTimeout, "Gateway Timeout", ExposeMessage: false, HasRetryAfter: true),
             _ => new ErrorClassification(
@@ -83,6 +87,7 @@ public static class ExceptionClassifier
     {
         StatusCodes.Status503ServiceUnavailable => "Decision audit storage is temporarily unavailable. Please retry later.",
         StatusCodes.Status504GatewayTimeout => "The decision could not be completed within the allowed time. Please retry later.",
+        StatusCodes.Status413PayloadTooLarge => "The request body exceeds the maximum allowed size.",
         _ => "An unexpected internal server error occurred."
     };
 

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace TADSS.Runtime.Api.Options;
 
 /// <summary>
-/// Kiểm tra <see cref="SecurityOptions"/> khi khởi động (fail-fast): <c>ClientId</c> hợp lệ và duy nhất, <c>KeySha256</c> là hex 64 ký tự và duy nhất.
+/// Kiểm tra <see cref="SecurityOptions"/> khi khởi động (fail-fast): <c>MaxRequestBodyBytes</c> trong khoảng cho phép, <c>ClientId</c> hợp lệ và duy nhất, <c>KeySha256</c> là hex 64 ký tự và duy nhất.
 /// Ngoài <c>Development</c>/<c>Testing</c>, <c>ApiKeys</c> không được rỗng và không được chứa mã băm của khóa local công khai
 /// (<see cref="LocalDevelopmentKeySha256"/>). Thông báo chỉ nêu chỉ số phần tử và tên trường, không bao giờ chứa mã băm.
 /// </summary>
@@ -35,6 +35,11 @@ public sealed partial class SecurityOptionsValidator(IHostEnvironment environmen
         if (!relaxed && apiKeys.Count == 0)
         {
             failures.Add($"{Prefix} không được rỗng ngoài môi trường Development/Testing: cấp ít nhất một {{ ClientId, KeySha256 }}.");
+        }
+
+        if (options.MaxRequestBodyBytes is < SecurityOptions.MinRequestBodyBytes or > SecurityOptions.MaxRequestBodyBytesLimit)
+        {
+            failures.Add($"{SecurityOptions.SectionName}:{nameof(options.MaxRequestBodyBytes)} phải nằm trong khoảng {SecurityOptions.MinRequestBodyBytes}..{SecurityOptions.MaxRequestBodyBytesLimit} byte.");
         }
 
         var clientIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

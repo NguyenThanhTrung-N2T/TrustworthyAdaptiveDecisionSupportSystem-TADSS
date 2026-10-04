@@ -179,6 +179,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}/outcome':
     post:
       tags:
@@ -273,6 +279,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v2/decisions:
     post:
       tags:
@@ -356,6 +368,12 @@ paths:
               description: 'Cách xác thực: ApiKey header="X-Api-Key".'
               schema:
                 type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
           content:
             application/problem+json:
               schema:
@@ -1057,7 +1075,7 @@ components:
           description: Correlation id của request (trùng header X-Correlation-ID).
         retryAfterSeconds:
           type: integer
-          description: Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 503/504.
+          description: Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 429/503/504.
           format: int32
         errors:
           type: object
