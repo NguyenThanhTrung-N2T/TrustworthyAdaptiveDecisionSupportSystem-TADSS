@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Shared.DecisionContractSDK.Decisions;
 using TADSS.Application.Strategies;
 
@@ -5,7 +6,8 @@ namespace TADSS.IntegrationTests.Infrastructure;
 
 /// <summary>
 /// Double của <see cref="IStrategyRegistry"/> chỉ dùng trong host test (C-10): bọc registry thật, trả mọi strategy dưới dạng
-/// <see cref="ProbeStrategy"/> (cùng fingerprint tham số) để test đếm số lần strategy chạy và ghi đè chính sách cache.
+/// <see cref="ProbeStrategy"/> (cùng fingerprint tham số) để test đếm số lần strategy chạy và ghi đè chính sách cache. Router thật của host định tuyến
+/// qua registry này nên mọi strategy được chọn (mặc định hay theo rule) đều là probe.
 /// Không có gì ở mã Production.
 /// </summary>
 public sealed class ProbeStrategyRegistry : IStrategyRegistry
@@ -33,12 +35,17 @@ public sealed class ProbeStrategyRegistry : IStrategyRegistry
     public IReadOnlyList<RegisteredStrategy> All => _all;
 
     /// <inheritdoc />
-    public RegisteredStrategy ResolveActive() => ResolveByName(_inner.ResolveActive().Strategy.StrategyName);
+    public bool TryResolve(string strategyName, [NotNullWhen(true)] out RegisteredStrategy? strategy)
+    {
+        strategy = _all.FirstOrDefault(registered => string.Equals(registered.Strategy.StrategyName, strategyName, StringComparison.OrdinalIgnoreCase));
+        return strategy is not null;
+    }
 
     /// <inheritdoc />
     public RegisteredStrategy ResolveByName(string strategyName) =>
-        _all.FirstOrDefault(registered => string.Equals(registered.Strategy.StrategyName, strategyName, StringComparison.OrdinalIgnoreCase))
-        ?? throw new KeyNotFoundException($"Không tìm thấy strategy '{strategyName}' trong registry test.");
+        TryResolve(strategyName, out var registered)
+            ? registered
+            : throw new KeyNotFoundException($"Không tìm thấy strategy '{strategyName}' trong registry test.");
 
     internal void RecordInvocation() => Interlocked.Increment(ref _invocationCount);
 }

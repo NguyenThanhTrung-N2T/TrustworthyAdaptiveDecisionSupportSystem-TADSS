@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** bức tranh tổng thể và các sơ đồ dùng cho báo cáo/slide. Thông số chi tiết nằm ở các file sở hữu (xem bản đồ tài liệu tại Mục III của [`THESIS_DEVELOPMENT_PLAYBOOK.md`](planning/THESIS_DEVELOPMENT_PLAYBOOK.md)).
 >
-> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành; Phase 5 (02/10 – 08/11) đã qua bước 0 (rà soát và điều chỉnh kế hoạch, Gate MR 01/10) và xong gói 5.1, 5.2a–5.2d, 5.3 — contract v2 là phiên bản duy nhất (năm endpoint `/api/v2/decisions`: đánh giá, chi tiết, hàng chờ, override, outcome; audit PostgreSQL bất biến; API key, rate limit, health live/ready; Docker Compose + ngrok; kiểm thử trên Testcontainers). Còn lại: gói 5.4–5.7. Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành; Phase 5 (W05–W08, 05/10 – 01/11; bắt đầu thực tế 02/10) đã qua bước 0 (rà soát và điều chỉnh kế hoạch, Gate MR 01/10) và xong gói 5.1, 5.2a–5.2d, 5.3 — contract v2 là phiên bản duy nhất (năm endpoint `/api/v2/decisions`: đánh giá, chi tiết, hàng chờ, override, outcome; audit PostgreSQL bất biến; API key, rate limit, health live/ready; Docker Compose + ngrok; kiểm thử trên Testcontainers). Còn lại: gói 5.4–5.7. Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -20,7 +20,7 @@
 │ ĐỒ ÁN 2 — TADSS DECISION RUNTIME                                             │
 │ Tách quyết định cọc ra runtime độc lập: định tuyến strategy theo request,    │
 │ pipeline chịu lỗi, audit bất biến, Manager duyệt kèm mức cọc.                │
-│ Kiểm chứng trên hạ tầng thật + pilot người dùng thật.                        │
+│ Kiểm chứng trên hạ tầng thật + đánh giá bằng dữ liệu import.                 │
 └───────────────────────────────────────┬──────────────────────────────────────┘
                                         ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -133,7 +133,7 @@ Mọi chuyển trạng thái được ghi bằng bản ghi mới (quyết địn
 | :--- | :--- |
 | Contract SDK v1, Runtime v1, pipeline chịu lỗi, audit đồng bộ, 510 test tại M4 (InMemory; còn 500 sau bước rà soát đầu Phase 5) | ✅ Phase 1–4 |
 | Đồng bộ tài liệu, dọn repo | ✅ Phase 5, bước 0 (Gate MR 01/10) |
-| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (02/10 – 08/11): xong 5.1, 5.2a–5.2d, 5.3; còn 5.4–5.7 |
-| SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (09/11 – 06/12) |
-| Tích hợp, kiểm thử & sửa lỗi, pilot, Evidence Pack | ⏳ Phase 7–8 (07/12 – 27/12) |
-| Báo cáo & bảo vệ | ⏳ Phase 9 (28/12 – 03/01/2027) |
+| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (W05–W08, 05/10 – 01/11; bắt đầu thực tế 02/10): xong 5.1, 5.2a–5.2d, 5.3; còn 5.4–5.7 |
+| SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (02/11 – 29/11) |
+| Tích hợp, kiểm thử & sửa lỗi, đánh giá bằng dữ liệu import, Evidence Pack | ⏳ Phase 7–8 (30/11 – 20/12) |
+| Báo cáo & bảo vệ | ⏳ Phase 9 (21/12 – 26/12/2026) |

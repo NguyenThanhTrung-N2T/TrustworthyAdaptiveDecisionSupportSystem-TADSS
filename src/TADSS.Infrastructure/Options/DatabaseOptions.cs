@@ -17,7 +17,7 @@ public class DatabaseOptions
     public string? ConnectionString { get; set; }
 
     /// <summary>
-    /// Tự áp migration EF Core khi khởi động. Chỉ bật cho database thử dùng một lần (verify-expose.sh, Testcontainers, lab E-LOCAL ở gói 5.5);
+    /// Tự áp migration EF Core khi khởi động. Chỉ bật cho database thử dùng một lần (Testcontainers, verify-expose.sh, chế độ đánh giá);
     /// không bật cho Neon hay staging, và docker-compose.yml luôn đặt false — migration ở đó do người vận hành chủ động chạy (dotnet ef database update).
     /// </summary>
     public bool ApplyMigrationsOnStartup { get; set; }

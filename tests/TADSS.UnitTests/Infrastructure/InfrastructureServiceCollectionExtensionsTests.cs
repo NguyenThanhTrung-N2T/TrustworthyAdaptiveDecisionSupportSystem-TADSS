@@ -4,8 +4,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 using TADSS.Application.Abstractions.Caching;
+using TADSS.Application.Abstractions.Configuration;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Infrastructure;
 using TADSS.Infrastructure.Persistence;
 using TADSS.UnitTests.TestData;
@@ -28,9 +30,10 @@ public class InfrastructureServiceCollectionExtensionsTests
         { typeof(TadssDbContext), ServiceLifetime.Scoped },
         { typeof(IStrategyPipeline), ServiceLifetime.Singleton },
         { typeof(IStrategyDecisionCache), ServiceLifetime.Singleton },
+        { typeof(IRoutingRulesSource), ServiceLifetime.Singleton },
     };
 
-    /// <summary>Adapter đăng ký đúng vòng đời: kho audit và DbContext scoped, pipeline và cache singleton.</summary>
+    /// <summary>Adapter đăng ký đúng vòng đời: kho audit và DbContext scoped, pipeline, cache và nguồn cấu hình định tuyến singleton.</summary>
     [Theory]
     [Trait("CatalogId", "UT-14")]
     [MemberData(nameof(ExpectedLifetimes))]
@@ -55,6 +58,8 @@ public class InfrastructureServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
+        // Meter do Application đăng ký trong host thật; StrategyPipeline cần nó
+        services.AddSingleton<TadssMetrics>();
         // Đăng ký có sẵn thắng TryAdd của AddInfrastructure; nếu bị resolve thì test thất bại
         services.AddSingleton<IConnectionMultiplexer>(_ => throw new InvalidOperationException("Không được kết nối Redis khi Provider = Memory."));
         var configuration = BuildConfiguration();

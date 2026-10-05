@@ -91,7 +91,7 @@ NG-2 và NG-3 (chế độ A) kiểm bằng `verify-expose.sh` (không có `[Tra
 | Không tự áp migration lên Neon | IT-15 + `ComposeFixtureAlignmentTests` (neon ép `ApplyMigrationsOnStartup=false`) | Đạt |
 | Public API SDK chỉ đổi có chủ đích | CT-02 (`PublicApiSurfaceTests`) | Đạt; baseline không đổi |
 
-Các dòng của gói 5.4, 5.5, 5.7 (IT-12, OB-1, DOC-2/3, SC-1…) chưa thuộc 5.3.
+Các dòng của gói 5.4, 5.5, 5.7 (IT-12, OB-1, DOC-2/3, SCALE-1…) chưa thuộc 5.3.
 
 ## 4. Việc của người dùng
 
@@ -133,7 +133,7 @@ Các mục deferred của brief:
 ## 6. Mục chuyển sang gói 5.4 / 5.5 (không thuộc 5.3)
 
 - 5.4: tiền tố key cache `tadss:v2:` đưa vào options, option chết `InstanceName`/`TtlHours`, log ERR của EF cho mỗi `23505` mong đợi; định tuyến theo request, shadow (`SHADOW` đã bị loại khỏi hàng chờ, override/outcome trả 404 cho `SHADOW`), `IsolatedStrategyInvoker`, breaker Redis, IT-12.
-- 5.5: rate limit phân tán và đánh giá scale SC-3 (SEC-1 hiện tính theo từng instance; nêu rõ ở kịch bản SC-2/SC-3), observability.
+- 5.5: rate limit phân tán và đánh giá scale SCALE-3 (SEC-1 hiện tính theo từng instance; nêu rõ ở kịch bản SCALE-2/SCALE-3), observability.
 - Minor còn mở từ các task (không chặn gói): test thiếu cho tải thật của kịch bản chunked 413; `neg_c`/`neg_key` trong `verify-expose.sh` chưa kiểm lý do thất bại; `RedisHealthCheck` log Warning mỗi lần kiểm khi Redis chết; literal `"ready"` lặp giữa `EndpointMappingExtensions` và `HealthCheckTags.Ready`; Dockerignore theory không bắt `!` phủ định về sau.
 
 ## 7. Concerns / quan sát

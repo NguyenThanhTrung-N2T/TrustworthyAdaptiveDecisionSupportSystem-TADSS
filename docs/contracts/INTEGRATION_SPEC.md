@@ -2,7 +2,7 @@
 
 | | |
 | :--- | :--- |
-| **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (08/11/2026) |
+| **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (01/11/2026) |
 | **Thay thế** | Contract v1.0.0 (Phase 1–4, chưa có consumer) — đã gỡ khỏi mã và tài liệu; tra lại qua tag git `phase4-baseline` |
 | **Consumer** | `SmashCourt-BE` (Phase 6); adapter Hotel Booking Demand (kiểm chứng độc lập domain) |
 | **Sở hữu** | Tài liệu này là nguồn duy nhất về contract v2 và luồng tích hợp. Bất biến lưu trữ: [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) |
@@ -98,7 +98,7 @@ sequenceDiagram
     end
 ```
 
-Endpoint phía SmashCourt-BE (`/api/decision-approvals/...`) là bản đề xuất; API contract BE ↔ FE được chốt ở task T5.22 (W10).
+Endpoint phía SmashCourt-BE (`/api/decision-approvals/...`) là bản đề xuất; API contract BE ↔ FE được chốt ở task T5.22 (W08).
 
 ### 2.3. Báo kết quả thực tế (outcome)
 
@@ -346,7 +346,7 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 - Job: hết hạn duyệt (hủy + giải phóng sân), báo outcome.
 - Script SQL cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` theo quy trình hiện có của SmashCourt-BE.
 
-### 4.5. Ghi chú triển khai: kết nối tới TADSS qua ngrok (dev, demo, pilot)
+### 4.5. Ghi chú triển khai: kết nối tới TADSS qua ngrok (dev, demo)
 
 TADSS chạy trong Docker có thể được expose qua ngrok (`docker-compose.yml`, file compose duy nhất: một lệnh `docker compose up -d --build` chạy `tadss-runtime`, `ngrok` và Grafana; cách chạy và biến môi trường: [`README.md`](../../README.md) mục "Chạy bằng Docker và expose qua ngrok"). Phía `SmashCourt-BE`:
 

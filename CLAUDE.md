@@ -36,7 +36,8 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
 ## Trạng thái & kế hoạch
 - Re-baseline v2.0 (01/10/2026): lịch trình, phase, gate ở `docs/planning/MASTER_EXECUTION_PLAN.md`; mỗi chủ đề tài liệu có một file sở hữu
   (bản đồ: Mục III `docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md`) — sửa thông số ở file sở hữu, file khác chỉ dẫn link.
-- Danh mục test case (UT/IT/CT/MT/FI/LT/BE/FE/E2E/RP/PT/UAT) + KPI SC1–SC9: `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`.
+- Kế hoạch v2.1 (05/10/2026): 16 tuần 07/09 – 26/12/2026 (Phase 5 W05–W08, Phase 6 W09–W12, Phase 7 W13, Phase 8 W14–W15, Phase 9 W16); không pilot với người dùng thật — chất lượng quyết định đánh giá bằng dữ liệu import (replay 215 booking, Hotel Booking Demand).
+- Danh mục test case (UT/IT/CT/MT/FI/LT/SEC/NG/BE/FE/E2E/RP/PT) + KPI SC1–SC8: `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`.
 
 ## Điểm cần nhớ
 - Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `src/TADSS.Infrastructure/Persistence/Migrations/` để lịch sử migration trên Neon khớp — không xóa.
@@ -51,7 +52,7 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
 - Bảo mật (`Tadss:Security:*`, validator + `ValidateOnStart`): `ApiKeys` = `{ClientId, KeySha256}` (rỗng → 401 ở Development/Testing, không khởi động nơi khác; chặn mã băm khóa công khai ngoài Dev/Testing), `MaxRequestBodyBytes` 64 KB → 413, `RateLimiting` token bucket theo `ClientId` (per instance) → 429, `TrustForwardedHeaders`. Chuỗi kết nối PostgreSQL thiếu/giữ chỗ → không khởi động ở mọi môi trường (`DatabaseOptionsValidator`). Health: chỉ `/health/live`, `/health/ready` (không còn `/health`). Mọi phản hồi từ chối của middleware (401/413/429) đi qua `ProblemResponseWriter`; thứ tự middleware khai báo một nơi, khóa bằng UT-14.
 - Lỗi → `ExceptionClassifier` (hàm thuần) + `GlobalExceptionHandler`: mất kết nối PostgreSQL (lỗi tạm thời) → 503 `PERSISTENCE_UNAVAILABLE`; mã lỗi ở `ErrorCodes` của SDK. Audit ghi đồng bộ (fail-closed), `created_at` do `DecisionService` gán (µs, UTC) — không còn interceptor.
 - `TreatWarningsAsErrors` + XML doc bắt buộc ở SDK/Strategies; version package chỉ khai báo trong `Directory.Packages.props`.
-- Options: `{X}Options` với `SectionName = "Tadss:{X}"` + `{X}OptionsValidator` + `ValidateOnStart()`, đặt trong thư mục `Options/` của project sở hữu; strategy active chọn qua `Tadss:Strategy:ActiveStrategyName` (định tuyến theo request thuộc 5.4).
+- Options: `{X}Options` với `SectionName = "Tadss:{X}"` + `{X}OptionsValidator` + `ValidateOnStart()`, đặt trong thư mục `Options/` của project sở hữu; strategy chọn theo từng request qua `Tadss:Routing` (`DefaultStrategy` + `Rules`, nạp lại nóng; Application nhận cấu hình qua port `IRoutingRulesSource`, adapter ở `Infrastructure/Configuration`). Khóa cũ `Tadss:Strategy:ActiveStrategyName` đã gỡ (chỉ còn sinh Warning).
 - Lỗi API trả RFC 7807 `ProblemDetails`; header idempotency xem `TADSS.Runtime.Api/Common/HttpHeaderNames`; giới hạn 128 ký tự của contract ở `Application/Common/ContractLimits`.
 - Migration EF (schema `tadss`) chỉ tạo/áp dụng khi người dùng yêu cầu; `20261002101457_DecisionPersistenceV2` **xóa** bảng v1 và chưa được áp lên Neon. Không đọc/sửa `appsettings.Development.json`, `.env`.
 - Tên test: `{Method}_{Scenario}_{Expected}`, dùng FluentAssertions.

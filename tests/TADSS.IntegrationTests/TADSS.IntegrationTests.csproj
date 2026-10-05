@@ -18,6 +18,7 @@
     <Compile Include="..\TADSS.UnitTests\TestData\RequestSchemaNegativeCases.cs" Link="SharedTestData\RequestSchemaNegativeCases.cs" />
     <Compile Include="..\TADSS.UnitTests\TestData\ContractSamples.cs" Link="SharedTestData\ContractSamples.cs" />
     <Compile Include="..\TADSS.UnitTests\TestData\TestApiKeys.cs" Link="SharedTestData\TestApiKeys.cs" />
+    <Compile Include="..\TADSS.UnitTests\TestDoubles\MetricRecorder.cs" Link="SharedTestData\MetricRecorder.cs" />
   </ItemGroup>
 
   <ItemGroup>

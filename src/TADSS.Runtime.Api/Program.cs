@@ -13,7 +13,7 @@ builder.Host.UseSerilog((context, services, configuration) =>
 builder.Services
     .AddApplication(builder.Configuration)
     .AddInfrastructure(builder.Configuration)
-    .AddStrategies(builder.Configuration)
+    .AddStrategies(builder.Configuration, builder.Environment)
     .AddPresentation(builder.Configuration);
 
 var app = builder.Build();

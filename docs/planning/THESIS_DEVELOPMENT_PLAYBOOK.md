@@ -34,7 +34,7 @@
 | Học phần | Câu hỏi cốt lõi | Sản phẩm | Kiểm thử |
 | :--- | :--- | :--- | :--- |
 | **Đồ án 1** | *How to book a court* | SmashCourt (Next.js + .NET + FastAPI): đặt sân, VNPay, chatbot | Unit test + kiểm thử thủ công |
-| **Đồ án 2** | *How to execute a decision safely* | TADSS runtime + tích hợp cọc/duyệt vào SmashCourt | Danh mục kiểm thử toàn hệ thống trên hạ tầng thật, chaos, tải, E2E, replay, pilot |
+| **Đồ án 2** | *How to execute a decision safely* | TADSS runtime + tích hợp cọc/duyệt vào SmashCourt | Danh mục kiểm thử toàn hệ thống trên hạ tầng thật, chaos, tải, E2E, replay, dataset công khai |
 | **Khóa luận** | *How to make the decision intelligently* | Strategy TADS chạy trên TADSS | Đánh giá mô hình, đánh giá off-policy, shadow mode, mô phỏng |
 
 ### Ranh giới phạm vi Đồ án 2
@@ -45,7 +45,7 @@
 | Audit bất biến (execution, override, outcome) — nguồn dữ liệu cho Khóa luận | Decision Trace API giải thích quyết định |
 | Tích hợp SmashCourt: cọc, chờ duyệt, dashboard Manager, feature flag, job hết hạn/outcome | Mô phỏng đa tác tử, ablation study, ràng buộc công bằng |
 | Hạ tầng kiểm thử & minh chứng: Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, notebook báo cáo — gộp trong chế độ đánh giá một lệnh (`docker compose --profile evaluation up`) | Event sourcing / outbox phân tán |
-| Replay 215 booking SmashCourt, adapter Hotel Booking Demand, pilot UAT | |
+| Replay 215 booking SmashCourt, adapter Hotel Booking Demand (dữ liệu import, không pilot người dùng thật) | |
 
 ### Ranh giới kiến trúc
 
@@ -60,7 +60,7 @@
 
 - **RQ1 — Resilience & tính toàn vẹn giao dịch:** Khi strategy, Redis, PostgreSQL hoặc kết nối SmashCourt ↔ TADSS gặp sự cố (tiêm lỗi ở tầng mạng trên hạ tầng thật), hệ thống có luôn trả về quyết định an toàn trong ngân sách thời gian và giữ cho booking của SmashCourt không rơi vào trạng thái mâu thuẫn không?
 - **RQ2 — Governance & khả năng kiểm toán:** Mô hình audit bất biến (execution + override + outcome, được DB bảo vệ) có đảm bảo mọi quyết định truy vết được, không bị sửa sau khi ghi, và chống ghi đè đồng thời của nhiều Manager không?
-- **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, tỷ lệ đơn cần duyệt, thời gian duyệt và mức độ dễ dùng (SUS) đối với khách và Manager?
+- **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, và trên dữ liệu đặt sân thật đã ẩn danh thì tỷ lệ đơn cần duyệt và mức cọc thay đổi ra sao so với chính sách cọc 100%?
 
 Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md).
 
@@ -95,10 +95,10 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 
 | Chương | Nội dung | Nguồn | Thời điểm |
 | :--- | :--- | :--- | :--- |
-| 1 — Tổng quan | Bối cảnh, vấn đề, mục tiêu, phạm vi | PROPOSAL, Playbook | Xong trước cuối W15 |
-| 2 — Thiết kế | Kiến trúc, contract v2, DB, pipeline, luồng tích hợp | SAS, INVARIANTS, TAXONOMY, ADR, INTEGRATION_SPEC | Xong trước cuối W15 |
-| 3 — Hiện thực & kiểm thử | Hiện thực 3 repo, hạ tầng kiểm thử, danh mục kiểm thử | Mã nguồn, EXPERIMENTAL_DESIGN | W17–W18 |
-| 4 — Đánh giá | KPI SC1–SC9, chaos, tải, replay, portability, pilot | Evidence Pack + notebook | W17–W18 |
-| 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | RESEARCH_THESIS_DEFENSE | W18 |
+| 1 — Tổng quan | Bối cảnh, vấn đề, mục tiêu, phạm vi | PROPOSAL, Playbook | Xong trước cuối W13 |
+| 2 — Thiết kế | Kiến trúc, contract v2, DB, pipeline, luồng tích hợp | SAS, INVARIANTS, TAXONOMY, ADR, INTEGRATION_SPEC | Xong trước cuối W13 |
+| 3 — Hiện thực & kiểm thử | Hiện thực 3 repo, hạ tầng kiểm thử, danh mục kiểm thử | Mã nguồn, EXPERIMENTAL_DESIGN | W15–W16 |
+| 4 — Đánh giá | KPI SC1–SC8, chaos, tải, replay, portability | Evidence Pack + notebook | W15–W16 |
+| 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | RESEARCH_THESIS_DEFENSE | W16 |
 
-**Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (chế độ đánh giá E-EVAL — `docker compose --profile evaluation up`, chạy trên một máy nên là số liệu phòng lab kèm cấu hình CPU/RAM — hay staging) và cỡ mẫu.
+**Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (chế độ đánh giá E-EVAL — `docker compose --profile evaluation up`, chạy trên một máy nên là số liệu phòng lab kèm cấu hình CPU/RAM — hay môi trường tích hợp E-STAGING) và cỡ mẫu.

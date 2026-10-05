@@ -84,11 +84,6 @@ Nguồn dữ liệu chính cho Đồ án 2 và Khóa luận. Một dòng = một
 
 `source_row`, `hotel`, `arrival_local`, `nights`, `room_type`, `total_price`, `is_repeated_guest`, `previous_cancellations`, `previous_bookings_not_canceled`, kết quả quyết định (`status`, `deposit_rate`, `reason_code`), `is_canceled` (nhãn gốc của dataset). Trước khi đưa dữ liệu gốc vào repo phải kiểm tra giấy phép của dataset; nếu không được phép thì chỉ commit script tải và kết quả tổng hợp.
 
-### D6 — `uat_pilot`
-
-- Booking: `booking_hash`, `created_at_utc`, `decision_status`, `approval_latency_sec`, `final_status`.
-- SUS: `respondent_hash`, `role` (`CUSTOMER`/`MANAGER`), `q1`…`q10`, `sus_score`.
-
 ---
 
 ## 4. ẨN DANH HÓA

@@ -7,13 +7,13 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
-using TADSS.Application.Strategies;
+using TADSS.Application.Routing;
 
 namespace TADSS.Application.Decisions;
 
 /// <summary>
 /// Hiện thực <see cref="IDecisionService"/> theo luồng spec 4.2.3: kiểm tra khóa → dựng domain → hash → tra idempotency
-/// → kiểm tra thời lượng item (P-01) → chọn strategy → đánh giá (cache + pipeline, do <see cref="StrategyEvaluator"/>) → approval
+/// → kiểm tra thời lượng item (P-01) → định tuyến strategy theo request (<see cref="IStrategyRouter"/>, A-01) → đánh giá (cache + pipeline, do <see cref="StrategyEvaluator"/>) → approval
 /// window và cọc → ghi audit đồng bộ (fail-closed, INV-10) → response.
 /// <para>
 /// Một mốc <c>nowUtc</c> duy nhất lấy từ <see cref="TimeProvider"/>, cắt phần dưới micro giây, cho cả lần đánh giá (B-03, C-08). Lỗi trước bước ghi audit
@@ -24,7 +24,7 @@ namespace TADSS.Application.Decisions;
 public sealed class DecisionService : IDecisionService
 {
     private readonly IDecisionEvaluationStore _evaluationStore;
-    private readonly IStrategyRegistry _strategyRegistry;
+    private readonly IStrategyRouter _router;
     private readonly StrategyEvaluator _evaluator;
     private readonly ItemDurationPolicy _itemDurationPolicy;
     private readonly DecisionResponseComposer _composer;
@@ -34,7 +34,7 @@ public sealed class DecisionService : IDecisionService
 
     /// <summary>Khởi tạo service điều phối.</summary>
     /// <param name="evaluationStore">Kho audit (tra idempotency, ghi bản ghi <c>PRIMARY</c>).</param>
-    /// <param name="strategyRegistry">Danh bạ strategy.</param>
+    /// <param name="router">Bộ định tuyến strategy theo request (<c>Tadss:Routing</c>).</param>
     /// <param name="evaluator">Bộ đánh giá strategy (cache + pipeline chịu lỗi).</param>
     /// <param name="itemDurationPolicy">Chính sách thời lượng item (P-01).</param>
     /// <param name="composer">Ghép response và bản ghi audit.</param>
@@ -43,7 +43,7 @@ public sealed class DecisionService : IDecisionService
     /// <param name="logger">Logger.</param>
     public DecisionService(
         IDecisionEvaluationStore evaluationStore,
-        IStrategyRegistry strategyRegistry,
+        IStrategyRouter router,
         StrategyEvaluator evaluator,
         ItemDurationPolicy itemDurationPolicy,
         DecisionResponseComposer composer,
@@ -52,7 +52,7 @@ public sealed class DecisionService : IDecisionService
         ILogger<DecisionService> logger)
     {
         _evaluationStore = evaluationStore ?? throw new ArgumentNullException(nameof(evaluationStore));
-        _strategyRegistry = strategyRegistry ?? throw new ArgumentNullException(nameof(strategyRegistry));
+        _router = router ?? throw new ArgumentNullException(nameof(router));
         _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
         _itemDurationPolicy = itemDurationPolicy ?? throw new ArgumentNullException(nameof(itemDurationPolicy));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
@@ -91,7 +91,8 @@ public sealed class DecisionService : IDecisionService
         _itemDurationPolicy.EnsureWithinLimits(reservation);
 
         var nowUtc = AuditTimestamps.TruncateToMicroseconds(_timeProvider.GetUtcNow());
-        var registered = _strategyRegistry.ResolveActive();
+        var route = _router.Route(reservation);
+        var registered = route.Strategy;
         var context = new DecisionContext(nowUtc, _calendar);
 
         var evaluation = await _evaluator
@@ -122,7 +123,7 @@ public sealed class DecisionService : IDecisionService
             return winner;
         }
 
-        _logger.LogDecisionSummary(composed.Record, evaluation.Outcome, registered.Strategy, idempotencyKey, correlationId);
+        _logger.LogDecisionSummary(composed.Record, evaluation.Outcome, registered.Strategy, route.RuleName, idempotencyKey, correlationId);
         return composed.Response;
     }
 

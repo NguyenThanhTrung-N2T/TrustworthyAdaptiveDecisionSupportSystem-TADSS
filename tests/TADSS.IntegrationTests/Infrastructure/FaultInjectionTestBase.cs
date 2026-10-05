@@ -12,6 +12,7 @@ using Shared.DecisionContractSDK.DTOs.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Options;
 using TADSS.Application.Strategies;
 using TADSS.Infrastructure.Persistence;
 using TADSS.Infrastructure.Persistence.Entities;
@@ -61,6 +62,13 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
 
     /// <inheritdoc />
     protected override bool UseFakeClock => false;
+
+    /// <summary>
+    /// Đặt <c>Tadss:Routing:DefaultStrategy</c> bằng tên của <see cref="Strategy"/> qua cấu hình host (không thay <c>IStrategyRouter</c>): router thật
+    /// của host chọn strategy giả duy nhất của <see cref="ScriptedStrategyRegistry"/> cho mọi request.
+    /// </summary>
+    protected override IEnumerable<KeyValuePair<string, string?>> ConfigurationOverrides =>
+        base.ConfigurationOverrides.Append(new(StrategyRoutingOptions.SectionName + ":DefaultStrategy", Strategy.StrategyName));
 
     /// <inheritdoc />
     public override async Task DisposeAsync()
@@ -127,39 +135,6 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
     /// <c>NEED_APPROVAL</c> của strategy không bị đổi thành <c>APPROVED</c> cọc 100% do hết thời gian duyệt.
     /// </summary>
     protected static string UpcomingRequest() => DecisionRequests.StartingAt(DateTimeOffset.UtcNow.AddDays(7));
-
-    /// <summary>
-    /// Khẳng định quyết định fallback (D-13) ở cả response lẫn hàng audit: <c>APPROVED</c> cọc 100% (tỷ lệ 1, số tiền = <c>totalPrice</c> của
-    /// <paramref name="requestBody"/>), không có hạn duyệt, <c>FALLBACK</c> / <c>fallbackUsed = true</c>, đúng <paramref name="expectedReasonCode"/>;
-    /// trạng thái gốc của "strategy" lưu trong audit cũng là <c>APPROVED</c> (không phải approval window đổi trạng thái).
-    /// </summary>
-    protected static void AssertFallbackFullDeposit(
-        DecisionResultDto result,
-        DecisionExecutionEntity row,
-        string requestBody,
-        string expectedReasonCode)
-    {
-        var totalPrice = ContractSamples.DeserializeRequest(requestBody).TotalPrice;
-
-        result.Status.Should().Be(DecisionStatus.APPROVED);
-        var deposit = ContractSamples.Required(result.Deposit);
-        deposit.Rate.Should().Be(1m);
-        deposit.Amount.Should().Be(totalPrice);
-        result.ApprovalExpiresAt.Should().BeNull("quyết định fallback không chờ Manager duyệt");
-        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
-        result.FallbackUsed.Should().BeTrue();
-        result.ReasonCode.Should().Be(expectedReasonCode);
-        result.Recommendations.Should().BeEmpty();
-
-        row.Status.Should().Be(DecisionStatus.APPROVED);
-        row.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
-        row.DepositRate.Should().Be(1m);
-        row.DepositAmount.Should().Be(totalPrice);
-        row.ApprovalExpiresAt.Should().BeNull();
-        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
-        row.FallbackUsed.Should().BeTrue();
-        row.ReasonCode.Should().Be(expectedReasonCode);
-    }
 
     /// <summary>
     /// Làm nóng host bằng một request <c>POST</c> thật cho strategy khỏe (dựng host, nạp model EF, mở kết nối PostgreSQL, JIT đường validate/ghi audit)

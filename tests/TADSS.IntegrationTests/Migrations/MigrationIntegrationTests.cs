@@ -66,7 +66,8 @@ public class MigrationIntegrationTests : IntegrationTestBase
         logs.Snapshot().Should().Contain(entry =>
             entry.Level == LogLevel.Warning
             && entry.Message.Contains("ApplyMigrationsOnStartup")
-            && entry.Message.Contains("E-LOCAL"));
+            && entry.Message.Contains("database thử dùng một lần")
+            && !entry.Message.Contains("E-LOCAL"));
 
         await using var db = CreateDbContext(connectionString);
         (await db.Database.GetAppliedMigrationsAsync()).Should().Equal(db.Database.GetMigrations());

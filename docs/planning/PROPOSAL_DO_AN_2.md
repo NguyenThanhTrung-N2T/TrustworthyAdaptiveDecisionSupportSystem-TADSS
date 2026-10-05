@@ -9,7 +9,7 @@
 
 **Cán bộ hướng dẫn:** ThS. Trần Anh Dũng
 
-**Thời gian thực hiện:** Từ 31/08/2026 đến 03/01/2027 (18 tuần)
+**Thời gian thực hiện:** Từ 07/09/2026 đến 26/12/2026 (16 tuần)
 
 **Sinh viên thực hiện:**
 
@@ -37,7 +37,7 @@
   - **Feature Flag Integration:** Triển khai Feature Flag giúp bật/tắt nóng luồng gọi TADSS từ SmashCourt tức thời dưới 2 giây.
   - **SmashCourt Integration:** Thanh toán cọc qua VNPay theo số tiền TADSS trả về; màn hình chờ duyệt cho khách; trang duyệt cọc cho Manager; job hủy đơn hết hạn duyệt; job báo kết quả thực tế về TADSS — chứng minh khả năng vận hành chịu lỗi trong kịch bản thực tế.
   - **Bảo mật và triển khai:** Xác thực API key giữa SmashCourt và TADSS, giới hạn tốc độ theo client; đóng gói bằng Docker Compose, đưa ra Internet qua ngrok và giám sát bằng Grafana.
-  - **Hệ thống kiểm chứng:** Kiểm thử trên PostgreSQL/Redis thật, tiêm lỗi, kiểm thử tải, mutation testing, kiểm chứng trên dataset công khai và pilot với người dùng thật; phần kiểm chứng TADSS chạy tự động bằng một lệnh và sinh báo cáo đạt/không đạt để trình bày trước hội đồng.
+  - **Hệ thống kiểm chứng:** Kiểm thử trên PostgreSQL/Redis thật, tiêm lỗi, kiểm thử tải, mutation testing; đánh giá chất lượng quyết định bằng cách import dữ liệu đặt sân thật đã ẩn danh và dataset công khai; phần kiểm chứng TADSS chạy tự động bằng một lệnh và sinh báo cáo đạt/không đạt để trình bày trước hội đồng.
 
 ## 3. Phạm vi
 
@@ -108,7 +108,7 @@
   - Xây dựng thư viện dùng chung (SDK) và thiết kế cơ sở dữ liệu.
   - Cài đặt Decision Runtime API và các chiến lược quyết định mẫu.
   - Xây dựng giao diện phê duyệt (Dashboard) và tích hợp vào hệ thống đặt sân.
-  - Kiểm thử, đánh giá bằng chế độ đánh giá một lệnh và thử nghiệm với người dùng thật (pilot).
+  - Kiểm thử, đánh giá bằng chế độ đánh giá một lệnh và đánh giá chất lượng quyết định trên dữ liệu import.
 
 ## 6. Nền tảng công nghệ
 
@@ -158,39 +158,40 @@
 - **Không hỏng đơn đặt sân:** 0 đơn đặt sân bị hỏng sau mọi kịch bản sự cố.
 - **Tính độc lập tên miền (Domain Portability):** Xử lý được ≥ 10.000 đơn đặt phòng khách sạn từ dataset công khai Hotel Booking Demand gửi về TADSS mà không cần sửa một dòng mã nguồn lõi nào của TADSS.
 - **Chất lượng kiểm thử:** 100% test case đạt; mutation score ≥ 70%.
-- **Thử nghiệm người dùng (Pilot):** ≥ 15 người dùng, ≥ 50 đơn đặt sân; điểm khảo sát khả dụng SUS trung bình ≥ 68.
+- **Đánh giá trên dữ liệu thật:** Có bảng so sánh chính sách cọc của TADSS với chính sách cũ (cọc 100% cho mọi đơn) trên 215 đơn đặt sân thật của SmashCourt (đã ẩn danh).
 - **Minh chứng:** Báo cáo kết quả kiểm thử sinh tự động bằng một lệnh, kèm dữ liệu gốc có thể kiểm tra lại.
 
 ## 8. Kế hoạch thực hiện
 
 | Giai đoạn | Thời gian | Công việc | Kết quả |
 | :--- | :--- | :--- | :--- |
-| **Phase 1: Khởi tạo nền tảng & Thiết kế kiến trúc** (đã hoàn thành) | Tuần 1 – 2<br>(31/08 – 13/09/2026) | - Xác định phạm vi và ranh giới kiến trúc hệ thống TADSS.<br>- Thiết kế tài liệu đặc tả API Contract (JSON Request/Response).<br>- Thiết kế CSDL schema `tadss` và bảng lưu vết quyết định.<br>- Khởi tạo Solution .NET 8, cấu hình Central Package Management, CI build và Docker. | - Tài liệu kiến trúc & API Contract nháp.<br>- DDL CSDL schema `tadss`.<br>- Solution .NET 8 build thành công với đầy đủ cấu trúc các project. |
-| **Phase 2: Xây dựng Domain Kernel & SDK dùng chung** (đã hoàn thành) | Tuần 3<br>(14/09 – 20/09/2026) | - Xây dựng Rich Domain Model `Reservation` kèm các quy tắc Invariants.<br>- Định nghĩa các Enums và DTO.<br>- Định nghĩa Interface `IReservationDecisionStrategy`.<br>- Đóng băng hợp đồng SDK v1. | - Thư viện `Shared.DecisionContractSDK` hoàn chỉnh.<br>- Unit Tests kiểm tra Invariants đạt 100%, độ phủ SDK 99,49%. |
-| **Phase 3: Xây dựng Runtime Engine & Phân giải Chiến lược** (đã hoàn thành) | Tuần 4<br>(21/09 – 27/09/2026) | - Xây dựng Web API tiếp nhận yêu cầu quyết định.<br>- Phân giải chiến lược theo tên qua DI.<br>- Xây dựng 2 chiến lược mẫu `DefaultDecisionStrategy` và `MockAlternativeDecisionStrategy`.<br>- Idempotency, Correlation ID, lỗi chuẩn RFC 7807. | - Decision Runtime API hoạt động độc lập.<br>- Phân giải và thực thi chính xác 2 chiến lược qua API endpoint. |
-| **Phase 4: Tích hợp Chịu lỗi, Lưu vết và Bộ nhớ đệm** (đã hoàn thành) | Tuần 5<br>(28/09 – 04/10/2026) | - Thiết lập chuỗi chịu lỗi đa tầng Polly v8 (Timeout → Retry → Circuit Breaker → Fallback).<br>- Lưu vết kiểm toán bất biến đồng bộ trong DB Transaction.<br>- Triển khai Request-Hash Cache (Redis 7 kết hợp In-Memory Fallback).<br>- Kiểm thử tiêm lỗi chiến lược. | - Hệ thống tự động kích hoạt Fallback khi chiến lược lỗi/quá tải.<br>- Cache hit giảm độ trễ phản hồi.<br>- 510 test tự động đạt. |
-| **Phase 5: Hoàn thiện TADSS & Hạ tầng kiểm chứng** | Tuần 6 – 10<br>(05/10 – 08/11/2026) | - Rà soát, điều chỉnh kế hoạch.<br>- Contract v2 (trả số tiền cọc), tái cấu trúc Clean Architecture nhiều project.<br>- Chuyển kiểm thử sang PostgreSQL/Redis thật (Testcontainers).<br>- API phê duyệt, ghi đè, ghi nhận kết quả thực tế; bảo mật API key, giới hạn tốc độ.<br>- Docker Compose, ngrok.<br>- Định tuyến strategy theo từng yêu cầu, chế độ shadow.<br>- OpenTelemetry và dashboard Grafana.<br>- Chế độ đánh giá một lệnh (tiêm lỗi, kiểm thử tải, kiểm thử contract, mutation testing, sinh báo cáo).<br>- Replay 215 booking và adapter dataset khách sạn. | - TADSS hoàn chỉnh, contract v2 đóng băng.<br>- Toàn bộ test case của TADSS đạt.<br>- Lượt đánh giá đầy đủ đầu tiên sinh báo cáo minh chứng.<br>- API contract giữa SmashCourt-BE và smashcourt-fe đã chốt. |
-| **Phase 6: Tích hợp TADSS vào SmashCourt (BE ∥ FE)** | Tuần 11 – 14<br>(09/11 – 06/12/2026) | - SV1 (SmashCourt-BE): đặt sân theo cọc, thanh toán VNPay theo số tiền cọc, Feature Flag bật/tắt nóng, API cho Manager, job hết hạn duyệt, job báo kết quả về TADSS.<br>- SV2 (smashcourt-fe): thiết kế UI/UX, màn hình đặt sân của khách, trang duyệt cọc cho Manager. | - SmashCourt-BE và smashcourt-fe hoàn thành tính năng.<br>- Test BE và FE đạt. |
-| **Phase 7: Tích hợp hệ thống** | Tuần 15<br>(07/12 – 13/12/2026) | - Ghép FE ↔ BE ↔ TADSS trên môi trường staging.<br>- Smoke test đầu–cuối; chuẩn bị dữ liệu pilot.<br>- Đóng băng tính năng (Feature Freeze). | - Các luồng chính chạy thông: duyệt tự động, chờ duyệt → duyệt, từ chối, hết hạn, tắt Feature Flag, TADSS sự cố. |
-| **Phase 8: Kiểm thử & Đánh giá** | Tuần 16 – 17<br>(14/12 – 27/12/2026) | - Chạy đầy đủ kế hoạch kiểm thử (bảng bên dưới) bằng chế độ đánh giá một lệnh: kiểm thử đơn vị, tích hợp, contract, tiêm lỗi, tải, bảo mật; quan sát trực tiếp trên Grafana.<br>- Kiểm thử giao diện đầu–cuối qua SmashCourt.<br>- Pilot với người dùng thật 2 tuần và khảo sát SUS.<br>- Chỉ sửa lỗi; mỗi lần sửa chạy lại test liên quan. | - 100% test case đạt.<br>- Đo đủ các chỉ số ở Mục 7 (Kết quả mong đợi).<br>- Báo cáo HTML kết quả kiểm thử kèm dữ liệu minh chứng. |
-| **Phase 9: Đóng gói, Báo cáo & Bảo vệ** | Tuần 18<br>(28/12/2026 – 03/01/2027) | - Viết báo cáo tổng kết Đồ án 2 (số liệu lấy từ báo cáo kiểm thử).<br>- Slide, video demo (đặt sân → TADSS → VNPay → duyệt → tiêm lỗi quan sát trên Grafana).<br>- Diễn tập bảo vệ. | - Mã nguồn hoàn thiện trên GitHub.<br>- Báo cáo Đồ án 2 chi tiết, slide, video demo. |
+| **Phase 1: Khởi tạo nền tảng & Thiết kế kiến trúc** (đã hoàn thành) | Tuần 1<br>(07/09 – 13/09/2026) | - Xác định phạm vi và ranh giới kiến trúc hệ thống TADSS.<br>- Thiết kế tài liệu đặc tả API Contract (JSON Request/Response).<br>- Thiết kế CSDL schema `tadss` và bảng lưu vết quyết định.<br>- Khởi tạo Solution .NET 8, cấu hình Central Package Management, CI build và Docker. | - Tài liệu kiến trúc & API Contract nháp.<br>- DDL CSDL schema `tadss`.<br>- Solution .NET 8 build thành công với đầy đủ cấu trúc các project. |
+| **Phase 2: Xây dựng Domain Kernel & SDK dùng chung** (đã hoàn thành) | Tuần 2<br>(14/09 – 20/09/2026) | - Xây dựng Rich Domain Model `Reservation` kèm các quy tắc Invariants.<br>- Định nghĩa các Enums và DTO.<br>- Định nghĩa Interface `IReservationDecisionStrategy`.<br>- Đóng băng hợp đồng SDK v1. | - Thư viện `Shared.DecisionContractSDK` hoàn chỉnh.<br>- Unit Tests kiểm tra Invariants đạt 100%, độ phủ SDK 99,49%. |
+| **Phase 3: Xây dựng Runtime Engine & Phân giải Chiến lược** (đã hoàn thành) | Tuần 3<br>(21/09 – 27/09/2026) | - Xây dựng Web API tiếp nhận yêu cầu quyết định.<br>- Phân giải chiến lược theo tên qua DI.<br>- Xây dựng 2 chiến lược mẫu `DefaultDecisionStrategy` và `MockAlternativeDecisionStrategy`.<br>- Idempotency, Correlation ID, lỗi chuẩn RFC 7807. | - Decision Runtime API hoạt động độc lập.<br>- Phân giải và thực thi chính xác 2 chiến lược qua API endpoint. |
+| **Phase 4: Tích hợp Chịu lỗi, Lưu vết và Bộ nhớ đệm** (đã hoàn thành) | Tuần 4<br>(28/09 – 04/10/2026) | - Thiết lập chuỗi chịu lỗi đa tầng Polly v8 (Timeout → Retry → Circuit Breaker → Fallback).<br>- Lưu vết kiểm toán bất biến đồng bộ trong DB Transaction.<br>- Triển khai Request-Hash Cache (Redis 7 kết hợp In-Memory Fallback).<br>- Kiểm thử tiêm lỗi chiến lược. | - Hệ thống tự động kích hoạt Fallback khi chiến lược lỗi/quá tải.<br>- Cache hit giảm độ trễ phản hồi.<br>- 510 test tự động đạt. |
+| **Phase 5: Hoàn thiện TADSS & Hạ tầng kiểm chứng** | Tuần 5 – 8<br>(05/10 – 01/11/2026) | - Rà soát, điều chỉnh kế hoạch.<br>- Contract v2 (trả số tiền cọc), tái cấu trúc Clean Architecture nhiều project.<br>- Chuyển kiểm thử sang PostgreSQL/Redis thật (Testcontainers).<br>- API phê duyệt, ghi đè, ghi nhận kết quả thực tế; bảo mật API key, giới hạn tốc độ.<br>- Docker Compose, ngrok.<br>- Định tuyến strategy theo từng yêu cầu, chế độ shadow.<br>- OpenTelemetry và dashboard Grafana.<br>- Chế độ đánh giá một lệnh (tiêm lỗi, kiểm thử tải, kiểm thử contract, mutation testing, sinh báo cáo).<br>- Script import dữ liệu đánh giá: 215 đơn đặt sân thật và dataset khách sạn. | - TADSS hoàn chỉnh, contract v2 đóng băng.<br>- Toàn bộ test case của TADSS đạt.<br>- Lượt đánh giá đầy đủ đầu tiên sinh báo cáo minh chứng.<br>- API contract giữa SmashCourt-BE và smashcourt-fe đã chốt. |
+| **Phase 6: Tích hợp TADSS vào SmashCourt (BE ∥ FE)** | Tuần 9 – 12<br>(02/11 – 29/11/2026) | - SV1 (SmashCourt-BE): đặt sân theo cọc, thanh toán VNPay theo số tiền cọc, Feature Flag bật/tắt nóng, API cho Manager, job hết hạn duyệt, job báo kết quả về TADSS.<br>- SV2 (smashcourt-fe): thiết kế UI/UX, màn hình đặt sân của khách, trang duyệt cọc cho Manager. | - SmashCourt-BE và smashcourt-fe hoàn thành tính năng.<br>- Test BE và FE đạt. |
+| **Phase 7: Tích hợp hệ thống** | Tuần 13<br>(30/11 – 06/12/2026) | - Ghép FE ↔ BE ↔ TADSS chạy bằng Docker Compose.<br>- Kiểm thử nhanh các luồng đầu–cuối (smoke test).<br>- Đóng băng tính năng (Feature Freeze). | - Các luồng chính chạy thông: duyệt tự động, chờ duyệt → duyệt, từ chối, hết hạn, tắt Feature Flag, TADSS sự cố. |
+| **Phase 8: Kiểm thử & Đánh giá** | Tuần 14 – 15<br>(07/12 – 20/12/2026) | - Chạy đầy đủ kế hoạch kiểm thử (bảng bên dưới) bằng chế độ đánh giá một lệnh; quan sát trực tiếp trên Grafana.<br>- Kiểm thử đầu–cuối trên giao diện SmashCourt.<br>- Import dữ liệu đặt sân thật và dataset khách sạn để đánh giá chất lượng quyết định.<br>- Chỉ sửa lỗi; mỗi lần sửa chạy lại test liên quan. | - 100% test case đạt.<br>- Đo đủ các chỉ số ở Mục 7 (Kết quả mong đợi).<br>- Báo cáo HTML kết quả kiểm thử kèm dữ liệu minh chứng. |
+| **Phase 9: Đóng gói, Báo cáo & Bảo vệ** | Tuần 16<br>(21/12 – 26/12/2026) | - Viết báo cáo tổng kết Đồ án 2 (số liệu lấy từ báo cáo kiểm thử).<br>- Slide, video demo (đặt sân → TADSS → VNPay → duyệt → tiêm lỗi quan sát trên Grafana).<br>- Diễn tập bảo vệ. | - Mã nguồn hoàn thiện trên GitHub.<br>- Báo cáo Đồ án 2 chi tiết, slide, video demo. |
 
 **Kế hoạch kiểm thử (Phase 8):**
 
-| Nội dung kiểm thử | Cách thực hiện | Công cụ | Kết quả mong đợi |
-| :--- | :--- | :--- | :--- |
-| Kiểm thử đơn vị | Kiểm tra từng thành phần: tính tiền cọc, cửa sổ phê duyệt, chọn strategy, băm request, ánh xạ lỗi | xUnit | 100% test case đạt |
-| Chất lượng bộ kiểm thử | Cố ý gây đột biến mã nguồn và kiểm tra bộ test có phát hiện hay không | Stryker.NET | Mutation score ≥ 70% |
-| Kiểm thử tích hợp | Gọi API thật của TADSS với PostgreSQL/Redis thật dựng tự động trong container: tạo quyết định, gửi trùng, phê duyệt, ghi đè, ghi nhận kết quả | xUnit, Testcontainers | 0 quyết định trùng, 0 ghi đè kép; số phản hồi thành công bằng số bản ghi lưu vết; sửa/xóa lưu vết bị chặn |
-| Kiểm thử hợp đồng API | Kiểm tra request/response theo JSON Schema; tự sinh hàng nghìn request từ đặc tả OpenAPI | Schemathesis | 0 lỗi 5xx, 0 phản hồi sai định dạng |
-| Kiểm thử chịu lỗi | Strategy chậm hoặc ném lỗi; cắt kết nối hoặc làm chậm PostgreSQL, Redis; client hủy request giữa chừng | Toxiproxy | Fallback `APPROVED` cọc 100% trong ≤ 500ms, không vào hàng chờ duyệt; mất PostgreSQL trả 503, không có bản ghi dở dang; mất Redis vẫn phục vụ |
-| Kiểm thử tải | 50 request/giây trong 10 phút; tăng dần 10 → 400 request/giây; 50 request/giây trong 60 phút; tải khi có sự cố | k6 | p95 < 150ms; p99 ≤ 700ms khi có sự cố; không rò rỉ bộ nhớ, kết nối |
-| Kiểm thử bảo mật | Thiếu/sai API key, vượt giới hạn tốc độ, request quá lớn; log không chứa thông tin bí mật | xUnit, k6 | Trả đúng 401, 429, 413; không lộ bí mật |
-| Feature flag & toàn vẹn đặt sân | Tắt TADSS bằng cờ khi đang đặt sân; kiểm tra dữ liệu đặt sân sau mỗi kịch bản sự cố | xUnit, SQL | Cờ hiệu lực < 2 giây; 0 đơn đặt sân bị hỏng |
-| Kiểm thử giao diện đầu–cuối | Đặt sân → nhận mức cọc → thanh toán VNPay → Manager duyệt/từ chối trên trình duyệt | Playwright, k6 | Luồng chính chạy thông; p95 tạo đơn < 1000ms |
-| Độc lập nghiệp vụ | ≥ 10.000 đơn đặt phòng khách sạn công khai gửi qua TADSS | Python | 0 lỗi hợp đồng, không sửa mã TADSS |
-| Chạy lại dữ liệu thật | 215 đơn đặt sân thật của SmashCourt (ẩn danh) qua TADSS; so sánh với cọc 100% | Python | Phân bố quyết định, mức cọc; bảng so sánh hai chính sách |
-| Pilot người dùng thật | ≥ 15 người dùng trong 2 tuần trên staging, khảo sát khả dụng | Phiếu SUS | ≥ 50 đơn đặt sân; SUS ≥ 68 |
+Toàn bộ kiểm thử do nhóm tự thực hiện ở mức phát triển, không có giai đoạn thử nghiệm với người dùng thật. Phần kiểm thử TADSS chạy tự động bằng chế độ đánh giá một lệnh trên môi trường Docker riêng (PostgreSQL, Redis riêng, không đụng cơ sở dữ liệu thật), quan sát trực tiếp trên Grafana và sinh báo cáo HTML đạt/không đạt kèm dữ liệu gốc; chất lượng quyết định được đánh giá bằng dữ liệu import.
+
+| Tên | Nội dung kiểm thử | Công cụ |
+| :--- | :--- | :--- |
+| Kiểm thử đơn vị | Kiểm tra từng hàm, từng lớp nhỏ khi chạy riêng lẻ: tính tiền cọc theo hạng khách và khung giờ (ví dụ khách Gold đặt sân 200.000đ → cọc 30% = 60.000đ), cửa sổ phê duyệt (đặt sát giờ chơi → cọc 100%), chọn strategy, băm request làm khóa cache, chuyển lỗi thành mã lỗi. Đạt khi 100% test case đúng. | xUnit |
+| Đánh giá chất lượng bộ test (mutation testing) | Công cụ tự cài lỗi giả vào mã nguồn (đổi mức cọc 30% thành 0%, đổi `>` thành `>=`…) rồi chạy lại bộ test; test phải báo sai thì mới tính là bắt được lỗi. Đạt khi ≥ 70% lỗi giả bị phát hiện (mutation score ≥ 70%). | Stryker.NET |
+| Kiểm thử tích hợp | Gọi API của TADSS với PostgreSQL và Redis thật dựng tự động trong container: gửi cùng một request hai lần → chỉ tạo một quyết định; hai Manager cùng duyệt một đơn → chỉ một người thành công; mỗi phản hồi có đúng một bản ghi lưu vết; lệnh sửa/xóa lưu vết bị cơ sở dữ liệu chặn. | xUnit, Testcontainers |
+| Kiểm thử hợp đồng API | Kiểm tra TADSS luôn trả đúng định dạng đã thống nhất với SmashCourt: so từng response với JSON Schema; tự sinh hàng nghìn request (thiếu trường, số âm, ngày sai, chuỗi rất dài, ký tự lạ) từ đặc tả OpenAPI rồi gửi vào. Đạt khi không có lỗi 500, không có response sai định dạng, dữ liệu sai trả 400 kèm mã lỗi rõ ràng. | Schemathesis |
+| Kiểm thử chịu lỗi (tiêm lỗi) | Cố ý gây sự cố và kiểm tra phản ứng: strategy chậm, treo hoặc ném lỗi → trả `APPROVED` cọc 100% trong ≤ 500ms, không đưa vào hàng chờ duyệt; mất PostgreSQL → trả 503, không để lại bản ghi dở dang; mất Redis → vẫn phục vụ bình thường; client ngắt request giữa chừng → không hỏng dữ liệu; hết sự cố → tự hồi phục. | xUnit, Toxiproxy |
+| Kiểm thử tải | Giả lập nhiều yêu cầu cùng lúc: 50 request/giây trong 10 phút; tăng dần 10 → 400 request/giây để tìm ngưỡng chịu tải; 50 request/giây liên tục 60 phút; vừa tải vừa gây sự cố; theo dõi trực tiếp trên Grafana. Đạt khi p95 < 150ms, p99 ≤ 700ms khi có sự cố, bộ nhớ và số kết nối không tăng dần theo thời gian. | k6, Grafana |
+| Kiểm thử bảo mật | Kiểm tra chỉ SmashCourt gọi được TADSS và TADSS không bị lạm dụng: thiếu hoặc sai API key → 401; gửi dồn dập vượt giới hạn tốc độ → 429; request quá lớn → 413; rà log không chứa khóa, mật khẩu. | xUnit, k6 |
+| Feature Flag & toàn vẹn đơn đặt sân | Tắt cờ `EnableTadssDecision` khi đang có người đặt sân: cờ có hiệu lực < 2 giây không cần khởi động lại, mọi đơn chuyển sang cọc 100%; sau mỗi kịch bản sự cố, kiểm tra đơn đặt, thanh toán, khung giờ trong cơ sở dữ liệu SmashCourt: 0 đơn bị hỏng. | xUnit, SQL |
+| Kiểm thử đầu–cuối trên giao diện | Tự động thao tác trên trình duyệt qua cả FE → BE → TADSS: khách đặt sân → thấy mức cọc → thanh toán VNPay (sandbox) → Manager duyệt / từ chối / để hết hạn. Đạt khi các luồng chính chạy thông và p95 thời gian tạo đơn < 1000ms. | Playwright, k6 |
+| Đánh giá trên dữ liệu đặt sân thật | Import 215 đơn đặt sân thật của SmashCourt (đã ẩn danh), gửi lần lượt vào TADSS và so sánh với chính sách cũ (cọc 100% cho mọi đơn): tỷ lệ đơn duyệt ngay / cần Manager xem xét, mức cọc trung bình theo hạng khách và khung giờ. Kết quả là bảng so sánh hai chính sách. | Script Python |
+| Đánh giá độc lập nghiệp vụ | Import ≥ 10.000 đơn đặt phòng khách sạn từ dataset công khai Hotel Booking Demand; script chuyển từng đơn sang định dạng request của TADSS (khách sạn → chi nhánh, ngày nhận – trả phòng → khung thời gian, giá × số đêm → tổng tiền) rồi gửi vào. Đạt khi 100% đơn nhận được quyết định hợp lệ và mã nguồn TADSS không phải sửa dòng nào. | Script Python |
 
 ## 9. Hướng phát triển đề tài
 

@@ -1,4 +1,4 @@
-# WBS, ĐỒ THỊ PHỤ THUỘC & QUẢN TRỊ RỦI RO — v2.0
+# WBS, ĐỒ THỊ PHỤ THUỘC & QUẢN TRỊ RỦI RO — v2.1
 
 > **Vai trò của tài liệu:** cây phân rã công việc (WBS), phụ thuộc giữa các phase, sổ rủi ro và quy trình rà soát hằng tuần. Lịch trình và gate: [`MASTER_EXECUTION_PLAN.md`](MASTER_EXECUTION_PLAN.md). Task chi tiết: [`BACKLOG_SPRINTS.md`](BACKLOG_SPRINTS.md).
 
@@ -43,12 +43,12 @@ TADSS — Đồ án 2
 │   ├── 5B Hạ tầng kiểm thử            → Testcontainers, OTel + Grafana, chế độ đánh giá một lệnh
 │   │                                     (compose profile evaluation: evaluator, Toxiproxy, k6, Schemathesis,
 │   │                                     Stryker.NET, báo cáo + Evidence Pack), replay, adapter khách sạn
-│   └── 5C Chuẩn bị E2E (SV2)          → Playwright, k6, đặc tả E2E, kịch bản UAT + SUS
+│   └── 5C Chuẩn bị E2E (SV2)          → Playwright, k6, đặc tả E2E
 ├── 6. SmashCourt-BE ∥ smashcourt-fe
 │   ├── 6A BE (SV1)                    → TadssClient, flag, luồng cọc, proxy duyệt, job hết hạn/outcome
 │   └── 6B FE (SV2)                    → UI cọc, chờ duyệt, dashboard Manager, realtime
-├── 7. Integrate                       → ghép 3 hệ thống, staging, feature freeze
-├── 8. Kiểm thử & đánh giá             → toàn bộ danh mục, pilot UAT, Evidence Pack
+├── 7. Integrate                       → ghép 3 hệ thống (Docker Compose), feature freeze
+├── 8. Kiểm thử & đánh giá             → toàn bộ danh mục, đánh giá bằng dữ liệu import, Evidence Pack
 └── 9. Đóng gói & bảo vệ               → báo cáo, slide, video
 ```
 
@@ -73,7 +73,7 @@ flowchart TD
     P6A --> M6{{M6: BE & FE complete}}
     P6B --> M6
     M6 --> P7[Phase 7 Integrate + feature freeze]
-    P7 --> P8[Phase 8 Kiểm thử & đánh giá + Pilot]
+    P7 --> P8[Phase 8 Kiểm thử & đánh giá]
     P8 --> P9[Phase 9 Đóng gói & bảo vệ]
 ```
 
@@ -93,11 +93,11 @@ flowchart TD
 | **M3** | 22/09/2026 | Runtime chạy độc lập | ✅ |
 | **M4** | 01/10/2026 | Resilience & audit baseline (510 test pass) | ✅ |
 | **MR** | 01/10/2026 | Phase 5 bước 0: tài liệu đồng bộ, repo sạch | ✅ |
-| **M5** | 08/11/2026 | TADSS complete, hạ tầng kiểm thử sẵn sàng, danh mục kiểm thử toàn hệ thống | ⏳ |
-| **M6** | 06/12/2026 | SmashCourt-BE & smashcourt-fe complete | ⏳ |
-| **M7** | 13/12/2026 | Tích hợp xong, feature freeze | ⏳ |
-| **M8** | 27/12/2026 | 100% test case đạt, KPI đo đủ, Evidence Pack | ⏳ |
-| **M9** | 03/01/2027 | Sẵn sàng bảo vệ | ⏳ |
+| **M5** | 01/11/2026 | TADSS complete, hạ tầng kiểm thử sẵn sàng, danh mục kiểm thử toàn hệ thống | ⏳ |
+| **M6** | 29/11/2026 | SmashCourt-BE & smashcourt-fe complete | ⏳ |
+| **M7** | 06/12/2026 | Tích hợp xong, feature freeze | ⏳ |
+| **M8** | 20/12/2026 | 100% test case đạt, KPI đo đủ, Evidence Pack | ⏳ |
+| **M9** | 26/12/2026 | Sẵn sàng bảo vệ | ⏳ |
 
 Tiêu chí chi tiết của từng milestone: Mục IV và V trong [`MASTER_EXECUTION_PLAN.md`](MASTER_EXECUTION_PLAN.md).
 
@@ -107,15 +107,14 @@ Tiêu chí chi tiết của từng milestone: Mục IV và V trong [`MASTER_EXEC
 
 | Mã | Rủi ro | Khả năng / Ảnh hưởng | Phòng ngừa | Phương án khi xảy ra |
 |:---|:---|:---:|:---|:---|
-| **R1** | Phase 5 kéo dài vì khối lượng lớn (contract v2 + toàn bộ hạ tầng kiểm thử) | Cao / Cao | Làm hạ tầng kiểm thử ở W07 trước khi sửa lõi; mỗi tuần có đầu ra chạy được | Dùng 2 ngày đệm đầu W11 trước khi chốt M5; không cắt test case, chỉ lùi thời điểm bắt đầu Phase 6 |
-| **R2** | Docker/Testcontainers không chạy ổn định trên máy dev hoặc CI | Trung bình / Cao | Kiểm tra Docker Desktop + GitHub Actions runner ngay W07; cố định phiên bản image | Chạy integration test trên CI Linux; dev chạy app bằng `dotnet run` với Neon (D-04) |
+| **R1** | Phase 5 kéo dài vì khối lượng lớn (contract v2 + toàn bộ hạ tầng kiểm thử) | Cao / Cao | Làm hạ tầng kiểm thử (Testcontainers) ngay đầu W05 trước khi sửa lõi; mỗi tuần có đầu ra chạy được | Dùng 2 ngày đệm đầu W09 trước khi chốt M5; không cắt test case, chỉ lùi thời điểm bắt đầu Phase 6 |
+| **R2** | Docker/Testcontainers không chạy ổn định trên máy dev hoặc CI | Trung bình / Cao | Kiểm tra Docker Desktop + GitHub Actions runner ngay W05; cố định phiên bản image | Chạy integration test trên CI Linux; dev chạy app bằng `dotnet run` với Neon (D-04) |
 | **R3** | Thay đổi DB SmashCourt (enum `booking_status`, trường cọc) làm vỡ luồng cũ | Trung bình / Cao | Toàn bộ thay đổi qua script SQL có review; test hồi quy BE trước khi merge | Feature flag tắt → luồng 100% như Đồ án 1 |
 | **R4** | Manager không duyệt kịp, đơn chờ quá lâu | Trung bình / Trung bình | Hạn duyệt cấu hình; ngưỡng thời gian bắt đầu gần → SmashCourt áp 100% thay vì chờ | Job hết hạn hủy đơn, không tự duyệt |
-| **R5** | Không tuyển đủ người dùng pilot | Trung bình / Trung bình | Chốt danh sách người tham gia từ W14; kịch bản UAT ngắn ≤ 15 phút | Kéo dài pilot sang đầu W18, báo cáo đúng cỡ mẫu thực tế |
-| **R6** | Môi trường staging/VNPay sandbox trục trặc | Thấp / Cao | Chốt staging ở W10, chạy thử ở W15 | Pilot trên máy local có tunnel công khai |
-| **R7** | Dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn NO_SHOW/CANCELLED do job tự sinh) | Đã xảy ra / Trung bình | Chỉ dùng 215 booking làm input có hình dạng thực tế cho replay; không dùng làm nhãn hành vi | Dùng dataset công khai (Hotel Booking Demand) và dữ liệu pilot cho phân tích có nhãn |
+| **R6** | Môi trường tích hợp (Docker Compose)/VNPay sandbox trục trặc | Thấp / Cao | Chốt môi trường tích hợp ở W08, chạy thử ở W13 | Chạy từng repo bằng `dotnet run`/`npm run dev` trên máy local, nối nhau qua localhost |
+| **R7** | Dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn NO_SHOW/CANCELLED do job tự sinh) | Đã xảy ra / Trung bình | Chỉ dùng 215 booking làm input có hình dạng thực tế cho replay; không dùng làm nhãn hành vi | Dùng dataset công khai (Hotel Booking Demand) cho phân tích có nhãn |
 | **R8** | Lộ bí mật cấu hình (connection string, khóa VNPay/JWT) | Đã xảy ra / Cao | Không đọc/in file `appsettings.Development.json`, `.env`; secret chỉ ở các file đó hoặc user-secrets (gitignore, không commit); image Docker chứa `appsettings.Development.json` chỉ dùng local, không push registry | Đổi mật khẩu/khóa đã lộ ngay khi phát hiện |
-| **R9** | Mutation score thấp hơn ngưỡng G5 | Trung bình / Trung bình | Chạy Stryker từ W09 để có thời gian bổ sung test | Bổ sung test cho mutant sống sót trước M5 |
+| **R9** | Mutation score thấp hơn ngưỡng G5 | Trung bình / Trung bình | Chạy Stryker từ W07 để có thời gian bổ sung test | Bổ sung test cho mutant sống sót trước M5 |
 
 ---
 

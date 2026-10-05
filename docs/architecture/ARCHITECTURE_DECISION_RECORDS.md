@@ -15,7 +15,7 @@
 | 009 | Kiểm thử trên hạ tầng thật | Đã duyệt | Đồ án 2 |
 | 010 | Observability bằng OpenTelemetry | Đã duyệt | Đồ án 2 |
 | 011 | Định tuyến strategy theo request + shadow mode | Đã duyệt | Đồ án 2 |
-| 012 | Evidence Pack & ba nguồn dữ liệu minh chứng | Đã duyệt | Đồ án 2 |
+| 012 | Evidence Pack & nguồn dữ liệu minh chứng | Đã duyệt | Đồ án 2 |
 | 013 | Clean Architecture nhiều project | Đã hiện thực (gói 5.2d) | Đồ án 2 |
 
 ---
@@ -69,10 +69,10 @@ Tóm tắt (chi tiết trong file riêng):
 - **Quyết định:** `StrategyRouter` chọn strategy theo quy tắc cấu hình cho từng request (reload không cần restart); `ShadowExecutor` chạy strategy ứng viên song song, chỉ ghi audit `SHADOW`.
 - **Hệ quả:** Khóa luận có thể đưa strategy TADS vào chế độ shadow để so sánh với baseline trên cùng traffic mà không ảnh hưởng khách.
 
-## ADR-012: Evidence Pack & ba nguồn dữ liệu minh chứng
+## ADR-012: Evidence Pack & nguồn dữ liệu minh chứng
 
 - **Bối cảnh:** giảng viên yêu cầu minh chứng bằng dữ liệu chạy thật; dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn do job tự sinh).
-- **Quyết định:** ba nguồn dữ liệu, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt (hình dạng input thực tế), dataset công khai Hotel Booking Demand (độc lập domain), pilot UAT với người dùng thật (luồng tích hợp, khả dụng). Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
+- **Quyết định:** hai nguồn dữ liệu import, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt đã ẩn danh (hình dạng input thực tế, so sánh với chính sách cọc 100%), dataset công khai Hotel Booking Demand (độc lập domain). *Cập nhật 05/10/2026: bỏ nguồn thứ ba là pilot UAT với người dùng thật — nhóm chỉ kiểm thử ở mức phát triển, không có đủ người dùng thật; giới hạn này ghi ở Mục 8 của tài liệu giao thức đánh giá.* Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
 - **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md).
 
 ## ADR-013: Clean Architecture nhiều project

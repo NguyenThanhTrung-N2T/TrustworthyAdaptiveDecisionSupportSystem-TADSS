@@ -2,14 +2,17 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Common;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
+using TADSS.UnitTests.TestDoubles;
 using Xunit;
 
 namespace TADSS.IntegrationTests.FaultInjection;
@@ -111,6 +114,44 @@ public class FaultInjectionTests : FaultInjectionTestBase
         row.ExecutionTimeMs.Should().BeLessThanOrEqualTo(PipelineBudgetMs, "thời gian pipeline không được vượt ngân sách 500 ms");
         row.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(150, "đã chờ đủ 3 lượt inner timeout 50 ms (không fallback sớm)");
         stopwatch.ElapsedMilliseconds.Should().BeLessThanOrEqualTo(PipelineBudgetMs + EndpointToleranceMs);
+    }
+
+    /// <summary>
+    /// F5 (FI-05): strategy không hợp tác — chặn <b>đồng bộ</b> 3 s và bỏ qua token — với Outer 500 ms, Inner 100 ms, retry 2 × 20 ms (xem ghi chú dư ngân sách trong test).
+    /// <c>IsolatedStrategyInvoker</c> cắt từng lượt ở inner timeout nên request vẫn kết thúc <c>APPROVED</c> cọc 100% / <c>FALLBACK_STRATEGY_TIMEOUT</c>
+    /// trong 500 ms + 300 ms dung sai, và mỗi lượt bị bỏ rơi được ghi metric <c>tadss.strategy.abandoned</c>.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-05")]
+    public async Task F5_UncooperativeStrategy_IsCutWithinBudget()
+    {
+        const int uncooperativeToleranceMs = 300;
+        // Gần cấu hình mặc định (Outer 500, retry 2) nhưng Inner 100 / delay 20 để còn dư ngân sách (340 ms): timer Windows có độ phân giải ~15 ms
+        // nên mặc định đúng (420 ms) sát ngưỡng Outer 500 ms và đôi lúc chạm Outer timeout (504) dù pipeline cắt đúng.
+        Resilience = new ResilienceOptions { OuterTimeoutMs = PipelineBudgetMs, InnerTimeoutMs = 100, MaxRetryAttempts = 2, RetryBaseDelayMs = 20 };
+        Strategy.Behavior = (_, _) =>
+        {
+            // Chặn đồng bộ, không nhìn token: nếu pipeline không cô lập thì request bị kẹt 3 s
+            Thread.Sleep(3000);
+            return Task.FromResult(ScriptedStrategy.Approve());
+        };
+        var warmUpKey = await WarmUpHostAsync();
+        var invocationsBefore = Strategy.InvocationCount;
+        using var recorder = new MetricRecorder(Host.Services.GetRequiredService<TadssMetrics>().Meter);
+        var key = NewKey();
+        var body = UpcomingRequest();
+
+        var stopwatch = Stopwatch.StartNew();
+        var response = await PostDecisionAsync(body, key);
+        stopwatch.Stop();
+
+        response.Status.Should().Be(HttpStatusCode.OK);
+        var row = (await ReadExecutionsAsync()).Should().ContainSingle(execution => execution.IdempotencyKey == key).Subject;
+        row.IdempotencyKey.Should().NotBe(warmUpKey);
+        AssertFallbackFullDeposit(response.Result, row, body, ReasonCodes.FallbackStrategyTimeout);
+        stopwatch.ElapsedMilliseconds.Should().BeLessThanOrEqualTo(PipelineBudgetMs + uncooperativeToleranceMs, "strategy chặn 3 s phải bị cắt trong ngân sách 500 ms");
+        (Strategy.InvocationCount - invocationsBefore).Should().Be(3, "lượt đầu và 2 lần retry");
+        recorder.Sum(TadssMetrics.StrategyAbandoned, ("strategy", Strategy.StrategyName)).Should().Be(3, "mỗi lượt bị cắt đều bị bỏ rơi");
     }
 
     /// <summary>

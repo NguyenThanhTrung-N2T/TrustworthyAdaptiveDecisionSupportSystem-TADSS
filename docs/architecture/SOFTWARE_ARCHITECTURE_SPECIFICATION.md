@@ -96,12 +96,12 @@ Thứ tự middleware của request pipeline khai báo tại một nơi: `Compos
 
 ## 3. HẠN CHẾ CÒN MỞ (sau gói 5.3)
 
-- Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). Đánh giá khi scale (SC-1, SC-3) thuộc gói 5.4–5.5; rate limit phân tán thuộc 5.5.
+- Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). Đánh giá khi scale (SCALE-1, SCALE-3) thuộc gói 5.4–5.5; rate limit phân tán thuộc 5.5.
 - Tranh chấp override ↔ outcome trên cùng quyết định không được khóa nguyên tử (INV-5, INTEGRATION_SPEC §4.3); tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm.
 - Dòng log hoàn tất request của Serilog không mang `ClientId` (request logging đứng trước bước xác thực); `ClientId` có ở log scope của log trong controller/service và ở tag `tadss.client_id` của trace. Ngoài ra `UseSerilogRequestLogging` nằm trong exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error (401/413/429 do middleware tạo thì đúng); sửa sẽ đổi thứ tự pipeline (F-09), để gói 5.4/5.5.
 - Inner timeout chỉ có hiệu lực khi strategy tôn trọng `CancellationToken` (`IsolatedStrategyInvoker`, 5.4).
 - Redis lỗi thì mỗi lần gọi cache chờ tới `RedisTimeoutMs` (circuit breaker + metric `bypass`, 5.4).
-- Chọn strategy theo cấu hình toàn cục `Tadss:Strategy:ActiveStrategyName`; định tuyến theo request thuộc 5.4.
+- Chọn strategy theo từng request qua `Tadss:Routing` (`StrategyRouter`, gói 5.4); khóa `Tadss:Strategy:ActiveStrategyName` đã gỡ.
 
 Test `NoLegacyV1Tests` (UT-09) chặn việc đưa lại kiểu, namespace hoặc package của phiên bản cũ. Ranh giới tầng và quy ước đặt tên/đặt chỗ được khóa bởi các test UT-14 (Mục 5).
 
@@ -141,7 +141,7 @@ public sealed record StrategyDecision(
 | `ApiKeyAuthenticationMiddleware` + `ApiKeyVerifier` | `TADSS.Runtime.Api/Middlewares`, `TADSS.Runtime.Api/Security` | Xác thực `X-Api-Key` cho `/api/*`: băm SHA-256 khóa nhận được rồi `CryptographicOperations.FixedTimeEquals` với **mọi** mục cấu hình (không thoát sớm); thiếu, sai hoặc lặp header → 401 `UNAUTHORIZED` + `WWW-Authenticate` qua `ProblemResponseWriter`. Miễn `/health/live`, `/health/ready` (mọi môi trường) và `/swagger/*` (chỉ `Development`). Khóa đúng thì `ClientId` vào `ApiClientIdentity` (cho rate limiter), log scope và tag `tadss.client_id`. Không bao giờ log khóa hay mã băm. *Đã hiện thực* |
 | `RequestSizeLimitMiddleware`, `SecurityHeadersMiddleware`, rate limiter | `TADSS.Runtime.Api/Middlewares`, `TADSS.Runtime.Api/Composition/SecurityServiceCollectionExtensions` | Giới hạn body `Tadss:Security:MaxRequestBodyBytes` (413 `PAYLOAD_TOO_LARGE`, kiểm tra `Content-Length` rồi đặt trần cho body chunked); header bảo mật + HSTS gắn qua `OnStarting` nên có cả trên response lỗi; token bucket theo `ClientId` (429 `RATE_LIMITED` + `Retry-After`, `QueueLimit = 0`, `/health/*` không giới hạn). Options `SecurityOptions` + `SecurityOptionsValidator` (fail-fast, ngoài `Development`/`Testing` bắt buộc có khóa và từ chối khóa local công khai `tadss-local-dev-key`). *Đã hiện thực* |
 | `ProblemResponseWriter` + `ProblemResponse` | `TADSS.Runtime.Api/ErrorHandling` | Bộ ghi duy nhất dựng body `application/problem+json` (`code`, `traceId`, `retryAfterSeconds`) cho `GlobalExceptionHandler`, 401, 413, 429; các từ chối do middleware tạo không ném exception. *Đã hiện thực* |
-| `IDecisionService` / `DecisionService` | `TADSS.Application/Decisions` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response. *Đã hiện thực*: một mốc `nowUtc` từ `TimeProvider` (cắt về µs) cho cả lần đánh giá; lỗi cache chỉ là miss; lỗi ghi audit lan ra (fail-closed, INV-10); chọn strategy tạm bằng `IStrategyRegistry.ResolveActive()` cho tới khi có `StrategyRouter` (5.4). Đăng ký scoped trong `AddApplication` |
+| `IDecisionService` / `DecisionService` | `TADSS.Application/Decisions` | Điều phối: idempotency → định tuyến → cache → pipeline → approval window → ghi audit → response. *Đã hiện thực*: một mốc `nowUtc` từ `TimeProvider` (cắt về µs) cho cả lần đánh giá; lỗi cache chỉ là miss; lỗi ghi audit lan ra (fail-closed, INV-10); chọn strategy theo từng request bằng `IStrategyRouter` (`Tadss:Routing`, gói 5.4). Đăng ký scoped trong `AddApplication` |
 | `StrategyEvaluator` | `TADSS.Application/Decisions` | Dựng khóa cache → đọc cache (lỗi cache chỉ là miss) → chạy `IStrategyPipeline` khi miss → ghi cache khi kết quả là `AUTOMATED`; trả `StrategyEvaluation` (kết quả + cờ cache hit). Chỉ hủy của chính caller được lan ra. Singleton |
 | `DecisionPayloadSerializer` | `TADSS.Application/Decisions` | Serialize `request_payload`/`response_payload` bằng `TadssJson.Options` (chặt); **đọc** bằng bản sao nới lỏng (bỏ qua trường lạ, không bắt buộc trường) để bản ghi cũ không thành 500 khi DTO thêm trường; dùng chung cho composer, replay, `DecisionQueryService` và `OverrideService` |
 | `IDecisionEvaluationStore`, `IDecisionQueryStore` | `TADSS.Application/Abstractions/Persistence` | Port lưu audit tách theo consumer (ISP). `IDecisionEvaluationStore` (cho `DecisionService`): `FindPrimaryByIdempotencyKeyAsync`, `InsertExecutionAsync` (append-only; tranh chấp `uq_decision_idempotency_key` trả bản đã thắng; lỗi tạm thời → `PersistenceUnavailableException` → 503). `IDecisionQueryStore` (cho `DecisionQueryService`): `GetDecisionDetailAsync`. `GetPendingApprovalsAsync` (hàng chờ). `IDecisionGovernanceStore` (cho `OverrideService`/`OutcomeService`, chỉ ghi): `InsertOverrideAsync`, `InsertOutcomeAsync` (`UNIQUE(decision_id)`; thua tranh chấp trả bản đã thắng với `IsExistingWinner`) |
@@ -229,7 +229,7 @@ sequenceDiagram
             MW-->>BE: 409 IDEMPOTENCY_KEY_REUSE
         end
     else Chưa có
-        DS->>DS: ItemDurationPolicy (P-01), IStrategyRegistry.ResolveActive, nowUtc từ TimeProvider
+        DS->>DS: ItemDurationPolicy (P-01), IStrategyRouter.Route (Tadss:Routing), nowUtc từ TimeProvider
         DS->>EV: EvaluateAsync(strategy, reservation, context, requestHash)
         alt Cache miss và pipeline vượt outer timeout
             EV->>PL: ExecuteAsync
