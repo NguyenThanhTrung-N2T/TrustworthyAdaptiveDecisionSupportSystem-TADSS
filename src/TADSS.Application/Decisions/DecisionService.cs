@@ -8,13 +8,14 @@ using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Routing;
+using TADSS.Application.Shadow;
 
 namespace TADSS.Application.Decisions;
 
 /// <summary>
 /// Hiện thực <see cref="IDecisionService"/> theo luồng spec 4.2.3: kiểm tra khóa → dựng domain → hash → tra idempotency
 /// → kiểm tra thời lượng item (P-01) → định tuyến strategy theo request (<see cref="IStrategyRouter"/>, A-01) → đánh giá (cache + pipeline, do <see cref="StrategyEvaluator"/>) → approval
-/// window và cọc → ghi audit đồng bộ (fail-closed, INV-10) → response.
+/// window và cọc → ghi audit đồng bộ (fail-closed, INV-10) → gửi việc shadow (nếu bật) → response.
 /// <para>
 /// Một mốc <c>nowUtc</c> duy nhất lấy từ <see cref="TimeProvider"/>, cắt phần dưới micro giây, cho cả lần đánh giá (B-03, C-08). Lỗi trước bước ghi audit
 /// (validation, P-01, xung đột idempotency) không ghi audit và không chạy strategy. Đăng ký scoped trong <c>AddApplication</c>;
@@ -28,6 +29,7 @@ public sealed class DecisionService : IDecisionService
     private readonly StrategyEvaluator _evaluator;
     private readonly ItemDurationPolicy _itemDurationPolicy;
     private readonly DecisionResponseComposer _composer;
+    private readonly IShadowDispatcher _shadowDispatcher;
     private readonly BranchCalendar _calendar;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DecisionService> _logger;
@@ -38,6 +40,7 @@ public sealed class DecisionService : IDecisionService
     /// <param name="evaluator">Bộ đánh giá strategy (cache + pipeline chịu lỗi).</param>
     /// <param name="itemDurationPolicy">Chính sách thời lượng item (P-01).</param>
     /// <param name="composer">Ghép response và bản ghi audit.</param>
+    /// <param name="shadowDispatcher">Gửi việc shadow sau khi bản <c>PRIMARY</c> mới được lưu.</param>
     /// <param name="calendar">Lịch cao điểm đưa vào <see cref="DecisionContext"/>.</param>
     /// <param name="timeProvider">Nguồn thời gian.</param>
     /// <param name="logger">Logger.</param>
@@ -47,6 +50,7 @@ public sealed class DecisionService : IDecisionService
         StrategyEvaluator evaluator,
         ItemDurationPolicy itemDurationPolicy,
         DecisionResponseComposer composer,
+        IShadowDispatcher shadowDispatcher,
         BranchCalendar calendar,
         TimeProvider timeProvider,
         ILogger<DecisionService> logger)
@@ -56,6 +60,7 @@ public sealed class DecisionService : IDecisionService
         _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
         _itemDurationPolicy = itemDurationPolicy ?? throw new ArgumentNullException(nameof(itemDurationPolicy));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
+        _shadowDispatcher = shadowDispatcher ?? throw new ArgumentNullException(nameof(shadowDispatcher));
         _calendar = calendar ?? throw new ArgumentNullException(nameof(calendar));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -124,6 +129,12 @@ public sealed class DecisionService : IDecisionService
         }
 
         _logger.LogDecisionSummary(composed.Record, evaluation.Outcome, registered.Strategy, route.RuleName, idempotencyKey, correlationId);
+
+        // Shadow chỉ chạy khi chính request này vừa ghi bản PRIMARY mới (không phải replay hay thua tranh chấp); không chờ và không ném (INV-8)
+        _shadowDispatcher.Dispatch(
+            registered.Strategy.StrategyName,
+            new ShadowWorkItem(request, reservation, requestHash, nowUtc, correlationId));
+
         return composed.Response;
     }
 

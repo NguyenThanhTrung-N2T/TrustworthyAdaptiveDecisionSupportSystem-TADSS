@@ -4,7 +4,7 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project) và 5.3 (quản trị và bảo mật) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); hiện có **1518 unit + 197 integration test**. Chưa có: định tuyến strategy theo request và shadow (gói 5.4), observability (gói 5.5). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (04/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project), 5.3 (quản trị và bảo mật) và 5.4 (runtime thích ứng) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); định tuyến strategy theo từng request (`Tadss:Routing`, nạp lại nóng), shadow mode, pipeline và circuit breaker riêng cho từng strategy, cách ly strategy không hợp tác, circuit breaker Redis (gói 5.4); hiện có **1707 unit + 211 integration test**. Chưa có: observability (gói 5.5). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -137,7 +137,7 @@ Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằn
 - **Health:** `/health/live` (không kiểm tra gì, 200 khi tiến trình còn chạy) và `/health/ready` (PostgreSQL bắt buộc: lỗi → 503; Redis: lỗi → 200 `Degraded` vì cache có fallback memory). Cả hai miễn `X-Api-Key` ở mọi môi trường, không bị rate limit, body chỉ là chữ trạng thái (không lộ chuỗi kết nối). Không còn endpoint `/health` gộp.
 - **Rate limit** (token bucket, một xô cho mỗi `ClientId`; hết token là 429 `RATE_LIMITED` kèm `Retry-After`): tính **theo từng instance** của app, không chia sẻ giữa nhiều instance (đánh giá khi scale thuộc gói 5.5). Mặc định cho phép bùng nổ 100 request và nạp 100 request mỗi giây cho một client. Để k6 tải cao hơn, tăng bằng biến môi trường của tiến trình app: `Tadss__Security__RateLimiting__PermitLimit`, `Tadss__Security__RateLimiting__TokensPerPeriod`, `Tadss__Security__RateLimiting__ReplenishmentPeriodSeconds` (với compose: thêm vào `environment` của `tadss-runtime` trong một file override cục bộ).
 - **Header bảo mật** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; `Cache-Control: no-store` cho `/api/*`; `Strict-Transport-Security` với request https ngoài `Development`/`Testing`; Kestrel không gửi header `Server`.
-- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace. Dòng log hoàn tất request của Serilog **không** mang `ClientId` vì bước request logging đứng trước bước xác thực. Ngoài ra `UseSerilogRequestLogging` nằm **trong** exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error; 401/413/429 do middleware tạo thì ghi đúng. Đây là hạn chế đã biết, xử lý ở gói 5.4/5.5 vì sửa sẽ đổi thứ tự pipeline (F-09).
+- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace. Dòng log hoàn tất request của Serilog **không** mang `ClientId` vì bước request logging đứng trước bước xác thực. Ngoài ra `UseSerilogRequestLogging` nằm **trong** exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error; 401/413/429 do middleware tạo thì ghi đúng. Đây là hạn chế đã biết, xử lý ở gói 5.5 vì sửa sẽ đổi thứ tự pipeline (F-09).
 
 ### Chuỗi cung ứng và container
 
@@ -146,6 +146,65 @@ Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằn
 - Image chạy bằng user non-root (`USER $APP_UID`); `.dockerignore` loại `.env`/khóa riêng (`appsettings.Development.json` vào image local như SmashCourt-BE, nên image không bao giờ được push); CI kiểm `Config.User` của image.
 
 ---
+
+## Runtime thích ứng: định tuyến, shadow, cache và cách ly lỗi
+
+Cấu hình dưới đây đều qua validator + `ValidateOnStart`: sai thì app không khởi động. Giá trị mặc định giữ nguyên hành vi (một strategy mặc định, shadow tắt, khóa cache như cũ).
+
+### `Tadss:Routing` — chọn strategy theo từng request (nạp lại nóng)
+
+| Khóa | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `DefaultStrategy` | `DefaultDecisionStrategy` | Strategy dùng khi không rule nào khớp (thay khóa cũ `Tadss:Strategy:ActiveStrategyName`, nay chỉ còn sinh Warning khi gặp khóa đó) |
+| `Rules[]` | `[]` | Danh sách rule, **rule đầu tiên khớp** được chọn. Mỗi rule: `Name` (duy nhất, ≤ 64 ký tự), `Strategy`, `When` |
+| `Rules[].When` | — | Phải có ít nhất một điều kiện; mọi điều kiện là AND; danh sách rỗng hoặc bỏ trống = không ràng buộc: `PeakHour` (bool, theo lịch cao điểm giờ chi nhánh), `BranchIds`, `Channels` (`ONLINE`/`WALK_IN`), `Tiers` (`CustomerTier`), `IsGuest` (bool) |
+
+Ví dụ: giờ cao điểm dùng `MockAlternativeDecisionStrategy`, còn lại dùng mặc định:
+
+```json
+"Tadss": { "Routing": { "DefaultStrategy": "DefaultDecisionStrategy",
+  "Rules": [ { "Name": "peak-hour", "Strategy": "MockAlternativeDecisionStrategy", "When": { "PeakHour": true } } ] } }
+```
+
+Tên strategy phải có trong registry (sai thì không khởi động). Đổi `Tadss:Routing` trong file cấu hình đang chạy (`appsettings*.json` có `reloadOnChange`; biến môi trường không nạp lại khi chạy) có hiệu lực ngay; bản mới sai thì **giữ bảng cũ**, ghi log Error và tăng `tadss.config.reload_failures{section="Tadss:Routing"}`. Mỗi strategy có pipeline chịu lỗi và circuit breaker riêng nên strategy này lỗi không làm strategy khác fast-fail.
+
+### `Tadss:Shadow` — chạy thêm một strategy ứng viên ở nền
+
+| Khóa | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `Enabled` | `false` | Bật shadow (không nạp lại nóng: đổi phải khởi động lại) |
+| `Strategy` | `""` | Strategy chạy shadow; bắt buộc và phải có trong registry khi bật; trùng strategy chính của request thì bỏ qua |
+| `SampleRate` | `1.0` | Tỷ lệ request được chạy shadow, [0, 1] |
+| `QueueCapacity` | `256` | Sức chứa hàng đợi (1..10000); đầy thì bỏ việc và tăng `tadss.shadow.dropped{reason="queue_full"}` |
+
+Sau khi bản `PRIMARY` của chính request đã lưu, một worker nền chạy strategy shadow (pipeline riêng, không cache, cùng mốc thời gian) và ghi bản `role = SHADOW` (không khóa idempotency; ghép cặp với `PRIMARY` qua `reservation_id`, `request_hash`, `created_at`, `correlation_id`). Shadow không đổi response, không vào hàng chờ duyệt, không override/outcome được (404). Shadow lỗi/treo thì có bản `SHADOW` là `FALLBACK` hoặc chỉ ghi log + `tadss.shadow.executions{outcome="failed"}`.
+
+### `Tadss:Cache` — khóa và circuit breaker Redis
+
+| Khóa | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `InstanceName` | `tadss:` | Tiền tố cộng vào mọi khóa cache (Redis và memory), không rỗng, ≤ 32 ký tự, không khoảng trắng; khóa đầy đủ mặc định `tadss:v2:...` (khóa TTL cũ của section này đã gỡ: TTL do strategy khai báo) |
+| `RedisBreakerFailureRatio` | `0.5` | Tỷ lệ lệnh Redis lỗi/quá hạn trong khung lấy mẫu để breaker mở, (0, 1] |
+| `RedisBreakerSamplingSeconds` | `30` | Khung lấy mẫu (giây), ≥ 1 |
+| `RedisBreakerMinimumThroughput` | `10` | Số lệnh tối thiểu trước khi được mở, ≥ 2 |
+| `RedisBreakerBreakDurationSeconds` | `30` | Thời gian mở (giây), ≥ 1 |
+
+Breaker mở thì request bỏ qua Redis ngay (dùng memory nếu `EnableFallbackToMemory`), không chờ `RedisTimeoutMs`; `tadss.cache.requests{result="bypass"}` đếm các lần đó. Lỗi cache không bao giờ kích hoạt fallback của strategy. Breaker (Redis và strategy) và cache memory đều **theo từng instance**.
+
+### `Tadss:Testing:FaultInjection` — tiêm lỗi strategy (chỉ môi trường `Testing`)
+
+| Khóa | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `Enabled` | `false` | Chỉ có tác dụng khi `ASPNETCORE_ENVIRONMENT=Testing`; ở môi trường khác bật cờ này chỉ sinh Warning, không bọc strategy |
+| `Profile` | `None` | `None`, `Delay` (chờ có tôn trọng token), `Throw`, `IgnoreToken` (chờ không tôn trọng token), `BusyCpu` (quay vòng CPU) |
+| `DelayMs` | `1000` | 1..60000 |
+| `TargetStrategy` | rỗng | Rỗng = mọi strategy |
+
+Dùng cho kịch bản sự cố dưới tải (LT-03). Strategy bị bỏ qua token vẫn bị cắt đúng hạn (pipeline cách ly nó khỏi luồng request) nhưng CPU của nó chỉ dừng khi nó tự kết thúc — xem giới hạn ở `docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md`.
+
+### Metric và log
+
+Meter `TADSS.Runtime`: `tadss.config.reload_failures`, `tadss.strategy.abandoned`, `tadss.cache.requests`, `tadss.shadow.dropped`, `tadss.shadow.executions` (chưa có exporter; OpenTelemetry thuộc gói 5.5). Lỗi lệnh SQL mong đợi (tranh chấp idempotency `23505`) chỉ ghi ở mức Debug; lỗi thật vẫn ghi ở Warning/Error bởi store và exception handler.
 
 ## Chạy bằng Docker và expose qua ngrok
 

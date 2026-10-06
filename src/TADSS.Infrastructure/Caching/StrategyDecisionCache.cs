@@ -1,91 +1,88 @@
-using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
 using TADSS.Application.Abstractions.Caching;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Options;
 
 namespace TADSS.Infrastructure.Caching;
 
 /// <summary>
-/// Cache hai tầng của <see cref="StrategyDecision"/>: Redis (khi <c>Provider = Redis</c> và có multiplexer) rồi memory
-/// (khi <c>EnableFallbackToMemory</c> hoặc không dùng Redis).
+/// Cache hai tầng của <see cref="StrategyDecision"/>: Redis (khi <c>Provider = Redis</c> và có multiplexer, qua <see cref="RedisDecisionCache"/>
+/// có timeout + circuit breaker) rồi memory (khi <c>EnableFallbackToMemory</c> hoặc không dùng Redis).
 /// <para>
+/// Khóa đầy đủ = <c>CacheOptions.InstanceName</c> + khóa từ <see cref="StrategyDecisionCacheKey"/>, dùng cho cả Redis và memory.
 /// Tầng memory lưu chính instance (bất biến); tầng Redis lưu JSON của <see cref="CachedStrategyDecision"/> theo
-/// <see cref="TadssJson.Options"/> và dựng lại qua factory đúng trạng thái nên invariant được kiểm tra lại khi đọc.
-/// TTL lấy từ tham số của lời gọi (không dùng <c>TtlHours</c>); khóa dùng nguyên văn (không cộng <c>InstanceName</c>).
+/// <c>TadssJson.Options</c> và dựng lại qua factory đúng trạng thái nên invariant được kiểm tra lại khi đọc.
+/// TTL lấy từ tham số của lời gọi.
 /// </para>
 /// <para>
 /// Cô lập miền lỗi: lỗi Redis, memory, serialize hoặc payload hỏng chỉ là miss (đọc) hoặc bị bỏ qua (ghi) kèm log
-/// Warning; chỉ <see cref="OperationCanceledException"/> của chính caller được lan ra.
+/// Warning; chỉ <see cref="OperationCanceledException"/> của chính caller được lan ra. Mỗi lần <see cref="GetAsync"/> ghi đúng một
+/// số đo <c>tadss.cache.requests</c> (<c>hit</c>, <c>miss</c> hoặc <c>bypass</c> khi breaker Redis đang mở).
 /// </para>
 /// </summary>
 public sealed class StrategyDecisionCache : IStrategyDecisionCache
 {
     private readonly IMemoryCache _memoryCache;
     private readonly CacheOptions _options;
+    private readonly TadssMetrics _metrics;
     private readonly ILogger<StrategyDecisionCache> _logger;
-    private readonly IConnectionMultiplexer? _redis;
+    private readonly RedisDecisionCache? _redis;
 
     /// <summary>Khởi tạo cache.</summary>
     /// <param name="memoryCache">Cache bộ nhớ dùng chung của ứng dụng.</param>
-    /// <param name="options">Cấu hình cache (<c>Provider</c>, <c>EnableFallbackToMemory</c>).</param>
+    /// <param name="options">Cấu hình cache (<c>Provider</c>, <c>EnableFallbackToMemory</c>, <c>InstanceName</c>, tham số breaker Redis).</param>
+    /// <param name="metrics">Metric của runtime (số lần tra cache).</param>
+    /// <param name="timeProvider">Đồng hồ của timeout và breaker Redis.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="redis">Kết nối Redis; <c>null</c> thì chỉ dùng memory.</param>
     public StrategyDecisionCache(
         IMemoryCache memoryCache,
         IOptions<CacheOptions> options,
+        TadssMetrics metrics,
+        TimeProvider timeProvider,
         ILogger<StrategyDecisionCache> logger,
         IConnectionMultiplexer? redis = null)
     {
         _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
         _options = options?.Value ?? new CacheOptions();
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        ArgumentNullException.ThrowIfNull(timeProvider);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _redis = redis;
+        _redis = redis is not null && CacheProviders.IsRedis(_options.Provider)
+            ? new RedisDecisionCache(redis, _options, timeProvider, logger)
+            : null;
     }
-
-    private bool ShouldUseRedis =>
-        _redis is not null && CacheProviders.IsRedis(_options.Provider);
 
     /// <inheritdoc />
     public async Task<StrategyDecision?> GetAsync(string key, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         cancellationToken.ThrowIfCancellationRequested();
+        var fullKey = _options.InstanceName + key;
 
-        if (_redis is not null && ShouldUseRedis)
+        var redisStatus = RedisCacheStatus.Miss;
+        if (_redis is not null)
         {
-            try
+            var fromRedis = await _redis.GetAsync(fullKey, cancellationToken);
+            if (fromRedis.Status == RedisCacheStatus.Hit)
             {
-                var fromRedis = await ReadFromRedisAsync(_redis, key);
-                if (fromRedis is not null || !_options.EnableFallbackToMemory)
-                {
-                    return fromRedis;
-                }
+                _metrics.RecordCacheRequest(TadssMetrics.CacheResultHit);
+                return fromRedis.Decision;
             }
-            catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
-            {
-                _logger.LogWarning(ex, "Đọc Redis cache v2 thất bại cho khóa {CacheKey}; coi như miss.", key);
 
-                if (!_options.EnableFallbackToMemory)
-                {
-                    return null;
-                }
-            }
+            redisStatus = fromRedis.Status;
         }
 
-        try
-        {
-            return _memoryCache.TryGetValue(key, out StrategyDecision? cached) ? cached : null;
-        }
-        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
-        {
-            _logger.LogWarning(ex, "Đọc memory cache v2 thất bại cho khóa {CacheKey}; coi như miss.", key);
-            return null;
-        }
+        var cached = _redis is null || _options.EnableFallbackToMemory ? ReadFromMemory(fullKey, cancellationToken) : null;
+        _metrics.RecordCacheRequest(
+            redisStatus == RedisCacheStatus.Bypassed ? TadssMetrics.CacheResultBypass
+            : cached is not null ? TadssMetrics.CacheResultHit
+            : TadssMetrics.CacheResultMiss);
+        return cached;
     }
 
     /// <inheritdoc />
@@ -95,59 +92,48 @@ public sealed class StrategyDecisionCache : IStrategyDecisionCache
         ArgumentNullException.ThrowIfNull(decision);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ttl, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
+        var fullKey = _options.InstanceName + key;
 
-        if (_redis is not null && ShouldUseRedis)
+        if (_redis is not null)
         {
-            try
-            {
-                var json = JsonSerializer.Serialize(CachedStrategyDecision.From(decision), TadssJson.Options);
-                await _redis.GetDatabase().StringSetAsync(key, json, ttl, When.Always, CommandFlags.None);
-            }
-            catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
-            {
-                _logger.LogWarning(ex, "Ghi Redis cache v2 thất bại cho khóa {CacheKey}; bỏ qua.", key);
-            }
+            await _redis.SetAsync(fullKey, decision, ttl, cancellationToken);
         }
 
-        if (_options.EnableFallbackToMemory || !ShouldUseRedis)
+        if (_redis is null || _options.EnableFallbackToMemory)
         {
-            try
-            {
-                _memoryCache.Set(
-                    key,
-                    decision,
-                    new MemoryCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = ttl,
-                        Size = 1, // Tính 1 đơn vị để không lỗi khi IMemoryCache dùng chung có SizeLimit
-                    });
-            }
-            catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
-            {
-                _logger.LogWarning(ex, "Ghi memory cache v2 thất bại cho khóa {CacheKey}; bỏ qua.", key);
-            }
+            WriteToMemory(fullKey, decision, ttl, cancellationToken);
         }
     }
 
-    private async Task<StrategyDecision?> ReadFromRedisAsync(IConnectionMultiplexer redis, string key)
+    private StrategyDecision? ReadFromMemory(string fullKey, CancellationToken cancellationToken)
     {
-        var value = await redis.GetDatabase().StringGetAsync(key);
-        if (value.IsNullOrEmpty)
-        {
-            return null;
-        }
-
         try
         {
-            var cached = JsonSerializer.Deserialize<CachedStrategyDecision>(value.ToString(), TadssJson.Options)
-                ?? throw new InvalidDataException("Payload là JSON null.");
-            return cached.ToDecision();
+            return _memoryCache.TryGetValue(fullKey, out StrategyDecision? cached) ? cached : null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
         {
-            // Payload hỏng/không còn hợp lệ: coi như miss; lần Set kế tiếp sẽ ghi đè
-            _logger.LogWarning(ex, "Payload Redis cache v2 hỏng cho khóa {CacheKey}; coi như miss.", key);
+            _logger.LogWarning(ex, "Đọc memory cache thất bại cho khóa {CacheKey}; coi như miss.", fullKey);
             return null;
+        }
+    }
+
+    private void WriteToMemory(string fullKey, StrategyDecision decision, TimeSpan ttl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _memoryCache.Set(
+                fullKey,
+                decision,
+                new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = ttl,
+                    Size = 1, // Tính 1 đơn vị để không lỗi khi IMemoryCache dùng chung có SizeLimit
+                });
+        }
+        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
+        {
+            _logger.LogWarning(ex, "Ghi memory cache thất bại cho khóa {CacheKey}; bỏ qua.", fullKey);
         }
     }
 

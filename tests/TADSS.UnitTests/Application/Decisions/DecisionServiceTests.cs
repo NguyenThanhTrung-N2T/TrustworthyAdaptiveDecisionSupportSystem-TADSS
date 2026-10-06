@@ -102,6 +102,7 @@ public class DecisionServiceTests
                 new DecisionResponseComposer(
                     new DepositCalculator(),
                     new ApprovalWindowPolicy(MsOptions.Create(new ApprovalOptions()))),
+                ShadowDispatcher,
                 DomainTestData.StandardCalendar(),
                 Time,
                 Logger);
@@ -118,6 +119,8 @@ public class DecisionServiceTests
         public FakeDecisionAuditStore Store { get; }
 
         public FakeStrategyDecisionCache Cache { get; } = new();
+
+        public FakeShadowDispatcher ShadowDispatcher { get; } = new();
 
         public CapturingLogger<DecisionService> Logger { get; } = new();
 
@@ -450,6 +453,67 @@ public class DecisionServiceTests
         fixture.Store.Records.Should().ContainSingle().Which.StrategyName.Should().Be("StrategyB");
         var entry = fixture.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Information).Subject;
         entry.Message.Should().Contain("StrategyB").And.Contain("rule peak-hour");
+    }
+
+    /// <summary>Request mới ghi được bản PRIMARY thì gửi đúng một việc shadow với đúng mốc, hash, correlation và tên strategy chính.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_FreshPrimary_DispatchesOnce()
+    {
+        var fixture = new Fixture();
+        var request = Request();
+
+        await fixture.EvaluateAsync(request);
+
+        var call = fixture.ShadowDispatcher.Calls.Should().ContainSingle().Subject;
+        call.PrimaryStrategyName.Should().Be(fixture.Strategy.Strategy.StrategyName);
+        call.Item.NowUtc.Should().Be(Now);
+        call.Item.RequestHash.Should().Be(RequestHasher.ComputeHash(request));
+        call.Item.CorrelationId.Should().Be(CorrelationId);
+        call.Item.Request.Should().BeSameAs(request);
+    }
+
+    /// <summary>Replay idempotency, thua tranh chấp hoặc ghi audit lỗi thì không gửi việc shadow (chỉ bản PRIMARY mới của chính request mới được shadow).</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-11")]
+    [InlineData("replay")]
+    [InlineData("race-loser")]
+    [InlineData("store-failure")]
+    public async Task EvaluateAsync_ReplayOrRaceLoserOrFailure_DoesNotDispatch_Theory(string scenario)
+    {
+        Fixture fixture;
+        switch (scenario)
+        {
+            case "replay":
+                fixture = new Fixture();
+                await fixture.EvaluateAsync(Request());
+                break;
+            case "race-loser":
+                var original = new Fixture();
+                await original.EvaluateAsync(Request());
+                var store = new FakeDecisionAuditStore();
+                store.SimulateLostRace(original.Store.Records.Single());
+                fixture = new Fixture(store: store);
+                break;
+            default:
+                var failing = new FakeDecisionAuditStore();
+                failing.FailInsertWithPersistenceUnavailable();
+                fixture = new Fixture(store: failing);
+                break;
+        }
+
+        // Replay: lần ghi đầu của chính fixture này đã gửi 1 việc; hai kịch bản còn lại chưa gửi gì
+        var dispatchedBefore = fixture.ShadowDispatcher.Calls.Count;
+        try
+        {
+            await fixture.EvaluateAsync(Request());
+        }
+        catch (PersistenceUnavailableException)
+        {
+            // Kịch bản store-failure: lỗi lan ra như thiết kế (fail-closed)
+        }
+
+        fixture.ShadowDispatcher.Calls.Should().HaveCount(dispatchedBefore, "lần gọi sau không gửi thêm việc shadow nào");
     }
 
     [Fact]

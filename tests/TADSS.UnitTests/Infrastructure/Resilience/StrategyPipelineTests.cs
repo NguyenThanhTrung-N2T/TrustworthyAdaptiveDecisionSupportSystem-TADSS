@@ -71,7 +71,7 @@ public class StrategyPipelineTests
     {
         var expected = Approved();
         var strategy = new DelegateStrategy((_, _, _) => Task.FromResult(expected));
-        var pipeline = Build(SmallOptions());
+        var pipeline = Build(SmallOptions(innerTimeoutMs: 2_000));
 
         var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 

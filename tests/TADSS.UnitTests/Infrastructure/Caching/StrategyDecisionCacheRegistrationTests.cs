@@ -23,7 +23,7 @@ namespace TADSS.UnitTests.Infrastructure.Caching;
 /// </summary>
 public class StrategyDecisionCacheRegistrationTests
 {
-    private const string Key = "tadss:v2:Default:2.0.0:a1b2c3d4e5f60718:9f86d081884c7d659a2feaa0c55ad015";
+    private const string Key = "v2:Default:2.0.0:a1b2c3d4e5f60718:9f86d081884c7d659a2feaa0c55ad015";
 
     private static HostApplicationBuilder CreateBuilder(params (string Key, string Value)[] values)
     {
@@ -107,7 +107,7 @@ public class StrategyDecisionCacheRegistrationTests
         await cache.SetAsync(Key, StrategyDecision.Reject("POLICY_REJECTED", ["Vi phạm"]), TimeSpan.FromMinutes(60), CancellationToken.None);
 
         database.Verify(
-            db => db.StringSetAsync((RedisKey)Key, It.IsAny<RedisValue>(), TimeSpan.FromMinutes(60), It.IsAny<When>(), It.IsAny<CommandFlags>()),
+            db => db.StringSetAsync((RedisKey)("tadss:" + Key), It.IsAny<RedisValue>(), TimeSpan.FromMinutes(60), It.IsAny<When>(), It.IsAny<CommandFlags>()),
             Times.Once);
     }
 

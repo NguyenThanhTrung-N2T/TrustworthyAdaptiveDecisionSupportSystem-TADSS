@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TADSS.Application.Options;
 using TADSS.Application.Routing;
+using TADSS.Application.Shadow;
 using TADSS.Application.Strategies;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Persistence;
@@ -18,7 +19,7 @@ public static class StartupTasks
     private const string LegacyActiveStrategyKey = "Tadss:Strategy:ActiveStrategyName";
 
     /// <summary>
-    /// Kiểm tra sớm registry và router strategy, cảnh báo khóa cấu hình cũ và (khi bật) tự áp migration.
+    /// Kiểm tra sớm registry, router strategy và shadow, cảnh báo khóa cấu hình cũ và (khi bật) tự áp migration.
     /// </summary>
     public static async Task RunAsync(WebApplication app)
     {
@@ -35,6 +36,9 @@ public static class StartupTasks
         // không dựng được → ứng dụng không khởi động
         var registry = app.Services.GetRequiredService<IStrategyRegistry>();
         _ = app.Services.GetRequiredService<IStrategyRouter>();
+
+        // Shadow bật mà Tadss:Shadow:Strategy không có trong registry thì dispatcher không dựng được → không khởi động
+        _ = app.Services.GetRequiredService<IShadowDispatcher>();
 
         // Tiêm lỗi strategy (A-07): cảnh báo khi cờ bật ngoài Testing hoặc nhắm tên strategy lạ; không dừng khởi động
         FaultInjectionStartupCheck.Log(

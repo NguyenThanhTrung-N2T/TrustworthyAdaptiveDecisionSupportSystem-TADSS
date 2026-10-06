@@ -315,6 +315,41 @@ public class FaultInjectionTests : FaultInjectionTestBase
     }
 
     /// <summary>
+    /// F6 (FI-06, breaker Redis): Redis đi qua Toxiproxy và bị ngắt. Mọi request vẫn 200 <c>AUTOMATED</c> (lỗi cache không làm strategy fallback); sau vài lệnh lỗi
+    /// breaker Redis mở (log "breaker Redis MỞ") và các request sau bỏ qua Redis: <c>tadss.cache.requests{result=bypass}</c> tăng, strategy vẫn chạy bình thường.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "FI-06")]
+    public async Task F6_RedisCut_BreakerOpens_RequestsBypassRedis()
+    {
+        ProxyRedis = true;
+        ConfigureCache = options => options.RedisBreakerMinimumThroughput = 2;
+        Strategy.Policy = Shared.DecisionContractSDK.Decisions.StrategyCachePolicy.Enabled(TimeSpan.FromMinutes(5));
+        using var recorder = new MetricRecorder(Host.Services.GetRequiredService<TadssMetrics>().Meter);
+        (await PostDecisionAsync(UpcomingRequest(), NewKey())).Status.Should().Be(HttpStatusCode.OK, "request đầu đi qua Redis còn sống");
+        await Infrastructure.Toxiproxy.SetEnabledAsync(TadssInfrastructureFixture.RedisProxy, false);
+
+        var attempts = 0;
+        while (!CacheLogs.Messages.Any(message => message.Contains("breaker Redis MỞ", StringComparison.Ordinal)))
+        {
+            attempts++;
+            attempts.Should().BeLessThan(20, "breaker Redis phải mở sau vài lệnh lỗi");
+            var response = await PostDecisionAsync(DecisionRequests.StartingAt(DateTimeOffset.UtcNow.AddDays(7 + attempts)), NewKey());
+            response.Status.Should().Be(HttpStatusCode.OK);
+            response.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+            response.Result.FallbackUsed.Should().BeFalse("lỗi Redis không làm strategy fallback");
+        }
+
+        var bypassBefore = recorder.Sum(TadssMetrics.CacheRequests, ("result", TadssMetrics.CacheResultBypass));
+        var afterOpen = await PostDecisionAsync(DecisionRequests.StartingAt(DateTimeOffset.UtcNow.AddDays(40)), NewKey());
+
+        afterOpen.Status.Should().Be(HttpStatusCode.OK);
+        afterOpen.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        afterOpen.Result.FallbackUsed.Should().BeFalse();
+        recorder.Sum(TadssMetrics.CacheRequests, ("result", TadssMetrics.CacheResultBypass)).Should().BeGreaterThan(bypassBefore, "breaker mở ⇒ bỏ qua Redis");
+    }
+
+    /// <summary>
     /// F7 (FI-10): client hủy request khi strategy đang chạy (inner 2000 ms, outer 7000 ms, retry 2 × 30 ms ⇒ ngân sách 6060 ms ≤ 7000 ms). Host phải quan sát
     /// hủy (<c>HttpClient</c> hủy → <c>RequestAborted</c> của TestServer → token của strategy), request kết thúc phía server nhanh hơn nhiều so với inner timeout
     /// (nếu không quan sát hủy, strategy sẽ chạy hết 2 s rồi fallback và ghi audit), không retry và không để lại bản ghi audit.

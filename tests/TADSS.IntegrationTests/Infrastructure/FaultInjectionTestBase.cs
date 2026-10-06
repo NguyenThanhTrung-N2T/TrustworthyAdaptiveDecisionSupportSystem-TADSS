@@ -14,6 +14,7 @@ using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Options;
 using TADSS.Application.Strategies;
+using TADSS.Infrastructure.Caching;
 using TADSS.Infrastructure.Persistence;
 using TADSS.Infrastructure.Persistence.Entities;
 using TADSS.Infrastructure.Options;
@@ -60,6 +61,15 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
     /// <summary>Log của <see cref="StrategyPipeline"/> (dùng để quan sát chuyển trạng thái của circuit breaker).</summary>
     protected CapturingLogger<StrategyPipeline> PipelineLogs { get; } = new();
 
+    /// <summary>Log của <see cref="StrategyDecisionCache"/> và tầng Redis của nó (quan sát breaker Redis mở/đóng).</summary>
+    protected CapturingLogger<StrategyDecisionCache> CacheLogs { get; } = new();
+
+    /// <summary>Đi tới Redis qua Toxiproxy (để test ngắt được kết nối); mặc định đi thẳng.</summary>
+    protected bool ProxyRedis { get; set; }
+
+    /// <summary>Chỉnh <c>Tadss:Cache</c> của host test (ví dụ tham số breaker Redis); <c>null</c> thì giữ cấu hình mặc định.</summary>
+    protected Action<CacheOptions>? ConfigureCache { get; set; }
+
     /// <inheritdoc />
     protected override bool UseFakeClock => false;
 
@@ -89,17 +99,7 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
     {
         var validation = new ResilienceOptionsValidator().Validate(null, Resilience);
         validation.Succeeded.Should().BeTrue("cấu hình chịu lỗi của test phải qua ResilienceOptionsValidator: {0}", validation.FailureMessage);
-        services.Configure<ResilienceOptions>(options =>
-        {
-            options.OuterTimeoutMs = Resilience.OuterTimeoutMs;
-            options.InnerTimeoutMs = Resilience.InnerTimeoutMs;
-            options.MaxRetryAttempts = Resilience.MaxRetryAttempts;
-            options.RetryBaseDelayMs = Resilience.RetryBaseDelayMs;
-            options.CircuitBreakerSamplingSeconds = Resilience.CircuitBreakerSamplingSeconds;
-            options.CircuitBreakerFailureRatio = Resilience.CircuitBreakerFailureRatio;
-            options.CircuitBreakerMinimumThroughput = Resilience.CircuitBreakerMinimumThroughput;
-            options.CircuitBreakerBreakDurationSeconds = Resilience.CircuitBreakerBreakDurationSeconds;
-        });
+        services.Configure<ResilienceOptions>(ApplyResilience);
 
         services.RemoveAll<IStrategyRegistry>();
         services.AddSingleton<IStrategyRegistry>(new ScriptedStrategyRegistry(Strategy));
@@ -128,6 +128,30 @@ public abstract class FaultInjectionTestBase : DecisionApiTestBase
 
         services.AddSingleton<IStartupFilter>(Completion);
         services.AddSingleton<ILogger<StrategyPipeline>>(PipelineLogs);
+        services.AddSingleton<ILogger<StrategyDecisionCache>>(CacheLogs);
+
+        if (ProxyRedis)
+        {
+            services.PostConfigure<CacheOptions>(options => options.RedisConnectionString = Infrastructure.ProxiedRedisConnectionString);
+        }
+
+        if (ConfigureCache is { } configureCache)
+        {
+            services.PostConfigure(configureCache);
+        }
+    }
+
+    /// <summary>Chép <see cref="Resilience"/> sang <paramref name="options"/> (dùng cho host của test và host thứ hai của test nhiều instance).</summary>
+    protected void ApplyResilience(ResilienceOptions options)
+    {
+        options.OuterTimeoutMs = Resilience.OuterTimeoutMs;
+        options.InnerTimeoutMs = Resilience.InnerTimeoutMs;
+        options.MaxRetryAttempts = Resilience.MaxRetryAttempts;
+        options.RetryBaseDelayMs = Resilience.RetryBaseDelayMs;
+        options.CircuitBreakerSamplingSeconds = Resilience.CircuitBreakerSamplingSeconds;
+        options.CircuitBreakerFailureRatio = Resilience.CircuitBreakerFailureRatio;
+        options.CircuitBreakerMinimumThroughput = Resilience.CircuitBreakerMinimumThroughput;
+        options.CircuitBreakerBreakDurationSeconds = Resilience.CircuitBreakerBreakDurationSeconds;
     }
 
     /// <summary>

@@ -9,11 +9,13 @@ using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Configuration;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Caching;
 using TADSS.Infrastructure.Configuration;
 using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Persistence;
 using TADSS.Infrastructure.Resilience;
+using TADSS.Infrastructure.Shadow;
 
 namespace TADSS.Infrastructure;
 
@@ -73,6 +75,8 @@ public static class InfrastructureServiceCollectionExtensions
             return new StrategyDecisionCache(
                 sp.GetRequiredService<IMemoryCache>(),
                 options,
+                sp.GetRequiredService<TadssMetrics>(),
+                sp.GetRequiredService<TimeProvider>(),
                 logger,
                 useRedis ? RedisConnectionFactory.ResolveOrWarn(sp, logger) : null);
         });
@@ -87,6 +91,9 @@ public static class InfrastructureServiceCollectionExtensions
         // 5c. Nguồn cấu hình định tuyến Tadss:Routing cho StrategyRouter: đọc và theo dõi IConfiguration cuối cùng trong DI (gồm override của host test),
         // không chụp lúc đăng ký. Singleton, không giữ trạng thái.
         services.AddSingleton<IRoutingRulesSource, ConfigurationRoutingRulesSource>();
+
+        // 5d. Worker nền chạy việc shadow (Tadss:Shadow): kết thúc ngay khi shadow tắt
+        services.AddHostedService<ShadowExecutionWorker>();
 
         // 6. Kho audit scoped vì dùng TadssDbContext của scope (request). Đăng ký MỘT lần; hai port (ISP) forward tới cùng instance trong scope
         services.AddScoped<EfDecisionAuditStore>();

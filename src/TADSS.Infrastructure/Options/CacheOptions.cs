@@ -21,16 +21,10 @@ public class CacheOptions
     public string RedisConnectionString { get; set; } = "localhost:6379";
 
     /// <summary>
-    /// Tiền tố namespace trong Redis (ví dụ "tadss:"). Hiện được bind nhưng không có mã nào đọc nên không có tác dụng:
-    /// tiền tố khóa cache là hằng của <c>StrategyDecisionCacheKey</c>.
+    /// Tiền tố namespace cộng vào mọi khóa cache (Redis và memory), mặc định "tadss:" nên khóa đầy đủ là <c>tadss:v2:...</c>.
+    /// Không rỗng, tối đa 32 ký tự, không chứa khoảng trắng.
     /// </summary>
     public string InstanceName { get; set; } = "tadss:";
-
-    /// <summary>
-    /// Thời gian sống mặc định của cache (tính bằng giờ). Mặc định 24h. Hiện được bind và kiểm phải dương nhưng không có mã nào đọc nên
-    /// không có tác dụng: TTL lấy từ tham số của lời gọi cache.
-    /// </summary>
-    public int TtlHours { get; set; } = 24;
 
     /// <summary>
     /// Cho phép tự động fallback sang In-Memory Cache khi Redis mất kết nối hoặc timeout.
@@ -47,4 +41,24 @@ public class CacheOptions
     /// trừ khi host còn là placeholder của template cấu hình (khi đó dùng <c>RedisTimeoutMs</c> để không chờ vô ích). Mặc định 3000.
     /// </summary>
     public int RedisConnectTimeoutMs { get; set; } = 3000;
+
+    /// <summary>
+    /// Tỷ lệ lệnh Redis lỗi (exception hoặc quá hạn) trong khung lấy mẫu để circuit breaker Redis mở, trong (0, 1]. Mặc định 0.5.
+    /// </summary>
+    public double RedisBreakerFailureRatio { get; set; } = 0.5;
+
+    /// <summary>
+    /// Độ dài khung lấy mẫu của circuit breaker Redis (giây), tối thiểu 1. Mặc định 30.
+    /// </summary>
+    public int RedisBreakerSamplingSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Số lệnh Redis tối thiểu trong khung lấy mẫu trước khi breaker được phép mở, tối thiểu 2. Mặc định 10.
+    /// </summary>
+    public int RedisBreakerMinimumThroughput { get; set; } = 10;
+
+    /// <summary>
+    /// Thời gian breaker Redis giữ trạng thái mở (giây) trước khi thăm dò lại, tối thiểu 1. Mặc định 30.
+    /// </summary>
+    public int RedisBreakerBreakDurationSeconds { get; set; } = 30;
 }

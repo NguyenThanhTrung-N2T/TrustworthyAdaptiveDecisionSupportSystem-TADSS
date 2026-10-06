@@ -6,7 +6,7 @@ namespace TADSS.UnitTests.Application.Abstractions;
 
 /// <summary>
 /// UT-13: khóa cache v2 (<see cref="StrategyDecisionCacheKey"/>) — đúng định dạng spec 4.2.3
-/// <c>tadss:v2:{strategyName}:{strategyVersion}:{optionsFingerprint}:{requestHash}</c> và mọi thành phần phải không rỗng.
+/// <c>v2:{strategyName}:{strategyVersion}:{optionsFingerprint}:{requestHash}</c> (không có tiền tố namespace, do <c>CacheOptions.InstanceName</c> cộng thêm) và mọi thành phần phải không rỗng.
 /// </summary>
 public class StrategyDecisionCacheKeyTests
 {
@@ -15,11 +15,11 @@ public class StrategyDecisionCacheKeyTests
 
     [Fact]
     [Trait("CatalogId", "UT-13")]
-    public void Build_AllParts_FollowsSpecFormat()
+    public void Build_ReturnsVersionedKeyWithoutNamespace()
     {
         var key = StrategyDecisionCacheKey.Build("Default", "2.0.0", Fingerprint, RequestHash);
 
-        key.Should().Be($"tadss:v2:Default:2.0.0:{Fingerprint}:{RequestHash}");
+        key.Should().Be($"v2:Default:2.0.0:{Fingerprint}:{RequestHash}");
     }
 
     [Fact]
