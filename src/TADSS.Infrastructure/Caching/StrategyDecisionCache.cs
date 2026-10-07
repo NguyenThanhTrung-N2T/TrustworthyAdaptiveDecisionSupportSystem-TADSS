@@ -55,6 +55,10 @@ public sealed class StrategyDecisionCache : IStrategyDecisionCache
         _redis = redis is not null && CacheProviders.IsRedis(_options.Provider)
             ? new RedisDecisionCache(redis, _options, timeProvider, logger)
             : null;
+        if (_redis is not null)
+        {
+            _metrics.RegisterCacheCircuitStateSource(() => _redis.CircuitState);
+        }
     }
 
     /// <inheritdoc />
@@ -70,7 +74,7 @@ public sealed class StrategyDecisionCache : IStrategyDecisionCache
             var fromRedis = await _redis.GetAsync(fullKey, cancellationToken);
             if (fromRedis.Status == RedisCacheStatus.Hit)
             {
-                _metrics.RecordCacheRequest(TadssMetrics.CacheResultHit);
+                _metrics.RecordCacheRequest(TadssMetricNames.CacheResultHit);
                 return fromRedis.Decision;
             }
 
@@ -79,9 +83,9 @@ public sealed class StrategyDecisionCache : IStrategyDecisionCache
 
         var cached = _redis is null || _options.EnableFallbackToMemory ? ReadFromMemory(fullKey, cancellationToken) : null;
         _metrics.RecordCacheRequest(
-            redisStatus == RedisCacheStatus.Bypassed ? TadssMetrics.CacheResultBypass
-            : cached is not null ? TadssMetrics.CacheResultHit
-            : TadssMetrics.CacheResultMiss);
+            redisStatus == RedisCacheStatus.Bypassed ? TadssMetricNames.CacheResultBypass
+            : cached is not null ? TadssMetricNames.CacheResultHit
+            : TadssMetricNames.CacheResultMiss);
         return cached;
     }
 

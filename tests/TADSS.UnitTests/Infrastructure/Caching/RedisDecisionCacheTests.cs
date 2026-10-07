@@ -6,6 +6,7 @@ using Moq;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Caching;
 using TADSS.Infrastructure.Options;
 using TADSS.UnitTests.TestDoubles;
@@ -181,6 +182,22 @@ public sealed class RedisDecisionCacheTests
         _database.Verify(
             db => db.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>(), It.IsAny<CommandFlags>()),
             Times.Never);
+    }
+
+    /// <summary>Thuộc tính <c>CircuitState</c> phản ánh breaker: đóng ban đầu, mở sau đủ lỗi (cấp dữ liệu cho gauge).</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-13")]
+    public async Task CircuitState_ReflectsBreaker()
+    {
+        var cache = CreateCache();
+        SetupGetThrows();
+
+        cache.CircuitState.Should().Be(CircuitStateValue.Closed);
+        await cache.GetAsync(FullKey, CancellationToken.None);
+        await cache.GetAsync(FullKey, CancellationToken.None);
+
+        cache.CircuitState.Should().Be(CircuitStateValue.Open);
     }
 
     /// <summary>Hủy của chính caller lan ra và không bị tính là lỗi của Redis.</summary>

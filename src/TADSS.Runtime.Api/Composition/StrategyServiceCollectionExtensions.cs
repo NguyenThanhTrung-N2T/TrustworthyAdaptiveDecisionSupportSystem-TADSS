@@ -20,13 +20,17 @@ public static class StrategyServiceCollectionExtensions
     /// Lỗi cấu hình làm registry không dựng được; <see cref="StartupTasks"/> resolve registry sớm nên ứng dụng không khởi động.
     /// Khi <paramref name="environment"/> là <see cref="FaultInjectionEnvironment"/> và <c>Tadss:Testing:FaultInjection:Enabled = true</c>
     /// thì strategy khớp <c>TargetStrategy</c> (hoặc mọi strategy khi để trống) được bọc <see cref="FaultInjectionStrategyDecorator"/>;
-    /// ở môi trường khác không bao giờ bọc. Cờ <c>Enabled</c> đọc từ <see cref="IOptions{TOptions}"/> lúc resolve (cấu hình cuối cùng, gồm override của host test).
+    /// ở môi trường khác không bao giờ bọc. Cờ <c>Enabled</c> và <c>TargetStrategy</c> đọc từ <see cref="IOptions{TOptions}"/> lúc resolve (cấu hình cuối cùng, gồm override của host test)
+    /// và không đổi nóng; chỉ <c>Profile</c>/<c>DelayMs</c> đổi nóng qua <see cref="FaultInjectionControl"/>.
     /// </summary>
     public static IServiceCollection AddStrategies(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(environment);
 
         var faultInjectionAllowed = environment.IsEnvironment(FaultInjectionEnvironment);
+
+        // Giữ cấu hình tiêm lỗi hiện hành (đổi nóng Profile/DelayMs); singleton dựng lười, chỉ được resolve khi decorator thật sự được bọc
+        services.AddSingleton<FaultInjectionControl>();
 
         services.AddSingleton(sp => WithFaultInjection(
             sp,
@@ -57,7 +61,8 @@ public static class StrategyServiceCollectionExtensions
             return registered;
         }
 
-        var decorator = new FaultInjectionStrategyDecorator(registered.Strategy, options, sp.GetRequiredService<TimeProvider>());
+        var decorator = new FaultInjectionStrategyDecorator(
+            registered.Strategy, sp.GetRequiredService<FaultInjectionControl>(), sp.GetRequiredService<TimeProvider>());
         return registered with { Strategy = decorator };
     }
 }

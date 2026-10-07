@@ -13,8 +13,11 @@ namespace TADSS.Infrastructure.Caching;
 /// </summary>
 internal static class RedisCacheResilience
 {
-    /// <summary>Dựng pipeline từ tham số <c>Tadss:Cache</c>; <paramref name="timeProvider"/> điều khiển cả timeout lẫn breaker.</summary>
-    public static ResiliencePipeline Create(CacheOptions options, TimeProvider timeProvider, ILogger logger) =>
+    /// <summary>
+    /// Dựng pipeline từ tham số <c>Tadss:Cache</c>; <paramref name="timeProvider"/> điều khiển cả timeout lẫn breaker;
+    /// <paramref name="stateProvider"/> cho phép đọc trạng thái breaker (gauge <c>tadss.cache.circuit.state</c>).
+    /// </summary>
+    public static ResiliencePipeline Create(CacheOptions options, TimeProvider timeProvider, ILogger logger, CircuitBreakerStateProvider stateProvider) =>
         new ResiliencePipelineBuilder { TimeProvider = timeProvider }
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions
             {
@@ -22,6 +25,7 @@ internal static class RedisCacheResilience
                 SamplingDuration = TimeSpan.FromSeconds(options.RedisBreakerSamplingSeconds),
                 MinimumThroughput = options.RedisBreakerMinimumThroughput,
                 BreakDuration = TimeSpan.FromSeconds(options.RedisBreakerBreakDurationSeconds),
+                StateProvider = stateProvider,
                 ShouldHandle = args => ValueTask.FromResult(
                     args.Outcome.Exception is { } exception
                     && !(exception is OperationCanceledException && args.Context.CancellationToken.IsCancellationRequested)),

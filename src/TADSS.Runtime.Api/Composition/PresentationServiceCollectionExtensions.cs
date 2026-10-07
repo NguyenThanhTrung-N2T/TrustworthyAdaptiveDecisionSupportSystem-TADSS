@@ -19,9 +19,9 @@ public static class PresentationServiceCollectionExtensions
     private const string ApiKeySchemeName = "ApiKey";
 
     /// <summary>
-    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc hai section <c>Tadss:ErrorHandling</c> và <c>Tadss:Security</c> từ <paramref name="configuration"/>.
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc các section <c>Tadss:ErrorHandling</c>, <c>Tadss:Security</c> và <c>Tadss:Telemetry</c> từ <paramref name="configuration"/>.
     /// </summary>
-    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         // Cấu hình xử lý lỗi (Retry-After): sai thì ứng dụng không khởi động
         services.AddOptions<ErrorHandlingOptions>()
@@ -31,6 +31,9 @@ public static class PresentationServiceCollectionExtensions
 
         // Bảo mật (Tadss:Security): API key, trần kích thước body, forwarded headers, HSTS, header Server của Kestrel
         services.AddTadssSecurity(configuration);
+
+        // Telemetry (Tadss:Telemetry): OpenTelemetry cho trace + metric; tắt mặc định (không đăng ký provider nào)
+        services.AddTadssTelemetry(configuration, environment);
 
         services.AddExceptionHandler<GlobalExceptionHandler>();
         // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa

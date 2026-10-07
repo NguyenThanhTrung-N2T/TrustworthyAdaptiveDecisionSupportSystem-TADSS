@@ -31,10 +31,10 @@
 | Mã | Môi trường | Thành phần | Dùng cho |
 | :--- | :--- | :--- | :--- |
 | **E-TC** | Testcontainers (trong `dotnet test`) | PostgreSQL 16, Redis 7, Toxiproxy | UT, IT, CT-01/02/04, BE-IT, một phần FI |
-| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose --profile evaluation up` (profile `evaluation` của `docker-compose.yml`; **kế hoạch gói 5.5, chưa hiện thực**; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); SmashCourt-BE/FE nối thêm khi chạy LT-04 (Phase 6) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
+| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (profile `evaluation` của `docker-compose.yml`; lệnh `run` thay cho `up` để không khởi động service vận hành không có profile, xem spike S-5 ở báo cáo gói 5.5; **kế hoạch gói 5.5, chưa hiện thực**; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); SmashCourt-BE/FE nối thêm khi chạy LT-04 (Phase 6) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
 | **E-STAGING** | Môi trường tích hợp trên máy nhóm, chạy bằng Docker Compose (chốt ở W08) | SmashCourt FE/BE + TADSS + PostgreSQL + Redis + VNPay sandbox | E2E và LT-04 trên hệ thống đã tích hợp |
 
-Ba chế độ chạy của repo (D-12): **dev hằng ngày** `dotnet run` (Neon + Redis Cloud, chỉ app + Swagger, không Docker/Grafana); **vận hành / demo** `docker compose up -d --build` (TADSS + ngrok + Grafana); **đánh giá** `docker compose --profile evaluation up` (E-EVAL). Chỉ chế độ đánh giá tạo số liệu dùng làm minh chứng; test tự động trong CI vẫn chạy ở E-TC (`dotnet test`).
+Ba chế độ chạy của repo (D-12): **dev hằng ngày** `dotnet run` (Neon + Redis Cloud, chỉ app + Swagger, không Docker/Grafana); **vận hành / demo** `docker compose up -d --build` (TADSS + ngrok + Grafana); **đánh giá** `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (E-EVAL). Chỉ chế độ đánh giá tạo số liệu dùng làm minh chứng; test tự động trong CI vẫn chạy ở E-TC (`dotnet test`).
 
 Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docker, digest của image, commit của cả 3 repo và file cấu hình đã dùng.
 
@@ -250,6 +250,18 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | ID | Kiểm chứng | Ai chạy | Xây dựng |
 | :--- | :--- | :--- | :--- |
 | SCALE-1 | Hai host dùng chung PostgreSQL/Redis (Testcontainers): 50 request song song cùng idempotency key chia đều hai host → đúng 1 bản ghi `PRIMARY`, mọi response giống nhau; khóa cache ghi ở host A được host B đọc (`CACHE_HIT`); host A mở breaker của strategy thì host B vẫn chạy strategy bình thường | tự động | P5 |
+| SCALE-2 | Hai replica `tadss-runtime` sau reverse proxy (nginx) dùng chung PostgreSQL/Redis trong stack đánh giá (E-EVAL): một lượt k6 50 RPS qua proxy, 20 % request lặp lại khóa idempotency + payload của request trước → 0 response 5xx; mỗi khóa có đúng 1 bản `PRIMARY` và mọi response của khóa đó cùng `decisionId`; Prometheus có số liệu `tadss.decisions` > 0 cho cả hai instance (tách theo `service.instance.id`) | evaluator (bước c) | P5 |
+| SCALE-3 | Tài liệu giới hạn scale ngang: SAS liệt kê thành phần theo từng instance (breaker strategy, breaker Redis, rate limit SEC-1, cache L1, gauge hàng chờ báo trùng giữa các instance) và thành phần dùng chung (PostgreSQL, Redis), hệ quả khi scale ngang và hướng mở rộng (rate limit phân tán); không hiện thực ở Phase 5 | rà soát tài liệu | P5 |
+
+### 4.14. OB — Observability (gói 5.5)
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| OB-1 | Dashboard `tadss-runtime` chỉ tham chiếu metric có thật: mọi định danh `tadss_*` trong biểu thức PromQL ánh xạ được về một instrument khai báo ở một nơi trong mã (Meter `TADSS.Runtime`) theo quy tắc chuyển tên của Prometheus (dấu chấm → gạch dưới; counter thêm `_total`; đơn vị `ms` thêm `_milliseconds`; histogram thêm `_bucket`/`_sum`/`_count`); mọi định danh `k6_*` nằm trong danh sách metric k6 khai báo một nơi | tự động (test) | P5 |
+| OB-2 | Dashboard tự nạp qua provisioning khi dựng Grafana, ở cả chế độ vận hành và chế độ đánh giá (kiểm bằng HTTP API của Grafana) | tự động (`verify-observability.sh`, evaluator) | P5 |
+| OB-3 | Sau kịch bản sự cố dưới tải (FI-02/FI-03/FI-07/FI-08) ở E-EVAL, Evidence Pack có JSON/ảnh dashboard và biểu đồ dòng thời gian vẽ từ metric đã thu, thể hiện fallback, 503 và hồi phục | evaluator (bước c, e) | P5 |
+| OB-4 | Chế độ vận hành (`docker compose up -d --build`): sau vài request tới TADSS, dashboard có dữ liệu (kiểm bằng API Grafana/Prometheus trong tối đa 60 giây) | tự động (`verify-observability.sh`) | P5 |
+| OB-5 | Telemetry trong tiến trình: mỗi metric ghi đúng tên, nhãn, thời điểm (quyết định, override, pipeline, fallback, gauge breaker, gauge hàng chờ); span có cây cha–con đúng và log mang trace context; không có thuộc tính bí mật (khóa API, mã băm, chuỗi kết nối); collector không chạy không làm ảnh hưởng request | tự động (test) | P5 |
 
 ---
 
@@ -292,7 +304,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 
 > **Hiện trạng:** kế hoạch gói 5.5, chưa hiện thực. Thiết kế chi tiết: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
 
-`docker compose --profile evaluation up` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt:
+`docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt:
 
 | Bước | Nội dung |
 | :--- | :--- |

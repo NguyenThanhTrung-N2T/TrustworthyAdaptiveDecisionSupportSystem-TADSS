@@ -19,6 +19,7 @@
     <Compile Include="..\TADSS.UnitTests\TestData\ContractSamples.cs" Link="SharedTestData\ContractSamples.cs" />
     <Compile Include="..\TADSS.UnitTests\TestData\TestApiKeys.cs" Link="SharedTestData\TestApiKeys.cs" />
     <Compile Include="..\TADSS.UnitTests\TestDoubles\MetricRecorder.cs" Link="SharedTestData\MetricRecorder.cs" />
+    <Compile Include="..\TADSS.UnitTests\TestDoubles\CapturingLogEventSink.cs" Link="SharedTestData\CapturingLogEventSink.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +28,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
+    <PackageReference Include="YamlDotNet" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Testcontainers.Toxiproxy" />

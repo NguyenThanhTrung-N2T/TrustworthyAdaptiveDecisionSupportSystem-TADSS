@@ -82,7 +82,7 @@ public class StrategyRouterReloadTests
 
         public StrategyRouter Router { get; }
 
-        public long ReloadFailures => Recorder.Sum(TadssMetrics.ConfigReloadFailures, ("section", Section));
+        public long ReloadFailures => Recorder.Sum(TadssMetricNames.ConfigReloadFailures, ("section", Section));
 
         /// <summary>Thay toàn bộ dữ liệu cấu hình rồi <c>Reload()</c> (change token bắn đồng bộ).</summary>
         public void ReloadWith(Dictionary<string, string?> data)

@@ -73,7 +73,7 @@ public class ShadowDispatcherTests
         dispatcher.Dispatch(Mock.ToUpperInvariant(), Item());
 
         dispatcher.Reader.Count.Should().Be(0);
-        recorder.Sum(TadssMetrics.ShadowDropped).Should().Be(0);
+        recorder.Sum(TadssMetricNames.ShadowDropped).Should().Be(0);
     }
 
     /// <summary><c>SampleRate</c> 0 không gửi việc nào, 1 luôn gửi.</summary>
@@ -105,7 +105,7 @@ public class ShadowDispatcherTests
         }
 
         dispatcher.Reader.Count.Should().Be(1);
-        recorder.Sum(TadssMetrics.ShadowDropped).Should().Be(2);
+        recorder.Sum(TadssMetricNames.ShadowDropped).Should().Be(2);
     }
 
     /// <summary>Việc nằm trong hàng đợi là đúng việc đã gửi (cùng request, hash, mốc, correlation).</summary>

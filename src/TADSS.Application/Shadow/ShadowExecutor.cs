@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared.DecisionContractSDK.Decisions;
@@ -69,9 +70,12 @@ public sealed class ShadowExecutor
     {
         ArgumentNullException.ThrowIfNull(item);
 
+        // Việc shadow chạy trên worker nền nên là gốc của một trace mới, liên kết (không làm con) tới request đã sinh ra nó
+        using var activity = StartActivity(item);
         try
         {
             var registered = _registry.ResolveByName(_options.Strategy);
+            activity?.SetTag(TadssActivitySource.TagStrategy, registered.Strategy.StrategyName);
             var context = new DecisionContext(item.NowUtc, _calendar);
             var outcome = await _pipeline
                 .ExecuteAsync(registered.Strategy, item.Reservation, context, cancellationToken)
@@ -91,7 +95,7 @@ public sealed class ShadowExecutor
                 Role: ExecutionRole.SHADOW));
 
             await _store.InsertExecutionAsync(composed.Record, cancellationToken).ConfigureAwait(false);
-            _metrics.RecordShadowExecution(TadssMetrics.ShadowOutcomeRecorded);
+            _metrics.RecordShadowExecution(TadssMetricNames.ShadowOutcomeRecorded);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -99,13 +103,23 @@ public sealed class ShadowExecutor
         }
         catch (Exception ex)
         {
+            TadssActivitySource.MarkError(activity, ex);
             _logger.LogWarning(
                 "Shadow {StrategyName} thất bại ({ExceptionType}) cho đơn {ReservationId}, correlation {CorrelationId}; không có bản ghi SHADOW.",
                 _options.Strategy,
                 ex.GetType().Name,
                 item.Reservation.ReservationId,
                 item.CorrelationId);
-            _metrics.RecordShadowExecution(TadssMetrics.ShadowOutcomeFailed);
+            _metrics.RecordShadowExecution(TadssMetricNames.ShadowOutcomeFailed);
         }
+    }
+
+    private static Activity? StartActivity(ShadowWorkItem item)
+    {
+        var links = item.RequestActivityContext is { } requestContext ? [new ActivityLink(requestContext)] : Array.Empty<ActivityLink>();
+        var activity = TadssActivitySource.Source.StartActivity(
+            TadssActivitySource.ShadowExecute, ActivityKind.Internal, parentContext: default, links: links);
+        activity?.SetTag(TadssActivitySource.TagCorrelationId, item.CorrelationId);
+        return activity;
     }
 }

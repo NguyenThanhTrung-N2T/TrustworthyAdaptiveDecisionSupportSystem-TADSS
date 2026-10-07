@@ -82,7 +82,9 @@ Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.jso
 | :--- | :--- | :--- | :--- |
 | Dev hằng ngày | `dotnet run --project src/TADSS.Runtime.Api` | Neon + Redis Cloud qua `appsettings.Development.json`; chỉ app + Swagger để kiểm tra luồng, không Docker, không Grafana | Đã có |
 | Vận hành / demo | `docker compose up -d --build` | TADSS + ngrok + Grafana (`grafana/otel-lgtm`, `localhost:3001`) | Đã có (D-11) |
-| Đánh giá cho hội đồng | `docker compose --profile evaluation up` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~15 phút, bản đầy đủ ~1,5–2 giờ; chạy trên một máy nên là số liệu phòng lab | **Kế hoạch gói 5.5, chưa hiện thực: profile `evaluation` chưa tồn tại trong `docker-compose.yml`** |
+| Đánh giá cho hội đồng | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~15 phút, bản đầy đủ ~1,5–2 giờ; chạy trên một máy nên là số liệu phòng lab | **Kế hoạch gói 5.5, chưa hiện thực: profile `evaluation` chưa tồn tại trong `docker-compose.yml`** |
+
+> **Không chạy chế độ đánh giá bằng `docker compose --profile evaluation up`.** Service không gắn profile (`tadss-runtime` ở `Development` đọc Neon, và `ngrok`) luôn được `up` khởi động bất kể profile, nên lệnh đó sẽ nối Neon thật và mở tunnel Internet (đã kiểm chứng ở spike S-5 của gói 5.5). Dùng `run evaluator` trong project riêng `tadss-eval` như bảng trên; `docker compose -p tadss-eval --profile evaluation down -v` chỉ dọn stack đánh giá, không dừng stack vận hành.
 
 Test tự động trên CI vẫn dùng Testcontainers (`dotnet test`). Chi tiết: quyết định D-12 trong [`spec/PHASE5_DESIGN_SPEC.md`](spec/PHASE5_DESIGN_SPEC.md) và Mục 6.1 của [`docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
@@ -92,7 +94,7 @@ Test tự động trên CI vẫn dùng Testcontainers (`dotnet test`). Chi tiế
 
 ## Bảo mật
 
-Mọi request `/api/*` phải mang `X-Api-Key`. Thứ tự middleware (khai báo tại `Composition/RequestPipelineExtensions.UseTadssRequestPipeline`, khóa bằng test UT-14): forwarded headers (chỉ khi `TrustForwardedHeaders`) → correlation id → exception handler → security headers + HSTS → request logging → https redirection → giới hạn kích thước → Swagger (chỉ `Development`) → xác thực API key → rate limiter → routing. Mã lỗi và contract: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) mục 3.2 và 3.8. Các phản hồi từ chối do middleware tạo (401, 413, 429) và mọi lỗi do exception (qua `GlobalExceptionHandler`) đi qua một bộ ghi `ProblemResponseWriter` nên cùng dạng `application/problem+json`; ngoại lệ là 415 (do MVC), 404/405 của framework và một số lỗi mức Kestrel, không có `code` (INTEGRATION_SPEC §3.8).
+Mọi request `/api/*` phải mang `X-Api-Key`. Thứ tự middleware (khai báo tại `Composition/RequestPipelineExtensions.UseTadssRequestPipeline`, khóa bằng test UT-14): forwarded headers (chỉ khi `TrustForwardedHeaders`) → correlation id → request logging → request metrics → exception handler → security headers + HSTS → https redirection → giới hạn kích thước → Swagger (chỉ `Development`) → xác thực API key → rate limiter → routing. Mã lỗi và contract: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) mục 3.2 và 3.8. Các phản hồi từ chối do middleware tạo (401, 413, 429) và mọi lỗi do exception (qua `GlobalExceptionHandler`) đi qua một bộ ghi `ProblemResponseWriter` nên cùng dạng `application/problem+json`; ngoại lệ là 415 (do MVC), 404/405 của framework và một số lỗi mức Kestrel, không có `code` (INTEGRATION_SPEC §3.8).
 
 ### Cấu hình `Tadss:Security:*`
 
@@ -137,7 +139,7 @@ Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằn
 - **Health:** `/health/live` (không kiểm tra gì, 200 khi tiến trình còn chạy) và `/health/ready` (PostgreSQL bắt buộc: lỗi → 503; Redis: lỗi → 200 `Degraded` vì cache có fallback memory). Cả hai miễn `X-Api-Key` ở mọi môi trường, không bị rate limit, body chỉ là chữ trạng thái (không lộ chuỗi kết nối). Không còn endpoint `/health` gộp.
 - **Rate limit** (token bucket, một xô cho mỗi `ClientId`; hết token là 429 `RATE_LIMITED` kèm `Retry-After`): tính **theo từng instance** của app, không chia sẻ giữa nhiều instance (đánh giá khi scale thuộc gói 5.5). Mặc định cho phép bùng nổ 100 request và nạp 100 request mỗi giây cho một client. Để k6 tải cao hơn, tăng bằng biến môi trường của tiến trình app: `Tadss__Security__RateLimiting__PermitLimit`, `Tadss__Security__RateLimiting__TokensPerPeriod`, `Tadss__Security__RateLimiting__ReplenishmentPeriodSeconds` (với compose: thêm vào `environment` của `tadss-runtime` trong một file override cục bộ).
 - **Header bảo mật** trên mọi response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; `Cache-Control: no-store` cho `/api/*`; `Strict-Transport-Security` với request https ngoài `Development`/`Testing`; Kestrel không gửi header `Server`.
-- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace. Dòng log hoàn tất request của Serilog **không** mang `ClientId` vì bước request logging đứng trước bước xác thực. Ngoài ra `UseSerilogRequestLogging` nằm **trong** exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error; 401/413/429 do middleware tạo thì ghi đúng. Đây là hạn chế đã biết, xử lý ở gói 5.5 vì sửa sẽ đổi thứ tự pipeline (F-09).
+- **Log:** khóa `X-Api-Key` và mã băm không bao giờ vào log. `ClientId` của khóa hợp lệ có ở thuộc tính log scope (thấy trong `{Properties:j}` của log phát sinh trong controller/service) và ở tag `tadss.client_id` của trace. Dòng log hoàn tất request của Serilog được làm giàu `ClientId` lúc kết thúc request (request bị từ chối ở bước xác thực thì không có). Request logging đứng **ngoài** exception handler nên ghi đúng status cuối (400, 404, 409, 503, 504); status ≥ 500 ghi mức Error, còn lại Information.
 
 ### Chuỗi cung ứng và container
 
@@ -204,7 +206,7 @@ Dùng cho kịch bản sự cố dưới tải (LT-03). Strategy bị bỏ qua t
 
 ### Metric và log
 
-Meter `TADSS.Runtime`: `tadss.config.reload_failures`, `tadss.strategy.abandoned`, `tadss.cache.requests`, `tadss.shadow.dropped`, `tadss.shadow.executions` (chưa có exporter; OpenTelemetry thuộc gói 5.5). Lỗi lệnh SQL mong đợi (tranh chấp idempotency `23505`) chỉ ghi ở mức Debug; lỗi thật vẫn ghi ở Warning/Error bởi store và exception handler.
+Meter `TADSS.Runtime` (13 instrument, khai báo ở `TadssMetricNames`): quyết định, thời gian request và pipeline, fallback, trạng thái breaker, cache, hàng chờ duyệt, override, shadow, nạp lại cấu hình. Xuất qua OpenTelemetry (OTLP) khi `Tadss:Telemetry:Enabled = true` (mặc định tắt); `docker compose up` bật sẵn và gửi tới Grafana. Lỗi lệnh SQL mong đợi (tranh chấp idempotency `23505`) chỉ ghi ở mức Debug; lỗi thật vẫn ghi ở Warning/Error bởi store và exception handler.
 
 ## Chạy bằng Docker và expose qua ngrok
 
@@ -215,8 +217,31 @@ Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Gr
 3. Tạo `.env` từ `.env.example` (không commit) và điền `NGROK_AUTHTOKEN` (lấy ở dashboard.ngrok.com).
 4. Chạy tất cả: `docker compose up -d --build`. TADSS ở `http://localhost:8081`, Grafana ở `http://localhost:3001`. Mỗi lần đổi `appsettings.Development.json` phải build lại image (`--build`).
 5. Lấy URL công khai của ngrok: mở `http://localhost:4040` hoặc chạy `docker compose logs ngrok`. URL **đổi mỗi lần khởi động lại** ngrok, nên phải cập nhật `Tadss:BaseUrl` của SmashCourt-BE mỗi lần. Muốn URL cố định, lấy domain tĩnh miễn phí ở dashboard ngrok rồi thêm `--url=<domain>` vào cuối dòng `command` của service `ngrok` trong `docker-compose.yml` (sửa một dòng).
-6. Grafana: mở `http://localhost:3001`. Image `grafana/otel-lgtm` bật sẵn truy cập ẩn danh với quyền Admin nên vào thẳng không cần đăng nhập; nếu cần đăng nhập thì mặc định là `admin` / `admin` (đây là mặc định công khai của Grafana, không phải secret của dự án). Cổng OTLP `4317` (gRPC) và `4318` (HTTP) chỉ bind `127.0.0.1`. TADSS hiện **chưa** xuất OpenTelemetry (gói 5.5) nên Grafana chưa có dữ liệu TADSS.
+6. Grafana: mở `http://localhost:3001`. Image `grafana/otel-lgtm` bật sẵn truy cập ẩn danh với quyền Admin nên vào thẳng không cần đăng nhập; nếu cần đăng nhập thì mặc định là `admin` / `admin` (đây là mặc định công khai của Grafana, không phải secret của dự án). Cổng OTLP `4317` (gRPC) và `4318` (HTTP) chỉ bind `127.0.0.1`. TADSS gửi trace, metric và log tới Grafana qua OTLP: dashboard **TADSS Runtime** (thư mục "TADSS", uid `tadss-runtime`, nạp sẵn từ `docker/grafana/dashboards`, chỉ đọc) có số liệu sau vài request. Kiểm tự động: `bash tools/observability/verify-observability.sh` (cần Docker; lần đầu tải image ~3,7 GB).
 7. Dừng tất cả: `docker compose down`.
+
+### Lệnh Docker thường dùng
+
+Chạy trong thư mục `TADSS-Runtime/`.
+
+| Việc | Lệnh |
+| :--- | :--- |
+| Tạo mạng dùng chung (chỉ lần đầu, có thể đã có do SmashCourt-BE tạo) | `docker network create smashcourt-network` |
+| Khởi động / build lại chế độ vận hành | `docker compose up -d --build` |
+| Trạng thái; log TADSS; log ngrok | `docker compose ps`; `docker compose logs -f tadss-runtime`; `docker compose logs ngrok` |
+| Dừng chế độ vận hành (giữ image) | `docker compose down` |
+| Kiểm tra cấu hình expose (không đụng Neon) | `bash tools/expose/verify-expose.sh` |
+| Unit test (không cần Docker) | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` |
+| Integration test (cần Docker; tự tải PostgreSQL, Redis, Toxiproxy, ryuk) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` |
+| Xem dung lượng Docker | `docker system df` |
+| Xóa container đã dừng | `docker container prune -f` |
+| Xóa image không container nào dùng | `docker image prune -a -f` |
+| Xóa build cache | `docker builder prune -a -f` |
+
+**Bẫy khi dọn dẹp:**
+- **Không dùng `docker system prune`.** Nó xóa cả mạng không có container nào gắn vào, kể cả `smashcourt-network` (mạng `external` mà `docker-compose.yml` của TADSS và SmashCourt-BE cần); sau đó `docker compose up` báo "declared as external, but could not be found" cho tới khi tạo lại mạng.
+- `docker image prune -a -f` xóa mọi image không có container (kể cả đang dừng) dùng, **gồm image của SmashCourt-BE/AI khi các stack đó đang tắt** (phải build lại lần sau). Muốn giữ image của một stack thì để stack đó chạy khi dọn, hoặc chỉ dùng `docker image prune -f` (chỉ image treo).
+- Image test (`postgres`, `redis`, `toxiproxy`, `ryuk`) và image của chế độ đánh giá tự tải lại khi cần, nên xóa được an toàn; chỉ tốn dữ liệu mạng khi tải lại.
 
 ### Lưu ý bảo mật
 

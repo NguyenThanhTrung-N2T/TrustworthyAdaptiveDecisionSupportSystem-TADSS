@@ -69,6 +69,10 @@ public sealed class EfDecisionAuditStore : IDecisionEvaluationStore, IDecisionQu
         return Execute(() => new PendingApprovalsQuery(_db).ExecuteAsync(branchId, page, pageSize, nowUtc, cancellationToken), cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<Guid, long>> CountPendingApprovalsByBranchAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken) =>
+        Execute(() => new PendingApprovalsQuery(_db).CountByBranchAsync(nowUtc, cancellationToken), cancellationToken);
+
     private async Task<DecisionExecutionRecord?> FindPrimaryCoreAsync(string idempotencyKey, CancellationToken cancellationToken)
     {
         var entity = await _db.DecisionExecutions

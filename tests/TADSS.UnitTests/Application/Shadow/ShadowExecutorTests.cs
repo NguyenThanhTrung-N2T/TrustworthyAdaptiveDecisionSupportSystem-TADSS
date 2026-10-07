@@ -94,7 +94,7 @@ public class ShadowExecutorTests
         record.StrategyName.Should().Be(StrategyRouterTests.Mock);
         fixture.Pipeline.LastContext.Should().NotBeNull();
         fixture.Pipeline.LastContext!.EvaluatedAtUtc.Should().Be(Now, "dùng cùng nowUtc của bản PRIMARY");
-        fixture.Recorder.Sum(TadssMetrics.ShadowExecutions, ("outcome", TadssMetrics.ShadowOutcomeRecorded)).Should().Be(1);
+        fixture.Recorder.Sum(TadssMetricNames.ShadowExecutions, ("outcome", TadssMetricNames.ShadowOutcomeRecorded)).Should().Be(1);
     }
 
     /// <summary>Strategy shadow lỗi: pipeline trả FALLBACK nên vẫn có bản SHADOW là FALLBACK, APPROVED cọc 100%.</summary>
@@ -127,8 +127,8 @@ public class ShadowExecutorTests
         var act = () => fixture.Executor.ExecuteAsync(Item(), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
-        fixture.Recorder.Sum(TadssMetrics.ShadowExecutions, ("outcome", TadssMetrics.ShadowOutcomeFailed)).Should().Be(1);
-        fixture.Recorder.Sum(TadssMetrics.ShadowExecutions, ("outcome", TadssMetrics.ShadowOutcomeRecorded)).Should().Be(0);
+        fixture.Recorder.Sum(TadssMetricNames.ShadowExecutions, ("outcome", TadssMetricNames.ShadowOutcomeFailed)).Should().Be(1);
+        fixture.Recorder.Sum(TadssMetricNames.ShadowExecutions, ("outcome", TadssMetricNames.ShadowOutcomeRecorded)).Should().Be(0);
         fixture.Logger.Entries.Should().Contain(entry =>
             entry.Level == LogLevel.Warning && entry.Message.Contains(nameof(PersistenceUnavailableException), StringComparison.Ordinal));
     }
@@ -145,7 +145,7 @@ public class ShadowExecutorTests
 
         await act.Should().NotThrowAsync();
         fixture.Store.Records.Should().BeEmpty();
-        fixture.Recorder.Sum(TadssMetrics.ShadowExecutions, ("outcome", TadssMetrics.ShadowOutcomeFailed)).Should().Be(1);
+        fixture.Recorder.Sum(TadssMetricNames.ShadowExecutions, ("outcome", TadssMetricNames.ShadowOutcomeFailed)).Should().Be(1);
     }
 
     /// <summary>Worker bị hủy (tắt ứng dụng) thì <see cref="OperationCanceledException"/> lan ra và không đếm là lỗi.</summary>
@@ -164,6 +164,6 @@ public class ShadowExecutorTests
         var act = () => fixture.Executor.ExecuteAsync(Item(), cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
-        fixture.Recorder.Sum(TadssMetrics.ShadowExecutions).Should().Be(0);
+        fixture.Recorder.Sum(TadssMetricNames.ShadowExecutions).Should().Be(0);
     }
 }

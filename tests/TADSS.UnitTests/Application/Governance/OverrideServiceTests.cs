@@ -5,6 +5,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Governance;
@@ -34,12 +35,18 @@ public class OverrideServiceTests
         public Fixture(DateTimeOffset? now = null)
         {
             Time = new FakeTimeProvider(now ?? Now);
-            Service = new OverrideService(Store, Store, new DepositCalculator(), Time, Logger);
+            Metrics = new TadssMetrics();
+            Recorder = new MetricRecorder(Metrics.Meter);
+            Service = new OverrideService(Store, Store, new DepositCalculator(), Metrics, Time, Logger);
         }
 
         public FakeDecisionAuditStore Store { get; } = new();
 
         public FakeTimeProvider Time { get; }
+
+        public TadssMetrics Metrics { get; }
+
+        public MetricRecorder Recorder { get; }
 
         public CapturingLogger<OverrideService> Logger { get; } = new();
 
@@ -412,6 +419,40 @@ public class OverrideServiceTests
         }
 
         fixture.Store.OverrideInsertCount.Should().Be(1, "chỉ lần đầu ghi");
+    }
+
+    /// <summary>Override mới tăng <c>tadss.overrides</c> đúng một lần theo <c>action</c>; gửi lại cùng key + payload (replay) không tăng thêm.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-15")]
+    public async Task Override_NewOverride_RecordsOnce_ReplayDoesNot()
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+
+        await fixture.OverrideAsync(ApproveRate(0.3m));
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(1);
+        fixture.Recorder.Sum(TadssMetricNames.Overrides, (TadssMetricNames.LabelAction, nameof(OverrideAction.APPROVE))).Should().Be(1);
+
+        await fixture.OverrideAsync(ApproveRate(0.3m));
+
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(1, "replay không phải override mới");
+    }
+
+    /// <summary>Override bị từ chối (xung đột key, thua tranh chấp, đơn không còn chờ duyệt) không tăng <c>tadss.overrides</c>.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-15")]
+    public async Task Override_RejectedOrLostRace_RecordsNothing()
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+        fixture.Store.SimulateLostOverrideRace(ExistingApprove(key: "winner-key"));
+
+        var act = () => fixture.OverrideAsync(ApproveRate(0.3m));
+
+        await act.Should().ThrowAsync<DecisionStateConflictException>();
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(0);
     }
 
     /// <summary>Thua tranh chấp <c>UNIQUE(decision_id)</c>: cùng key + payload → 200 với bản thắng; khác key → <c>ALREADY_OVERRIDDEN</c>.</summary>

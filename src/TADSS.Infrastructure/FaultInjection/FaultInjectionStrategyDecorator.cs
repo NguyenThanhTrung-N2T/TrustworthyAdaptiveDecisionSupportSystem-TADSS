@@ -6,9 +6,10 @@ using TADSS.Infrastructure.Options;
 namespace TADSS.Infrastructure.FaultInjection;
 
 /// <summary>
-/// Decorator tiêm lỗi vào strategy thật theo <see cref="FaultInjectionOptions.Profile"/> (A-07), dùng để chứng minh pipeline chịu lỗi
+/// Decorator tiêm lỗi vào strategy thật theo profile hiện hành của <see cref="FaultInjectionControl"/> (A-07, O-17), dùng để chứng minh pipeline chịu lỗi
 /// (FI-02, FI-03, FI-05). Giữ nguyên <see cref="StrategyName"/>/<see cref="StrategyVersion"/> của strategy thật (audit và khóa cache không đổi);
 /// <see cref="CachePolicy"/> là <see cref="StrategyCachePolicy.Disabled"/> khi có lỗi được tiêm để lỗi luôn tới được pipeline, không bị cache che.
+/// Profile và <c>DelayMs</c> đổi nóng được: mỗi lời gọi đọc <see cref="FaultInjectionControl.Current"/> <b>một lần</b> và dùng bản đó tới hết lời gọi.
 /// <para>
 /// Đây là <b>công cụ tiêm lỗi có chủ đích</b> dùng cho chế độ đánh giá (LT-03, gói 5.5) và kiểm thử FI, <b>không phải mã test</b>: nó nằm trong
 /// assembly production để bật được bằng cấu hình (<c>Tadss:Testing:FaultInjection</c>) khi chạy trong Docker. Composition root chỉ bọc nó khi môi trường
@@ -21,18 +22,18 @@ public sealed class FaultInjectionStrategyDecorator : IReservationDecisionStrate
     public const string ThrowMessage = "Lỗi tiêm có chủ đích (FaultInjection).";
 
     private readonly IReservationDecisionStrategy _inner;
-    private readonly FaultInjectionOptions _options;
+    private readonly FaultInjectionControl _control;
     private readonly TimeProvider _timeProvider;
 
-    /// <summary>Bọc <paramref name="inner"/> với cấu hình <paramref name="options"/>; thời gian lấy từ <paramref name="timeProvider"/>.</summary>
-    public FaultInjectionStrategyDecorator(IReservationDecisionStrategy inner, FaultInjectionOptions options, TimeProvider timeProvider)
+    /// <summary>Bọc <paramref name="inner"/> với cấu hình hiện hành của <paramref name="control"/>; thời gian lấy từ <paramref name="timeProvider"/>.</summary>
+    public FaultInjectionStrategyDecorator(IReservationDecisionStrategy inner, FaultInjectionControl control, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(inner);
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(control);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _inner = inner;
-        _options = options;
+        _control = control;
         _timeProvider = timeProvider;
     }
 
@@ -44,14 +45,16 @@ public sealed class FaultInjectionStrategyDecorator : IReservationDecisionStrate
 
     /// <inheritdoc />
     public StrategyCachePolicy CachePolicy =>
-        _options.Profile == FaultInjectionProfile.None ? _inner.CachePolicy : StrategyCachePolicy.Disabled;
+        _control.Current.Profile == FaultInjectionProfile.None ? _inner.CachePolicy : StrategyCachePolicy.Disabled;
 
     /// <inheritdoc />
     public async Task<StrategyDecision> EvaluateAsync(Reservation reservation, DecisionContext context, CancellationToken cancellationToken)
     {
-        var delay = TimeSpan.FromMilliseconds(_options.DelayMs);
+        // Đọc cấu hình một lần: profile và DelayMs của lời gọi này luôn là một cặp nhất quán dù cấu hình đổi giữa chừng
+        var snapshot = _control.Current;
+        var delay = TimeSpan.FromMilliseconds(snapshot.DelayMs);
 
-        switch (_options.Profile)
+        switch (snapshot.Profile)
         {
             case FaultInjectionProfile.Delay:
                 await Task.Delay(delay, _timeProvider, cancellationToken).ConfigureAwait(false);

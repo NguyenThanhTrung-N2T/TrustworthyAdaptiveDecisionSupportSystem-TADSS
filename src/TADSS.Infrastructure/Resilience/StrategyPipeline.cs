@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -31,8 +33,11 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<StrategyPipeline> _logger;
     private readonly IsolatedStrategyInvoker _invoker;
+    private readonly TadssMetrics _metrics;
     private readonly ResiliencePipelineRegistry<string> _registry = new();
-    private readonly Action<ResiliencePipelineBuilder<StrategyExecutionOutcome>, ConfigureBuilderContext<string>> _configurePipeline;
+    // Mỗi strategy đúng một mục (pipeline + đối tượng đọc trạng thái breaker của chính pipeline đó). Lazy bảo đảm dựng đúng một lần dù nhiều request đầu tiên
+    // đến cùng lúc: registry của Polly có thể gọi callback cấu hình nhiều lần khi tranh chấp, còn CircuitBreakerStateProvider chỉ gắn được vào MỘT breaker.
+    private readonly ConcurrentDictionary<string, Lazy<PipelineEntry>> _pipelines = new();
 
     /// <summary>Khởi tạo pipeline từ cấu hình <c>Tadss:Resilience</c>.</summary>
     public StrategyPipeline(
@@ -46,9 +51,10 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
         _options = options.Value;
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _metrics = metrics;
         _invoker = new IsolatedStrategyInvoker(metrics, logger);
-        // Cache delegate để đường nóng ExecuteAsync không cấp phát delegate mới mỗi request
-        _configurePipeline = ConfigurePipeline;
+        // Gauge breaker đọc trạng thái hiện tại của mọi strategy đã có pipeline (tạo lười nên strategy chưa chạy thì chưa có)
+        metrics.RegisterCircuitStateSource(ReadCircuitStates);
     }
 
     /// <inheritdoc />
@@ -62,8 +68,10 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
         ArgumentNullException.ThrowIfNull(reservation);
         ArgumentNullException.ThrowIfNull(context);
 
-        var pipeline = _registry.GetOrAddPipeline<StrategyExecutionOutcome>(strategy.StrategyName, _configurePipeline);
+        var pipeline = GetPipeline(strategy.StrategyName);
         var startedAt = _timeProvider.GetTimestamp();
+        using var activity = TadssActivitySource.Source.StartActivity(TadssActivitySource.StrategyExecute);
+        activity?.SetTag(TadssActivitySource.TagStrategy, strategy.StrategyName);
 
         StrategyExecutionOutcome outcome;
         try
@@ -91,6 +99,13 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
         }
         catch (TimeoutRejectedException ex)
         {
+            activity?.SetTag(TadssActivitySource.TagOutcome, TadssMetricNames.PipelineOutcomeTimeout);
+            TadssActivitySource.MarkError(activity, ex);
+            _metrics.RecordPipelineDuration(
+                strategy.StrategyName,
+                TadssMetricNames.PipelineOutcomeTimeout,
+                _timeProvider.GetElapsedTime(startedAt).TotalMilliseconds);
+
             // Dịch exception của Polly tại ranh giới adapter: lớp trên chỉ biết kiểu của Application
             throw new DecisionTimeoutException("Pipeline strategy vượt ngân sách thời gian cho phép.", ex);
         }
@@ -98,20 +113,60 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
         var elapsed = _timeProvider.GetElapsedTime(startedAt);
         var elapsedMs = (int)Math.Max(0d, Math.Floor(elapsed.TotalMilliseconds));
 
+        // Hủy của caller và outer timeout không tới đây (đã ném ở trên); mỗi fallback đã được đếm ở CreateFallbackOutcome
+        _metrics.RecordPipelineDuration(
+            strategy.StrategyName,
+            outcome.FallbackUsed ? TadssMetricNames.PipelineOutcomeFallback : TadssMetricNames.PipelineOutcomeAutomated,
+            elapsed.TotalMilliseconds);
+        activity?.SetTag(TadssActivitySource.TagOutcome, outcome.FallbackUsed ? TadssMetricNames.PipelineOutcomeFallback : TadssMetricNames.PipelineOutcomeAutomated);
+        if (outcome.FallbackUsed)
+        {
+            activity?.SetTag(TadssActivitySource.TagFallbackReason, FallbackReasonOf(outcome.FailureReason));
+        }
+
         return outcome with { ExecutionTimeMs = elapsedMs };
     }
 
     /// <summary>Giải phóng registry (dispose các pipeline và timer của Polly) cùng singleton.</summary>
     public void Dispose() => _registry.Dispose();
 
-    private void ConfigurePipeline(ResiliencePipelineBuilder<StrategyExecutionOutcome> builder, ConfigureBuilderContext<string> context)
+    private ResiliencePipeline<StrategyExecutionOutcome> GetPipeline(string strategyName) =>
+        _pipelines.GetOrAdd(strategyName, static (name, self) => new Lazy<PipelineEntry>(() => self.CreateEntry(name)), this).Value.Pipeline;
+
+    private PipelineEntry CreateEntry(string strategyName)
     {
-        builder.TimeProvider = _timeProvider;
-        _logger.LogDebug("Dựng pipeline chịu lỗi cho strategy {StrategyName}.", context.PipelineKey);
-        StrategyResilienceBuilder.Configure(builder, _options, context.PipelineKey, _logger, CreateFallbackOutcome);
+        var stateProvider = new CircuitBreakerStateProvider();
+        var pipeline = _registry.GetOrAddPipeline<StrategyExecutionOutcome>(
+            strategyName,
+            (builder, _) => ConfigurePipeline(builder, strategyName, stateProvider));
+        return new PipelineEntry(pipeline, stateProvider);
     }
 
-    private StrategyExecutionOutcome CreateFallbackOutcome(Exception? exception)
+    private void ConfigurePipeline(
+        ResiliencePipelineBuilder<StrategyExecutionOutcome> builder, string strategyName, CircuitBreakerStateProvider stateProvider)
+    {
+        builder.TimeProvider = _timeProvider;
+        _logger.LogDebug("Dựng pipeline chịu lỗi cho strategy {StrategyName}.", strategyName);
+        StrategyResilienceBuilder.Configure(builder, _options, strategyName, _logger, stateProvider, exception => CreateFallbackOutcome(exception, strategyName));
+    }
+
+    // Chỉ strategy đã dựng xong pipeline mới có trạng thái (IsValueCreated), nên gauge không bao giờ chặn chờ một lần dựng đang chạy
+    private IEnumerable<KeyValuePair<string, CircuitStateValue>> ReadCircuitStates() =>
+        _pipelines
+            .Where(entry => entry.Value.IsValueCreated)
+            .Select(entry => new KeyValuePair<string, CircuitStateValue>(entry.Key, CircuitStateMapper.ToValue(entry.Value.Value.StateProvider.CircuitState)));
+
+    private sealed record PipelineEntry(ResiliencePipeline<StrategyExecutionOutcome> Pipeline, CircuitBreakerStateProvider StateProvider);
+
+    // FailureReason mang tiền tố máy đọc được; suy ngược ra nhãn lý do giống nhãn của metric tadss.fallbacks
+    private static string FallbackReasonOf(string? failureReason) => failureReason switch
+    {
+        not null when failureReason.StartsWith(FailureReasonPrefixes.StrategyTimeout, StringComparison.Ordinal) => TadssMetricNames.FallbackReasonTimeout,
+        not null when failureReason.StartsWith(FailureReasonPrefixes.CircuitBreakerOpen, StringComparison.Ordinal) => TadssMetricNames.FallbackReasonCircuitOpen,
+        _ => TadssMetricNames.FallbackReasonException,
+    };
+
+    private StrategyExecutionOutcome CreateFallbackOutcome(Exception? exception, string strategyName)
     {
         var (cause, failureReason) = exception switch
         {
@@ -120,6 +175,15 @@ public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
             // Chỉ ghi tên kiểu: message của exception có thể chứa chi tiết nội bộ, không được đi vào audit/response
             _ => (FallbackCause.Exception, FailureReasonPrefixes.FormatException(exception?.GetType().Name))
         };
+
+        _metrics.RecordFallback(
+            cause switch
+            {
+                FallbackCause.Timeout => TadssMetricNames.FallbackReasonTimeout,
+                FallbackCause.CircuitOpen => TadssMetricNames.FallbackReasonCircuitOpen,
+                _ => TadssMetricNames.FallbackReasonException,
+            },
+            strategyName);
 
         return new StrategyExecutionOutcome(
             FallbackDecisionPolicy.Create(cause),

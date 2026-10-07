@@ -21,12 +21,14 @@ internal static class StrategyResilienceBuilder
     /// <param name="options">Tham số chịu lỗi dùng chung.</param>
     /// <param name="strategyName">Tên strategy sở hữu pipeline, đưa vào mọi log.</param>
     /// <param name="logger">Logger của pipeline.</param>
+    /// <param name="stateProvider">Đối tượng đọc trạng thái circuit breaker của strategy này (cho gauge <c>tadss.circuit.state</c>).</param>
     /// <param name="createFallbackOutcome">Ánh xạ exception cuối cùng thành quyết định fallback (cọc 100%).</param>
     public static void Configure(
         ResiliencePipelineBuilder<StrategyExecutionOutcome> builder,
         ResilienceOptions options,
         string strategyName,
         ILogger logger,
+        CircuitBreakerStateProvider stateProvider,
         Func<Exception?, StrategyExecutionOutcome> createFallbackOutcome)
     {
         // 1. Outer timeout: hạn cứng của cả pipeline; nằm ngoài Fallback nên lỗi lan ra và được dịch thành DecisionTimeoutException (504)
@@ -86,6 +88,7 @@ internal static class StrategyResilienceBuilder
             SamplingDuration = TimeSpan.FromSeconds(options.CircuitBreakerSamplingSeconds),
             MinimumThroughput = options.CircuitBreakerMinimumThroughput,
             BreakDuration = TimeSpan.FromSeconds(options.CircuitBreakerBreakDurationSeconds),
+            StateProvider = stateProvider,
             ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: false)),
             OnOpened = args =>
             {

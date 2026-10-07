@@ -90,7 +90,7 @@ tests/
 
 Health check: `/health/live` (không check nào) và `/health/ready` (PostgreSQL, tên check `postgresql`, lỗi → 503; Redis, tên check `redis`, lỗi → `Degraded` vẫn 200) — map trong `Composition/EndpointMappingExtensions.MapTadssEndpoints`, đăng ký trong `AddInfrastructure`. Không còn endpoint `/health` gộp (F-16); body chỉ là chữ trạng thái.
 
-Thứ tự middleware của request pipeline khai báo tại một nơi: `Composition/RequestPipelineExtensions.UseTadssRequestPipeline` — forwarded headers (chỉ khi `Tadss:Security:TrustForwardedHeaders`) → correlation id → exception handler → security headers + HSTS → request logging → https redirection → giới hạn kích thước body → Swagger (chỉ `Development`) → xác thực `X-Api-Key` → rate limiter → `UseRouting`. Không có `UseAuthorization` (không có policy). Thứ tự được khóa bằng test UT-14 (`SecurityPipelineOrderTests`, `RequestPipelineTests`); luồng chi tiết ở Mục 4.4.3.
+Thứ tự middleware của request pipeline khai báo tại một nơi: `Composition/RequestPipelineExtensions.UseTadssRequestPipeline` — forwarded headers (chỉ khi `Tadss:Security:TrustForwardedHeaders`) → correlation id → request logging → request metrics → exception handler → security headers + HSTS → https redirection → giới hạn kích thước body → Swagger (chỉ `Development`) → xác thực `X-Api-Key` → rate limiter → `UseRouting`. Không có `UseAuthorization` (không có policy). Thứ tự được khóa bằng test UT-14 (`SecurityPipelineOrderTests`, `RequestPipelineTests`); luồng chi tiết ở Mục 4.4.3.
 
 ---
 
@@ -98,7 +98,7 @@ Thứ tự middleware của request pipeline khai báo tại một nơi: `Compos
 
 - Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker của strategy, circuit breaker Redis, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). SCALE-1 (hai instance dùng chung PostgreSQL/Redis: idempotency, cache chéo instance, breaker theo instance) đã có test; SCALE-2, SCALE-3 và rate limit phân tán thuộc gói 5.5.
 - Tranh chấp override ↔ outcome trên cùng quyết định không được khóa nguyên tử (INV-5, INTEGRATION_SPEC §4.3); tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm.
-- Dòng log hoàn tất request của Serilog không mang `ClientId` (request logging đứng trước bước xác thực); `ClientId` có ở log scope của log trong controller/service và ở tag `tadss.client_id` của trace. Ngoài ra `UseSerilogRequestLogging` nằm trong exception handler nên phản hồi do exception tạo ra (400, 404, 409, 503, 504) bị ghi là "responded 500" ở mức Error (401/413/429 do middleware tạo thì đúng); sửa sẽ đổi thứ tự pipeline (F-09), để gói 5.5.
+- Request logging và request metrics đứng ngoài exception handler nên thấy status cuối (409/503/504 không còn bị ghi "responded 500"); mức log: status ≥ 500 hoặc exception chưa xử lý → Error, còn lại Information. Dòng log hoàn tất được làm giàu `ClientId` lúc kết thúc request (đọc `ApiClientIdentity`); request bị từ chối ở bước xác thực không có `ClientId`.
 - Strategy không hợp tác (bỏ qua token hoặc chặn đồng bộ) bị cắt đúng hạn nhờ `IsolatedStrategyInvoker` (request nhận fallback `APPROVED` cọc 100% trong ngân sách), nhưng TADSS **giới hạn thời gian chờ** chứ không dừng được strategy đó: task bị bỏ rơi vẫn tiêu thụ CPU/thread pool tới khi tự kết thúc và nhiều task bị bỏ rơi cùng lúc có thể làm cạn thread pool (số lần đếm bằng `tadss.strategy.abandoned`).
 - Shadow dùng hàng đợi trong bộ nhớ có giới hạn (`Tadss:Shadow:QueueCapacity`): đầy thì bỏ việc (`tadss.shadow.dropped`), tắt ứng dụng thì việc còn trong hàng đợi bị bỏ; `Tadss:Shadow` không nạp lại nóng. Breaker Redis chỉ bảo vệ khỏi Redis hỏng kéo dài: các lệnh đầu tiên (tới ngưỡng `RedisBreakerMinimumThroughput`) vẫn chờ tới `RedisTimeoutMs`.
 
@@ -327,13 +327,13 @@ sequenceDiagram
 
 #### 4.4.3. Lớp bảo mật trước controller (mọi request `/api/*`)
 
-Thứ tự khai báo tại `UseTadssRequestPipeline` (Mục 2). Mọi từ chối do middleware tạo đều đi qua `ProblemResponseWriter` (không ném exception); security headers và request logging đứng trước các bước từ chối nên có cả trên 401, 413, 429.
+Thứ tự khai báo tại `UseTadssRequestPipeline` (Mục 2). Mọi từ chối do middleware tạo đều đi qua `ProblemResponseWriter` (không ném exception); security headers, request logging và request metrics đứng trước các bước từ chối nên có cả trên 401, 413, 429.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant BE as SmashCourt-BE
-    participant PRE as Forwarded headers, correlation id, exception handler,<br/>security headers + HSTS, request logging, https redirection
+    participant PRE as Forwarded headers, correlation id, request logging, request metrics,<br/>exception handler, security headers + HSTS, https redirection
     participant SZ as RequestSizeLimitMiddleware
     participant AK as ApiKeyAuthenticationMiddleware
     participant RL as Rate limiter (token bucket theo ClientId)

@@ -13,6 +13,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Options;
@@ -81,6 +82,8 @@ public class DecisionServiceTests
     /// <summary>Bộ phụ thuộc giả dùng chung cho một lần dựng <see cref="DecisionService"/>.</summary>
     private sealed class Fixture
     {
+        private MetricRecorder? _recorder;
+
         public Fixture(
             RegisteredStrategy? strategy = null,
             FakeStrategyPipeline? pipeline = null,
@@ -103,6 +106,7 @@ public class DecisionServiceTests
                     new DepositCalculator(),
                     new ApprovalWindowPolicy(MsOptions.Create(new ApprovalOptions()))),
                 ShadowDispatcher,
+                Metrics,
                 DomainTestData.StandardCalendar(),
                 Time,
                 Logger);
@@ -121,6 +125,10 @@ public class DecisionServiceTests
         public FakeStrategyDecisionCache Cache { get; } = new();
 
         public FakeShadowDispatcher ShadowDispatcher { get; } = new();
+
+        public TadssMetrics Metrics { get; } = new();
+
+        public MetricRecorder Recorder => _recorder ??= new MetricRecorder(Metrics.Meter);
 
         public CapturingLogger<DecisionService> Logger { get; } = new();
 
@@ -514,6 +522,71 @@ public class DecisionServiceTests
         }
 
         fixture.ShadowDispatcher.Calls.Should().HaveCount(dispatchedBefore, "lần gọi sau không gửi thêm việc shadow nào");
+    }
+
+    /// <summary>Request mới ghi được bản PRIMARY thì <c>tadss.decisions</c> tăng đúng một lần với trạng thái, strategy và loại thực thi của response.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_FreshPrimary_RecordsDecisionOnce()
+    {
+        var fixture = new Fixture();
+        _ = fixture.Recorder;
+
+        var response = await fixture.EvaluateAsync(Request());
+
+        fixture.Recorder.Sum(TadssMetricNames.Decisions).Should().Be(1);
+        fixture.Recorder.Sum(
+            TadssMetricNames.Decisions,
+            (TadssMetricNames.LabelStatus, response.Status.ToString()),
+            (TadssMetricNames.LabelStrategy, fixture.Strategy.Strategy.StrategyName),
+            (TadssMetricNames.LabelExecutionType, response.ExecutionType.ToString())).Should().Be(1);
+    }
+
+    /// <summary>Replay idempotency, thua tranh chấp hoặc ghi audit lỗi thì không đếm thêm quyết định nào (số đếm khớp số bản ghi PRIMARY mới).</summary>
+    [Theory]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-11")]
+    [InlineData("replay")]
+    [InlineData("race-loser")]
+    [InlineData("store-failure")]
+    public async Task EvaluateAsync_ReplayOrRaceLoserOrFailure_RecordsNoDecision_Theory(string scenario)
+    {
+        Fixture fixture;
+        switch (scenario)
+        {
+            case "replay":
+                fixture = new Fixture();
+                _ = fixture.Recorder;
+                await fixture.EvaluateAsync(Request());
+                break;
+            case "race-loser":
+                var original = new Fixture();
+                await original.EvaluateAsync(Request());
+                var store = new FakeDecisionAuditStore();
+                store.SimulateLostRace(original.Store.Records.Single());
+                fixture = new Fixture(store: store);
+                _ = fixture.Recorder;
+                break;
+            default:
+                var failing = new FakeDecisionAuditStore();
+                failing.FailInsertWithPersistenceUnavailable();
+                fixture = new Fixture(store: failing);
+                _ = fixture.Recorder;
+                break;
+        }
+
+        var recordedBefore = fixture.Recorder.Sum(TadssMetricNames.Decisions);
+        try
+        {
+            await fixture.EvaluateAsync(Request());
+        }
+        catch (PersistenceUnavailableException)
+        {
+            // Kịch bản store-failure: lỗi lan ra như thiết kế (fail-closed)
+        }
+
+        fixture.Recorder.Sum(TadssMetricNames.Decisions).Should().Be(recordedBefore, "không bản PRIMARY mới nào được ghi bởi lần gọi này");
     }
 
     [Fact]

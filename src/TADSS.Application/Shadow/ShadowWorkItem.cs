@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
 
@@ -12,9 +13,11 @@ namespace TADSS.Application.Shadow;
 /// <param name="RequestHash">Hash của request đã chuẩn hóa.</param>
 /// <param name="NowUtc">Mốc <c>nowUtc</c> của bản <c>PRIMARY</c>, dùng lại để hai bản so sánh được trên cùng ngữ cảnh.</param>
 /// <param name="CorrelationId">Mã tương quan; <c>null</c> khi không có.</param>
+/// <param name="RequestActivityContext">Ngữ cảnh trace của request gốc (span <c>tadss.decision.evaluate</c>) để span shadow liên kết tới; <c>null</c> khi không có trace.</param>
 public sealed record ShadowWorkItem(
     DecisionRequestDto Request,
     Reservation Reservation,
     string RequestHash,
     DateTimeOffset NowUtc,
-    string? CorrelationId);
+    string? CorrelationId,
+    ActivityContext? RequestActivityContext = null);

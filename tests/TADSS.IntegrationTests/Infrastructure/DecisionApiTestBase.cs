@@ -70,6 +70,12 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
     /// </summary>
     protected virtual IEnumerable<KeyValuePair<string, string?>> ConfigurationOverrides => [];
 
+    /// <summary>
+    /// Cấu hình mà mã đăng ký DI đọc <b>ngay lúc đăng ký</b> (ví dụ <c>Tadss:Telemetry:Enabled</c> quyết định có dựng OpenTelemetry hay không), chạy trước khi nguồn của
+    /// <c>ConfigureAppConfiguration</c> được nạp; đi qua <c>UseSetting</c> để vào cấu hình host từ đầu. Chỉ khai báo khóa thật sự cần (khóa dạng mảng không dùng được kiểu này). Mặc định rỗng.
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string?>> EarlySettings => [];
+
     /// <summary>Registry strategy của host test (đếm lần chạy, ghi đè chính sách cache).</summary>
     protected ProbeStrategyRegistry Strategies =>
         (ProbeStrategyRegistry)Host.Services.GetRequiredService<IStrategyRegistry>();
@@ -88,6 +94,11 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
         _host = CreateFactory(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(ConfigurationOverrides));
+            foreach (var (key, value) in EarlySettings)
+            {
+                builder.UseSetting(key, value);
+            }
+
             builder.ConfigureTestServices(services =>
             {
                 if (UseFakeClock)

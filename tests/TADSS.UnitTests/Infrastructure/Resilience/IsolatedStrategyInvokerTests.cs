@@ -43,7 +43,7 @@ public class IsolatedStrategyInvokerTests
         var decision = await InvokeAsync(invoker, strategy, CancellationToken.None);
 
         decision.Should().BeSameAs(expected);
-        recorder.Sum(TadssMetrics.StrategyAbandoned).Should().Be(0);
+        recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(0);
     }
 
     /// <summary>Strategy <c>Thread.Sleep(2000)</c> đồng bộ, token hủy sau 100 ms: lời gọi kết thúc trong 1 s và ghi một lần bỏ rơi.</summary>
@@ -69,8 +69,8 @@ public class IsolatedStrategyInvokerTests
         stopwatch.Stop();
 
         stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000, "lời gọi không được chờ strategy chặn đồng bộ 2 s");
-        recorder.Sum(TadssMetrics.StrategyAbandoned).Should().Be(1);
-        recorder.Sum(TadssMetrics.StrategyAbandoned, ("strategy", "BlockingStrategy")).Should().Be(1);
+        recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
+        recorder.Sum(TadssMetricNames.StrategyAbandoned, ("strategy", "BlockingStrategy")).Should().Be(1);
     }
 
     /// <summary>Strategy <c>await Task.Delay(2000)</c> không truyền token: như ca chặn đồng bộ, lời gọi trả về khi token hủy.</summary>
@@ -94,7 +94,7 @@ public class IsolatedStrategyInvokerTests
         stopwatch.Stop();
 
         stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000);
-        recorder.Sum(TadssMetrics.StrategyAbandoned).Should().Be(1);
+        recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
     }
 
     /// <summary>

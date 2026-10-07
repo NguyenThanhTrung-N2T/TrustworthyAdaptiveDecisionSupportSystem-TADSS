@@ -151,7 +151,7 @@ public class FaultInjectionTests : FaultInjectionTestBase
         AssertFallbackFullDeposit(response.Result, row, body, ReasonCodes.FallbackStrategyTimeout);
         stopwatch.ElapsedMilliseconds.Should().BeLessThanOrEqualTo(PipelineBudgetMs + uncooperativeToleranceMs, "strategy chặn 3 s phải bị cắt trong ngân sách 500 ms");
         (Strategy.InvocationCount - invocationsBefore).Should().Be(3, "lượt đầu và 2 lần retry");
-        recorder.Sum(TadssMetrics.StrategyAbandoned, ("strategy", Strategy.StrategyName)).Should().Be(3, "mỗi lượt bị cắt đều bị bỏ rơi");
+        recorder.Sum(TadssMetricNames.StrategyAbandoned, ("strategy", Strategy.StrategyName)).Should().Be(3, "mỗi lượt bị cắt đều bị bỏ rơi");
     }
 
     /// <summary>
@@ -340,13 +340,13 @@ public class FaultInjectionTests : FaultInjectionTestBase
             response.Result.FallbackUsed.Should().BeFalse("lỗi Redis không làm strategy fallback");
         }
 
-        var bypassBefore = recorder.Sum(TadssMetrics.CacheRequests, ("result", TadssMetrics.CacheResultBypass));
+        var bypassBefore = recorder.Sum(TadssMetricNames.CacheRequests, ("result", TadssMetricNames.CacheResultBypass));
         var afterOpen = await PostDecisionAsync(DecisionRequests.StartingAt(DateTimeOffset.UtcNow.AddDays(40)), NewKey());
 
         afterOpen.Status.Should().Be(HttpStatusCode.OK);
         afterOpen.Result.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
         afterOpen.Result.FallbackUsed.Should().BeFalse();
-        recorder.Sum(TadssMetrics.CacheRequests, ("result", TadssMetrics.CacheResultBypass)).Should().BeGreaterThan(bypassBefore, "breaker mở ⇒ bỏ qua Redis");
+        recorder.Sum(TadssMetricNames.CacheRequests, ("result", TadssMetricNames.CacheResultBypass)).Should().BeGreaterThan(bypassBefore, "breaker mở ⇒ bỏ qua Redis");
     }
 
     /// <summary>

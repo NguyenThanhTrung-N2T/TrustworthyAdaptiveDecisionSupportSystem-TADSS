@@ -25,8 +25,8 @@ public class FaultInjectionStrategyDecoratorTests
     private static StrategyDecision Approved() =>
         StrategyDecision.Approve(0.5m, ReasonCodes.TierDeposit, ["Cọc theo hạng thành viên."]);
 
-    private static FaultInjectionOptions Options(FaultInjectionProfile profile, int delayMs = DelayMs) =>
-        new() { Enabled = true, Profile = profile, DelayMs = delayMs };
+    private static FaultInjectionControl Options(FaultInjectionProfile profile, int delayMs = DelayMs) =>
+        new FaultInjectionControlHarness(new FaultInjectionOptions { Enabled = true, Profile = profile, DelayMs = delayMs }).Control;
 
     private static Task<StrategyDecision> EvaluateAsync(FaultInjectionStrategyDecorator decorator, CancellationToken token) =>
         decorator.EvaluateAsync(DomainTestData.CreateReservation(), DomainTestData.CreateContext(), token);

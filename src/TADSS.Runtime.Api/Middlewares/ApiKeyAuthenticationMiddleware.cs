@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Serilog.Context;
 using Shared.DecisionContractSDK.Common;
+using TADSS.Application.Common;
 using TADSS.Runtime.Api.Common;
 using TADSS.Runtime.Api.ErrorHandling;
 using TADSS.Runtime.Api.Security;
@@ -46,7 +47,7 @@ public class ApiKeyAuthenticationMiddleware(
         }
 
         ApiClientIdentity.Set(context, clientId);
-        Activity.Current?.SetTag("tadss.client_id", clientId);
+        Activity.Current?.SetTag(TadssActivitySource.TagClientId, clientId);
         using (LogContext.PushProperty("ClientId", clientId))
         {
             logger.LogDebug("Request được xác thực bằng API key của client.");

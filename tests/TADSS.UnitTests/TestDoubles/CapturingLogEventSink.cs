@@ -1,6 +1,7 @@
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Extensions.Hosting;
 using Serilog.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -53,7 +54,7 @@ internal sealed class CapturingLogEventSink : ILogEventSink
 
     /// <summary>
     /// Dẫn xuất host từ <paramref name="baseFactory"/> mà <c>ILoggerFactory</c> ghi vào <paramref name="sink"/> (mức Verbose, có <c>LogContext</c>),
-    /// thay logger Serilog đọc từ cấu hình của app.
+    /// thay logger Serilog đọc từ cấu hình của app. <see cref="Serilog.ILogger"/> trong DI cũng được thay (dòng log hoàn tất request dùng logger này).
     /// </summary>
     public static WebApplicationFactory<Program> Attach(WebApplicationFactory<Program> baseFactory, CapturingLogEventSink sink)
     {
@@ -66,6 +67,15 @@ internal sealed class CapturingLogEventSink : ILogEventSink
         {
             services.RemoveAll<ILoggerFactory>();
             services.AddSingleton<ILoggerFactory>(_ => new SerilogLoggerFactory(logger, dispose: false));
+            services.RemoveAll<Serilog.ILogger>();
+            services.AddSingleton<Serilog.ILogger>(logger);
+            // DiagnosticContext (thuộc tính do EnrichDiagnosticContext đặt) gắn với logger truyền vào, hoặc Log.Logger tĩnh khi là null; Log.Logger tĩnh chỉ được gán khi
+            // ILoggerFactory gốc của UseSerilog được phân giải (ở đây đã bị thay) nên phải gắn tường minh, nếu không thuộc tính bị bỏ khi test chạy một mình
+            var diagnosticContext = new DiagnosticContext(logger);
+            services.RemoveAll<DiagnosticContext>();
+            services.RemoveAll<IDiagnosticContext>();
+            services.AddSingleton(diagnosticContext);
+            services.AddSingleton<IDiagnosticContext>(diagnosticContext);
         }));
     }
 }

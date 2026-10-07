@@ -116,3 +116,16 @@ jobs:
 
       - name: Verify Expose Configuration
         run: bash tools/expose/verify-expose.sh
+
+  # OB-2, OB-4 (O-23): dựng tadss-runtime + Grafana (otel-lgtm) thật với PostgreSQL/Redis tạm: dashboard TADSS được nạp và metric của TADSS tới Prometheus; không ngrok, không database ngoài
+  observability-check:
+    name: Verify Observability (dashboard + metrics)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Observability
+        run: bash tools/observability/verify-observability.sh

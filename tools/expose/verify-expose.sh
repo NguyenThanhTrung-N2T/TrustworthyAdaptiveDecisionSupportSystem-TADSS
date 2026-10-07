@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của docker-compose.yml bằng Docker thật (không mở tunnel ngrok, không khởi động Grafana, không kết nối database ngoài).
 #   NG-1  : docker compose config hợp lệ (với NGROK_AUTHTOKEN giả) và `config --services` liệt kê đủ tadss-runtime, ngrok, grafana (không profile nào);
-#           môi trường Development (giống SmashCourt-BE), migration "false", không mount file, không biến ConnectionStrings/RedisConnectionString/ApiKeys trong compose.
+#           service tadss-runtime: môi trường Development (giống SmashCourt-BE), migration "false", không mount file, không biến ConnectionStrings/RedisConnectionString/ApiKeys,
+#           gửi telemetry tới grafana; service grafana: đúng hai mount, đều chỉ đọc (dashboard + provisioning).
 #   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200 (Swagger được phục vụ ở Development nên không kiểm 404).
 #   NG-2b : (danh mục NG-2) môi trường Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
 #   NG-3  : truy cập database: GET theo decisionId trả đúng quyết định vừa ghi, và psql đếm được bản ghi.
@@ -119,15 +120,28 @@ if dc_main "$FAKE_ENV_FILE" config --quiet >/dev/null 2>&1; then cfg="PASS"; fi
 services="$(dc_main "$FAKE_ENV_FILE" config --services 2>/dev/null | tr -d '\r' | sort | tr '\n' ' ')"
 svc="FAIL"
 if [ "$services" = "grafana ngrok tadss-runtime " ]; then svc="PASS"; fi
-# Môi trường Development (giống SmashCourt-BE), migration "false", không mount file, và compose đã render không có biến chuỗi kết nối/Redis/ApiKeys nào.
+# Ràng buộc bảo mật áp cho RIÊNG service tadss-runtime (đọc từ cấu hình render dạng YAML, tách khối theo service): môi trường Development (giống SmashCourt-BE),
+# migration "false", không mount file, không biến chuỗi kết nối/Redis/ApiKeys. Grafana được mount dashboard chỉ đọc (không chứa secret) và tadss-runtime gửi telemetry tới nó.
 rendered_main="$(dc_main "$FAKE_ENV_FILE" config --format json 2>/dev/null)"
+service_block() { # $1 tên service; đọc YAML render từ stdin, in các dòng thuộc service đó
+  awk -v svc="$1" '$0 == "  " svc ":" { in_block = 1; next } /^  [^ ]/ { in_block = 0 } /^[^ ]/ { in_block = 0 } in_block'
+}
+rendered_yaml="$(dc_main "$FAKE_ENV_FILE" config 2>/dev/null | tr -d '\r')"
+runtime_block="$(printf '%s\n' "$rendered_yaml" | service_block tadss-runtime)"
+grafana_block="$(printf '%s\n' "$rendered_yaml" | service_block grafana)"
 env_bad=""
-printf '%s' "$rendered_main" | grep -q '"ASPNETCORE_ENVIRONMENT" *: *"Development"' || env_bad="${env_bad}Development "
-printf '%s' "$rendered_main" | grep -q '"Tadss__Database__ApplyMigrationsOnStartup" *: *"false"' || env_bad="${env_bad}migration "
-if printf '%s' "$rendered_main" | grep -q -e '"volumes"' -e 'appsettings\.'; then env_bad="${env_bad}có-mount "; fi
-if printf '%s' "$rendered_main" | grep -q -e 'ConnectionStrings__' -e 'RedisConnectionString' -e 'ApiKeys'; then env_bad="${env_bad}có-biến-secret "; fi
+printf '%s' "$runtime_block" | grep -q 'ASPNETCORE_ENVIRONMENT: Development' || env_bad="${env_bad}Development "
+printf '%s' "$runtime_block" | grep -q 'Tadss__Database__ApplyMigrationsOnStartup: "false"' || env_bad="${env_bad}migration "
+if printf '%s' "$runtime_block" | grep -q -e '^    volumes:' -e 'appsettings\.'; then env_bad="${env_bad}có-mount "; fi
+if printf '%s' "$runtime_block" | grep -q -e 'ConnectionStrings__' -e 'RedisConnectionString' -e 'ApiKeys'; then env_bad="${env_bad}có-biến-secret "; fi
+printf '%s' "$runtime_block" | grep -q 'Tadss__Telemetry__OtlpEndpoint: http://grafana:4317' || env_bad="${env_bad}không-gửi-telemetry-tới-grafana "
+# Grafana: đúng hai mount, đều chỉ đọc
+grafana_mounts="$(printf '%s\n' "$grafana_block" | grep -c 'type: bind')"
+grafana_readonly="$(printf '%s\n' "$grafana_block" | grep -c 'read_only: true')"
+if [ "$grafana_mounts" != 2 ] || [ "$grafana_readonly" != 2 ]; then env_bad="${env_bad}grafana-mount(${grafana_mounts}/${grafana_readonly} chỉ-đọc) "; fi
+if [ -z "$runtime_block" ] || [ -z "$grafana_block" ]; then env_bad="${env_bad}không-tách-được-khối-service "; fi
 if [ "$cfg" = PASS ] && [ "$svc" = PASS ] && [ -z "$env_bad" ]; then
-  record "NG-1" PASS "config hợp lệ (NGROK_AUTHTOKEN giả); services: ${services}; Development, migration false, không mount, không biến secret"
+  record "NG-1" PASS "config hợp lệ (NGROK_AUTHTOKEN giả); services: ${services}; tadss-runtime: Development, migration false, không mount, không biến secret, telemetry → grafana; grafana: 2 mount chỉ đọc"
 else
   record "NG-1" FAIL "config=${cfg} services=${svc} (${services}); môi-trường-sai: ${env_bad:-không}"
 fi

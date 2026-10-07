@@ -1,4 +1,4 @@
-# `docker compose up -d --build` chạy TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001; chưa có dữ liệu TADSS đến khi có OpenTelemetry ở gói 5.5).
+# `docker compose up -d --build` chạy TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
 # Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
 #            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
 # Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok".
@@ -14,6 +14,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       Tadss__Security__TrustForwardedHeaders: "true"
       Tadss__Database__ApplyMigrationsOnStartup: "false"   # không bao giờ tự migrate Neon
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://grafana:4317   # service grafana trong cùng mạng compose
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
       interval: 5s
@@ -42,6 +44,10 @@ services:
       - "127.0.0.1:3001:3000"   # Grafana
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
+    volumes:
+      # Chỉ đọc: cấu hình provisioning (file, để không che các file provisioning có sẵn của otel-lgtm) và thư mục dashboard; không chứa secret
+      - ./docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro
+      - ./docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro
     networks:
       - smashcourt-network
 

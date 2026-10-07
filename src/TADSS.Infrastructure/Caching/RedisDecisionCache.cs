@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -5,7 +6,9 @@ using Polly.CircuitBreaker;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using StackExchange.Redis;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Options;
+using TADSS.Infrastructure.Resilience;
 
 namespace TADSS.Infrastructure.Caching;
 
@@ -22,6 +25,7 @@ internal sealed class RedisDecisionCache
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ResiliencePipeline _pipeline;
+    private readonly CircuitBreakerStateProvider _stateProvider = new();
     private readonly ILogger _logger;
 
     /// <summary>Khởi tạo tầng Redis.</summary>
@@ -35,11 +39,39 @@ internal sealed class RedisDecisionCache
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _pipeline = RedisCacheResilience.Create(options, timeProvider, logger);
+        _pipeline = RedisCacheResilience.Create(options, timeProvider, logger, _stateProvider);
     }
 
-    /// <summary>Đọc quyết định theo khóa đầy đủ (đã gồm <c>InstanceName</c>).</summary>
+    /// <summary>Trạng thái hiện tại của circuit breaker Redis (cho gauge).</summary>
+    public CircuitStateValue CircuitState => CircuitStateMapper.ToValue(_stateProvider.CircuitState);
+
+    /// <summary>Đọc quyết định theo khóa đầy đủ (đã gồm <c>InstanceName</c>); span <c>GET</c> chỉ ghi kết quả, không ghi khóa.</summary>
     public async Task<RedisReadResult> GetAsync(string fullKey, CancellationToken cancellationToken)
+    {
+        using var activity = StartCommandActivity(TadssActivitySource.DbOperationGet);
+        var result = await ReadAsync(fullKey, cancellationToken).ConfigureAwait(false);
+        activity?.SetTag(TadssActivitySource.TagCacheResult, result.Status.ToString());
+        return result;
+    }
+
+    /// <summary>Ghi quyết định theo khóa đầy đủ với TTL <paramref name="ttl"/>; span <c>SET</c> chỉ ghi kết quả, không ghi khóa.</summary>
+    public async Task<RedisCacheStatus> SetAsync(string fullKey, StrategyDecision decision, TimeSpan ttl, CancellationToken cancellationToken)
+    {
+        using var activity = StartCommandActivity(TadssActivitySource.DbOperationSet);
+        var status = await WriteAsync(fullKey, decision, ttl, cancellationToken).ConfigureAwait(false);
+        activity?.SetTag(TadssActivitySource.TagCacheResult, status.ToString());
+        return status;
+    }
+
+    private static Activity? StartCommandActivity(string operation)
+    {
+        var activity = TadssActivitySource.Source.StartActivity(TadssActivitySource.RedisCommand, ActivityKind.Client);
+        activity?.SetTag(TadssActivitySource.TagDbSystem, TadssActivitySource.DbSystemRedis);
+        activity?.SetTag(TadssActivitySource.TagDbOperation, operation);
+        return activity;
+    }
+
+    private async Task<RedisReadResult> ReadAsync(string fullKey, CancellationToken cancellationToken)
     {
         RedisValue value;
         try
@@ -77,8 +109,7 @@ internal sealed class RedisDecisionCache
         }
     }
 
-    /// <summary>Ghi quyết định theo khóa đầy đủ với TTL <paramref name="ttl"/>.</summary>
-    public async Task<RedisCacheStatus> SetAsync(string fullKey, StrategyDecision decision, TimeSpan ttl, CancellationToken cancellationToken)
+    private async Task<RedisCacheStatus> WriteAsync(string fullKey, StrategyDecision decision, TimeSpan ttl, CancellationToken cancellationToken)
     {
         try
         {

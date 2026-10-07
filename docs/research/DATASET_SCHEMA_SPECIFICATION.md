@@ -26,7 +26,7 @@ docs/research/evidence-packs/{run_id}/
 └── report.html          # báo cáo do bộ sinh báo cáo (notebook) sinh ra
 ```
 
-> **Chế độ đánh giá một lệnh (D-12, kế hoạch gói 5.5, chưa hiện thực):** container **evaluator** của profile `evaluation` tự dựng Evidence Pack của cả lượt đánh giá tại `evidence/<run_id>/` (cùng cấu trúc trên; thư mục làm việc, không commit), gồm `report.html`, dữ liệu thô và `manifest.json`; không còn bước dựng Evidence Pack bằng script chạy riêng. Bản cuối của lượt đầy đủ được chốt vào `docs/research/evidence-packs/{run_id}/`. Với lượt đánh giá trọn gói, `run_id` dùng nhóm `EVAL` (đề xuất: `EV-{yyyyMMdd}-EVAL-{quick|full}-{lần}`, chốt khi hiện thực).
+> **Chế độ đánh giá một lệnh (D-12, kế hoạch gói 5.5, chưa hiện thực):** container **evaluator** của profile `evaluation` tự dựng Evidence Pack của cả lượt đánh giá tại `evidence/<run_id>/` (cùng cấu trúc trên; thư mục làm việc, không commit), gồm `report.html`, dữ liệu thô và `manifest.json`; không còn bước dựng Evidence Pack bằng script chạy riêng. Bản cuối của lượt đầy đủ được chốt vào `docs/research/evidence-packs/{run_id}/`. Với lượt đánh giá trọn gói, `run_id` dùng nhóm `EVAL`: `EV-{yyyyMMdd}-EVAL-{quick|full}-r{n}` (`n` là số lần tiếp theo trong `evidence/` cùng ngày). Evidence Pack của E-EVAL ghi commit SmashCourt-BE/FE là `null` kèm lý do khi lượt chạy không có LT-04/E2E, và thêm vào `manifest.json` các trường `mode`, `dirty`, `steps`, `kpis`, `catalogCoverage`.
 
 - `run_id`: `EV-{yyyyMMdd}-{nhóm}-{mã}-{lần}` (ví dụ `EV-20261216-FI-02-r1`).
 - File thô lớn hơn 20 MB được đính kèm vào GitHub Release; manifest vẫn ghi đường dẫn và SHA-256.

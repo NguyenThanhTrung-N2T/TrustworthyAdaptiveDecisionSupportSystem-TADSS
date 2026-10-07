@@ -38,7 +38,7 @@ public class AppSettingsValidationTests
         builder.Configuration.AddInMemoryCollection(TestApiKeys.ToConfiguration(TestApiKeys.DefaultClients));
         builder.Services.AddLogging();
         builder.Services.AddRuntimeCore(builder.Configuration);
-        builder.Services.AddPresentation(builder.Configuration);
+        builder.Services.AddPresentation(builder.Configuration, builder.Environment);
         return builder.Build();
     }
 

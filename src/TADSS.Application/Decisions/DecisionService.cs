@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
@@ -30,6 +31,7 @@ public sealed class DecisionService : IDecisionService
     private readonly ItemDurationPolicy _itemDurationPolicy;
     private readonly DecisionResponseComposer _composer;
     private readonly IShadowDispatcher _shadowDispatcher;
+    private readonly TadssMetrics _metrics;
     private readonly BranchCalendar _calendar;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DecisionService> _logger;
@@ -41,6 +43,7 @@ public sealed class DecisionService : IDecisionService
     /// <param name="itemDurationPolicy">Chính sách thời lượng item (P-01).</param>
     /// <param name="composer">Ghép response và bản ghi audit.</param>
     /// <param name="shadowDispatcher">Gửi việc shadow sau khi bản <c>PRIMARY</c> mới được lưu.</param>
+    /// <param name="metrics">Metric của runtime (đếm bản <c>PRIMARY</c> mới).</param>
     /// <param name="calendar">Lịch cao điểm đưa vào <see cref="DecisionContext"/>.</param>
     /// <param name="timeProvider">Nguồn thời gian.</param>
     /// <param name="logger">Logger.</param>
@@ -51,6 +54,7 @@ public sealed class DecisionService : IDecisionService
         ItemDurationPolicy itemDurationPolicy,
         DecisionResponseComposer composer,
         IShadowDispatcher shadowDispatcher,
+        TadssMetrics metrics,
         BranchCalendar calendar,
         TimeProvider timeProvider,
         ILogger<DecisionService> logger)
@@ -61,6 +65,7 @@ public sealed class DecisionService : IDecisionService
         _itemDurationPolicy = itemDurationPolicy ?? throw new ArgumentNullException(nameof(itemDurationPolicy));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _shadowDispatcher = shadowDispatcher ?? throw new ArgumentNullException(nameof(shadowDispatcher));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _calendar = calendar ?? throw new ArgumentNullException(nameof(calendar));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -71,6 +76,28 @@ public sealed class DecisionService : IDecisionService
         DecisionRequestDto request,
         string idempotencyKey,
         string? correlationId,
+        CancellationToken cancellationToken)
+    {
+        // Không có listener (telemetry tắt) thì activity là null và mọi lời gọi activity?. bên dưới là no-op
+        using var activity = TadssActivitySource.Source.StartActivity(TadssActivitySource.DecisionEvaluate);
+        activity?.SetTag(TadssActivitySource.TagCorrelationId, correlationId);
+        try
+        {
+            return await EvaluateCoreAsync(request, idempotencyKey, correlationId, activity, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Hủy của caller không phải lỗi; mọi lỗi khác chỉ ghi kiểu exception lên span
+            TadssActivitySource.MarkError(activity, ex);
+            throw;
+        }
+    }
+
+    private async Task<DecisionResultDto> EvaluateCoreAsync(
+        DecisionRequestDto request,
+        string idempotencyKey,
+        string? correlationId,
+        Activity? activity,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -99,10 +126,13 @@ public sealed class DecisionService : IDecisionService
         var route = _router.Route(reservation);
         var registered = route.Strategy;
         var context = new DecisionContext(nowUtc, _calendar);
+        activity?.SetTag(TadssActivitySource.TagStrategy, registered.Strategy.StrategyName);
+        activity?.SetTag(TadssActivitySource.TagRoutingRule, route.RuleName);
 
         var evaluation = await _evaluator
             .EvaluateAsync(registered, reservation, context, requestHash, idempotencyKey, cancellationToken)
             .ConfigureAwait(false);
+        activity?.SetTag(TadssActivitySource.TagCacheHit, evaluation.CacheHit);
 
         var composed = _composer.Compose(new DecisionComposition(
             DecisionId: Guid.NewGuid(),
@@ -115,6 +145,9 @@ public sealed class DecisionService : IDecisionService
             RequestHash: requestHash,
             IdempotencyKey: idempotencyKey,
             CorrelationId: correlationId));
+
+        activity?.SetTag(TadssActivitySource.TagStatus, composed.Record.Status.ToString());
+        activity?.SetTag(TadssActivitySource.TagExecutionType, composed.Record.ExecutionType.ToString());
 
         // Ghi audit đồng bộ, fail-closed (INV-10): lỗi lan ra và không có response nào được trả
         var inserted = await _evaluationStore.InsertExecutionAsync(composed.Record, cancellationToken).ConfigureAwait(false);
@@ -130,10 +163,13 @@ public sealed class DecisionService : IDecisionService
 
         _logger.LogDecisionSummary(composed.Record, evaluation.Outcome, registered.Strategy, route.RuleName, idempotencyKey, correlationId);
 
+        // Chỉ đếm bản PRIMARY mới của chính request (không replay, không thua tranh chấp, không SHADOW) nên số đếm khớp số bản ghi (SC3)
+        _metrics.RecordDecision(composed.Record.Status.ToString(), registered.Strategy.StrategyName, composed.Record.ExecutionType.ToString());
+
         // Shadow chỉ chạy khi chính request này vừa ghi bản PRIMARY mới (không phải replay hay thua tranh chấp); không chờ và không ném (INV-8)
         _shadowDispatcher.Dispatch(
             registered.Strategy.StrategyName,
-            new ShadowWorkItem(request, reservation, requestHash, nowUtc, correlationId));
+            new ShadowWorkItem(request, reservation, requestHash, nowUtc, correlationId, activity?.Context));
 
         return composed.Response;
     }

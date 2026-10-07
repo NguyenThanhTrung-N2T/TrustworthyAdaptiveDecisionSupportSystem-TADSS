@@ -510,6 +510,39 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         (await cache.GetAsync(Key, CancellationToken.None)).Should().BeSameAs(decision);
     }
 
+    /// <summary>Gauge <c>tadss.cache.circuit.state</c> theo breaker Redis: đóng (0) rồi mở (2) khi đủ lỗi; thăm dò thành công thì đóng lại.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-13")]
+    public async Task CacheCircuitStateGauge_FollowsRedisBreaker()
+    {
+        var redis = new RedisFake();
+        var cache = CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object, breakerMinimumThroughput: 2);
+
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(0, "chưa lỗi thì breaker đóng");
+
+        OpenBreaker(redis, cache);
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(2, "đủ lỗi thì breaker mở");
+
+        redis.Database
+            .Setup(db => db.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+        _time.Advance(TimeSpan.FromSeconds(31));
+        await cache.GetAsync(Key, CancellationToken.None);
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(0, "thăm dò thành công thì đóng lại");
+    }
+
+    /// <summary>Không dùng Redis (<c>Provider = Memory</c>) thì không có breaker Redis nên gauge không phát số đo.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-13")]
+    public void CacheCircuitStateGauge_MemoryProvider_EmitsNothing()
+    {
+        _ = CreateCache("Memory");
+
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().BeEmpty();
+    }
+
     private static void OpenBreaker(RedisFake redis, StrategyDecisionCache cache)
     {
         redis.Database
@@ -548,11 +581,11 @@ public sealed class StrategyDecisionCacheTests : IDisposable
                 break;
         }
 
-        var before = _recorder.Sum(TadssMetrics.CacheRequests);
-        var beforeResult = _recorder.Sum(TadssMetrics.CacheRequests, ("result", expectedResult));
+        var before = _recorder.Sum(TadssMetricNames.CacheRequests);
+        var beforeResult = _recorder.Sum(TadssMetricNames.CacheRequests, ("result", expectedResult));
         await cache.GetAsync(Key, CancellationToken.None);
 
-        _recorder.Sum(TadssMetrics.CacheRequests).Should().Be(before + 1);
-        _recorder.Sum(TadssMetrics.CacheRequests, ("result", expectedResult)).Should().Be(beforeResult + 1);
+        _recorder.Sum(TadssMetricNames.CacheRequests).Should().Be(before + 1);
+        _recorder.Sum(TadssMetricNames.CacheRequests, ("result", expectedResult)).Should().Be(beforeResult + 1);
     }
 }

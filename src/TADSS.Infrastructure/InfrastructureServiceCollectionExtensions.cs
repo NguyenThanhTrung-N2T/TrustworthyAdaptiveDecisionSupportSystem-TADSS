@@ -16,6 +16,7 @@ using TADSS.Infrastructure.Options;
 using TADSS.Infrastructure.Persistence;
 using TADSS.Infrastructure.Resilience;
 using TADSS.Infrastructure.Shadow;
+using TADSS.Infrastructure.Telemetry;
 
 namespace TADSS.Infrastructure;
 
@@ -94,6 +95,14 @@ public static class InfrastructureServiceCollectionExtensions
 
         // 5d. Worker nền chạy việc shadow (Tadss:Shadow): kết thúc ngay khi shadow tắt
         services.AddHostedService<ShadowExecutionWorker>();
+
+        // 5e. Telemetry (section Tadss:Telemetry): options luôn đăng ký và kiểm tra khi khởi động ở mọi môi trường; worker làm mới gauge hàng chờ duyệt
+        // kết thúc ngay khi telemetry tắt. Bộ máy OpenTelemetry (exporter) do composition root dựng, không nằm ở tầng này.
+        services.AddOptions<TelemetryOptions>()
+            .Bind(configuration.GetSection(TelemetryOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryOptionsValidator>();
+        services.AddHostedService<PendingApprovalsMetricRefresher>();
 
         // 6. Kho audit scoped vì dùng TadssDbContext của scope (request). Đăng ký MỘT lần; hai port (ISP) forward tới cùng instance trong scope
         services.AddScoped<EfDecisionAuditStore>();

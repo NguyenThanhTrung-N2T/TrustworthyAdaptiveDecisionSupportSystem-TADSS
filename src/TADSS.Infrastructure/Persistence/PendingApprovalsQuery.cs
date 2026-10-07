@@ -20,10 +20,11 @@ namespace TADSS.Infrastructure.Persistence;
 /// </summary>
 internal sealed class PendingApprovalsQuery
 {
-    // {0} = branchId, {1} = nowUtc. Một nơi duy nhất cho điều kiện lọc, dùng chung cho câu trang và câu tổng
-    private const string Conditions = """
-        c.role = 'PRIMARY' AND c.branch_id = {0} AND c.status = 'NEED_APPROVAL'
-          AND c.approval_expires_at > {1}
+    // {NOW} là vị trí tham số mốc hiện tại (khác nhau giữa câu theo chi nhánh và câu gộp). Một nơi duy nhất cho điều kiện lọc,
+    // dùng chung cho câu trang, câu tổng và câu đếm theo chi nhánh (gauge tadss.pending_approvals)
+    private const string Predicates = """
+        c.role = 'PRIMARY' AND c.status = 'NEED_APPROVAL'
+          AND c.approval_expires_at > {NOW}
           AND NOT EXISTS (SELECT 1 FROM tadss.decision_executions n
                           WHERE n.reservation_id = c.reservation_id AND n.branch_id = c.branch_id AND n.role = 'PRIMARY'
                             AND (n.created_at, n.decision_id) > (c.created_at, c.decision_id))
@@ -31,13 +32,21 @@ internal sealed class PendingApprovalsQuery
           AND NOT EXISTS (SELECT 1 FROM tadss.decision_outcomes r WHERE r.decision_id = c.decision_id)
         """;
 
+    // Câu theo chi nhánh: {0} = branchId, {1} = nowUtc
+    private static readonly string BranchConditions = "c.branch_id = {0} AND " + Predicates.Replace("{NOW}", "{1}");
+
     // {2} = pageSize, {3} = offset
-    private const string PageSql =
-        "SELECT c.* FROM tadss.decision_executions c WHERE " + Conditions +
+    private static readonly string PageSql =
+        "SELECT c.* FROM tadss.decision_executions c WHERE " + BranchConditions +
         " ORDER BY c.approval_expires_at, c.decision_id LIMIT {2} OFFSET {3}";
 
-    private const string CountSql =
-        "SELECT count(*)::int AS \"Value\" FROM tadss.decision_executions c WHERE " + Conditions;
+    private static readonly string CountSql =
+        "SELECT count(*)::int AS \"Value\" FROM tadss.decision_executions c WHERE " + BranchConditions;
+
+    // Câu gộp mọi chi nhánh: {0} = nowUtc
+    private static readonly string CountByBranchSql =
+        "SELECT c.branch_id AS \"BranchId\", count(*)::bigint AS \"Count\" FROM tadss.decision_executions c WHERE " +
+        Predicates.Replace("{NOW}", "{0}") + " GROUP BY c.branch_id";
 
     private readonly TadssDbContext _db;
 
@@ -59,6 +68,9 @@ internal sealed class PendingApprovalsQuery
 
     private static FormattableString CountStatement(Guid branchId, DateTimeOffset nowUtc) =>
         FormattableStringFactory.Create(CountSql, branchId, nowUtc);
+
+    private static FormattableString CountByBranchStatement(DateTimeOffset nowUtc) =>
+        FormattableStringFactory.Create(CountByBranchSql, nowUtc);
 
     /// <summary>
     /// Đọc một trang và tổng số bản ghi chờ duyệt của <paramref name="branchId"/>.
@@ -85,5 +97,20 @@ internal sealed class PendingApprovalsQuery
             .SingleAsync(cancellationToken);
 
         return new PendingApprovalsPage(entities.Select(DecisionAuditMapper.ToRecord).ToList(), total);
+    }
+
+    /// <summary>
+    /// Đếm số quyết định đang chờ duyệt của <b>mọi</b> chi nhánh bằng một truy vấn gộp, cùng điều kiện lọc với <see cref="ExecuteAsync"/>.
+    /// Chi nhánh không có bản nào chờ thì không có mặt trong kết quả.
+    /// </summary>
+    /// <param name="nowUtc">Mốc hiện tại để loại bản hết hạn duyệt.</param>
+    /// <param name="cancellationToken">Token hủy.</param>
+    public async Task<IReadOnlyDictionary<Guid, long>> CountByBranchAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        var rows = await _db.Database
+            .SqlQuery<PendingBranchCountRow>(CountByBranchStatement(nowUtc))
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.BranchId, row => row.Count);
     }
 }

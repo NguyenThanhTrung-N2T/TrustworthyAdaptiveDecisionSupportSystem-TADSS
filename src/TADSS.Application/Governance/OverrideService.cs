@@ -24,6 +24,7 @@ public sealed class OverrideService : IOverrideService
     private readonly IDecisionQueryStore _queryStore;
     private readonly IDecisionGovernanceStore _governanceStore;
     private readonly DepositCalculator _depositCalculator;
+    private readonly TadssMetrics _metrics;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OverrideService> _logger;
 
@@ -31,18 +32,21 @@ public sealed class OverrideService : IOverrideService
     /// <param name="queryStore">Kho đọc chi tiết quyết định.</param>
     /// <param name="governanceStore">Kho ghi override.</param>
     /// <param name="depositCalculator">Bộ quy đổi cọc dùng chung.</param>
+    /// <param name="metrics">Metric của runtime (đếm override mới).</param>
     /// <param name="timeProvider">Đồng hồ.</param>
     /// <param name="logger">Logger.</param>
     public OverrideService(
         IDecisionQueryStore queryStore,
         IDecisionGovernanceStore governanceStore,
         DepositCalculator depositCalculator,
+        TadssMetrics metrics,
         TimeProvider timeProvider,
         ILogger<OverrideService> logger)
     {
         _queryStore = queryStore ?? throw new ArgumentNullException(nameof(queryStore));
         _governanceStore = governanceStore ?? throw new ArgumentNullException(nameof(governanceStore));
         _depositCalculator = depositCalculator ?? throw new ArgumentNullException(nameof(depositCalculator));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -100,6 +104,8 @@ public sealed class OverrideService : IOverrideService
             return ResolveExisting(inserted.Stored, request, actorId, idempotencyKey, order.Currency);
         }
 
+        // Chỉ đếm override mới (replay và thua tranh chấp đã trả ở trên)
+        _metrics.RecordOverride(request.Action.ToString());
         LogOverride(decisionId, request.Action, isReplay: false);
         return GovernanceResponseMapper.ToResponse(inserted.Stored, order.Currency);
     }
