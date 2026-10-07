@@ -28,3 +28,10 @@ logs/
 ## OS Files
 .DS_Store
 Thumbs.db
+
+## Minh chứng của chế độ đánh giá (evidence/<run_id>/)
+evidence/
+
+## Python (tools/evaluation)
+__pycache__/
+.pytest_cache/

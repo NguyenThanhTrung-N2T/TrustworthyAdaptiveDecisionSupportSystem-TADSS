@@ -111,20 +111,25 @@ public class FaultInjectionControlTests
         using var harness = new FaultInjectionControlHarness(Initial(first.Profile, first.DelayMs));
         using var stop = new CancellationTokenSource();
         var observed = new List<FaultInjectionSnapshot>[8];
+        using var allStarted = new CountdownEvent(observed.Length);
 
-        var readers = Enumerable.Range(0, observed.Length).Select(index => Task.Run(() =>
+        var readers = Enumerable.Range(0, observed.Length).Select(index => Task.Factory.StartNew(() =>
         {
             observed[index] = [];
+            allStarted.Signal();
             while (!stop.IsCancellationRequested)
             {
                 observed[index].Add(harness.Control.Current);
             }
-        })).ToArray();
+        }, TaskCreationOptions.LongRunning)).ToArray();
+        allStarted.Wait(TimeSpan.FromSeconds(30)).Should().BeTrue("mọi luồng đọc phải chạy trước khi bắt đầu ghi (máy ít lõi có thể chậm lập lịch)");
         for (var i = 0; i < 1000; i++)
         {
             harness.Set(Initial(second.Profile, second.DelayMs));
             harness.Set(Initial(first.Profile, first.DelayMs));
         }
+
+        await Task.Delay(50);
 
         await stop.CancelAsync();
         await Task.WhenAll(readers);

@@ -1,0 +1,10 @@
+# Build context của image evaluator chỉ gồm mã Python của evaluator (O-14): không mã nguồn dự án, không file bí mật.
+*
+!tools/evaluation/requirements.txt
+!tools/evaluation/evaluator/**
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/appsettings.Development.json
+evidence/

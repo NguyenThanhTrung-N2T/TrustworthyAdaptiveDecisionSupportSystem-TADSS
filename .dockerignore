@@ -17,3 +17,10 @@ docker/
 .env.*
 **/appsettings.*.local.json
 **/*.pfx
+
+## Minh chứng của chế độ đánh giá (evidence/<run_id>/)
+evidence/
+
+## Python (tools/evaluation)
+__pycache__/
+.pytest_cache/

@@ -16,6 +16,7 @@ namespace TADSS.UnitTests.Architecture;
 public class SdkDependencyPurityTests
 {
     [Fact]
+    [Trait("CatalogId", "UT-09")]
     public void SharedDecisionContractSdk_ReferencesOnlyBclAssemblies()
     {
         var sdkAssembly = typeof(Reservation).Assembly;
@@ -35,6 +36,7 @@ public class SdkDependencyPurityTests
     }
 
     [Fact]
+    [Trait("CatalogId", "UT-09")]
     public void DomainLayer_DoesNotReference_DtoLayer()
     {
         var sdkAssembly = typeof(Reservation).Assembly;
@@ -82,6 +84,7 @@ public class SdkDependencyPurityTests
     }
 
     [Fact]
+    [Trait("CatalogId", "UT-09")]
     public void EnumsAndCommon_DoNotReference_DomainOrDtoLayers()
     {
         var sdkAssembly = typeof(Reservation).Assembly;

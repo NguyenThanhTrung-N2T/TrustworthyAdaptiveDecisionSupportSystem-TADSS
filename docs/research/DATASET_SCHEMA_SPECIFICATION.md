@@ -22,7 +22,7 @@ docs/research/evidence-packs/{run_id}/
 ├── manifest.json        # run_id, thời điểm, commit 3 repo, digest image, thông số máy, danh sách file + SHA-256 + số dòng
 ├── config/              # cấu hình đã dùng (đã loại secret), k6 options, cấu hình Toxiproxy
 ├── raw/                 # dữ liệu thô: k6 summary/time series, báo cáo test (trx/HTML), export audit, kết quả truy vấn bất biến
-├── grafana/             # ảnh chụp + JSON snapshot dashboard cùng khoảng thời gian
+├── grafana/             # JSON snapshot dashboard cùng khoảng thời gian (không lưu ảnh)
 └── report.html          # báo cáo do bộ sinh báo cáo (notebook) sinh ra
 ```
 

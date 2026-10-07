@@ -20,6 +20,7 @@
     <Compile Include="..\TADSS.UnitTests\TestData\TestApiKeys.cs" Link="SharedTestData\TestApiKeys.cs" />
     <Compile Include="..\TADSS.UnitTests\TestDoubles\MetricRecorder.cs" Link="SharedTestData\MetricRecorder.cs" />
     <Compile Include="..\TADSS.UnitTests\TestDoubles\CapturingLogEventSink.cs" Link="SharedTestData\CapturingLogEventSink.cs" />
+    <Compile Include="..\TADSS.UnitTests\TestData\CatalogIndex.cs" Link="SharedTestData\CatalogIndex.cs" />
   </ItemGroup>
 
   <ItemGroup>

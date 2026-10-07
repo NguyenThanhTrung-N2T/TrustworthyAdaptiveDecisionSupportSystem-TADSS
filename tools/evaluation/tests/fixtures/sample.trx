@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TestRun id="00000000-0000-0000-0000-000000000001" name="mẫu" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Results>
+    <UnitTestResult executionId="1" testId="1" testName="TADSS.UnitTests.Sample.Alpha" duration="00:00:00.0120000" outcome="Passed" />
+    <UnitTestResult executionId="2" testId="2" testName="TADSS.UnitTests.Sample.Theory(value: 1)" duration="00:00:00.0010000" outcome="Passed" />
+    <UnitTestResult executionId="3" testId="3" testName="TADSS.UnitTests.Sample.Theory(value: 2)" duration="00:00:01.5000000" outcome="Failed" />
+    <UnitTestResult executionId="4" testId="4" testName="TADSS.UnitTests.Outer+Inner.Nested" duration="00:00:00.0050000" outcome="Passed" />
+    <UnitTestResult executionId="5" testId="5" testName="TADSS.UnitTests.Sample.Skipped" duration="00:00:00.0000000" outcome="NotExecuted" />
+  </Results>
+</TestRun>

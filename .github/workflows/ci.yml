@@ -129,3 +129,34 @@ jobs:
 
       - name: Verify Observability
         run: bash tools/observability/verify-observability.sh
+
+  # Công cụ của chế độ đánh giá (D-12): pytest của evaluator (và evidence khi có) và dựng thử image evaluator (không chạy). Test payload k6 cần binary k6.
+  evaluation-tools:
+    name: Evaluation Tools (pytest + evaluator image)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: "2.3.0"
+
+      - name: Install Python Dependencies
+        run: pip install -r tools/evaluation/requirements.txt
+
+      - name: Run Evaluator Tests
+        run: |
+          python -m pytest -q tools/evaluation
+          if [ -d tools/evidence ]; then python -m pytest -q tools/evidence; fi
+
+      - name: Build Evaluator Image (not run)
+        run: docker build -f docker/evaluator/Dockerfile -t tadss-evaluator:ci .

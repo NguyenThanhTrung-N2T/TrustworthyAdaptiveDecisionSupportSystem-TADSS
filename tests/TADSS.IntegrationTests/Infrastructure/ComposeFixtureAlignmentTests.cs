@@ -20,6 +20,11 @@ public class ComposeFixtureAlignmentTests
     private const string Runtime = "tadss-runtime";
     private const string ProvisioningTarget = "/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml";
     private const string DashboardsTarget = "/otel-lgtm/tadss-dashboards";
+    private const string EvaluationProfile = "evaluation";
+    private const string EvaluationGrafanaPort = "127.0.0.1:3002:3000";
+    private static readonly string[] OperationsServiceNames = ["tadss-runtime", "ngrok", "grafana"];
+    private static readonly string[] EvaluationServiceNames =
+        ["eval-postgres", "eval-redis", "eval-toxiproxy", "eval-tadss-1", "eval-tadss-2", "eval-proxy", "eval-grafana", "evaluator"];
 
     private static readonly string[] SecretVariableFragments =
     [
@@ -36,15 +41,26 @@ public class ComposeFixtureAlignmentTests
         composeFiles.Should().Equal(ComposeFile);
     }
 
-    /// <summary>Mọi mục <c>ports</c> của mọi service đều bắt đầu bằng <c>127.0.0.1:</c>: không có <c>0.0.0.0</c> và không có cổng trần (mặc định bind mọi giao diện).</summary>
+    /// <summary>Mọi mục <c>ports</c> của mọi service (kể cả service đánh giá) đều bắt đầu bằng <c>127.0.0.1:</c>: không có <c>0.0.0.0</c> và không có cổng trần (mặc định bind mọi giao diện).</summary>
     [Fact]
     [Trait("CatalogId", "NG-5")]
     public void Compose_BindsOnlyLoopback()
     {
         var ports = Services().SelectMany(service => List(service.Value, "ports")).ToList();
 
-        ports.Should().HaveCount(5, "tadss-runtime (1), trang theo dõi ngrok (1) và Grafana + OTLP gRPC + OTLP HTTP (3)");
+        ports.Should().HaveCount(6, "tadss-runtime (1), trang theo dõi ngrok (1), Grafana + OTLP gRPC + OTLP HTTP (3) và Grafana của stack đánh giá (1)");
         ports.Should().OnlyContain(entry => entry.StartsWith(LoopbackPrefix, StringComparison.Ordinal), "mọi cổng của compose phải bind {0}", LoopbackPrefix);
+    }
+
+    /// <summary>Các service đánh giá chỉ publish đúng một cổng ra máy chủ: Grafana ở <c>127.0.0.1:3002</c> (NG-5 áp cho cả profile đánh giá).</summary>
+    [Fact]
+    [Trait("CatalogId", "NG-5")]
+    public void EvaluationProfile_OnlyGrafanaPortOnLoopback()
+    {
+        var ports = Services().Where(service => IsEvaluation(service.Value))
+            .SelectMany(service => List(service.Value, "ports").Select(port => (Service: service.Key, Port: port))).ToList();
+
+        ports.Should().ContainSingle().Which.Should().Be(("eval-grafana", EvaluationGrafanaPort));
     }
 
     /// <summary>
@@ -125,15 +141,15 @@ public class ComposeFixtureAlignmentTests
     }
 
     /// <summary>
-    /// Một lệnh <c>docker compose up -d --build</c> khởi động cả ba service (giống SmashCourt-BE): không service nào nằm sau profile.
+    /// Một lệnh <c>docker compose up -d --build</c> khởi động đúng ba service vận hành (giống SmashCourt-BE): chỉ ba service này không nằm sau profile, nên profile đánh giá không làm đổi chế độ vận hành.
     /// ngrok chỉ cần <c>NGROK_AUTHTOKEN</c> (không domain tĩnh): lệnh <c>http tadss-runtime:8080</c>, không <c>--url</c>, không <c>NGROK_DOMAIN</c>.
     /// </summary>
     [Fact]
     [Trait("CatalogId", "NG-1")]
-    public void Compose_StartsAllServicesWithoutProfiles_NgrokNeedsOnlyAuthtoken()
+    public void OperationsServices_UnaffectedByEvaluationProfile()
     {
-        Services().Select(service => service.Key).Should().BeEquivalentTo(["tadss-runtime", "ngrok", "grafana"]);
-        Services().Should().NotContain(service => service.Value.ContainsKey("profiles"), "không service nào được nằm sau profile");
+        Services().Where(service => !service.Value.ContainsKey("profiles")).Select(service => service.Key).Should().BeEquivalentTo(OperationsServiceNames);
+        Services().Select(service => service.Key).Should().BeEquivalentTo(OperationsServiceNames.Concat(EvaluationServiceNames));
 
         var ngrok = Service("ngrok");
         Scalar(ngrok, "command").Should().Be("http tadss-runtime:8080", "ngrok chuyển tiếp tới tadss-runtime:8080 trong mạng compose");
@@ -170,9 +186,68 @@ public class ComposeFixtureAlignmentTests
         network["external"].Should().Be("true", "mạng dùng chung với BE/FE phải là external, tên smashcourt-network");
         networks.Should().ContainSingle();
 
-        foreach (var service in Services())
+        foreach (var service in Services().Where(service => !IsEvaluation(service.Value)))
         {
             List(service.Value, "networks").Should().Equal(["smashcourt-network"], "service {0} phải nối mạng smashcourt-network", service.Key);
+        }
+    }
+
+    /// <summary>
+    /// Mỗi service đánh giá nằm sau profile <c>evaluation</c> và <b>không</b> nối <c>smashcourt-network</c> (stack cô lập, mạng mặc định riêng). Hai instance TADSS chạy <c>Testing</c> và chỉ nối
+    /// PostgreSQL/Redis <b>qua</b> <c>eval-toxiproxy</c> (không trỏ thẳng vào <c>eval-postgres</c>/<c>eval-redis</c>, không host ngoài); image PostgreSQL/Redis/Toxiproxy/Grafana bằng hằng của
+    /// fixture hoặc compose vận hành; mọi image dựng sẵn ghim tag cụ thể (không <c>latest</c>); evaluator build từ Dockerfile của nó.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "NG-1")]
+    [InlineData("eval-postgres")]
+    [InlineData("eval-redis")]
+    [InlineData("eval-toxiproxy")]
+    [InlineData("eval-tadss-1")]
+    [InlineData("eval-tadss-2")]
+    [InlineData("eval-proxy")]
+    [InlineData("eval-grafana")]
+    [InlineData("evaluator")]
+    public void EvaluationServices_Theory(string name)
+    {
+        var service = Service(name);
+
+        List(service, "profiles").Should().Equal([EvaluationProfile], "{0} phải nằm sau profile evaluation", name);
+        service.Should().NotContainKey("networks", "stack đánh giá dùng mạng mặc định riêng, không nối smashcourt-network");
+        if (name is not "eval-tadss-1" and not "eval-tadss-2" and not "evaluator")
+        {
+            Scalar(service, "image").Should().MatchRegex(@":\d[\w.\-]*$", "image {0} phải có tag phiên bản cụ thể", name).And.NotContain("latest");
+        }
+
+        switch (name)
+        {
+            case "eval-postgres":
+                Scalar(service, "image").Should().Be(TadssInfrastructureFixture.PostgresImage);
+                break;
+            case "eval-redis":
+                Scalar(service, "image").Should().Be(TadssInfrastructureFixture.RedisImage);
+                break;
+            case "eval-toxiproxy":
+                Scalar(service, "image").Should().Be(TadssInfrastructureFixture.ToxiproxyImage);
+                break;
+            case "eval-grafana":
+                Scalar(service, "image").Should().Be(Scalar(Service("grafana"), "image"), "cùng image otel-lgtm với chế độ vận hành");
+                break;
+            case "eval-tadss-1" or "eval-tadss-2":
+                var environment = Map(service, "environment");
+                environment["ASPNETCORE_ENVIRONMENT"].Should().Be("Testing", "decorator tiêm lỗi chỉ đăng ký ở Testing; Testing không nạp appsettings.Development.json");
+                environment["ConnectionStrings__DefaultConnection"].Should().Contain("Host=eval-toxiproxy;").And.NotContain("eval-postgres");
+                environment["Tadss__Cache__RedisConnectionString"].Should().StartWith("eval-toxiproxy:");
+                environment["Tadss__Database__ApplyMigrationsOnStartup"].Should().Be(name == "eval-tadss-1" ? "true" : "false", "chỉ instance 1 áp migration lên database dùng một lần");
+                environment["Tadss__Security__ApiKeys__0__KeySha256"].Should().Be("0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406", "SHA-256 của hằng không bí mật tadss-evaluation-key");
+                environment["Tadss__Telemetry__OtlpEndpoint"].Should().Be("http://eval-grafana:4317");
+                environment["Tadss__Telemetry__ServiceInstanceId"].Should().Be(name == "eval-tadss-1" ? "tadss-1" : "tadss-2");
+                environment.ContainsKey("TADSS_FAULT_INJECTION_FILE").Should().Be(name == "eval-tadss-1", "chỉ instance 1 đọc file tiêm lỗi");
+                break;
+            case "evaluator":
+                service.Should().ContainKey("build");
+                List(service, "volumes").Should().Contain(".:/repo:ro", "mã nguồn mount chỉ đọc").And.Contain("/var/run/docker.sock:/var/run/docker.sock");
+                Map(service, "environment")["EVAL_MODE"].Should().Be("${EVAL_MODE:-quick}");
+                break;
         }
     }
 
@@ -201,6 +276,8 @@ public class ComposeFixtureAlignmentTests
             .ToDictionary(pair => (string)pair.Key, pair => (Dictionary<object, object>)pair.Value);
 
     private static Dictionary<object, object> Service(string name) => Services()[name];
+
+    private static bool IsEvaluation(Dictionary<object, object> service) => List(service, "profiles").Contains(EvaluationProfile);
 
     private static string Scalar(Dictionary<object, object> service, string key) => (string)service[key];
 

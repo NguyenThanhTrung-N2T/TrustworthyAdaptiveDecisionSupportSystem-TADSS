@@ -1,0 +1,3 @@
+# Phụ thuộc Python của evaluator và công cụ đánh giá (ghim phiên bản; cài trong image evaluator và job CI evaluation-tools).
+pytest==9.1.1
+jsonschema==4.26.0

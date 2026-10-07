@@ -259,7 +259,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | :--- | :--- | :--- | :--- |
 | OB-1 | Dashboard `tadss-runtime` chỉ tham chiếu metric có thật: mọi định danh `tadss_*` trong biểu thức PromQL ánh xạ được về một instrument khai báo ở một nơi trong mã (Meter `TADSS.Runtime`) theo quy tắc chuyển tên của Prometheus (dấu chấm → gạch dưới; counter thêm `_total`; đơn vị `ms` thêm `_milliseconds`; histogram thêm `_bucket`/`_sum`/`_count`); mọi định danh `k6_*` nằm trong danh sách metric k6 khai báo một nơi | tự động (test) | P5 |
 | OB-2 | Dashboard tự nạp qua provisioning khi dựng Grafana, ở cả chế độ vận hành và chế độ đánh giá (kiểm bằng HTTP API của Grafana) | tự động (`verify-observability.sh`, evaluator) | P5 |
-| OB-3 | Sau kịch bản sự cố dưới tải (FI-02/FI-03/FI-07/FI-08) ở E-EVAL, Evidence Pack có JSON/ảnh dashboard và biểu đồ dòng thời gian vẽ từ metric đã thu, thể hiện fallback, 503 và hồi phục | evaluator (bước c, e) | P5 |
+| OB-3 | Sau kịch bản sự cố dưới tải (FI-02/FI-03/FI-07/FI-08) ở E-EVAL, Evidence Pack có JSON snapshot dashboard (không lưu ảnh) và biểu đồ dòng thời gian vẽ từ metric đã thu, thể hiện fallback, 503 và hồi phục | evaluator (bước c, e) | P5 |
 | OB-4 | Chế độ vận hành (`docker compose up -d --build`): sau vài request tới TADSS, dashboard có dữ liệu (kiểm bằng API Grafana/Prometheus trong tối đa 60 giây) | tự động (`verify-observability.sh`) | P5 |
 | OB-5 | Telemetry trong tiến trình: mỗi metric ghi đúng tên, nhãn, thời điểm (quyết định, override, pipeline, fallback, gauge breaker, gauge hàng chờ); span có cây cha–con đúng và log mang trace context; không có thuộc tính bí mật (khóa API, mã băm, chuỗi kết nối); collector không chạy không làm ảnh hưởng request | tự động (test) | P5 |
 

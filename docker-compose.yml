@@ -51,6 +51,183 @@ services:
     networks:
       - smashcourt-network
 
+  # ── Chế độ đánh giá (D-12, O-12, O-13): mọi service dưới đây nằm sau profile `evaluation`, dùng mạng mặc định riêng của project (KHÔNG nối smashcourt-network) và không bao giờ chạm Neon/Redis Cloud.
+  # Chạy bằng: docker compose -p tadss-eval --profile evaluation run --rm --build evaluator   (KHÔNG dùng `up --profile evaluation`: lệnh đó cũng khởi động tadss-runtime/ngrok vì chúng không có profile)
+  # Dọn: docker compose -p tadss-eval --profile evaluation down -v
+  eval-postgres:
+    profiles: [evaluation]
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_DB: tadss
+      POSTGRES_USER: tadss
+      POSTGRES_PASSWORD: tadss_eval   # database dùng một lần của stack đánh giá, không phải secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  eval-redis:
+    profiles: [evaluation]
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Toxiproxy đứng giữa TADSS và PostgreSQL/Redis để kịch bản sự cố cắt hoặc làm chậm hạ tầng thật (cổng proxy 15432 và 16379, cổng điều khiển 8474)
+  eval-toxiproxy:
+    profiles: [evaluation]
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./docker/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    depends_on:
+      eval-postgres:
+        condition: service_healthy
+      eval-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Instance 1: migrate database dùng một lần, tiêm lỗi (file JSON trong volume eval-faults đổi nóng Profile/DelayMs)
+  eval-tadss-1:
+    profiles: [evaluation]
+    build: .
+    image: tadss-eval-runtime:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing   # decorator tiêm lỗi chỉ đăng ký ở Testing; Testing không nạp appsettings.Development.json
+      ConnectionStrings__DefaultConnection: "Host=eval-toxiproxy;Port=15432;Database=tadss;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-toxiproxy:16379"
+      Tadss__Database__ApplyMigrationsOnStartup: "true"   # CHỈ database dùng một lần của stack đánh giá
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"   # SHA-256 của hằng không bí mật `tadss-evaluation-key`, chỉ có hiệu lực ở stack này
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-1
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+      Tadss__Testing__FaultInjection__Enabled: "true"
+      Tadss__Testing__FaultInjection__Profile: None
+      TADSS_FAULT_INJECTION_FILE: /faults/fault.json
+    volumes:
+      - eval-faults:/faults:ro
+    depends_on:
+      eval-toxiproxy:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
+
+  # Instance 2: cùng database/Redis, không migrate, không tiêm lỗi (đối chứng SCALE-2); chờ instance 1 khỏe để hai instance không cùng migrate
+  eval-tadss-2:
+    profiles: [evaluation]
+    build: .
+    image: tadss-eval-runtime:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__DefaultConnection: "Host=eval-toxiproxy;Port=15432;Database=tadss;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-toxiproxy:16379"
+      Tadss__Database__ApplyMigrationsOnStartup: "false"
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-2
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+    depends_on:
+      eval-tadss-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
+
+  eval-proxy:
+    profiles: [evaluation]
+    image: nginx:1.29.8-alpine
+    volumes:
+      - ./docker/evaluation/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      eval-tadss-1:
+        condition: service_healthy
+      eval-tadss-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 20
+
+  # Grafana của stack đánh giá: cổng host duy nhất của profile (NG-5), cùng provisioning dashboard như chế độ vận hành
+  eval-grafana:
+    profiles: [evaluation]
+    image: grafana/otel-lgtm:0.34.0
+    ports:
+      - "127.0.0.1:3002:3000"
+    volumes:
+      - ./docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro
+      - ./docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro
+
+  # Evaluator: chạy test, tải, sự cố và gom minh chứng. Mount docker.sock (Testcontainers cho integration test, đọc digest image): có quyền điều khiển Docker của máy, nên chỉ dùng trên máy của chính bạn.
+  evaluator:
+    profiles: [evaluation]
+    build:
+      context: .
+      dockerfile: docker/evaluator/Dockerfile
+    image: tadss-evaluator:local
+    environment:
+      EVAL_MODE: ${EVAL_MODE:-quick}
+      EVAL_STEPS: ${EVAL_STEPS:-}
+      EVAL_TADSS_URL: http://eval-tadss-1:8080
+      EVAL_PROXY_URL: http://eval-proxy:8080
+      EVAL_API_KEY: tadss-evaluation-key   # hằng không bí mật của stack đánh giá
+      EVAL_GRAFANA_URL: http://eval-grafana:3000
+      EVAL_PROMETHEUS_URL: http://eval-grafana:3000/api/datasources/proxy/uid/prometheus
+      EVAL_TOXIPROXY_URL: http://eval-toxiproxy:8474
+      EVAL_PG_DSN: "host=eval-postgres port=5432 dbname=tadss user=tadss password=tadss_eval"
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/repo:ro
+      - ./evidence:/evidence
+      - /var/run/docker.sock:/var/run/docker.sock
+      - eval-nuget:/root/.nuget/packages
+      - eval-faults:/faults
+    depends_on:
+      eval-postgres:
+        condition: service_healthy
+      eval-redis:
+        condition: service_healthy
+      eval-toxiproxy:
+        condition: service_healthy
+      eval-tadss-1:
+        condition: service_healthy
+      eval-tadss-2:
+        condition: service_healthy
+      eval-proxy:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy
+
 networks:
   smashcourt-network:
     external: true
+
+volumes:
+  eval-nuget:
+  eval-faults:

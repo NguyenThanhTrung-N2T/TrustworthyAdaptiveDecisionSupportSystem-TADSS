@@ -1,0 +1,51 @@
+{
+  "quick": {
+    "lt01": {
+      "executor": "constant-arrival-rate",
+      "rate": 50,
+      "warmup": "30s",
+      "duration": "2m",
+      "runs": 1,
+      "preAllocatedVUs": 100,
+      "maxVUs": 400
+    },
+    "lt02": {
+      "executor": "ramping-arrival-rate",
+      "startRate": 10,
+      "warmup": "30s",
+      "steps": [10, 50, 90, 130, 170, 200],
+      "hold": "30s",
+      "preAllocatedVUs": 100,
+      "maxVUs": 800
+    }
+  },
+  "full": {
+    "lt01": {
+      "executor": "constant-arrival-rate",
+      "rate": 50,
+      "warmup": "1m",
+      "duration": "10m",
+      "runs": 3,
+      "preAllocatedVUs": 100,
+      "maxVUs": 400
+    },
+    "lt02": {
+      "executor": "ramping-arrival-rate",
+      "startRate": 10,
+      "warmup": "30s",
+      "steps": [10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400],
+      "hold": "50s",
+      "preAllocatedVUs": 200,
+      "maxVUs": 1500
+    },
+    "lt05": {
+      "executor": "constant-arrival-rate",
+      "rate": 50,
+      "warmup": "1m",
+      "duration": "60m",
+      "runs": 1,
+      "preAllocatedVUs": 100,
+      "maxVUs": 400
+    }
+  }
+}
