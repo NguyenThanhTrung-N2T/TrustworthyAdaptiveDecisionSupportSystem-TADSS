@@ -74,7 +74,7 @@ Cấu hình kết nối PostgreSQL/Redis và API key đặt trong user-secrets h
 
 Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.json` (PostgreSQL Neon + Redis Cloud, khóa API của bạn), **không dùng compose** (quyết định D-04). Schema `tadss` trên Neon do người dùng tự migrate bằng `dotnet ef database update` (quy tắc D-05); ứng dụng không tự migrate: `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ bật cho database thử dùng một lần (Testcontainers, `tools/expose/verify-expose.sh`).
 
-`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Lab E-LOCAL (PostgreSQL, Toxiproxy) đã gỡ khỏi compose; chế độ đánh giá thay thế nó được lên kế hoạch ở gói 5.5 (xem "Ba chế độ chạy" bên dưới).
+`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file nhưng sau profile `evaluation` (không bao giờ được `up` thường khởi động), xem "Chế độ đánh giá một lệnh" bên dưới.
 
 **Ba chế độ chạy (D-12):**
 
@@ -82,7 +82,7 @@ Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.jso
 | :--- | :--- | :--- | :--- |
 | Dev hằng ngày | `dotnet run --project src/TADSS.Runtime.Api` | Neon + Redis Cloud qua `appsettings.Development.json`; chỉ app + Swagger để kiểm tra luồng, không Docker, không Grafana | Đã có |
 | Vận hành / demo | `docker compose up -d --build` | TADSS + ngrok + Grafana (`grafana/otel-lgtm`, `localhost:3001`) | Đã có (D-11) |
-| Đánh giá cho hội đồng | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~15 phút, bản đầy đủ ~1,5–2 giờ; chạy trên một máy nên là số liệu phòng lab | **Kế hoạch gói 5.5, chưa hiện thực: profile `evaluation` chưa tồn tại trong `docker-compose.yml`** |
+| Đánh giá cho hội đồng | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) × 2 sau reverse proxy + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~25 phút, bản đầy đủ ~2,8 giờ; chạy trên một máy nên là số liệu phòng lab | Đã có (gói 5.5), xem mục "Chế độ đánh giá một lệnh" |
 
 > **Không chạy chế độ đánh giá bằng `docker compose --profile evaluation up`.** Service không gắn profile (`tadss-runtime` ở `Development` đọc Neon, và `ngrok`) luôn được `up` khởi động bất kể profile, nên lệnh đó sẽ nối Neon thật và mở tunnel Internet (đã kiểm chứng ở spike S-5 của gói 5.5). Dùng `run evaluator` trong project riêng `tadss-eval` như bảng trên; `docker compose -p tadss-eval --profile evaluation down -v` chỉ dọn stack đánh giá, không dừng stack vận hành.
 
@@ -208,6 +208,55 @@ Dùng cho kịch bản sự cố dưới tải (LT-03). Strategy bị bỏ qua t
 
 Meter `TADSS.Runtime` (13 instrument, khai báo ở `TadssMetricNames`): quyết định, thời gian request và pipeline, fallback, trạng thái breaker, cache, hàng chờ duyệt, override, shadow, nạp lại cấu hình. Xuất qua OpenTelemetry (OTLP) khi `Tadss:Telemetry:Enabled = true` (mặc định tắt); `docker compose up` bật sẵn và gửi tới Grafana. Lỗi lệnh SQL mong đợi (tranh chấp idempotency `23505`) chỉ ghi ở mức Debug; lỗi thật vẫn ghi ở Warning/Error bởi store và exception handler.
 
+## Observability và chế độ đánh giá
+
+### Observability (OpenTelemetry + Grafana)
+
+- **Chế độ vận hành** (`docker compose up -d --build`): TADSS gửi trace, metric và log tới `grafana/otel-lgtm` (cổng OTLP `4317`); mở `http://localhost:3001`, thư mục **TADSS** có dashboard **TADSS Runtime** nạp sẵn (36 panel: tổng quan, quyết định, chịu lỗi, cache, quản trị và shadow, tải k6; biến `instance`; annotation `chaos`).
+- **`dotnet run` hằng ngày:** telemetry tắt (không cần collector). Muốn xem dashboard khi chạy tay, bật collector riêng và trỏ TADSS tới nó:
+  `docker run --rm -p 3001:3000 -p 4317:4317 -v "$PWD/docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro" -v "$PWD/docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro" grafana/otel-lgtm:0.34.0`, rồi đặt `Tadss__Telemetry__Enabled=true` và `Tadss__Telemetry__OtlpEndpoint=http://localhost:4317`. Collector chết hoặc không tới được không ảnh hưởng request.
+- Kiểm tự động (không cần Neon/ngrok): `bash tools/observability/verify-observability.sh` (OB-2 dashboard đã nạp, OB-4 có `tadss_decisions_total` sau vài request).
+
+| Khóa `Tadss:Telemetry:*` | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `Enabled` | `false` | `false` ⇒ không đăng ký provider OpenTelemetry nào, worker gauge hàng chờ không truy vấn |
+| `OtlpEndpoint` | `http://localhost:4317` | URI tuyệt đối http/https khi `Enabled` |
+| `OtlpProtocol` | `Grpc` | `Grpc` hoặc `HttpProtobuf` |
+| `ServiceName` | `tadss-runtime` | Nhãn `job`; không rỗng, tối đa 64 ký tự |
+| `ServiceInstanceId` | rỗng | Nhãn `instance`; rỗng ⇒ tên máy/container |
+| `TraceSampleRatio` | `1.0` | 0..1, lấy mẫu trace `ParentBased(TraceIdRatioBased)` |
+| `ExportLogs` | `true` | Thêm sink log OTLP (Loki) |
+| `MetricExportIntervalMs` | `10000` | 1000..60000 |
+| `PendingApprovalsRefreshSeconds` | `30` | 5..3600, chu kỳ làm mới gauge hàng chờ duyệt |
+
+### Chế độ đánh giá một lệnh
+
+Dựng stack cô lập (hai instance TADSS sau nginx, PostgreSQL 16, Redis 7, Toxiproxy, Grafana) và một container **evaluator** chạy tuần tự: (a) toàn bộ test gộp theo mã danh mục + `verify-expose.sh` + kiểm dashboard; (b) k6 LT-01, LT-02 (và LT-05 ở bản đầy đủ); (c) sự cố dưới tải LT-03 (FI-02, FI-03, FI-08, FI-07 qua file profile và Toxiproxy) + SCALE-2; (d) Schemathesis CT-03, coverage gộp, Stryker MT-01…03 (chỉ bản đầy đủ); (e) gom `evidence/<run_id>/`.
+
+```bash
+# Cách gọn nhất (tự build/tải image ở lần đầu, in đường dẫn report.html):
+bash tools/evaluation/run.sh                 # bản nhanh
+bash tools/evaluation/run.sh full            # bản đầy đủ
+bash tools/evaluation/run.sh quick --clean   # chạy xong dọn sạch container/volume/image/build cache (~6 GB)
+bash tools/evaluation/run.sh --clean-only    # chỉ dọn
+# Hoặc gọi docker compose trực tiếp — bản nhanh (mặc định), chạy trong thư mục TADSS-Runtime/
+docker compose -p tadss-eval --profile evaluation run --rm --build evaluator
+# Bản đầy đủ (số liệu chính thức)
+docker compose -p tadss-eval --profile evaluation run --rm --build -e EVAL_MODE=full evaluator
+# Chạy lại một vài bước (ví dụ chỉ tải và sự cố)
+docker compose -p tadss-eval --profile evaluation run --rm --build -e EVAL_STEPS=b,c evaluator
+# Dọn stack đánh giá (không đụng stack vận hành)
+docker compose -p tadss-eval --profile evaluation down -v
+```
+
+- **Kết quả:** `evidence/<run_id>/` (`run_id` = `EV-{yyyyMMdd}-EVAL-{quick|full}-r{n}`; thư mục làm việc, không commit): `report.html` (mở thẳng bằng trình duyệt, tự chứa), `manifest.json` (SHA-256 từng file, commit, máy, KPI SC1…SC8, EV-1…EV-5), `raw/` (trx theo `CatalogId`, k6 từng request, `chaos_log.csv`, metric, Schemathesis, Stryker, coverage, D1 `decision_audit.csv`), `grafana/dashboard-snapshot.json` (không lưu ảnh dashboard), `config/`.
+- **Mã thoát:** `0` đạt mọi tiêu chí; `1` chạy hết nhưng có tiêu chí không đạt; `2` lỗi hạ tầng hoặc không chạy hết. Sau khi evaluator thoát, Grafana của stack đánh giá (`http://127.0.0.1:3002`) vẫn chạy để xem lại tới khi `down -v`.
+- **Thời lượng đo thật:** bản nhanh **22–25 phút** (lượt cuối 21,9 phút; một lượt điển hình: a 532 s, b 400 s, c 509 s, d 38 s, e 34 s; chưa tính lần đầu dựng image/stack); bước (d) bản đầy đủ **25,9 phút** (CT-03 500 ví dụ 190 s + Stryker ≈ 21 phút); bản đầy đủ trọn vẹn **ước tính ≈ 2,8 giờ** từ các bước đã đo (a 9 phút, b ≈ 110 phút gồm LT-05 61 phút, c ≈ 20 phút, d 26 phút, e ≈ 1,5 phút) và sẽ đo trọn vẹn ở gói 5.7
+- **Tài nguyên:** nên có ≥ 8 GB RAM cấp cho Docker; image cần ~6 GB (otel-lgtm 3,7 GB, evaluator 1,65 GB); `run.sh --clean` xóa lại sau khi chạy. Tắt chế độ ngủ của máy khi chạy (máy ngủ giữa lượt làm số đo sai). Bước (a) chạy unit test tuần tự để kết quả tất định trong container.
+- **Không dùng `docker compose --profile evaluation up`** (xem cảnh báo ở mục "Ba chế độ chạy").
+- **Cảnh báo bảo mật:** evaluator mount `/var/run/docker.sock` (Testcontainers cho integration test) nên có quyền điều khiển Docker của máy; chỉ chạy trên máy của chính bạn. Mã nguồn được mount chỉ đọc và copy sang `/work` **loại trừ** `appsettings.Development.json`, `.env*`; stack đánh giá dùng khóa API cố định không bí mật (`tadss-evaluation-key`) và chỉ có hiệu lực ở đó.
+- **Giới hạn:** một máy (k6, TADSS, DB tranh CPU), môi trường `Testing`, rate limit nâng, trace lấy mẫu 10 % — xem Mục 8 của methodology và phần "Giới hạn" của `report.html`.
+
 ## Chạy bằng Docker và expose qua ngrok
 
 Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Grafana cùng lúc (SmashCourt-BE ở máy khác, demo). `docker-compose.yml` là file compose duy nhất, không profile, cấu hình **giống SmashCourt-BE**: `tadss-runtime` chạy `ASPNETCORE_ENVIRONMENT=Development` (cổng host chỉ `127.0.0.1`), `ngrok` chỉ cần `NGROK_AUTHTOKEN` (không domain tĩnh), Grafana (`grafana/otel-lgtm`). Database là Neon, cache là Redis Cloud và API key đều khai báo trong `src/TADSS.Runtime.Api/appsettings.Development.json` (file duy nhất `dotnet run` và Docker dùng chung): file đó được **copy vào image** lúc build (`.dockerignore` không loại nó), không mount thêm gì lúc chạy. `.env` chỉ chứa `NGROK_AUTHTOKEN`.
@@ -231,6 +280,11 @@ Chạy trong thư mục `TADSS-Runtime/`.
 | Trạng thái; log TADSS; log ngrok | `docker compose ps`; `docker compose logs -f tadss-runtime`; `docker compose logs ngrok` |
 | Dừng chế độ vận hành (giữ image) | `docker compose down` |
 | Kiểm tra cấu hình expose (không đụng Neon) | `bash tools/expose/verify-expose.sh` |
+| Kiểm tra observability (không đụng Neon) | `bash tools/observability/verify-observability.sh` |
+| Chạy chế độ đánh giá (bản nhanh; đầy đủ thêm `-e EVAL_MODE=full`) | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` |
+| Xem lại Grafana sau khi đánh giá xong | mở `http://127.0.0.1:3002` (stack đánh giá còn chạy tới khi dọn) |
+| Log một service của stack đánh giá | `docker compose -p tadss-eval --profile evaluation logs eval-tadss-1` |
+| Dọn stack đánh giá (container, volume, mạng) | `docker compose -p tadss-eval --profile evaluation down -v` |
 | Unit test (không cần Docker) | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` |
 | Integration test (cần Docker; tự tải PostgreSQL, Redis, Toxiproxy, ryuk) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` |
 | Xem dung lượng Docker | `docker system df` |

@@ -62,16 +62,16 @@
 
 ### Epic 5B — Hạ tầng kiểm thử & observability (SV1)
 
-> **Chế độ đánh giá một lệnh (D-12, 04/10/2026):** T5.14…T5.20 được hiện thực quanh `docker compose --profile evaluation up` (kế hoạch gói 5.5, **chưa làm**): một container evaluator điều phối test gộp, k6, sự cố dưới tải qua Toxiproxy, Schemathesis, Stryker rồi dựng `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`). Các script rời đã dự kiến trước đây được evaluator thay thế; profile `lab` / môi trường E-LOCAL được thay bằng profile `evaluation` / E-EVAL. Gói 5.5 dựng chế độ đánh giá; 5.6 thêm dữ liệu (replay, adapter khách sạn); 5.7 chạy bản đầy đủ để đóng băng (Gate M5).
+> **Chế độ đánh giá một lệnh (D-12, 04/10/2026):** T5.14…T5.20 được hiện thực quanh `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (gói 5.5, **đã làm**): một container evaluator điều phối test gộp, k6, sự cố dưới tải qua Toxiproxy, Schemathesis, Stryker rồi dựng `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`). Các script rời đã dự kiến trước đây được evaluator thay thế; profile `lab` / môi trường E-LOCAL được thay bằng profile `evaluation` / E-EVAL. Gói 5.5 dựng chế độ đánh giá; 5.6 thêm dữ liệu (replay, adapter khách sạn); 5.7 chạy bản đầy đủ để đóng băng (Gate M5).
 
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
 | T5.12 | Chuyển integration test sang **Testcontainers** (PostgreSQL 16 + Redis 7); gỡ `Microsoft.EntityFrameworkCore.InMemory` | W05 | ✅ (gói 5.1) Toàn bộ IT chạy trên container: 475 unit + 32 integration; sau gói 5.2c: 965 unit + 121 integration; sau gói 5.2d: 1112 unit + 121 integration |
 | T5.13 | `docker-compose` cho môi trường kiểm thử: TADSS, PostgreSQL, Redis, **Toxiproxy**, **`grafana/otel-lgtm`** | W05 | ✅ (gói 5.1) đã dựng môi trường E-LOCAL tự chứa; *04/10/2026 đã gỡ khỏi compose* (compose hiện chỉ để deploy/expose). Các service (PostgreSQL, Redis, Toxiproxy, Grafana) được dựng lại ở gói 5.5 trong profile `evaluation` của `docker-compose.yml` (D-12; thay cho profile `lab` đã dự kiến), cùng container evaluator — trạng thái phần dựng lại: chưa làm |
-| T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS, gửi về `grafana/otel-lgtm` (Prometheus lưu metric, Tempo lưu trace, Loki lưu log — không thêm container Prometheus riêng); dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, cache, độ dài hàng chờ) nạp tự động ở cả chế độ vận hành (`docker compose up`) và chế độ đánh giá — dashboard là nơi xem sự cố trực tiếp khi evaluator chạy kịch bản dưới tải | W06 | Dashboard JSON lưu trong repo; OB-1, OB-2, OB-4 |
-| T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) — một bước của evaluator (test gộp + sự cố dưới tải, ghi `chaos_log`), không còn script rời | W07 | Ma trận FI chạy trong chế độ đánh giá |
-| T5.16 | **Schemathesis** chạy trên OpenAPI v2 — một bước của evaluator | W07 | CT-03 |
-| T5.17 | **Stryker.NET** cho SDK, Strategies, service lõi; báo cáo coverage bằng ReportGenerator — một bước của evaluator | W07 | MT-01…MT-03 |
+| T5.14 | Gắn **OpenTelemetry** (traces, metrics, logs) cho TADSS, gửi về `grafana/otel-lgtm` (Prometheus lưu metric, Tempo lưu trace, Loki lưu log — không thêm container Prometheus riêng); dashboard Grafana (tỷ lệ trạng thái quyết định, p50/p95/p99, fallback, trạng thái circuit, cache, độ dài hàng chờ) nạp tự động ở cả chế độ vận hành (`docker compose up`) và chế độ đánh giá — dashboard là nơi xem sự cố trực tiếp khi evaluator chạy kịch bản dưới tải. *Tiến độ: ✅ gói 5.5 — OpenTelemetry ở `Composition/`, 13 instrument, dashboard 36 panel nạp sẵn (OB-1…OB-4)* | W06 | Dashboard JSON lưu trong repo; OB-1, OB-2, OB-4 |
+| T5.15 | Kịch bản lỗi Toxiproxy cho FI-01…FI-10 (tự động bật/tắt toxic) — một bước của evaluator (test gộp + sự cố dưới tải, ghi `chaos_log`), không còn script rời. *Tiến độ: ✅ gói 5.5 — FI-07, FI-09 có test; LT-03 bật/tắt FI-02/03/07/08 theo lịch cố định, `chaos_log` + annotation Grafana* | W07 | Ma trận FI chạy trong chế độ đánh giá |
+| T5.16 | **Schemathesis** chạy trên OpenAPI v2 — một bước của evaluator. *Tiến độ: ✅ gói 5.5 — bước (d) của evaluator; Schemathesis tìm một lỗi contract thật (decisionId không phải GUID → 404 rỗng) và đã sửa* | W07 | CT-03 |
+| T5.17 | **Stryker.NET** cho SDK, Strategies, service lõi; báo cáo coverage bằng ReportGenerator — một bước của evaluator. *Tiến độ: ✅ gói 5.5 — bước (d) bản đầy đủ; MT-01…MT-03 ≥ 70 % (xem `spec/PHASE5_REPORT_5.5.md`)* | W07 | MT-01…MT-03 |
 | T5.18 | Harness **replay**: truy vấn chỉ đọc xuất 215 booking SmashCourt (ẩn danh) → request v2 → kết quả; đổ vào cùng Evidence Pack/báo cáo của chế độ đánh giá | W08 | RP-01, RP-02 |
 | T5.19 | Adapter **Hotel Booking Demand** → contract v2 (chứng minh độc lập domain); đổ vào cùng Evidence Pack/báo cáo | W08 | PT-01, PT-02 |
 | T5.20 | **Evidence/report builder** (Python, pandas, plotly) nằm trong chế độ đánh giá: sinh `report.html` (đạt/không đạt SC1…SC8, p50/p95/p99, biểu đồ dòng thời gian sự cố) + `manifest.json` SHA-256 trong `evidence/<run_id>/` | W07 | Một lệnh sinh trọn Evidence Pack |
@@ -88,7 +88,7 @@
 |:---|:---|:---:|:---|
 | T5.24 | Review contract v2 từ phía consumer | W05 | Góp ý được chốt trước khi đóng băng |
 | T5.25 | Dựng **Playwright** trong `smashcourt-fe` (cấu hình, trace, video, chạy trên CI) | W05–W06 | Một test mẫu chạy được |
-| T5.26 | Dựng dự án **k6**; script LT-01…LT-05; đẩy metric k6 vào Prometheus của `grafana/otel-lgtm` để tải hiện cùng dashboard TADSS | W05–W07 | Script chạy được; evaluator của chế độ đánh giá (D-12) chạy LT-01/02/03/05, LT-04 để Phase 6 |
+| T5.26 | Dựng dự án **k6**; script LT-01…LT-05; đẩy metric k6 vào Prometheus của `grafana/otel-lgtm` để tải hiện cùng dashboard TADSS. *Tiến độ: ✅ phần SV1 ở gói 5.5 — `tests/load/` (LT-01/02/03/05, SCALE-2), LT-04 để Phase 6* | W05–W07 | Script chạy được; evaluator của chế độ đánh giá (D-12) chạy LT-01/02/03/05, LT-04 để Phase 6 |
 | T5.27 | Đặc tả từng bước kịch bản E2E-01…E2E-10 | W06–W08 | Danh mục E2E hoàn chỉnh |
 | T5.29 | Review API contract BE ↔ FE | W08 | Chốt cùng T5.22 |
 

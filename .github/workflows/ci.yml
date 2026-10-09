@@ -151,12 +151,12 @@ jobs:
           k6-version: "2.3.0"
 
       - name: Install Python Dependencies
-        run: pip install -r tools/evaluation/requirements.txt
+        run: pip install -r tools/evaluation/requirements.txt -r tools/evidence/requirements.txt
 
       - name: Run Evaluator Tests
         run: |
           python -m pytest -q tools/evaluation
-          if [ -d tools/evidence ]; then python -m pytest -q tools/evidence; fi
+          python -m pytest -q tools/evidence
 
       - name: Build Evaluator Image (not run)
         run: docker build -f docker/evaluator/Dockerfile -t tadss-evaluator:ci .

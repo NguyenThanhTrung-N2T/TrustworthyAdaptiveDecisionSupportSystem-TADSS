@@ -72,7 +72,7 @@ public sealed class TestingConfigurationExtensionsTests : IDisposable
     /// </summary>
     [Fact]
     [Trait("CatalogId", "UT-09")]
-    public async Task AddFaultInjectionFile_Testing_AddsOptionalReloadingSourceLast()
+    public void AddFaultInjectionFile_Testing_AddsOptionalReloadingSourceLast()
     {
         File.WriteAllText(FilePath, """{ "Tadss": { "Testing": { "FaultInjection": { "Profile": "None" } } } }""");
         var builder = new ConfigurationBuilder()
@@ -92,12 +92,12 @@ public sealed class TestingConfigurationExtensionsTests : IDisposable
         context.Ignore.Should().BeTrue();
         configuration["Tadss:Testing:FaultInjection:Profile"].Should().Be("None", "nguồn thêm sau cùng ưu tiên hơn");
 
-        var changed = new TaskCompletionSource();
-        using var registration = configuration.GetReloadToken().RegisterChangeCallback(_ => changed.TrySetResult(), null);
+        // Ghi nguyên tử bằng file tạm rồi đổi tên, sau đó nạp lại tường minh: kiểm tra đường dẫn/định dạng được đọc đúng và nguồn này thắng nguồn trước. Việc hệ điều hành báo "file đổi" để
+        // nạp lại tự động phụ thuộc inotify (trong container có lúc không nổ trong cả phút khi chạy cả bộ test) nên được kiểm ở integration test FaultInjectionReloadTests trên host thật.
         var temp = FilePath + ".tmp";
         File.WriteAllText(temp, """{ "Tadss": { "Testing": { "FaultInjection": { "Profile": "Throw" } } } }""");
         File.Move(temp, FilePath, overwrite: true);
-        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        configuration.Reload();
         configuration["Tadss:Testing:FaultInjection:Profile"].Should().Be("Throw");
     }
 

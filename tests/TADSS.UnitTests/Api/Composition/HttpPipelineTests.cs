@@ -16,6 +16,7 @@ using Shared.DecisionContractSDK.Common;
 using Swashbuckle.AspNetCore.Swagger;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
+using TADSS.Runtime.Api.Controllers;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
@@ -129,13 +130,18 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         apply.Should().NotThrow();
     }
 
-    /// <summary>Chỉ có đúng 5 endpoint controller v2 (đánh giá, chi tiết, hàng chờ, override, outcome) và không có route v1 nào.</summary>
+    /// <summary>
+    /// Chỉ có đúng 5 endpoint controller v2 (đánh giá, chi tiết, hàng chờ, override, outcome), cộng một route catch-all ẩn khỏi OpenAPI trả 404 <c>DECISION_NOT_FOUND</c>
+    /// cho định danh sai hình thức (CT-03), và không có route v1 nào.
+    /// </summary>
     [Fact]
     [Trait("CatalogId", "UT-09")]
     public void Routes_OnlyV2DecisionEndpointsExist()
     {
-        var actions = _factory.Services.GetRequiredService<IActionDescriptorCollectionProvider>()
-            .ActionDescriptors.Items.OfType<ControllerActionDescriptor>()
+        var allActions = _factory.Services.GetRequiredService<IActionDescriptorCollectionProvider>()
+            .ActionDescriptors.Items.OfType<ControllerActionDescriptor>().ToList();
+        var catchAll = allActions.Where(action => action.ControllerTypeInfo.AsType() == typeof(UnmatchedDecisionRoutesController)).ToList();
+        var actions = allActions.Except(catchAll)
             .Select(action => (
                 Method: action.ActionConstraints?.OfType<HttpMethodActionConstraint>().SelectMany(c => c.HttpMethods).Single(),
                 Template: action.AttributeRouteInfo?.Template))
@@ -153,6 +159,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
             (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/override"),
             (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/outcome")
         });
+        catchAll.Should().ContainSingle().Which.AttributeRouteInfo!.Template.Should().Be("api/v2/decisions/{identifier}/{**rest}");
         allRoutePatterns.Should().NotContain(pattern => pattern.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 

@@ -9,15 +9,11 @@ from typing import Callable
 from evaluator import machine, results, workspace
 from evaluator.results import ERROR, StepResult, exit_code, skipped_result, utc_now
 from evaluator.run_context import ConfigurationError, RunContext, build_context
-from evaluator.steps import load_step, tests_step
+from evaluator.steps import analysis_step, evidence_step, incident_step, load_step, tests_step
 
 StepFunction = Callable[[RunContext], StepResult]
 # Các bước đã hiện thực; bước còn lại ghi `skipped` kèm lý do
-STEPS: dict[str, StepFunction] = {"a": tests_step.run, "b": load_step.run}
-IMAGES = [
-    "mcr.microsoft.com/dotnet/sdk:8.0.425", "docker:29.1-cli", "grafana/k6:2.3.0", "grafana/otel-lgtm:0.34.0",
-    "postgres:16.15-alpine", "redis:7.4-alpine", "ghcr.io/shopify/toxiproxy:2.12.0", "nginx:1.29.8-alpine", "tadss-eval-runtime:local",
-]
+STEPS: dict[str, StepFunction] = {"a": tests_step.run, "b": load_step.run, "c": incident_step.run, "d": analysis_step.run, "e": evidence_step.run}
 
 
 def run_steps(context: RunContext, steps: dict[str, StepFunction]) -> list[StepResult]:
@@ -38,6 +34,7 @@ def run_steps(context: RunContext, steps: dict[str, StepFunction]) -> list[StepR
             now = utc_now()
             outcome = StepResult(name, ERROR, now, now, notes=[f"Lỗi bất ngờ: {type(error).__name__}: {error}"])
         outcomes.append(outcome)
+        context.outcomes.append(outcome)
         infrastructure_error = outcome.status == ERROR
     return outcomes
 
@@ -64,7 +61,7 @@ def write_steps_file(context: RunContext, outcomes: list[StepResult], describe_m
         "started_at": context.started_at.isoformat(),
         "commit": git.commit,
         "dirty": git.dirty,
-        "machine": describe_machine(IMAGES),
+        "machine": describe_machine(machine.IMAGES),
         "steps": [outcome.to_dict() for outcome in outcomes],
     }
     (context.evidence_dir / "steps.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

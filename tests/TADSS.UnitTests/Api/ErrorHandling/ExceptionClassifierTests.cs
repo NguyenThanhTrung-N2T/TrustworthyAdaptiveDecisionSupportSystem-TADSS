@@ -80,6 +80,21 @@ public class ExceptionClassifierTests
         classification.Title.Should().NotBeNullOrWhiteSpace();
     }
 
+    /// <summary>Định danh không phải GUID cũng là 404 <c>DECISION_NOT_FOUND</c>; message chỉ lặp lại tối đa 64 ký tự và không có GUID giả.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-08")]
+    public void Classify_DecisionNotFoundForMalformedIdentifier_Is404AndTruncatesEcho()
+    {
+        var exception = new DecisionNotFoundException(new string('x', 200));
+
+        var classification = Require(ExceptionClassifier.Classify(exception, requestAborted: false));
+
+        classification.StatusCode.Should().Be(404);
+        classification.Code.Should().Be(ErrorCodes.DecisionNotFound);
+        exception.DecisionId.Should().Be(Guid.Empty);
+        exception.Message.Should().Contain(new string('x', DecisionNotFoundException.MaxEchoedLength)).And.NotContain(new string('x', DecisionNotFoundException.MaxEchoedLength + 1));
+    }
+
     [Fact]
     [Trait("CatalogId", "UT-08")]
     public void Classify_DecisionNotFound_Is404()

@@ -45,6 +45,9 @@ def _test_command(project: str, trx: str, results: Path) -> list[str]:
         "dotnet", "test", f"tests/{project}", "-c", "Release", "--no-build", "-nologo",
         "--logger", f"trx;LogFileName={trx}", "--results-directory", str(results),
         "--collect:XPlat Code Coverage",
+        # Unit test có nhiều ca phụ thuộc thời gian (timeout 30 ms, file watcher, hủy sau 100 ms); chạy song song hết lõi trong container làm vài ca đỏ ngẫu nhiên.
+        # Chạy tuần tự các collection chỉ tốn thêm ~30 s (37 s so với 10 s) và cho kết quả tất định; CI vẫn chạy song song như thường lệ.
+        *(["--", "xUnit.ParallelizeTestCollections=false"] if project == "TADSS.UnitTests" else []),
     ]
 
 

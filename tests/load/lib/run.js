@@ -19,8 +19,9 @@ export function scenarioOptions(key) {
 
 export { summaryOutput };
 
+// Thân JSON của response (200 là kết quả quyết định, lỗi là problem+json); không phải JSON ⇒ {}
 function parse(response) {
-  if (response.status !== 200 || !response.body) {
+  if (!response.body) {
     return {};
   }
   try {
@@ -45,7 +46,8 @@ export function sendDecision(options = {}) {
     tags: { name: 'POST /api/v2/decisions' },
   });
   check(response, { 'status 200': (r) => r.status === 200 });
-  const decision = parse(response);
+  const parsed = parse(response);
+  const decision = response.status === 200 ? parsed : {};
   logRequest({
     ts: new Date().toISOString(),
     scenario: SCENARIO,
@@ -54,6 +56,10 @@ export function sendDecision(options = {}) {
     duration_ms: Math.round(response.timings.duration * 1000) / 1000,
     decision_status: decision.status || null,
     execution_type: decision.executionType || null,
+    reason_code: decision.reasonCode || null,
+    deposit_rate: decision.deposit ? decision.deposit.rate : null,
+    error_code: response.status === 200 ? null : parsed.code || null,
+    repeat: Boolean(options.body),
     correlation_id: correlationId,
     idempotency_key: idempotencyKey,
     decision_id: decision.decisionId || null,

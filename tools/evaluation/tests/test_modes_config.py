@@ -10,7 +10,7 @@ MODES = json.loads((Path(__file__).resolve().parents[3] / "tests" / "load" / "co
 def test_modes_config_quick() -> None:
     quick = MODES["quick"]
 
-    assert set(quick) == {"lt01", "lt02"}, "bản nhanh không có LT-05"
+    assert set(quick) == {"lt01", "lt02", "lt03", "scale2"}, "bản nhanh không có LT-05"
     lt01 = quick["lt01"]
     assert (lt01["executor"], lt01["rate"], lt01["warmup"], lt01["duration"], lt01["runs"]) == ("constant-arrival-rate", 50, "30s", "2m", 1)
     lt02 = quick["lt02"]
@@ -22,7 +22,7 @@ def test_modes_config_quick() -> None:
 def test_modes_config_full() -> None:
     full = MODES["full"]
 
-    assert set(full) == {"lt01", "lt02", "lt05"}
+    assert set(full) == {"lt01", "lt02", "lt05", "lt03", "scale2"}
     lt01 = full["lt01"]
     assert (lt01["rate"], lt01["warmup"], lt01["duration"], lt01["runs"]) == (50, "1m", "10m", 3)
     lt02 = full["lt02"]

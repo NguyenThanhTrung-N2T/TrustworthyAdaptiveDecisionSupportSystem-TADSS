@@ -54,7 +54,7 @@ src/
 │   │   ├── Caching/                   # IStrategyDecisionCache, StrategyDecisionCacheKey
 │   │   ├── Persistence/               # IDecisionEvaluationStore, IDecisionQueryStore, IDecisionGovernanceStore, DecisionExecutionRecord, DecisionDetailRecord, DecisionOverrideRecord, DecisionOutcomeRecord, ExecutionRole, InsertExecutionResult, InsertOverrideResult, InsertOutcomeResult, PendingApprovalsPage
 │   │   └── Resilience/                # IStrategyPipeline, StrategyExecutionOutcome, FailureReasonPrefixes
-│   ├── Common/                        # ContractLimits (giới hạn của contract), AuditTimestamps (cắt về µs)
+│   ├── Common/                        # ContractLimits (giới hạn của contract), AuditTimestamps (cắt về µs), TadssMetricNames + TadssMetrics (meter `TADSS.Runtime`, nơi duy nhất khai báo tên metric), TadssActivitySource (ActivitySource `TADSS.Runtime`), CircuitStateValue — chỉ BCL `System.Diagnostics`, không phụ thuộc OpenTelemetry SDK
 │   ├── Decisions/                     # IDecisionService/DecisionService, IDecisionQueryService/DecisionQueryService (chi tiết + hàng chờ), StrategyEvaluator, DecisionPayloadSerializer, DecisionResponseComposer, ApprovalWindowPolicy, DepositCalculator, ItemDurationPolicy, RequestHasher, CanonicalNumberFormatter
 │   ├── Governance/                    # IOverrideService/OverrideService, OverrideRequestValidator, OverridePayloadComparer, GovernanceResponseMapper
 │   ├── Outcomes/                      # IOutcomeService/OutcomeService
@@ -64,8 +64,10 @@ src/
 ├── TADSS.Infrastructure/              # Adapter của port; phụ thuộc Application + SDK + EF Core/Npgsql, Redis, Polly
 │   ├── InfrastructureServiceCollectionExtensions.cs   # AddInfrastructure(IServiceCollection, IConfiguration)
 │   ├── Caching/                       # StrategyDecisionCache (Redis + memory), CachedStrategyDecision, CachedRecommendation, RedisConnectionFactory, RedisHealthCheck, CacheHealthChecks
+│   ├── FaultInjection/                # FaultInjectionStrategyDecorator (chỉ môi trường Testing), FaultInjectionControl (đổi nóng Profile/DelayMs từ file JSON), FaultInjectionSnapshot
+│   ├── Telemetry/                     # PendingApprovalsMetricRefresher (BackgroundService làm mới gauge hàng chờ duyệt, chỉ khi bật telemetry)
 │   ├── HealthCheckTags.cs             # Tag `ready` của health check
-│   ├── Options/                       # CacheOptions(+Validator), CacheProviders, DatabaseOptions(+Validator: chuỗi kết nối bắt buộc ở mọi môi trường), ResilienceOptions(+Validator)
+│   ├── Options/                       # CacheOptions(+Validator), CacheProviders, DatabaseOptions(+Validator: chuỗi kết nối bắt buộc ở mọi môi trường), ResilienceOptions(+Validator), TelemetryOptions(+Validator), FaultInjectionOptions(+Validator)
 │   ├── Persistence/                   # TadssDbContext, EfDecisionAuditStore (đọc: chi tiết, hàng chờ qua PendingApprovalsQuery; ghi audit), EfDecisionGovernanceStore (ghi override/outcome), DecisionAuditMapper, PersistenceFailureDetector + PersistenceFailureTranslator (internal), PersistenceHealthChecks, PersistenceServiceCollectionExtensions
 │   │   ├── Entities/                  # DecisionExecutionEntity, DecisionOverrideEntity, DecisionOutcomeEntity
 │   │   ├── Configurations/            # DecisionExecutionConfiguration, DecisionOverrideConfiguration, DecisionOutcomeConfiguration
@@ -73,10 +75,10 @@ src/
 │   └── Resilience/                    # StrategyPipeline (Polly v8), FallbackDecisionPolicy, FallbackCause
 ├── TADSS.Runtime.Api/                 # Presentation + composition root; được dùng mọi project
 │   ├── Program.cs                     # Chỉ gọi AddApplication/AddInfrastructure/AddStrategies/AddPresentation, StartupTasks, UseTadssRequestPipeline, map endpoint
-│   ├── Composition/                   # PresentationServiceCollectionExtensions (AddPresentation), SecurityServiceCollectionExtensions (AddTadssSecurity), StrategyServiceCollectionExtensions (AddStrategies), StrategyRegistrations, RequestPipelineExtensions (UseTadssRequestPipeline), EndpointMappingExtensions (MapTadssEndpoints), StartupTasks — chỗ duy nhất (cùng Program.cs) được dùng kiểu của Infrastructure
-│   ├── Controllers/                   # DecisionsController (POST + GET /api/v2/decisions), DecisionApprovalsController (pending-approvals, override), DecisionOutcomesController (outcome)
+│   ├── Composition/                   # PresentationServiceCollectionExtensions (AddPresentation), SecurityServiceCollectionExtensions (AddTadssSecurity), StrategyServiceCollectionExtensions (AddStrategies), StrategyRegistrations, RequestPipelineExtensions (UseTadssRequestPipeline), EndpointMappingExtensions (MapTadssEndpoints), StartupTasks, TelemetryServiceCollectionExtensions (AddTadssTelemetry — chỗ duy nhất dựng OpenTelemetry SDK) + TelemetrySettings + SerilogTelemetryConfiguration, RequestLoggingConfiguration, TestingConfigurationExtensions (file profile tiêm lỗi, chỉ Testing) — chỗ duy nhất (cùng Program.cs) được dùng kiểu của Infrastructure
+│   ├── Controllers/                   # DecisionsController (POST + GET /api/v2/decisions), DecisionApprovalsController (pending-approvals, override), DecisionOutcomesController (outcome), UnmatchedDecisionRoutesController (catch-all ẩn khỏi OpenAPI: định danh không phải GUID → 404 DECISION_NOT_FOUND dạng problem+json, CT-03)
 │   ├── ErrorHandling/                 # ExceptionClassifier, ErrorClassification, ProblemResponse, ProblemResponseWriter (bộ ghi problem+json duy nhất), InvalidModelStateTranslator
-│   ├── Middlewares/                   # CorrelationIdMiddleware, GlobalExceptionHandler, SecurityHeadersMiddleware, RequestSizeLimitMiddleware, ApiKeyAuthenticationMiddleware
+│   ├── Middlewares/                   # CorrelationIdMiddleware, RequestMetricsMiddleware (`tadss.decision.duration`), GlobalExceptionHandler, SecurityHeadersMiddleware, RequestSizeLimitMiddleware, ApiKeyAuthenticationMiddleware
 │   ├── OpenApi/                       # RequiredHeaderOperationFilter, SecurityResponsesOperationFilter, ProblemDetailsSchemaFilter, LineEndingDocumentFilter
 │   ├── Options/                       # ErrorHandlingOptions(+Validator), SecurityOptions(+Validator), ApiKeyClientOptions, RateLimitingOptions
 │   ├── Security/                      # ApiKeyVerifier (SHA-256 + FixedTimeEquals), ApiClientIdentity, SecurityPaths
@@ -88,15 +90,33 @@ tests/
 └── TADSS.IntegrationTests/            # API qua WebApplicationFactory trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy): Migrations, Persistence (gồm store quản trị, hàng chờ), FaultInjection, Security (health, API key), endpoint (decisions, override, outcome, hàng chờ)/idempotency/cache, ComposeFixtureAlignment
 ```
 
+Ngoài `src/` và `tests/` (hạ tầng đo lường và đánh giá của gói 5.5):
+
+```text
+docker/
+├── grafana/{dashboards,provisioning}/ # Dashboard "TADSS Runtime" (uid tadss-runtime) và provisioning, mount chỉ đọc vào otel-lgtm
+├── evaluator/                         # Dockerfile của container evaluator (SDK .NET 8 + Python 3.11 + k6 + Docker CLI; không chứa mã nguồn dự án)
+├── evaluation/nginx.conf              # Reverse proxy hai replica TADSS (SCALE-2)
+└── toxiproxy/toxiproxy.json           # Proxy postgres/redis của stack đánh giá
+tools/
+├── evaluation/{evaluator,tests}/      # Bộ điều phối Python: bước a…e, client Grafana/Prometheus/Toxiproxy/k6/PostgreSQL, lịch sự cố, quy tắc đạt/không đạt
+├── evidence/{report,tests}/           # Dựng Evidence Pack: ẩn danh hóa, xuất D1, manifest + EV-1…EV-5, KPI SC1…SC8, bộ sinh report.html
+├── expose/ observability/ ci/         # verify-expose.sh, verify-observability.sh, quét package lỗ hổng
+tests/load/                            # Kịch bản k6: LT-01/02/03/05, SCALE-2, payload và hồ sơ tải (modes.json)
+stryker/                               # Cấu hình Stryker.NET theo MT-01…MT-03
+.config/dotnet-tools.json              # dotnet-stryker, ReportGenerator (tool cục bộ)
+```
+
 Health check: `/health/live` (không check nào) và `/health/ready` (PostgreSQL, tên check `postgresql`, lỗi → 503; Redis, tên check `redis`, lỗi → `Degraded` vẫn 200) — map trong `Composition/EndpointMappingExtensions.MapTadssEndpoints`, đăng ký trong `AddInfrastructure`. Không còn endpoint `/health` gộp (F-16); body chỉ là chữ trạng thái.
 
 Thứ tự middleware của request pipeline khai báo tại một nơi: `Composition/RequestPipelineExtensions.UseTadssRequestPipeline` — forwarded headers (chỉ khi `Tadss:Security:TrustForwardedHeaders`) → correlation id → request logging → request metrics → exception handler → security headers + HSTS → https redirection → giới hạn kích thước body → Swagger (chỉ `Development`) → xác thực `X-Api-Key` → rate limiter → `UseRouting`. Không có `UseAuthorization` (không có policy). Thứ tự được khóa bằng test UT-14 (`SecurityPipelineOrderTests`, `RequestPipelineTests`); luồng chi tiết ở Mục 4.4.3.
 
 ---
 
-## 3. HẠN CHẾ CÒN MỞ (sau gói 5.4)
+## 3. HẠN CHẾ CÒN MỞ (sau gói 5.5)
 
-- Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker của strategy, circuit breaker Redis, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). SCALE-1 (hai instance dùng chung PostgreSQL/Redis: idempotency, cache chéo instance, breaker theo instance) đã có test; SCALE-2, SCALE-3 và rate limit phân tán thuộc gói 5.5.
+- Các thành phần có **trạng thái theo từng instance** (rate limit SEC-1, circuit breaker của strategy, circuit breaker Redis, cache L1 `IMemoryCache`) không chia sẻ giữa nhiều instance của runtime: hạn mức thực tế nhân với số instance, breaker mở độc lập, L1 có thể lệch nhau (L2 Redis và idempotency qua PostgreSQL thì dùng chung). SCALE-1 (hai instance dùng chung PostgreSQL/Redis: idempotency, cache chéo instance, breaker theo instance) và SCALE-2 (hai replica sau nginx, 20 % request lặp khóa idempotency: 0 lỗi 5xx, mỗi khóa đúng một bản `PRIMARY` và một `decisionId`, cả hai instance báo metric) đã có test.
+  **SCALE-3 (giới hạn khi scale ngang):** *theo từng instance* — rate limit (hạn mức thực tế = hạn mức × số instance), breaker của strategy, breaker Redis, cache L1, worker shadow và hàng đợi shadow; gauge hàng chờ duyệt do mỗi instance tự truy vấn nên **báo trùng** (dashboard dùng `max by (branch)`). *Dùng chung* — PostgreSQL (audit, idempotency, override/outcome), Redis L2. *Hệ quả:* breaker mở độc lập nên một instance có thể đang fallback trong khi instance kia vẫn chạy strategy; hạn mức rate limit không chính xác tuyệt đối khi nhiều instance. *Hướng khắc phục (chưa làm):* rate limit phân tán qua Redis, trạng thái breaker chia sẻ.
 - Tranh chấp override ↔ outcome trên cùng quyết định không được khóa nguyên tử (INV-5, INTEGRATION_SPEC §4.3); tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm.
 - Request logging và request metrics đứng ngoài exception handler nên thấy status cuối (409/503/504 không còn bị ghi "responded 500"); mức log: status ≥ 500 hoặc exception chưa xử lý → Error, còn lại Information. Dòng log hoàn tất được làm giàu `ClientId` lúc kết thúc request (đọc `ApiClientIdentity`); request bị từ chối ở bước xác thực không có `ClientId`.
 - Strategy không hợp tác (bỏ qua token hoặc chặn đồng bộ) bị cắt đúng hạn nhờ `IsolatedStrategyInvoker` (request nhận fallback `APPROVED` cọc 100% trong ngân sách), nhưng TADSS **giới hạn thời gian chờ** chứ không dừng được strategy đó: task bị bỏ rơi vẫn tiêu thụ CPU/thread pool tới khi tự kết thúc và nhiều task bị bỏ rơi cùng lúc có thể làm cạn thread pool (số lần đếm bằng `tadss.strategy.abandoned`).
@@ -159,7 +179,7 @@ public sealed record StrategyDecision(
 | `IOutcomeService` / `OutcomeService` | `TADSS.Application/Outcomes` | Ghi nhãn kết quả (§3.7): áp cho mọi quyết định `PRIMARY`; chống trùng theo nội dung (cùng → 200, khác → 409 `OUTCOME_ALREADY_RECORDED`); `X-Idempotency-Key` chỉ kiểm tra, không lưu. *Đã hiện thực* |
 | Hàng chờ duyệt | `DecisionQueryService.GetPendingApprovalsAsync` (Application), `PendingApprovalsQuery` (Infrastructure) | Truy vấn theo Mục B.5 của DECISION_PERSISTENCE_INVARIANTS: bản `PRIMARY` mới nhất của mỗi `reservationId`, `NEED_APPROVAL`, chưa override/outcome, `approvalExpiresAt > now` (`now` từ `TimeProvider`), phân trang `page ≥ 1`, `pageSize` 1..100. *Đã hiện thực* |
 | Health check | `TADSS.Infrastructure` (`PersistenceHealthChecks`, `CacheHealthChecks`, `RedisHealthCheck`), map ở `EndpointMappingExtensions` | `/health/live` không check; `/health/ready`: PostgreSQL bắt buộc (503), Redis `Degraded` (200). *Đã hiện thực* |
-| OpenTelemetry | `TADSS.Runtime.Api/Composition` (dự kiến) | Trace (ASP.NET Core, HttpClient, Npgsql, Redis), metric, log (Serilog → OTLP). *Chưa hiện thực* |
+| OpenTelemetry | `TADSS.Runtime.Api/Composition` (`AddTadssTelemetry`; chỉ project này tham chiếu OpenTelemetry/Npgsql.OpenTelemetry) | Trace (ASP.NET Core, Npgsql, span Redis và pipeline tự tạo qua `TadssActivitySource`), metric (meter `TADSS.Runtime` + view biên histogram), log (Serilog → OTLP). Bật bằng `Tadss:Telemetry:Enabled`; tắt thì không đăng ký provider nào. *Đã hiện thực* |
 
 Ghi audit là lời gọi đồng bộ qua `IDecisionEvaluationStore` (không qua message bus, D-02); `created_at` do `DecisionService` gán từ `TimeProvider`.
 
@@ -409,20 +429,28 @@ sequenceDiagram
 
 Kiểm tra "chưa có outcome" rồi mới ghi override không khóa nguyên tử với việc ghi outcome (F-06); giới hạn này và cách BE xử lý ghi ở INTEGRATION_SPEC §4.3 và INV-5.
 
-### 4.5. Metric OpenTelemetry
+### 4.5. Metric, trace và log OpenTelemetry
 
-| Metric | Loại | Nhãn |
-| :--- | :--- | :--- |
-| `tadss.decisions` | Counter | `status`, `strategy`, `execution_type` |
-| `tadss.decision.duration` | Histogram (ms) | `endpoint`, `status_code` |
-| `tadss.pipeline.duration` | Histogram (ms) | `strategy`, `outcome` |
-| `tadss.fallbacks` | Counter | `reason` |
-| `tadss.circuit.state` | Gauge | `strategy` |
-| `tadss.cache.requests` | Counter | `result` (`hit`, `miss`, `bypass`) |
-| `tadss.pending_approvals` | Gauge | `branch` |
-| `tadss.overrides` | Counter | `action` |
+Meter `TADSS.Runtime` (`TadssMetrics`; tên, nhãn và biên histogram khai báo ở `TadssMetricNames`, nơi **duy nhất** được viết literal `"tadss.…"`). Tên trên Prometheus: dấu chấm → gạch dưới; counter thêm `_total`; histogram đơn vị `ms` thêm `_milliseconds_{bucket,sum,count}`; gauge giữ nguyên. Nhãn resource: `job` = `service.name`, `instance` = `service.instance.id`.
 
-Đã hiện thực ở meter `TADSS.Runtime` (`TadssMetrics`, nơi **duy nhất** khai báo tên metric): `tadss.cache.requests` (nhãn `result`: `hit`, `miss`, `bypass` — mỗi lần tra cache ghi đúng một giá trị, `bypass` khi breaker Redis đang mở), cùng `tadss.config.reload_failures` (`section`), `tadss.strategy.abandoned` (`strategy`), `tadss.shadow.dropped` (`reason`), `tadss.shadow.executions` (`outcome`: `recorded`, `failed`). Các metric còn lại của bảng và exporter OpenTelemetry (`AddMeter(TadssMetrics.MeterName)`) thuộc gói 5.5.
+| Metric | Loại | Nhãn | Ghi khi nào |
+| :--- | :--- | :--- | :--- |
+| `tadss.decisions` | Counter | `status`, `strategy`, `execution_type` | Một lần cho mỗi bản `PRIMARY` **mới** (không ghi khi replay idempotency, thua tranh chấp, lỗi, `SHADOW`) — đối chiếu được với số bản ghi (SC3) |
+| `tadss.decision.duration` | Histogram (ms) | `endpoint` (`{METHOD} {route template}`, request bị từ chối trước routing là `{METHOD} unmatched`), `status_code` | Mọi request `/api/*` (không ghi `/health/*`, `/swagger/*`) |
+| `tadss.pipeline.duration` | Histogram (ms) | `strategy`, `outcome` (`automated`, `fallback`, `timeout`) | Mỗi lần chạy pipeline; caller hủy thì không ghi |
+| `tadss.fallbacks` | Counter | `reason` (`timeout`, `exception`, `circuit_open`), `strategy` | Mỗi quyết định fallback (breaker riêng cho từng strategy nên có nhãn `strategy`) |
+| `tadss.circuit.state` | ObservableGauge | `strategy` | 0 đóng, 1 nửa mở, 2 mở, 3 cô lập; chỉ strategy đã có pipeline |
+| `tadss.cache.circuit.state` | ObservableGauge | — | Breaker Redis, cùng mã số |
+| `tadss.cache.requests` | Counter | `result` (`hit`, `miss`, `bypass`) | Mỗi lần tra cache; `bypass` khi breaker Redis mở |
+| `tadss.pending_approvals` | ObservableGauge | `branch` | Làm mới mỗi `PendingApprovalsRefreshSeconds`; chi nhánh hết bản chờ báo 0 |
+| `tadss.overrides` | Counter | `action` | Mỗi override mới (không ghi replay) |
+| `tadss.strategy.abandoned` | Counter | `strategy` | Task strategy bị bỏ rơi sau khi hủy |
+| `tadss.shadow.dropped` / `tadss.shadow.executions` | Counter | `reason` / `outcome` (`recorded`, `failed`) | Hàng đợi shadow đầy / kết quả chạy shadow |
+| `tadss.config.reload_failures` | Counter | `section` | Nạp lại cấu hình nóng lỗi (định tuyến, tiêm lỗi) |
+
+Biên histogram (ms): 5, 10, 25, 50, 75, 100, **150**, 200, 300, **500**, **700**, 1000, 2500, 5000 — 150/500/700 trùng ngưỡng KPI nên "p95 < 150", "pipeline ≤ 500", "p99 ≤ 700" là phép đếm tỉ lệ request ≤ biên, không phải nội suy.
+
+**Trace** (`TadssActivitySource`, lấy mẫu `ParentBased(TraceIdRatioBased(TraceSampleRatio))`): span server ASP.NET Core (bỏ `/health/*`, `/swagger/*`), `tadss.decision.evaluate` (thuộc tính `tadss.strategy`, `tadss.routing_rule`, `tadss.status`, `tadss.execution_type`, `tadss.cache_hit`, `tadss.correlation_id`), `tadss.strategy.execute`, `tadss.shadow.execute` (liên kết tới span request gốc), span Npgsql (chỉ văn bản SQL có tham số), span lệnh Redis (không ghi khóa). **Log:** Serilog giữ sink console; khi bật telemetry thêm sink OTLP (Loki) cùng resource, mỗi dòng mang `TraceId`/`SpanId`.
 
 ---
 

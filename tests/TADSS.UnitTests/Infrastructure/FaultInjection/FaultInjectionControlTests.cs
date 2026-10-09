@@ -110,7 +110,8 @@ public class FaultInjectionControlTests
         var second = new FaultInjectionSnapshot(FaultInjectionProfile.Throw, 5000);
         using var harness = new FaultInjectionControlHarness(Initial(first.Profile, first.DelayMs));
         using var stop = new CancellationTokenSource();
-        var observed = new List<FaultInjectionSnapshot>[8];
+        // Mỗi luồng đọc chỉ giữ tập các giá trị KHÁC NHAU đã thấy: lưu mọi lần đọc làm danh sách phình tới hàng chục triệu phần tử (vài GB) và làm test treo vì GC
+        var observed = new HashSet<FaultInjectionSnapshot>[8];
         using var allStarted = new CountdownEvent(observed.Length);
 
         var readers = Enumerable.Range(0, observed.Length).Select(index => Task.Factory.StartNew(() =>

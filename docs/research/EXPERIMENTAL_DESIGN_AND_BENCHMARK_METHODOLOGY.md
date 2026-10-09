@@ -31,7 +31,7 @@
 | Mã | Môi trường | Thành phần | Dùng cho |
 | :--- | :--- | :--- | :--- |
 | **E-TC** | Testcontainers (trong `dotnet test`) | PostgreSQL 16, Redis 7, Toxiproxy | UT, IT, CT-01/02/04, BE-IT, một phần FI |
-| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (profile `evaluation` của `docker-compose.yml`; lệnh `run` thay cho `up` để không khởi động service vận hành không có profile, xem spike S-5 ở báo cáo gói 5.5; **kế hoạch gói 5.5, chưa hiện thực**; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); SmashCourt-BE/FE nối thêm khi chạy LT-04 (Phase 6) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
+| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (profile `evaluation` của `docker-compose.yml`; lệnh `run` thay cho `up` để không khởi động service vận hành không có profile, xem spike S-5 ở báo cáo gói 5.5; **đã hiện thực ở gói 5.5**; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); SmashCourt-BE/FE nối thêm khi chạy LT-04 (Phase 6) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
 | **E-STAGING** | Môi trường tích hợp trên máy nhóm, chạy bằng Docker Compose (chốt ở W08) | SmashCourt FE/BE + TADSS + PostgreSQL + Redis + VNPay sandbox | E2E và LT-04 trên hệ thống đã tích hợp |
 
 Ba chế độ chạy của repo (D-12): **dev hằng ngày** `dotnet run` (Neon + Redis Cloud, chỉ app + Swagger, không Docker/Grafana); **vận hành / demo** `docker compose up -d --build` (TADSS + ngrok + Grafana); **đánh giá** `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (E-EVAL). Chỉ chế độ đánh giá tạo số liệu dùng làm minh chứng; test tự động trong CI vẫn chạy ở E-TC (`dotnet test`).
@@ -49,15 +49,15 @@ Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docke
 | `Microsoft.AspNetCore.Mvc.Testing` | Chạy API trong test qua HTTP pipeline thật | TADSS, SmashCourt-BE | IT, BE-IT |
 | **WireMock.Net** | Giả lập TADSS cho BE-IT, response kiểm tra theo JSON schema v2 | SmashCourt-BE | BE-IT, CT-04 |
 | **JsonSchema.Net** | Kiểm tra response theo JSON schema v2 | TADSS, SmashCourt-BE | CT-01, CT-04 |
-| **Schemathesis** (Docker) | Sinh request tự động từ OpenAPI v2 để dò lỗi contract | E-EVAL | CT-03 |
-| **Stryker.NET** | Mutation testing — đo khả năng phát hiện lỗi của bộ test | TADSS | MT |
-| coverlet + **ReportGenerator** | Độ bao phủ mã (báo cáo HTML) | TADSS, SmashCourt-BE | Bổ trợ MT |
+| **Schemathesis** 4.29.3 (pip, trong image evaluator) | Sinh request tự động từ OpenAPI v2 để dò lỗi contract | E-EVAL | CT-03 |
+| **Stryker.NET** (`dotnet-stryker` 4.16.0, tool cục bộ trong `.config/dotnet-tools.json`; 5.0.0 chỉ chạy trên SDK 10 nên không dùng được trong image SDK 8) | Mutation testing — đo khả năng phát hiện lỗi của bộ test | TADSS | MT |
+| coverlet + **ReportGenerator** 5.5.11 | Độ bao phủ mã (báo cáo HTML) | TADSS, SmashCourt-BE | Bổ trợ MT |
 | **Toxiproxy** | Tiêm lỗi mạng: ngắt, trễ, giới hạn băng thông, reset kết nối | E-TC, E-EVAL | FI |
-| **k6** | Tải: TADSS trực tiếp (E-EVAL) và E2E qua SmashCourt-BE (LT-04, Phase 6); xuất summary JSON và đẩy metric vào Prometheus của `grafana/otel-lgtm` (hiện cùng dashboard TADSS) | E-EVAL | LT |
+| **k6** 2.3.0 | Tải: TADSS trực tiếp (E-EVAL) và E2E qua SmashCourt-BE (LT-04, Phase 6); xuất summary JSON và đẩy metric vào Prometheus của `grafana/otel-lgtm` (hiện cùng dashboard TADSS) | E-EVAL | LT |
 | **OpenTelemetry .NET** + **`grafana/otel-lgtm`** (gồm Collector, Prometheus, Tempo, Loki, Grafana) | Trace, metric, log tập trung; dashboard Grafana làm minh chứng trực quan; có dữ liệu ở cả chế độ vận hành `docker compose up` | E-EVAL, E-STAGING | FI, LT, E2E |
 | **Playwright** | E2E UI: video, trace viewer, HTML report | smashcourt-fe | E2E, FE |
 | **MSW** (Mock Service Worker) | Mock API cho FE trong Phase 6 theo API contract đã chốt | smashcourt-fe | FE |
-| **Jupyter notebook** (pandas, plotly) | Sinh báo cáo minh chứng HTML từ dữ liệu thô | TADSS `docs/research/` | Toàn bộ |
+| **Bộ sinh báo cáo Python** (`tools/evidence/report/`, Jinja2 + biểu đồ SVG tự vẽ) | Sinh `report.html` tự chứa từ Evidence Pack (evaluator gọi ở bước e; notebook của 5.6 dùng lại cùng bộ sinh) | TADSS `tools/evidence/` | Toàn bộ |
 
 **Tiêm lỗi cho strategy:** dùng decorator chỉ đăng ký trong môi trường kiểm thử (bật qua cấu hình `Testing`), không có trong cấu hình production. Lỗi hạ tầng (Redis, PostgreSQL, mạng giữa BE và TADSS) luôn tiêm bằng Toxiproxy.
 
@@ -293,7 +293,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 1. `run_id` dạng `EV-{yyyyMMdd}-{nhóm}-{mã}-{lần}` (ví dụ `EV-20261216-LT-01-r2`).
 2. Trước khi chạy: ghi commit 3 repo, digest image, file cấu hình, thông số máy.
 3. Chạy test/kịch bản; xuất dữ liệu thô (k6 summary + time series, báo cáo test, kết quả truy vấn, bản ghi audit liên quan).
-4. Chụp dashboard Grafana cùng khoảng thời gian (ảnh + JSON snapshot).
+4. Lưu JSON snapshot dashboard Grafana cùng khoảng thời gian (không lưu ảnh) và dữ liệu metric dùng để vẽ biểu đồ.
 5. Sinh manifest SHA-256 cho mọi file; chạy notebook để sinh báo cáo HTML.
 
 Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION.md`](DATASET_SCHEMA_SPECIFICATION.md).
@@ -302,7 +302,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 
 ### 6.1. Chế độ đánh giá một lệnh (D-12)
 
-> **Hiện trạng:** kế hoạch gói 5.5, chưa hiện thực. Thiết kế chi tiết: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
+> **Hiện trạng:** đã hiện thực ở gói 5.5 (evaluator `tools/evaluation/`, bộ dựng Evidence Pack `tools/evidence/`, kịch bản k6 `tests/load/`). Thiết kế: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
 
 `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt:
 
@@ -314,7 +314,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 | **d** | Schemathesis (CT-03) và Stryker mutation (MT-01…03) |
 | **e** | Gom minh chứng vào `evidence/<run_id>/`: `report.html` (đạt/không đạt theo SC1…SC8, biểu đồ p50/p95/p99, biểu đồ dòng thời gian sự cố vẽ từ metric Grafana đã thu, số test từng nhóm), dữ liệu thô (trx theo `CatalogId`, kết quả k6, metric export, `chaos_log`) và `manifest.json` chứa SHA-256 từng file (EV-1…EV-5) |
 
-**Hai độ dài:** **bản nhanh** (~15 phút, tải rút ngắn) để diễn tập; **bản đầy đủ** (~1,5–2 giờ, LT-05 soak 60 phút) để lấy số liệu chính thức. Replay 215 booking (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01/PT-02) đổ vào cùng Evidence Pack và báo cáo (dữ liệu của gói 5.6).
+**Hai độ dài:** **bản nhanh** (đo thật 22–25 phút, tải rút ngắn, không chạy Stryker) để diễn tập; **bản đầy đủ** (ước tính ≈ 2,8 giờ từ các bước đã đo: LT-01 3 × 11 phút, LT-02 ~15 phút, LT-05 soak 61 phút, Stryker ≈ 21 phút; đo trọn vẹn ở gói 5.7) để lấy số liệu chính thức. Replay 215 booking (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01/PT-02) đổ vào cùng Evidence Pack và báo cáo (dữ liệu của gói 5.6).
 
 **Giới hạn đo lường:** toàn bộ chạy trên một máy (k6, TADSS và cơ sở dữ liệu tranh nhau CPU) nên số liệu là số liệu phòng lab; báo cáo ghi thông số máy (CPU/RAM) và liệt kê vào Mục 8.
 
@@ -337,6 +337,10 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 | Dataset khách sạn khác domain | Chỉ là proxy | Dùng cho kiểm chứng độc lập domain và mô tả, không kết luận về sân cầu lông |
 | E-EVAL chạy trên một máy: k6, TADSS, PostgreSQL, Redis, Toxiproxy và Grafana tranh nhau CPU/RAM | Số tuyệt đối là số liệu phòng lab, khác production; độ trễ đo được gồm cả nhiễu do tải của chính bộ công cụ | Báo cáo kèm thông số máy (CPU/RAM) và liệt kê vào giới hạn; so sánh tương đối giữa kịch bản trên cùng máy; ghi nhận bản nhanh chỉ để diễn tập |
 | Cách ly strategy không hợp tác (`IsolatedStrategyInvoker`, FI-05) chỉ **giới hạn thời gian chờ** của request: strategy bỏ qua `CancellationToken` hoặc chặn đồng bộ bị cắt ở inner timeout (fallback cọc 100%) nhưng không bị dừng; task bị bỏ rơi vẫn tiêu thụ CPU/thread pool tới khi tự kết thúc | Nhiều task bị bỏ rơi cùng lúc (strategy treo lặp lại dưới tải) có thể làm cạn thread pool và kéo dài độ trễ của request khác; thí nghiệm sự cố dưới tải (LT-03) có thể phóng đại hiệu ứng này | Đo `tadss.strategy.abandoned` trong LT-03; báo cáo số task bị bỏ rơi cùng độ trễ p99; không kết luận TADSS "dừng được" strategy lỗi — chỉ cô lập luồng request khỏi nó |
+| E-EVAL chạy ở môi trường ASP.NET Core `Testing` (decorator tiêm lỗi chỉ đăng ký ở đây) với rate limit nâng lên 100000 và trace lấy mẫu 10 % | HSTS, validator khóa API và giới hạn tốc độ thật khác Production; không phải request nào cũng có trace (metric và audit không lấy mẫu nên KPI không bị ảnh hưởng) | Ghi vào `report.html`; hành vi giới hạn tốc độ và khóa API được kiểm riêng ở SEC-1…7 |
+| Histogram metric chỉ chính xác tại biên bucket (…, 150, 500, 700, … ms) và cửa sổ đo theo metric lệch tối đa một `MetricExportIntervalMs` ở hai đầu | Phân vị không trùng biên là ước lượng; tỉ lệ ≤ 150/500/700 ms là phép đếm chính xác | SC1 kết luận bằng cả tỉ lệ bucket phía server và p95 phía client của k6 (chính xác từng request) |
+| Evaluator mount `/var/run/docker.sock` (Testcontainers cho integration test) | Container có quyền điều khiển Docker của máy chủ | Chỉ chạy trên máy của chính người dùng; mã nguồn mount chỉ đọc, file bí mật không được copy |
+| Tài nguyên VM Docker (Docker Desktop) quyết định độ trễ đo được; `verify-observability.sh` không chạy được trong container evaluator (đường dẫn mount) | Số liệu phụ thuộc cấu hình máy; OB-2/OB-4 ở chế độ vận hành lấy từ CI | Báo cáo ghi CPU/RAM Docker và digest image; kết quả CI `observability-check` thay thế |
 | Không có pilot với người dùng thật | Không đo được mức độ dễ dùng và hành vi thật của khách/Manager khi gặp chính sách cọc mới | Nêu rõ trong báo cáo; chất lượng quyết định chỉ được đánh giá bằng dữ liệu import (RP, PT); để Khóa luận đánh giá trên vận hành thật |
 
 ---

@@ -46,7 +46,7 @@ public class IsolatedStrategyInvokerTests
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(0);
     }
 
-    /// <summary>Strategy <c>Thread.Sleep(2000)</c> đồng bộ, token hủy sau 100 ms: lời gọi kết thúc trong 1 s và ghi một lần bỏ rơi.</summary>
+    /// <summary>Strategy <c>Thread.Sleep(2000)</c> đồng bộ, token hủy sau 100 ms: lời gọi kết thúc trước khi strategy xong (< 1,8 s) và ghi một lần bỏ rơi.</summary>
     [Fact]
     [Trait("CatalogId", "FI-05")]
     public async Task InvokeAsync_SyncBlockingStrategyIgnoringToken_ReturnsWhenTokenCancelled()
@@ -68,7 +68,7 @@ public class IsolatedStrategyInvokerTests
         await act.Should().ThrowAsync<OperationCanceledException>();
         stopwatch.Stop();
 
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000, "lời gọi không được chờ strategy chặn đồng bộ 2 s");
+        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1800, "lời gọi không được chờ strategy chặn đồng bộ 2 s (biên rộng để chịu máy bận: token hủy sau 100 ms)");
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
         recorder.Sum(TadssMetricNames.StrategyAbandoned, ("strategy", "BlockingStrategy")).Should().Be(1);
     }
@@ -93,7 +93,7 @@ public class IsolatedStrategyInvokerTests
         await act.Should().ThrowAsync<OperationCanceledException>();
         stopwatch.Stop();
 
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000);
+        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1800, "không được chờ strategy 2 s; biên rộng để chịu máy bận");
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
     }
 

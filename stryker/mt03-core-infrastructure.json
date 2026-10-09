@@ -1,0 +1,10 @@
+{
+  "stryker-config": {
+    "project": "TADSS.Infrastructure.csproj",
+    "mutate": ["Resilience/**/*.cs", "!**/obj/**"],
+    "thresholds": { "high": 80, "low": 70, "break": 70 },
+    "reporters": ["html", "json"],
+    "ignore-mutations": [],
+    "disable-bail": false
+  }
+}

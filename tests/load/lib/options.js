@@ -47,7 +47,9 @@ export function buildOptions(scenarioKey) {
   const scenarios = {};
 
   if (profile.executor === 'constant-arrival-rate') {
-    scenarios.warmup = arrivalRate(profile, '0s', profile.rate, warmup, 'warmup');
+    if (seconds(warmup) > 0) {
+      scenarios.warmup = arrivalRate(profile, '0s', profile.rate, warmup, 'warmup');
+    }
     scenarios.main = arrivalRate(profile, startMain, profile.rate, profile.duration, 'main');
   } else {
     // Bậc thang: mỗi bậc chuyển 1 giây rồi giữ `hold`; evaluator suy ra cửa sổ từng bậc từ cùng cấu hình

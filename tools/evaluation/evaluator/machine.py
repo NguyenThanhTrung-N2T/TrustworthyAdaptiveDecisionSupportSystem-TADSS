@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Callable
 
 Runner = Callable[[list[str]], tuple[int, str]]
+# Image mà lượt đánh giá dùng: digest của chúng được ghi vào manifest (EV-5)
+IMAGES = [
+    "mcr.microsoft.com/dotnet/sdk:8.0.425", "docker:29.1-cli", "grafana/k6:2.3.0", "grafana/otel-lgtm:0.34.0",
+    "postgres:16.15-alpine", "redis:7.4-alpine", "ghcr.io/shopify/toxiproxy:2.12.0", "nginx:1.29.8-alpine", "tadss-eval-runtime:local",
+]
 
 
 def _run(command: list[str]) -> tuple[int, str]:

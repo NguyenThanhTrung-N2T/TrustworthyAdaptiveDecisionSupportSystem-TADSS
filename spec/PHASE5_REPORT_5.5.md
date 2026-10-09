@@ -1,6 +1,6 @@
-# Báo cáo gói 5.5 — Observability & chế độ đánh giá (Phần A xong: Task 1–5, đã commit; Task 6–8 xong)
+# Báo cáo gói 5.5 — Observability & chế độ đánh giá (Task 1–12 xong; Phần A đã commit, Task 6–8 đã commit, Task 9–12 chưa commit)
 
-Trạng thái: **Task 1 và Task 2 xong**, các thay đổi **chưa commit** (để người dùng review); không push. Task 3–5 (Phần A) và Task 6–12 (Phần B) chưa làm. Nhánh `feat/phase-5-contract-v2-test-infra`, HEAD `cad5150`.
+Trạng thái: **toàn bộ 12 task xong và đã kiểm chứng**. Commit `22ee745` (Phần A), `09a1342` (Task 6–8); Task 9–12 là thay đổi **chưa commit** (để người dùng review); không push. Nhánh `feat/phase-5-contract-v2-test-infra`.
 
 ## 1. Task 1 — Spike S-1…S-10 (kết quả thật, 06/10/2026)
 
@@ -217,14 +217,180 @@ Sau khi người dùng gửi bản đánh giá bên ngoài, tôi đối chiếu 
 
 **Docker sau hai task:** đã `compose down` (không `-v`), xóa evidence của lần thử, build cache và volume tạm. Còn 14 image (7,6 GB; trong đó vận hành: otel-lgtm 3,66 GB; evaluator 1,56 GB; sdk alpine 1,03 GB; sdk 8.0.425 chung layer) và 2 volume (`eval-nuget`, `eval-faults`, 413 MB — giữ để Task 9–12 không tải lại NuGet; xóa bằng `docker compose -p tadss-eval --profile evaluation down -v`).
 
+## 3j. Task 9 — Sự cố dưới tải LT-03, OB-3 và SCALE-2 (bước c; 08/10/2026; xong)
+
+**Đã làm:**
+- k6: `tests/load/scenarios/lt03.js` (50 RPS suốt lịch, không warm-up), `scale2.js` (20 % request gửi lại đúng khóa idempotency + payload của một request trước của cùng VU), `config/modes.json` thêm `lt03` (405 s / 840 s) và `scale2` (1 phút / 3 phút); `lib/run.js` ghi thêm `reason_code`, `deposit_rate`, `error_code` (thân problem+json) và `repeat` vào mỗi dòng D2.
+- Evaluator: `chaos_schedule.py` (lịch O-16, hồi phục ≥ 55 s sau lỗi strategy, ≥ 40 s sau FI-08, ≥ 70 s sau FI-07, có test đối chiếu `BreakDuration` trong mã nguồn và `MetricExportIntervalMs` trong compose), `chaos_rules.py` (quy tắc đạt/không đạt từng pha, thuần hàm), `chaos_log.py` (D3), `faults.py` (ghi file profile nguyên tử), `clients/{toxiproxy,postgres,http}.py`, mở rộng `clients/{grafana,prometheus}.py` (annotation `chaos`, snapshot JSON dashboard, `query_range`), `steps/incident_step.py` (điều phối: k6 chạy trong luồng riêng, lịch tính từ lúc k6 bắt đầu, **luôn dọn dẹp** — reset Toxiproxy, ghi profile `None`, kiểm không còn proxy tắt/toxic — kể cả khi bật/tắt lỗi giữa chừng ném lỗi; k6 thoát ngay thì không chạy lịch), `steps/scale_step.py` (SCALE-2: 0 response 5xx, mỗi khóa đúng một bản `PRIMARY` và một `decisionId`, cả hai instance có `tadss_decisions_total`, và phải có request lặp thật).
+- Quy tắc đo: pha lỗi quan sát sau thời gian có hiệu lực (10 s cho file profile — S-6 cho thấy ≤ ~5 s —, 5 s cho Toxiproxy); `CACHE_HIT` không đi qua strategy nên bị loại khỏi mẫu fallback và được đếm riêng; "≥ 99 % ≤ 700 ms" đo phía client (đã gồm mạng nên chặt hơn đo phía server); phục hồi = cửa sổ sạch 10 s đầu tiên kết thúc không muộn hơn `T_hồi_phục + 2 × chu kỳ xuất + 20 s` sau khi gỡ lỗi (FI-07 đọc từ Prometheus, các lỗi còn lại đọc từ D2).
+- OB-3: `grafana/dashboard-snapshot.json` (JSON dashboard + `query_range` của mọi panel PromQL, `$instance` → `.*`), `raw/metrics/lt03-*.json` cho biểu đồ ở báo cáo; không lưu ảnh.
+
+**Smoke `EVAL_STEPS=c` (bản nhanh, stack thật): `passed` sau 509 s (8 phút 29 giây).**
+| Lỗi | Quan sát trong pha (sau thời gian có hiệu lực) | Hồi phục |
+| :--- | :--- | :--- |
+| FI-02 (`Delay` 2000 ms) | 1000 response, **100 % `APPROVED` cọc 100 % `FALLBACK`** (lý do `FALLBACK_STRATEGY_TIMEOUT`/`FALLBACK_CIRCUIT_OPEN`); audit: pipeline FALLBACK lớn nhất **155–157 ms**, 0 bản > 500 ms; 100 % ≤ 700 ms | cửa sổ sạch kết thúc sau 17–18 s |
+| FI-03 (`Throw`) | 1000 response, 100 % fallback đúng; pipeline lớn nhất 30 ms | 17–18 s |
+| FI-08 (cắt PostgreSQL) | 1250 response, **100 % 503 `PERSISTENCE_UNAVAILABLE`**, 0 khóa bị 503 mà có bản ghi (ngoài ngoại lệ bên dưới) | 10 s (không có breaker) |
+| FI-07 (Redis trễ 200 ms) | 1264–1265 response, 0 lỗi/FALLBACK; `bypass` tăng 1588–1626 | 25 s |
+- SCALE-2 (qua nginx, 60 s, 50 RPS): 3500 request, 0 lỗi 5xx; 2820–2889 khóa mỗi khóa đúng một bản `PRIMARY` và một `decisionId`; 611–681 request lặp; `tadss_decisions_total` tăng theo `instance`: tadss-1 ≈ 1510, tadss-2 ≈ 1390–1420 (hai instance chia tải đều).
+- Annotation: 8 annotation (`chaos`, `FI-xx`, `start|end`) đọc lại được qua API Grafana. Snapshot: 24/27 panel PromQL có dữ liệu (3 panel — override, shadow, nạp lại cấu hình — là counter chưa từng tăng trong lượt tải nên chưa có series).
+
+**Phát hiện (lần chạy trọn bước a→e, `EV-20261008-EVAL-quick-r3`): cam kết không chắc chắn khi cắt PostgreSQL.** Một request đang bay đúng lúc Toxiproxy tắt `postgres` (104 ms sau khi cắt) nhận 503 `PERSISTENCE_UNAVAILABLE` nhưng audit **có** bản `PRIMARY` cho khóa đó: lệnh `COMMIT` đã thành công ở PostgreSQL nhưng kết nối đứt trước khi xác nhận về ứng dụng, nên ứng dụng không biết kết quả và trả 503 (đúng nguyên tắc fail-closed). Bản ghi này hoàn chỉnh, không dở dang; client thử lại cùng `X-Idempotency-Key` nhận đúng quyết định đã lưu. Xử lý trong evaluator: 503 có bản ghi trong **2 s đầu** sau khi cắt được đếm riêng là "cam kết không chắc chắn" (ghi vào `observed` của `chaos_log`), **không** tính vào `invariant_violations`; 503 có bản ghi sau 2 s vẫn là vi phạm thật. Hệ quả cần biết cho Phase 6: SmashCourt-BE gặp 503/timeout phải **thử lại với cùng khóa idempotency** (đúng như INTEGRATION_SPEC), không sinh khóa mới; nếu không, hàng chờ duyệt có thể chứa một quyết định `NEED_APPROVAL` mà booking không biết. Lần smoke đầu (`EV-…-quick-r1`) không gặp ca này (xác suất phụ thuộc request nào đang bay lúc cắt).
+
+**Phát hiện thứ hai (lượt trọn vẹn `EV-20261008-EVAL-quick-r5`): instance không nhận tải mất ~15 s để nối lại database sau FI-08.** SCALE-2 chạy ngay sau LT-03 báo 31/3288 response `503 PERSISTENCE_UNAVAILABLE` (mỗi cái chờ 13–16 s). Log cho thấy toàn bộ 31 lỗi đều do `eval-tadss-2` (chỉ instance 1 bị k6 bắn trực tiếp trong LT-03, instance 2 không có lưu lượng và pool kết nối rỗng/cũ sau lúc Toxiproxy tắt `postgres`); Toxiproxy ghi nhận kết nối mới của instance 2 tới PostgreSQL chỉ được chấp nhận **15 s sau** lần thử đầu (đúng bằng timeout kết nối), đồng thời Redis của instance 2 cũng timeout — nghĩa là ~15 s đầu mọi kết nối mới của instance đó tới Toxiproxy không hoàn tất; sau đó mọi thứ bình thường. Hai lượt trước (`r1`, `r3`) không gặp; nguyên nhân gốc chưa xác định (nghi ngờ trạng thái mạng Docker Desktop sau khi proxy bị tắt/bật, không phải lỗi logic TADSS). Xử lý: SCALE-2 nay có **điều kiện đầu** — chờ `/health/ready` (kiểm cả PostgreSQL) của cả hai instance trả 200 (tối đa 90 s) rồi mới chạy k6; nếu hết hạn vẫn chưa sẵn sàng thì ghi chú và vẫn chạy để kết quả phản ánh trung thực. Ghi lại để gói 5.7 theo dõi: nếu gặp lại ở môi trường thật, xem xét `Keepalive`/`Connection Idle Lifetime` của Npgsql.
+
+**Test không ổn định thứ ba lộ ra cùng lượt đó:** `IsolatedStrategyInvokerTests.InvokeAsync_AsyncStrategyIgnoringToken_ReturnsWhenTokenCancelled` đỏ ở bước (a) (1293 ms so với biên 1000 ms khi token hủy sau 100 ms — máy bận). Biên nới thành 1800 ms (vẫn nhỏ hơn 2000 ms của strategy bị bỏ rơi nên vẫn chứng minh lời gọi không chờ strategy) cho cả hai ca tương tự trong file.
+
+**Test:** pytest 69 → **135** (`test_chaos_schedule`, `test_chaos_rules` — gồm ca cam kết không chắc chắn —, `test_incident_step` — thứ tự bật/tắt, dọn dẹp luôn chạy, k6 chết sớm, annotation lỗi không gây hỏng —, `test_scale_checks`, client Toxiproxy/Grafana/Prometheus).
+
+## 3k. Task 10 — Schemathesis, Stryker và coverage (bước d; 09/10/2026; xong)
+
+**Đã làm:** `.config/dotnet-tools.json` (`dotnet-stryker` **4.16.0**, `dotnet-reportgenerator-globaltool` 5.5.11), `stryker/*.json` (5 cấu hình: MT-01 `mt01-sdk`; MT-02 `mt02-strategies-default` + `mt02-strategies-mockalternative`; MT-03 `mt03-core-application` = `Decisions/**` + `Routing/**`, `mt03-core-infrastructure` = `Resilience/**`; `break` 70), `steps/contract_step.py` (Schemathesis 4.29.3, `-c not_a_server_error,response_schema_conformance,status_code_conformance,content_type_conformance`, đọc JUnit, CT-03 đạt ⇔ 0 lỗi hai check đầu; hai check sau là cảnh báo), `steps/mutation_step.py` (điểm = (Killed + Timeout) / (Killed + Timeout + Survived + NoCoverage), không tính Ignored/CompileError/RuntimeError; MT gộp theo **số mutant**; ghi `*-survivors.json` để thêm test), `steps/coverage.py` (ReportGenerator gộp cobertura của bước a thành HTML + cobertura + `Summary.txt`), `steps/analysis_step.py` (điều phối bước d, dùng lại `/work` của bước a).
+
+**Điều chỉnh so với plan:**
+- `dotnet-stryker` 5.0.0 (bản dùng ở spike S-8 trên SDK 10) **không cài được trong image evaluator** (SDK 8.0.425): gói chỉ có tool `net10.0` nên `dotnet tool restore` báo "DotnetToolSettings.xml was not found". Chốt **4.16.0** (có `net8.0`). `ReportGenerator` 5.5.11 có `net8.0` nên giữ.
+- MT-02 gồm hai project strategy nên là hai cấu hình con (Stryker mutate một project mỗi lần), điểm gộp theo số mutant như MT-03.
+- Bản nhanh không chạy Stryker; coverage cần chạy cùng bước a (`EVAL_STEPS=a,d`). `EVAL_MUTATION=1` bật Stryker ở bản nhanh khi cần.
+
+**Lỗi thật do Schemathesis tìm ra (đã sửa, không sửa contract):** `GET /api/v2/decisions/{id}`, `POST …/override` và `POST …/outcome` với `decisionId` không phải GUID (Schemathesis sinh `null,null`) trả **404 thân rỗng** của routing vì ràng buộc `:guid`, trong khi contract ghi 404 là `application/problem+json` với `DECISION_NOT_FOUND` (cả `response_schema_conformance` lẫn `content_type_conformance` đỏ trên 3 operation). Sửa: `UnmatchedDecisionRoutesController` (route catch-all `api/v2/decisions/{identifier}/{**rest}`, độ ưu tiên thấp nhất, `[ApiExplorerSettings(IgnoreApi = true)]` nên `openapi-v2.yaml` không đổi) ném `DecisionNotFoundException` (thêm constructor nhận chuỗi, message chỉ lặp tối đa 64 ký tự) để `GlobalExceptionHandler` dựng problem+json như mọi lỗi khác; `/api/v2/decisions` (không có đoạn sau) vẫn 405. IT tái hiện `UnmatchedDecisionRouteTests` (6 ca, `CatalogId` CT-03); `HttpPipelineTests.Routes_OnlyV2DecisionEndpointsExist` cập nhật (5 endpoint + 1 catch-all ẩn). Đổi hành vi nhìn thấy từ ngoài **chỉ** ở chỗ trước đây 404 rỗng nay là 404 problem+json đúng contract; không đổi OpenAPI, JSON schema, SDK, baseline.
+
+**Kết quả CT-03 sau sửa:** bản nhanh 25 ví dụ/operation: 1484 ca, 0 lỗi; **bản đầy đủ (500 ví dụ): 6905 ca sinh ra, 6905 đạt, 0 lỗi ở cả bốn check, 190 s.** Giới hạn cần nêu: Schemathesis báo "Schema validation mismatch" cho `POST /decisions`, `…/override`, `…/outcome` — phần lớn dữ liệu sinh ra bị API từ chối 400 (ràng buộc domain chặt hơn JSON schema) và hai operation phụ thuộc `decisionId` thật không có nguồn dữ liệu trong schema nên chủ yếu nhận 404; CT-03 vì vậy kiểm **hình dạng lỗi và không có 5xx với đầu vào bất kỳ**, còn đường hạnh phúc do IT-01…15 và CT-01 phủ.
+
+**Mutation (MT) — bản đầy đủ chạy trong container (`EVAL_MODE=full EVAL_STEPS=d`, `EV-20261008-EVAL-full-r4`):**
+| MT | Phạm vi | Trước (S-8 / lần đo đầu) | Sau | Ngưỡng |
+| :--- | :--- | :--- | :--- | :--- |
+| MT-01 | `Shared.DecisionContractSDK` (331 mutant được thử) | 84,73 % | **84,73 %** (283 bị giết / 51 sống) | 70 % |
+| MT-02 | `Strategies.Default` (58) + `Strategies.MockAlternative` (61) | Default 56,90 %; Mock 55,74 % | Default **98,28 %**; Mock **98,36 %**; gộp **98,32 %** | 70 % |
+| MT-03 | `Application/Decisions+Routing` (386) + `Infrastructure/Resilience` (52) | App 75,13 %; Infra 61,54 %; gộp 73,52 % | App **74,61 %**; Infra **73,08 %**; gộp **74,43 %** | 70 % |
+- Thêm test (đúng mã danh mục): `DefaultDecisionStrategyReasonsTests` (UT-03/05: nội dung `Reasons` theo từng hạng, định dạng số tiền/phần trăm, `ThrowIfNull`, biên và thông báo của `Validate`), `MockAlternativeDecisionStrategyReasonsTests` (UT-03/05: tên thứ trong tuần, định dạng, TTL cache, biên `Validate`), `FallbackDecisionPolicyMessagesTests` (UT-07: lý do từng nguyên nhân fallback, đối số null của `StrategyPipeline`). Unit 1818 → **1871**.
+- **Mutant tương đương / không đáng giết** (không hạ ngưỡng): nhánh `_ => throw` của `ResolveTierRate` và `CircuitStateMapper` không với tới được vì domain/enum đã chặn giá trị lạ; `ConfigureAwait(false)` → `true` (chỉ khác nhau khi có `SynchronizationContext`, ASP.NET Core không có); các câu log (`LogInformation/LogWarning/LogDebug`) trong `StrategyResilienceBuilder`, `StrategyRouter`, `DecisionService` — thay đổi nội dung log không đổi hành vi; chưa viết test log vì chi phí cao hơn giá trị, điểm đã vượt ngưỡng.
+- Thời gian trong container: Schemathesis 500 ví dụ **190 s**; Stryker năm cấu hình **≈ 21 phút (MT-01 5 phút, MT-02 2 × 2,5 phút, MT-03 6,5 + 3 phút; chạy tuần tự)**; tổng bước (d) bản đầy đủ **1554 s = 25,9 phút (kèm CT-03 và `dotnet tool restore`)**.
+
+**Coverage (bản nhanh, bước a + d, `EV-20261008-EVAL-quick-r3`):** gộp từ 4 file cobertura (unit + integration), **dòng 98,4 %, nhánh 89,8 %** (HTML ở `raw/coverage/index.html`).
+
+**Test:** pytest 135 → **175** cùng bộ `tools/evidence` (xem 3l); `test_schemathesis_report` (báo cáo thật từ lần chạy đầu làm fixture), `test_stryker_report`.
+
+## 3l. Task 11 — Evidence Pack, báo cáo và tóm tắt (bước e; 09/10/2026; xong)
+
+**Đã làm:** `tools/evidence/` (`anonymize.py` HMAC-SHA256 khóa ngẫu nhiên mỗi lượt, không lưu; `d1_export.py` D1 từ `tadss.decision_executions` ghép override/outcome mới nhất, đặc trưng request tách từ `request_payload`; `evidence_pack.py` manifest SHA-256 + EV-1…EV-5; `kpi.py` kết luận SC1…SC8 + bootstrap KTC 95 %; `coverage_map.py` độ phủ danh mục đọc từ methodology; `report/{generator,charts}.py` + `template.html.j2` — báo cáo tiếng Việt **tự chứa**, biểu đồ SVG tự vẽ, không `<script>`, không URL ngoài), `tools/evaluation/evaluator/steps/evidence_step.py`, image evaluator copy thêm `tools/evidence` (+ Jinja2), job CI cài cả hai `requirements.txt` và chạy cả hai thư mục pytest.
+
+**Quy tắc đáng chú ý:**
+- EV-2/EV-3 đối chiếu D2 (`requests.jsonl`, có `decision_id`, `idempotency_key`) với D1: mọi response 200 trỏ tới `decision_id` có trong D1; request đầu tiên của mỗi khóa còn có `correlation_id` trong D1; mỗi `decisionId` đúng một bản `PRIMARY`; số khóa có 200 = số `decisionId`. (Request lặp không ghi dòng mới nên không bắt `correlation_id`.)
+- EV-4 kiểm tên cột chính xác (không so chuỗi con nên `strategy_name` hợp lệ) và quét mẫu bí mật; bỏ qua `raw/coverage/` và `raw/mutation/` vì đó là bản liệt kê mã nguồn của chính repo.
+- `steps.json` do evaluator ghi sau cùng (nội dung đã nằm trong `manifest.steps`) nên không nằm trong danh sách băm.
+- SC1: tỉ lệ ≤ 150 ms phía server từ bucket Prometheus trong cửa sổ phần chính của từng lần LT-01, **và** p95 phía client của k6 < 150 ms ở mọi lần lặp; báo cáo ghi rõ bucket đếm "≤ 150" còn KPI viết "< 150".
+
+**Lượt trọn vẹn bản nhanh (bước a→e, `EV-20261008-EVAL-quick-r3`):**
+| Bước | Kết quả | Thời gian |
+| :--- | :--- | :--- |
+| a | 2143 dòng theo 57 mã danh mục, **0 ca đỏ** (unit + integration + `verify-expose.sh` + OB-2) | 532 s |
+| b | LT-01: 6001 request, 100 % 200; LT-02: 20 054 request, 100 % 200; Prometheus có `k6_*` và `tadss_*` | 400 s |
+| c | LT-03 + SCALE-2 (xem 3j) | 509 s |
+| d | CT-03 đạt; coverage 98,4 % dòng / 89,8 % nhánh; Stryker bỏ qua (bản nhanh) | 38 s |
+| e | D1 49 310 dòng, D2 51 494 request; **SC1 PASS** (server ≤ 150 ms: 100 %; p95 client tối đa 17,6 ms), **SC2 PASS**, **SC3 PASS**, SC4 xem dưới, SC5–7 `NOT_APPLICABLE`, SC8 `INSUFFICIENT_DATA` (2143/2143 ca đạt, chưa có MT); **EV-1…EV-5 đều đạt** | 34 s |
+| Tổng | pack 291 file, 72 MB, `report.html` 43 KB, `manifest.json` 66 KB | **1513 s = 25,2 phút** (chưa tính dựng image/stack lần đầu) |
+- Lượt này SC4 = FAIL vì `invariant_violations = 1` ở FI-08 — chính là ca "cam kết không chắc chắn" ở 3j. Sau khi phân loại lại, lượt chạy cuối (mục 5) cho kết quả sạch.
+
+**Test:** pytest `tools/evidence` **40** (ẩn danh, D1, EV theory, KPI ở ngưỡng, báo cáo tự chứa/escape/mục thiếu dữ liệu, độ phủ danh mục) + `test_evidence_step` 7 (pack hợp lệ, EV-2 đỏ khi audit thiếu, SC1 FAIL khi dưới ngưỡng, lỗi DB → `error`, compose không có chú thích/secret). Tổng pytest **175** (evaluation 135 + evidence 40).
+
 ## 4. Việc cần người dùng quyết định / lưu ý
 
 1. **Phiên bản OpenTelemetry (S-10):** plan dùng bộ 1.15.3 vì bản thấp hơn dính advisory mức Medium; đổi lại có `System.Diagnostics.DiagnosticSource` 10.0.0 trên runtime .NET 8. Nếu bạn muốn tránh DiagnosticSource 10.0.0, lựa chọn thay thế là bộ 1.9.0 (chấp nhận hai advisory Medium, giảm thiểu bằng cách chỉ dùng propagator TraceContext và không bật retry đĩa OTLP). Tôi khuyến nghị 1.15.3.
-2. **MT-02 chưa đạt 70 % (S-8):** `Default` strategy đang 56,9 %; sẽ phải thêm test ở Task 10 (thông điệp `Reasons`, giá trị mặc định của options).
+2. ~~MT-02 chưa đạt 70 %~~ **Đã xử lý ở Task 10:** thêm test `Reasons`/`Validate` cho hai strategy; MT-02 = 98,32 % (xem 3k).
 3. **Dung lượng đĩa:** image đã tải để chạy spike chiếm khoảng 8 GB (otel-lgtm 3,66 GB, renderer 2,06 GB, dotnet sdk 1,25 GB, postgres 420 MB…); chúng sẽ được dùng lại ở Task 7–12. Muốn giải phóng thì `docker image prune`/`docker rmi` (tôi không tự xóa).
 4. **RAM:** Docker Desktop đang cấp 8 GB / 8 CPU; plan khuyến nghị tối thiểu 8 GB, bản đầy đủ của chế độ đánh giá có thể chật khi chạy cùng lúc nhiều container (sẽ đo ở Task 12).
 5. **Một lần test override đồng thời đỏ không rõ nguyên nhân** (Mục 3). Nếu gặp lại ở máy bạn, hãy gửi nguyên văn lỗi; nếu muốn, tôi có thể chạy riêng một đợt dài hơn (ví dụ 100 lượt lớp `OverrideEndpointTests`) trước khi sang Task 3.
 6. Lỗi tôi gặp khi chạy `dotnet ef` lần đầu: quên đặt `ASPNETCORE_ENVIRONMENT=Testing` nên host design-time nạp cấu hình Development (có file bí mật). Tôi không in giá trị nào ra và `--no-connect` không mở kết nối DB; đã chạy lại đúng quy ước. Nêu ra để bạn biết.
-7. Chưa commit gì; nhớ không stage `spec/PHASE5_*.md`.
+7. Task 9–12 chưa commit; nhớ không stage `spec/PHASE5_*.md`.
+8. **Test không ổn định có sẵn (không do gói này):** `ErrorHandlingOptionsTests.ErrorHandlingOptions_InvalidRetryAfter_FailsOnStart_Theory` thỉnh thoảng (1/10 lượt chạy cả bộ unit khi máy bận; 0/25 khi chạy riêng lớp) đỏ với `ObjectDisposedException: IServiceProvider` thay vì `OptionsValidationException`: đua trong `WebApplicationFactory` (`DeferredHostBuilder`) khi host đã bị hủy vì lỗi khởi động. Tôi chưa sửa (ngoài phạm vi); hướng sửa là khẳng định cả hai loại exception hoặc dựng host bằng `WebApplicationFactory` không deferred. Cùng nhóm với lần đỏ không rõ nguyên nhân ở mục 5 (`Override_TwentyConcurrent…`).
+9. **Cam kết không chắc chắn khi PostgreSQL đứt** (3j): SmashCourt-BE phải thử lại với **cùng** khóa idempotency khi nhận 503/timeout.
+10. **NG-2b của `verify-expose.sh`** vẫn báo container thoát mã 139 (kiểm tra vẫn đạt vì log nêu đúng `Tadss:Security`); chưa điều tra mã thoát (có từ trước gói này).
+11. **Chưa chạy bản đầy đủ trọn vẹn** (LT-05 61 phút, LT-01 ×3): thuộc gói 5.7; mới chạy riêng bước (d) bản đầy đủ.
+12. **Docker:** xem Mục 9 — đã dọn theo yêu cầu; stack đánh giá còn chạy nếu bạn muốn xem lại Grafana `127.0.0.1:3002`.
 
 Commit đề xuất cho Phần A (sau Task 5; gộp một commit theo ghi chú của người dùng): `feat(observability): opentelemetry, runtime metrics and grafana dashboard (5.5 part A)`.
+
+## 3m. Task 12 — Tài liệu, skill và kiểm chứng cuối gói (09/10/2026; xong)
+
+**Tài liệu đã sửa (chỉ ghi điều đã hiện thực):** `README.md` (mục "Observability và chế độ đánh giá": bật telemetry khi `dotnet run`, bảng `Tadss:Telemetry`, lệnh nhanh/đầy đủ, `EVAL_STEPS`, kết quả ở `evidence/`, mã thoát, dọn, tài nguyên, cảnh báo mount Docker socket, thời lượng đo thật; thêm lệnh vào bảng "Lệnh Docker thường dùng"), `docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md` (cây thư mục mới, Mục 3 đổi tiêu đề "sau gói 5.5" và thêm SCALE-3, OpenTelemetry ở Mục 4.2, bảng metric/trace/log đầy đủ ở 4.5), `docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md` (FI-07, FI-09, đổi profile nóng), `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` (bỏ "chưa hiện thực", công cụ + phiên bản, giới hạn Mục 8, bỏ "ảnh" ở quy trình), `docs/research/DATASET_SCHEMA_SPECIFICATION.md` (trường manifest và tệp raw của evaluator), `docs/planning/BACKLOG_SPRINTS.md` (tiến độ T5.14–T5.17, T5.26), `CLAUDE.md` (repo) và hai skill ở `.claude/skills/` (`tadss-architecture`: metric mới → `TadssMetricNames` + `TadssMetrics` + panel dashboard + OB-1, span → `TadssActivitySource`, OpenTelemetry chỉ ở `Composition/`, luật O-13 cho service compose đánh giá, bước/client Python; `build-verify`: pytest khi sửa `tools/`). `spec/PHASE5_DESIGN_SPEC.md` (D-12/4.5: vị trí OpenTelemetry, phiên bản, đường dẫn Stryker, thời lượng đo thật) — **không stage**.
+
+**Kiểm chứng cuối gói (số liệu thật, 09/10/2026):**
+| Kiểm chứng | Kết quả |
+| :--- | :--- |
+| `dotnet build TADSS.slnx -c Release -nologo -v q --warnaserror --no-incremental` | 0 Warning, 0 Error |
+| Unit | **1871 passed** (đầu gói 1707: **+164**), 0 skipped. Chạy 5 lần liên tiếp: 4 xanh; 1 lần đỏ do flaky có sẵn (xem Mục 4 mục 8) |
+| Integration | **238 passed** (đầu gói 211: **+27**), 3 lần liên tiếp đều xanh: 118 s, 77 s, 90 s |
+| pytest | **175 passed** (`tools/evaluation` 135, `tools/evidence` 40) |
+| `git diff cad5150 -- docs/contracts/` | rỗng |
+| `dotnet ef migrations list --no-connect` / `has-pending-model-changes` | đúng 4 ID / không có thay đổi |
+| `tools/ci/check-vulnerable-packages.sh` | sạch |
+| `verify-expose.sh` | TẤT CẢ ĐẠT (NG-1, NG-2a, NG-2b, NG-3, NG-5, SEC-6) |
+| `verify-observability.sh` | OB-2 và OB-4 đạt (20/20 POST 200, `tadss_decisions_total` = 20 sau 0 s) |
+| grep literal `"tadss.` ngoài `TadssMetricNames`/`TadssActivitySource` | rỗng |
+| grep `OpenTelemetry` ngoài `Composition/`, `Program.cs` trong `src/` | chỉ còn **chú thích** (5 dòng XML doc/comment), không có `using`/kiểu |
+| `appsettings.Development.json` trong `evidence/` | **không có file nào**; chỉ có chuỗi tên file trong bản liệt kê mã nguồn của báo cáo Stryker (hằng `DevelopmentSettingsFile`) |
+| Bản nhanh trọn vẹn từ trạng thái sạch (`down -v` rồi `run evaluator`) | Lượt cuối từ Docker trống hoàn toàn (đã xóa mọi image, volume, build cache rồi build/tải lại): `EV-20261009-EVAL-quick-r1`, mã thoát 1 — a 325 s (2143/2143 ca đạt), b 401 s (LT-01 6000 + LT-02 20 000 request, 100 % 200), c 510 s (FI-02/03/08 và SCALE-2 đạt; **FI-07 không đạt vì 2/1262 request** — một 504 và một FALLBACK do strategy timeout, cùng thời điểm, mỗi cái ~1,6–1,7 s: máy khựng ~1,5 s giữa pha Redis chậm; 5 lượt trước FI-07 đều đạt), d 41 s (CT-03 đạt, coverage 98,4 %/89,8 %), e 41 s (SC1–SC4 PASS, SC5–7 N/A, SC8 chưa đủ dữ liệu vì bản nhanh không chạy Stryker; EV-1…EV-5 đạt). Tổng 21,9 phút. Trước đó 6 lượt lộ ra và đã sửa: unit test đỏ ngẫu nhiên khi chạy song song trong container (bước a nay chạy unit tuần tự), unit test chờ inotify không bao giờ nổ trong container (đổi sang nạp lại tường minh), lỗi build CS1998, và máy ngủ giữa lượt chạy. |
+| `EVAL_MODE=full EVAL_STEPS=d` (Task 10) | đạt: CT-03 6905 ca 0 lỗi; MT-01 84,73 %, MT-02 98,32 %, MT-03 74,43 %; 1554 s |
+
+**Test mới theo mã (so với đầu gói 5.5):**
+| Mã | Số test mới (xấp xỉ theo nhóm) | Nội dung chính |
+| :--- | :--- | :--- |
+| UT-03/05 | +22 + 25 (Default, MockAlternative) | `Reasons`, định dạng, biên `Validate` (giết mutant MT-02) |
+| UT-07 | +5 | Lý do fallback, null guard `StrategyPipeline` |
+| UT-08 | +1 | `DecisionNotFoundException` định danh sai hình thức |
+| UT-09 | các lượt trước (traceability, `FaultInjectionControl`) | Đã nêu ở 3g, 3h |
+| CT-03 | +6 IT | `UnmatchedDecisionRouteTests` |
+| FI-07, FI-09, OB-1…OB-4, SCALE-2 | xem 3g, 3f, 3j | |
+
+**Sửa test không ổn định tìm thấy khi kiểm chứng cuối:** `FaultInjectionControlTests.Current_ConcurrentReload_NeverMixesFields` — mỗi luồng đọc lưu **mọi** lần đọc vào danh sách trong lúc luồng ghi chạy 2000 lần đổi cấu hình; trên máy 8 lõi danh sách phình tới hàng chục triệu phần tử (vài GB), GC chiếm hết thời gian và cả bộ unit **treo >5 phút** (2/5 lượt đầu). Đổi sang `HashSet` các giá trị khác nhau đã thấy (vẫn kiểm đúng "không có cặp lai"); sau đó 5 lượt liên tiếp chạy 9–13 s.
+
+## 5. Phụ lục A — trạng thái đối chiếu spec → task
+
+| Yêu cầu | Task | Trạng thái |
+| :--- | :---: | :--- |
+| OpenTelemetry trace/metric/log, tắt được, không collector vẫn chạy | 2, 4 | ✅ |
+| Metric SAS 4.5 trên meter `TADSS.Runtime`, khai báo một nơi | 2, 3 | ✅ (13 instrument) |
+| Npgsql 8.0.x, span Redis tự tạo, Serilog sink OTLP | 4 | ✅ |
+| Dashboard bắt buộc, provisioning ở cả hai chế độ Docker | 5, 7 | ✅ (36 panel) |
+| OB-1, OB-2, OB-3, OB-4 | 5, 7, 9 | ✅ OB-1 test; OB-2 `verify-observability.sh` + evaluator; OB-3 snapshot JSON + biểu đồ (không ảnh); OB-4 `verify-observability.sh` |
+| Lưu số liệu trong otel-lgtm, k6 đẩy metric vào cùng Prometheus | 1, 8 | ✅ (`--out opentelemetry`, tiền tố `k6_`) |
+| Profile `evaluation`, stack cô lập, không chạm Neon | 7 | ✅ |
+| Evaluator (a) test gộp theo `CatalogId` | 7 | ✅ (57 mã) |
+| (b) k6 LT-01/02/05 | 8 | ✅ (LT-05 chỉ bản đầy đủ, chưa chạy vì 61 phút — gói 5.7) |
+| (c) LT-03 + FI qua Toxiproxy, `chaos_log` | 6, 9 | ✅ |
+| (d) Schemathesis CT-03, Stryker MT-01…03, ReportGenerator | 10 | ✅ |
+| (e) `evidence/<run_id>/`: `report.html`, dữ liệu thô, `manifest.json`, EV-1…EV-5 | 11 | ✅ |
+| Bản nhanh / bản đầy đủ | 8–12 | ✅ bản nhanh trọn vẹn; bản đầy đủ chạy từng phần (b: chưa LT-05; d: đủ) |
+| SCALE-2, SCALE-3 | 7, 9, 12 | ✅ SCALE-2 chạy; SCALE-3 là tài liệu (SAS Mục 3) |
+| FI-01…FI-10 tự động, có trong CI | 6 | ✅ |
+| Mang từ 5.4 (gauge breaker, request logging, exporter, LT-03, FI-07) | 2, 3, 4, 6, 9 | ✅ |
+| README/CLAUDE.md/methodology/dataset/kế hoạch bỏ "chưa hiện thực" | 12 | ✅ |
+
+## 6. Phiên bản công cụ đã ghim
+
+k6 2.3.0; Schemathesis 4.29.3 (pip); `dotnet-stryker` **4.16.0** (đổi so với plan 5.0.0, xem 3k); `dotnet-reportgenerator-globaltool` 5.5.11; `grafana/otel-lgtm` 0.34.0; `postgres:16.15-alpine`; `redis:7.4-alpine`; `ghcr.io/shopify/toxiproxy:2.12.0`; `nginx:1.29.8-alpine`; `docker:29.1-cli`; SDK `mcr.microsoft.com/dotnet/sdk:8.0.425`; Python 3.11 (Debian bookworm) với pytest 9.1.1, jsonschema 4.26.0, psycopg[binary] 3.2.13, schemathesis 4.29.3, Jinja2 3.1.6; OpenTelemetry 1.15.3/1.15.2, Npgsql.OpenTelemetry 8.0.6, Serilog.Sinks.OpenTelemetry 4.1.1. `grafana-image-renderer` **không dùng** (quyết định không lưu ảnh dashboard).
+
+## 7. Thời lượng đo thật (cập nhật O-24)
+
+| | Dự kiến (O-24) | Đo thật |
+| :--- | :--- | :--- |
+| Bước a | ~5 phút | **8,9 phút** (532 s: restore/build hai project test, 2109 kết quả, `verify-expose.sh`) |
+| Bước b bản nhanh | ~6 phút | **6,7 phút** (400 s) |
+| Bước c bản nhanh | ~8 phút | **8,5 phút** (509 s: LT-03 405 s + chờ metric + snapshot + SCALE-2 ~75 s) |
+| Bước d bản nhanh | ~2 phút | **38 s** (CT-03 25 ví dụ + coverage) |
+| Bước e | ~1 phút | **34 s** |
+| **Bản nhanh** | 18–25 phút | **25,2 phút** (chưa tính lần đầu build image/tải 7,7 GB) |
+| CT-03 500 ví dụ | ~10 phút | **190 s** |
+| Stryker 5 cấu hình | 20–40 phút | **≈ 21 phút** (container, tuần tự) |
+| Bước d bản đầy đủ | — | **25,9 phút** |
+| **Bản đầy đủ trọn vẹn** | 2,5–3 giờ | **ước tính ≈ 2,8 giờ** (a 9 + b ≈ 110 [LT-01 3 × 11,3 phút, LT-02 15,5, LT-05 61] + c ≈ 20 + d 26 + e 1,5 phút); đo trọn vẹn ở gói 5.7. D-12 ghi "~1,5–2 giờ" là thấp hơn thực tế (đã sửa trong `PHASE5_DESIGN_SPEC.md`, README, CLAUDE.md) |
+
+## 8. Chuyển sang gói 5.6 / 5.7
+
+- **5.6:** `replay.py` (D4), `hotel_adapter.py` (D5), RP-01/02, PT-01/02, SC7; thêm vào cùng Evidence Pack qua `tools/evidence/` (dùng lại `anonymize.py`, `evidence_pack.py`, `report/generator.py`); notebook nên gọi bộ sinh báo cáo. Ngưỡng tiền tệ strategy chỉnh bằng biến môi trường của `eval-tadss-*`. Việc của người dùng: chạy SQL xuất CSV 215 booking bằng thông tin kết nối của bạn; kiểm giấy phép dataset Hotel Booking Demand.
+- **5.7:** chạy **bản đầy đủ trọn vẹn** (có LT-05 61 phút, LT-01 ×3) và chốt Evidence Pack vào `docs/research/evidence-packs/{run_id}/`; DOC-1…DOC-4; đóng băng contract v2; cập nhật số đo thật của bản đầy đủ vào D-12/README. Cần cân nhắc: `execution_time_ms` của FALLBACK hiện đo rất thấp (30–157 ms) vì breaker mở trả ngay, nên "≤ 500 ms" chưa bị thử thách bởi ca timeout đầu tiên — LT-03 pha FI-02 đầu tiên có vài request timeout thật nhưng nằm trước thời gian có hiệu lực của quan sát.
+- **Phase 6:** LT-04/E2E, FI-11…14, SC5/SC6; BE phải retry cùng khóa idempotency khi gặp 503/timeout (xem 3j).
+
+## 9. Docker sau gói
+
+Sau gói (09/10/2026): đã xóa toàn bộ container, volume, mạng và build cache (thu hồi ~11 GB image + 9,1 GB build cache qua các lần dọn), chỉ giữ image cần cho chế độ đánh giá và vận hành: `tadss-evaluator:local` 1,65 GB, `tadss-eval-runtime:local` 191 MB, `grafana/otel-lgtm:0.34.0` 3,66 GB, `postgres:16.15-alpine`, `redis:7.4-alpine`, `nginx:1.29.8-alpine`, `toxiproxy:2.12.0`, `testcontainers/ryuk:0.14.0`, `ngrok` — tổng **7,6 GB**, 0 container, 0 volume, 0 build cache. Sau đó theo yêu cầu người dùng xóa nốt 8 image (Docker trống hoàn toàn). Chạy lại bằng một lệnh `bash tools/evaluation/run.sh [quick|full] [--clean]` (tự build/tải image ở lần đầu; `--clean` dọn sạch sau khi chạy). Lưu ý: ổ đĩa ảo của Docker Desktop không tự co lại sau khi xóa; muốn trả dung lượng cho Windows thì dùng Docker Desktop → Troubleshoot → Clean/Purge data hoặc `wsl --shutdown` rồi `Optimize-VHD`.

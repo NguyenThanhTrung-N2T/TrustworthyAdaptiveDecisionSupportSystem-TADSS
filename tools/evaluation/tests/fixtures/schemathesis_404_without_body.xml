@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites errors="0" failures="3" skipped="0" tests="6" time="11.865545">
+  <testsuite name="schemathesis" hostname="c3ebfedaa39d" errors="0" failures="3" skipped="0" tests="6" time="11.865545">
+    <testcase name="POST /api/v2/decisions" time="7.188821" />
+    <testcase name="POST /api/v2/decisions/{decisionId}/outcome" time="0.509712">
+      <failure type="failure">1. Test Case ID: wJ30YV
+
+- JSON deserialization error
+
+    Response must be valid JSON with 'Content-Type: application/json' header:
+
+      Expecting value: line 1 column 1 (char 0)
+
+- Missing Content-Type header
+
+    The following media types are documented in the schema:
+    - `application/problem+json`
+
+[404] Not Found:
+
+    &lt;EMPTY&gt;
+
+Reproduce with:
+
+    curl -X POST -H 'X-Idempotency-Key: [Filtered]' -H 'X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544' -H 'X-Api-Key: [Filtered]' -H 'Content-Type: application/json' -d '{"occurredAt": "2000-01-01T00:00:00Z", "outcome": "NO_SHOW"}' http://eval-tadss-1:8080/api/v2/decisions/null%2Cnull/outcome</failure>
+    </testcase>
+    <testcase name="POST /api/v2/decisions/{decisionId}/override" time="0.502251">
+      <failure type="failure">1. Test Case ID: khQUDW
+
+- JSON deserialization error
+
+    Response must be valid JSON with 'Content-Type: application/json' header:
+
+      Expecting value: line 1 column 1 (char 0)
+
+- Missing Content-Type header
+
+    The following media types are documented in the schema:
+    - `application/problem+json`
+
+[404] Not Found:
+
+    &lt;EMPTY&gt;
+
+Reproduce with:
+
+    curl -X POST -H 'X-Idempotency-Key: [Filtered]' -H 'X-Actor-Id: manager-01' -H 'X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544' -H 'X-Api-Key: [Filtered]' -H 'Content-Type: application/json' -d '{"action": "REJECT", "deposit": {"amount": null, "rate": null}, "reason": null}' http://eval-tadss-1:8080/api/v2/decisions/null%2Cnull/override</failure>
+    </testcase>
+    <testcase name="GET /api/v2/decisions/pending-approvals" time="0.968362" />
+    <testcase name="GET /api/v2/decisions/{decisionId}" time="0.140403">
+      <failure type="failure">1. Test Case ID: XlYLdQ
+
+- JSON deserialization error
+
+    Response must be valid JSON with 'Content-Type: application/json' header:
+
+      Expecting value: line 1 column 1 (char 0)
+
+- Missing Content-Type header
+
+    The following media types are documented in the schema:
+    - `application/problem+json`
+
+[404] Not Found:
+
+    &lt;EMPTY&gt;
+
+Reproduce with:
+
+    curl -X GET -H 'X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544' -H 'X-Api-Key: [Filtered]' http://eval-tadss-1:8080/api/v2/decisions/null%2Cnull</failure>
+    </testcase>
+    <testcase name="Stateful tests" time="2.555995" />
+  </testsuite>
+</testsuites>

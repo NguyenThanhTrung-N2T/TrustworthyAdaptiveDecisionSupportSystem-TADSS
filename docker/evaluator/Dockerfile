@@ -25,7 +25,10 @@ COPY --from=dockercli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/
 WORKDIR /opt/evaluation
 COPY tools/evaluation/requirements.txt ./requirements.txt
 RUN python3 -m venv /opt/venv && pip install --no-cache-dir -r requirements.txt
+COPY tools/evidence/requirements.txt ./evidence-requirements.txt
+RUN pip install --no-cache-dir -r evidence-requirements.txt
 COPY tools/evaluation/evaluator ./evaluator
+COPY tools/evidence ./evidence
 
 # Mã nguồn dự án và dữ liệu lượt chạy đến từ mount: /repo (chỉ đọc), /evidence (ghi), /work (bản copy), /faults (file tiêm lỗi)
 WORKDIR /work

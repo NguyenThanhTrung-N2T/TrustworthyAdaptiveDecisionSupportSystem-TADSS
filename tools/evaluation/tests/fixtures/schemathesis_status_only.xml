@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="schemathesis"><testcase name="GET /api/v2/decisions/{decisionId}"><failure type="failure">1. Test Case ID: abc
+
+- Undocumented HTTP status code
+
+    detail
+
+Reproduce with:
+
+    curl -X GET http://x</failure></testcase><testcase name="POST /api/v2/decisions"><failure type="failure">1. Test Case ID: abc
+
+- Undocumented Content-Type
+
+    detail
+
+Reproduce with:
+
+    curl -X GET http://x</failure></testcase></testsuite></testsuites>

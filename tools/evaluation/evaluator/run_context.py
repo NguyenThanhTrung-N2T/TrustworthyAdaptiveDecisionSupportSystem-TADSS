@@ -45,6 +45,7 @@ class Endpoints:
     """Địa chỉ các thành phần trong mạng của stack đánh giá (đặt trong compose)."""
 
     tadss: str = "http://eval-tadss-1:8080"
+    tadss2: str = "http://eval-tadss-2:8080"
     proxy: str = "http://eval-proxy:8080"
     grafana: str = "http://eval-grafana:3000"
     prometheus: str = "http://eval-grafana:3000/api/datasources/proxy/uid/prometheus"
@@ -56,6 +57,7 @@ class Endpoints:
         defaults = cls()
         return cls(
             tadss=env.get("EVAL_TADSS_URL", defaults.tadss),
+            tadss2=env.get("EVAL_TADSS2_URL", defaults.tadss2),
             proxy=env.get("EVAL_PROXY_URL", defaults.proxy),
             grafana=env.get("EVAL_GRAFANA_URL", defaults.grafana),
             prometheus=env.get("EVAL_PROMETHEUS_URL", defaults.prometheus),
@@ -77,6 +79,8 @@ class RunContext:
     evidence_root: Path
     endpoints: Endpoints
     env: dict[str, str] = field(default_factory=dict)
+    # Kết quả các bước đã chạy trong lượt này (run_steps nối thêm sau mỗi bước) để bước (e) tổng hợp
+    outcomes: list = field(default_factory=list)
 
     @property
     def evidence_dir(self) -> Path:
