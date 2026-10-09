@@ -1,6 +1,6 @@
 // Đầu ra của kịch bản tải (O-15): mỗi request một dòng JSON (D2 timeseries) qua console (k6 --console-output), và summary.json qua handleSummary.
 
-// Một dòng D2. `phase` = warmup | main (kịch bản warm-up bị loại khỏi thống kê ở bước (e)).
+// Một dòng D2. `phase` = warmup | main (kịch bản warm-up bị loại khỏi thống kê ở bước (f)).
 export function logRequest(entry) {
   console.log(JSON.stringify(entry));
 }

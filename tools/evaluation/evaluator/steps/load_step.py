@@ -1,4 +1,4 @@
-"""Bước (b): kịch bản tải k6 LT-01 → LT-02 → LT-05 trên instance 1 trực tiếp (không qua nginx), ghi cửa sổ thời gian thật cho truy vấn ở bước (e)."""
+"""Bước (b): kịch bản tải k6 LT-01 → LT-02 → LT-05 trên instance 1 trực tiếp (không qua nginx), ghi cửa sổ thời gian thật cho truy vấn ở bước (f)."""
 from __future__ import annotations
 
 import json

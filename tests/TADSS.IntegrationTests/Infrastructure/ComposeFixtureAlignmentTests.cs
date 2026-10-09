@@ -24,7 +24,7 @@ public class ComposeFixtureAlignmentTests
     private const string EvaluationGrafanaPort = "127.0.0.1:3002:3000";
     private static readonly string[] OperationsServiceNames = ["tadss-runtime", "ngrok", "grafana"];
     private static readonly string[] EvaluationServiceNames =
-        ["eval-postgres", "eval-redis", "eval-toxiproxy", "eval-tadss-1", "eval-tadss-2", "eval-proxy", "eval-grafana", "evaluator"];
+        ["eval-postgres", "eval-redis", "eval-toxiproxy", "eval-tadss-1", "eval-tadss-2", "eval-tadss-portability", "eval-proxy", "eval-grafana", "evaluator"];
 
     private static readonly string[] SecretVariableFragments =
     [
@@ -193,9 +193,10 @@ public class ComposeFixtureAlignmentTests
     }
 
     /// <summary>
-    /// Mỗi service đánh giá nằm sau profile <c>evaluation</c> và <b>không</b> nối <c>smashcourt-network</c> (stack cô lập, mạng mặc định riêng). Hai instance TADSS chạy <c>Testing</c> và chỉ nối
-    /// PostgreSQL/Redis <b>qua</b> <c>eval-toxiproxy</c> (không trỏ thẳng vào <c>eval-postgres</c>/<c>eval-redis</c>, không host ngoài); image PostgreSQL/Redis/Toxiproxy/Grafana bằng hằng của
-    /// fixture hoặc compose vận hành; mọi image dựng sẵn ghim tag cụ thể (không <c>latest</c>); evaluator build từ Dockerfile của nó.
+    /// Mỗi service đánh giá nằm sau profile <c>evaluation</c> và <b>không</b> nối <c>smashcourt-network</c> (stack cô lập, mạng mặc định riêng). Hai instance TADSS chính chạy <c>Testing</c> và chỉ nối
+    /// PostgreSQL/Redis <b>qua</b> <c>eval-toxiproxy</c> (không trỏ thẳng vào <c>eval-postgres</c>/<c>eval-redis</c>, không host ngoài). Instance PT (<c>eval-tadss-portability</c>, gói 5.6) ngược lại nối
+    /// <b>thẳng</b> <c>eval-postgres</c>/<c>eval-redis</c> với database <c>tadss_portability</c> riêng, không tiêm lỗi, không cổng host, không mount, cấu hình miền khách sạn chỉ bằng biến môi trường.
+    /// Image PostgreSQL/Redis/Toxiproxy/Grafana bằng hằng của fixture hoặc compose vận hành; mọi image dựng sẵn ghim tag cụ thể (không <c>latest</c>); evaluator build từ Dockerfile của nó.
     /// </summary>
     [Theory]
     [Trait("CatalogId", "NG-1")]
@@ -204,6 +205,7 @@ public class ComposeFixtureAlignmentTests
     [InlineData("eval-toxiproxy")]
     [InlineData("eval-tadss-1")]
     [InlineData("eval-tadss-2")]
+    [InlineData("eval-tadss-portability")]
     [InlineData("eval-proxy")]
     [InlineData("eval-grafana")]
     [InlineData("evaluator")]
@@ -213,7 +215,7 @@ public class ComposeFixtureAlignmentTests
 
         List(service, "profiles").Should().Equal([EvaluationProfile], "{0} phải nằm sau profile evaluation", name);
         service.Should().NotContainKey("networks", "stack đánh giá dùng mạng mặc định riêng, không nối smashcourt-network");
-        if (name is not "eval-tadss-1" and not "eval-tadss-2" and not "evaluator")
+        if (name is not "eval-tadss-1" and not "eval-tadss-2" and not "eval-tadss-portability" and not "evaluator")
         {
             Scalar(service, "image").Should().MatchRegex(@":\d[\w.\-]*$", "image {0} phải có tag phiên bản cụ thể", name).And.NotContain("latest");
         }
@@ -243,12 +245,47 @@ public class ComposeFixtureAlignmentTests
                 environment["Tadss__Telemetry__ServiceInstanceId"].Should().Be(name == "eval-tadss-1" ? "tadss-1" : "tadss-2");
                 environment.ContainsKey("TADSS_FAULT_INJECTION_FILE").Should().Be(name == "eval-tadss-1", "chỉ instance 1 đọc file tiêm lỗi");
                 break;
+            case "eval-tadss-portability":
+                var portability = Map(service, "environment");
+                portability["ASPNETCORE_ENVIRONMENT"].Should().Be("Testing");
+                portability["ConnectionStrings__DefaultConnection"].Should().Contain("Host=eval-postgres;Port=5432;").And.Contain("Database=tadss_portability;").And.NotContain("toxiproxy");
+                portability["Tadss__Cache__RedisConnectionString"].Should().Be("eval-redis:6379");
+                portability["Tadss__Cache__InstanceName"].Should().NotBeNullOrWhiteSpace().And.NotBe("tadss:", "tiền tố khóa Redis riêng, không trùng instance 1/2");
+                portability["Tadss__Database__ApplyMigrationsOnStartup"].Should().Be("true", "database tadss_portability là của riêng instance này");
+                portability["Tadss__Security__ApiKeys__0__KeySha256"].Should().Be("0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406", "cùng khóa đánh giá như hai instance kia");
+                portability["Tadss__Telemetry__ServiceInstanceId"].Should().Be("tadss-pt");
+                portability["Tadss__Telemetry__OtlpEndpoint"].Should().Be("http://eval-grafana:4317");
+                portability["Tadss__Validation__MaxItemMinutes"].Should().Be("100800", "phủ lưu trú dài nhất của dataset khách sạn (spike S-2)");
+                portability["Tadss__Strategies__Default__HighValueThreshold"].Should().Be("750", "ngưỡng giá trị cao tính bằng EUR (spike S-2)");
+                portability.Keys.Should().NotContain(key => key.Contains("FaultInjection", StringComparison.Ordinal) || key == "TADSS_FAULT_INJECTION_FILE", "PT không tiêm lỗi");
+                service.Should().NotContainKey("ports", "NG-5: không mở cổng host");
+                service.Should().NotContainKey("volumes", "NG-1: không mount file nào");
+                Scalar(service, "image").Should().Be(Scalar(Service("eval-tadss-1"), "image"), "cùng image runtime với instance 1/2");
+                DependsOn(service).Should().BeEquivalentTo("eval-postgres", "eval-redis", "eval-grafana").And.NotContain("eval-toxiproxy", "PT không đi qua Toxiproxy");
+                break;
             case "evaluator":
                 service.Should().ContainKey("build");
-                List(service, "volumes").Should().Contain(".:/repo:ro", "mã nguồn mount chỉ đọc").And.Contain("/var/run/docker.sock:/var/run/docker.sock");
-                Map(service, "environment")["EVAL_MODE"].Should().Be("${EVAL_MODE:-quick}");
+                List(service, "volumes").Should().Contain(".:/repo:ro", "mã nguồn mount chỉ đọc").And.Contain("/var/run/docker.sock:/var/run/docker.sock")
+                    .And.Contain("./data/private:/datasets/private:ro", "CSV SmashCourt thô chỉ đọc").And.Contain("eval-datasets:/datasets/cache");
+                var evaluator = Map(service, "environment");
+                evaluator["EVAL_MODE"].Should().Be("${EVAL_MODE:-quick}");
+                evaluator["EVAL_PT_URL"].Should().Be("http://eval-tadss-portability:8080");
+                evaluator["EVAL_PT_PG_DSN"].Should().Contain("dbname=tadss_portability");
+                evaluator["EVAL_DATASETS_PRIVATE"].Should().Be("/datasets/private");
+                evaluator["EVAL_DATASETS_CACHE"].Should().Be("/datasets/cache");
+                evaluator["TADSS_SCHEMA_DIR"].Should().Be("/repo/docs/contracts/schemas/v2");
+                DependsOn(service).Should().Contain("eval-tadss-portability", "evaluator chờ instance PT khỏe");
+                ((Dictionary<object, object>)Load()["volumes"]).Keys.Cast<string>().Should().Contain("eval-datasets");
                 break;
         }
+    }
+
+    /// <summary>Thư mục <c>data/private/</c> (CSV SmashCourt thô do người dùng xuất, mount vào evaluator) nằm trong <c>.gitignore</c>: dữ liệu cá nhân không bao giờ vào repo.</summary>
+    [Fact]
+    [Trait("CatalogId", "NG-1")]
+    public void PrivateDataDirectory_IsGitIgnored()
+    {
+        File.ReadAllLines(RepositoryPaths.Resolve(".gitignore")).Select(line => line.Trim()).Should().Contain("data/private/");
     }
 
     /// <summary>Image PostgreSQL/Redis của override tạm trong <c>verify-expose.sh</c> và <c>verify-observability.sh</c> bằng image fixture integration test (cùng phiên bản hạ tầng với test).</summary>
@@ -280,6 +317,9 @@ public class ComposeFixtureAlignmentTests
     private static bool IsEvaluation(Dictionary<object, object> service) => List(service, "profiles").Contains(EvaluationProfile);
 
     private static string Scalar(Dictionary<object, object> service, string key) => (string)service[key];
+
+    private static List<string> DependsOn(Dictionary<object, object> service) =>
+        service.TryGetValue("depends_on", out var value) ? ((Dictionary<object, object>)value).Keys.Cast<string>().ToList() : [];
 
     private static List<string> List(Dictionary<object, object> service, string key) =>
         service.TryGetValue(key, out var value) ? ((List<object>)value).Select(item => (string)item).ToList() : [];

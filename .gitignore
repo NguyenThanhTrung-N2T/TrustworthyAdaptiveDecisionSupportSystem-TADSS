@@ -30,8 +30,14 @@ logs/
 Thumbs.db
 
 ## Minh chứng của chế độ đánh giá (evidence/<run_id>/)
-evidence/
+/evidence/
+
+## Dữ liệu SmashCourt thô do người dùng xuất để replay (data/private/, không bao giờ commit)
+data/private/
 
 ## Python (tools/evaluation)
 __pycache__/
 .pytest_cache/
+
+## Môi trường ảo Python của người chạy hướng dẫn (docs/guides/EVALUATION_RUN_GUIDE.md)
+.venv/

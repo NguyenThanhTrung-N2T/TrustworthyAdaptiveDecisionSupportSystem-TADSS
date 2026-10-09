@@ -1,0 +1,6 @@
+# Phụ thuộc của bộ dựng Evidence Pack và báo cáo (ghim phiên bản). Cài trong image evaluator và job CI evaluation-tools.
+Jinja2==3.1.6
+jsonschema==4.26.0  # kiểm request/response theo JSON schema v2 (contract_check.py); cùng phiên bản với tools/evaluation
+rfc3339-validator==0.1.4  # bật kiểm `format: date-time` của jsonschema (nếu thiếu, evaluatedAt/approvalExpiresAt sai định dạng vẫn qua); contract_check.py từ chối chạy khi thiếu
+six==1.17.0  # phụ thuộc của rfc3339-validator (ghim để cài lặp lại được)
+tzdata==2026.5  # cơ sở dữ liệu múi giờ IANA cho zoneinfo (Asia/Ho_Chi_Minh, Europe/Lisbon); Windows không có sẵn

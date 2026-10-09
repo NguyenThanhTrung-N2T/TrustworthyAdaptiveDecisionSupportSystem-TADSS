@@ -1,4 +1,5 @@
-"""Bước (e): gom Evidence Pack (D1 từ database của stack, D2 từ k6, config đã lọc secret), kết luận KPI, EV-1…EV-5, `report.html` và `manifest.json` (O-21, DATASET_SCHEMA)."""
+"""Bước (f): gom Evidence Pack (D1 từ database của stack và của instance PT, D2 từ k6, D4/D5 + phân tích RP/PT từ bước (e), config đã lọc secret), kết luận KPI (kể cả SC7),
+EV-1…EV-5 (EV-2/EV-3 trên nhiều nguồn, EV-4 quét UUID gốc của CSV SmashCourt), `report.html` và `manifest.json` (O-21, DATASET_SCHEMA)."""
 from __future__ import annotations
 
 import csv
@@ -9,17 +10,18 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
-from evaluator import catalog, d2, machine, workspace
+from evaluator import catalog, code_check, d2, machine, workspace
 from evaluator.chaos_schedule import SCHEDULES
 from evaluator.clients import prometheus
 from evaluator.clients.postgres import connect_fetch
 from evaluator.results import ERROR, FAILED, PASSED, StepResult, utc_now
 from evaluator.run_context import RunContext
-from evidence import coverage_map, d1_export, evidence_pack, kpi
+from evaluator.steps import dataset_step
+from evidence import coverage_map, d1_export, dataset_analysis, evidence_pack, hotel_adapter, kpi, replay
 from evidence.anonymize import Anonymizer
 from evidence.report import generator
 
-STEP_NAME = "e"
+STEP_NAME = "f"
 ENVIRONMENT = "E-EVAL"
 BE_FE_NOTE = "không tham gia lượt chạy (không có LT-04/E2E; thuộc Phase 6)"
 SC1_SCENARIO = "lt01"
@@ -27,6 +29,7 @@ DASHBOARD_ENDPOINT = 'endpoint="POST api/v2/decisions"'
 # Mã danh mục được chính evaluator kiểm (không đi qua trx); điều kiện: bước nào đạt
 STEP_VERIFIED = {"b": ("LT-01", "LT-02"), "c": ("LT-03", "SCALE-2", "OB-3"), "d": ("CT-03",)}
 _COMMENT = re.compile(r"\s+#.*$")
+CodeCheckFunction = Callable[[Path], code_check.CodeCheck]
 
 
 def read_steps(outcomes: list[StepResult]) -> list[dict[str, Any]]:
@@ -95,6 +98,52 @@ def write_d2(run_dir: Path) -> list[dict]:
     return all_entries
 
 
+def export_d1_safely(fetch_factory: Callable[[str], Any], dsn: str, anonymizer: Anonymizer, since: datetime, path: Path, label: str) -> tuple[int, str | None]:
+    """Xuất D1 của một database; trả (số dòng, None) hoặc (0, thông báo lỗi). Database không tới được là lỗi hạ tầng nên mọi ngoại lệ đều thành thông báo (một chỗ bắt duy nhất)."""
+    try:
+        return d1_export.export_d1(fetch_factory(dsn), anonymizer, since, path), None
+    except Exception as error:  # noqa: BLE001 - database không tới được là lỗi hạ tầng
+        return 0, f"{label} thất bại: {type(error).__name__}: {error}"
+
+
+def read_original_uuids(private_dir: Path) -> set[str]:
+    """Mọi UUID (chữ thường) trong CSV SmashCourt thô, để EV-4 khẳng định không UUID gốc nào lọt vào pack. Chỉ nằm trong bộ nhớ của tiến trình, không ghi ra file."""
+    path = private_dir / dataset_step.REPLAY_FILE
+    if not path.is_file():
+        return set()
+    return evidence_pack.find_uuids(path.read_text(encoding="utf-8", errors="ignore"))
+
+
+def _write_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_datasets(context: RunContext, run_dir: Path) -> list[str]:
+    """D4 (RP-01) và D5 (PT-01) từ `raw/{replay,portability}/{prepared,requests}.jsonl` của bước (e), ghép `strategy_status` từ D1 theo `decision_id`, rồi phân tích RP-02/PT-02
+    ra `raw/analysis/*.json`. Phần nào bước (e) không chuẩn bị dữ liệu (bị bỏ) thì không có file. Trả các ghi chú một dòng."""
+    notes: list[str] = []
+    main_d1, pt_d1 = run_dir / "raw" / "d1" / "decision_audit.csv", run_dir / "raw" / "d1" / "decision_audit_portability.csv"
+    main_index = dataset_analysis.d1_index(evidence_pack.read_csv(main_d1) if main_d1.exists() else [])
+    pt_index = dataset_analysis.d1_index(evidence_pack.read_csv(pt_d1) if pt_d1.exists() else [])
+
+    d4 = dataset_analysis.build_d4(run_dir, main_index)
+    if d4 is not None:
+        count = dataset_analysis.write_csv(run_dir / "raw" / "d4" / "replay_smashcourt.csv", replay.D4_COLUMNS, d4)
+        appsettings = context.repo_dir / dataset_analysis.APPSETTINGS_RELATIVE
+        if appsettings.is_file():
+            _write_json(run_dir / "raw" / "analysis" / "rp_summary.json", dataset_analysis.rp_summary(d4, dataset_analysis.load_calendar(appsettings)))
+            notes.append(f"D4: {count} dòng; phân tích RP-02 đã ghi")
+        else:
+            notes.append(f"D4: {count} dòng; KHÔNG phân tích được RP-02 vì thiếu {dataset_analysis.APPSETTINGS_RELATIVE.as_posix()} (lịch cao điểm)")
+    d5 = dataset_analysis.build_d5(run_dir, pt_index)
+    if d5 is not None:
+        count = dataset_analysis.write_csv(run_dir / "raw" / "d5" / "portability_hotel.csv", hotel_adapter.D5_COLUMNS, d5)
+        _write_json(run_dir / "raw" / "analysis" / "pt_summary.json", dataset_analysis.pt_summary(d5))
+        notes.append(f"D5: {count} dòng; phân tích PT-02 đã ghi")
+    return notes
+
+
 def write_config(context: RunContext, run_dir: Path) -> None:
     """`config/`: cấu hình đã dùng (không chứa secret): hồ sơ tải, Toxiproxy, lịch sự cố, phần stack đánh giá của compose (bỏ chú thích)."""
     config = run_dir / "config"
@@ -122,7 +171,8 @@ def catalog_summary(run_dir: Path) -> dict[str, dict[str, int]] | None:
     return catalog.summarize([{"catalog_id": r["catalog_id"], "outcome": r["outcome"]} for r in generator.read_csv_rows(path)])
 
 
-def decide_kpis(context: RunContext, run_dir: Path, summary: dict | None, chaos_rows: list[dict[str, str]], ev3: evidence_pack.EvCheck, runs: list[dict[str, Any]]) -> list[kpi.Kpi]:
+def decide_kpis(context: RunContext, run_dir: Path, summary: dict | None, chaos_rows: list[dict[str, str]], ev3: evidence_pack.EvCheck, runs: list[dict[str, Any]],
+                code_check_result: dict[str, Any] | None = None) -> list[kpi.Kpi]:
     scale2 = generator.read_json(run_dir / "raw" / "scale" / "scale2-checks.json")
     mutation = (generator.read_json(run_dir / "raw" / "mutation" / "mutation-summary.json") or {}).get("results")
     has_load = (run_dir / "raw" / "load").exists()
@@ -132,13 +182,18 @@ def decide_kpis(context: RunContext, run_dir: Path, summary: dict | None, chaos_
         kpi.sc3(ev3.passed if has_load else None, ev3.detail, summary),
         kpi.sc4(summary, None if scale2 is None else scale2["passed"], chaos_rows),
         *kpi.out_of_scope(),
+        kpi.sc7(generator.read_json(run_dir / "raw" / "portability" / "summary.json"), code_check_result),
         kpi.sc8(summary, mutation),
     ]
 
 
-def run(context: RunContext, fetch_factory: Callable[[str], Any] = connect_fetch, query: Callable[..., list[dict]] = prometheus.query) -> StepResult:
+def run(
+    context: RunContext, fetch_factory: Callable[[str], Any] = connect_fetch, query: Callable[..., list[dict]] = prometheus.query,
+    check_code: CodeCheckFunction = code_check.check_adapter_isolation,
+) -> StepResult:
     """
-    Dựng Evidence Pack của lượt chạy và kết luận. `failed` nếu có KPI FAIL hoặc EV-1…EV-5 không đạt (khi đó báo cáo ghi "không dùng làm minh chứng"); `error` nếu không xuất được D1.
+    Dựng Evidence Pack của lượt chạy và kết luận. `failed` nếu có KPI FAIL hoặc EV-1…EV-5 không đạt (khi đó báo cáo ghi "không dùng làm minh chứng"); `error` nếu không xuất được D1
+    (kể cả D1 của database PT khi bước (e) đã gửi request PT). Phần dữ liệu thực tế chỉ có khi bước (e) đã chạy; thiếu thì các mục tương ứng ghi lý do và SC7 là INSUFFICIENT_DATA.
     """
     started = utc_now()
     run_dir = context.evidence_dir
@@ -153,14 +208,31 @@ def run(context: RunContext, fetch_factory: Callable[[str], Any] = connect_fetch
         notes.append("EVAL_PG_DSN chưa được đặt: không xuất được D1")
         return finish(ERROR)
     anonymizer = Anonymizer()  # khóa ngẫu nhiên mỗi lượt, không lưu
-    try:
-        d1_count = d1_export.export_d1(fetch_factory(dsn), anonymizer, context.started_at, run_dir / "raw" / "d1" / "decision_audit.csv")
-    except Exception as error:  # noqa: BLE001 - database không tới được là lỗi hạ tầng
-        notes.append(f"Xuất D1 thất bại: {type(error).__name__}: {error}")
+    d1_count, failure = export_d1_safely(fetch_factory, dsn, anonymizer, context.started_at, run_dir / "raw" / "d1" / "decision_audit.csv", "Xuất D1")
+    if failure:
+        notes.append(failure)
         return finish(ERROR)
+    notes.append(f"D1: {d1_count} dòng")
+    portability_requests = run_dir / "raw" / "portability" / "requests.jsonl"
+    if portability_requests.is_file() and portability_requests.stat().st_size > 0:  # bước (e) đã gửi request PT: D1 nằm ở database riêng của instance PT
+        pt_dsn = context.env.get("EVAL_PT_PG_DSN")
+        if not pt_dsn:
+            notes.append("EVAL_PT_PG_DSN chưa được đặt: không xuất được D1 của database PT")
+            return finish(ERROR)
+        pt_count, failure = export_d1_safely(fetch_factory, pt_dsn, anonymizer, context.started_at, run_dir / "raw" / "d1" / "decision_audit_portability.csv", "Xuất D1 của database PT")
+        if failure:
+            notes.append(failure)
+            return finish(ERROR)
+        notes.append(f"D1 (PT): {pt_count} dòng")
     d2_entries = write_d2(run_dir)
     write_config(context, run_dir)
-    notes.append(f"D1: {d1_count} dòng; D2: {len(d2_entries)} request")
+    notes.append(f"D2: {len(d2_entries)} request")
+    notes.extend(write_datasets(context, run_dir))
+
+    code_check_result: dict[str, Any] | None = None
+    if (run_dir / "raw" / "portability" / "summary.json").is_file():
+        code_check_result = check_code(context.repo_dir).to_dict()
+        _write_json(run_dir / "raw" / "analysis" / "sc7_code_check.json", code_check_result)
 
     git = workspace.read_git_info(context.repo_dir)
     summary = catalog_summary(run_dir)
@@ -168,19 +240,23 @@ def run(context: RunContext, fetch_factory: Callable[[str], Any] = connect_fetch
     mutation = (generator.read_json(run_dir / "raw" / "mutation" / "mutation-summary.json") or {}).get("results")
     methodology = context.repo_dir / "docs" / "research" / "EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md"
     codes = coverage_map.catalog_codes(methodology) if methodology.exists() else []
-    coverage = coverage_map.coverage(codes, summary or {}, verified_codes(context, mutation, chaos_rows))
+    dataset_passed, dataset_failed = dataset_analysis.dataset_coverage(run_dir)
+    coverage = coverage_map.coverage(codes, summary or {}, verified_codes(context, mutation, chaos_rows) | dataset_passed, dataset_failed)
     machine_info = machine.collect(machine.IMAGES)
     base = {
         "runId": context.run_id, "createdAtUtc": context.started_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "environment": ENVIRONMENT, "mode": context.mode, "dirty": git.dirty,
         "commits": {"tadss": git.commit, "smashcourtBe": None, "smashcourtFe": None}, "commitNotes": {"smashcourtBe": BE_FE_NOTE, "smashcourtFe": BE_FE_NOTE},
         "images": machine_info.get("images", {}), "machine": {key: value for key, value in machine_info.items() if key != "images"},
         "testCases": sorted(set(coverage["passed"]) | set(coverage["failed"])), "steps": read_steps(context.outcomes), "catalogCoverage": coverage,
+        "datasets": dataset_analysis.dataset_info(run_dir, code_check_result),
     }
     runs = sc1_runs(context, run_dir, query)
     manifest0 = evidence_pack.build_manifest(run_dir, {**base, "kpis": []})
-    d1_rows = evidence_pack.read_csv(run_dir / "raw" / "d1" / "decision_audit.csv")
-    checks = evidence_pack.run_checks(run_dir, manifest0, d1_rows, d2_entries)
-    kpis = decide_kpis(context, run_dir, summary, chaos_rows, checks[2], runs)
+    main_source, *extra_sources = evidence_pack.collect_sources(run_dir)  # chính: D1 + D2 + replay; PT: D1 của database PT + response PT
+    checks = evidence_pack.run_checks(
+        run_dir, manifest0, main_source.d1_rows, main_source.entries, extra_sources=extra_sources, main_name=main_source.name, raw_uuids=read_original_uuids(context.datasets_private),
+    )
+    kpis = decide_kpis(context, run_dir, summary, chaos_rows, checks[2], runs, code_check_result)
     check_dicts = [check.to_dict() for check in checks]
     manifest_report = {**manifest0, "kpis": [item.to_dict() for item in kpis]}
     data = generator.build_data(run_dir, manifest_report, check_dicts, [item.to_dict() for item in kpis], coverage, coverage_map.by_group(codes, coverage))

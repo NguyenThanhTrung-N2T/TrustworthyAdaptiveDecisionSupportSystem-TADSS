@@ -9,11 +9,11 @@ from typing import Callable
 from evaluator import machine, results, workspace
 from evaluator.results import ERROR, StepResult, exit_code, skipped_result, utc_now
 from evaluator.run_context import ConfigurationError, RunContext, build_context
-from evaluator.steps import analysis_step, evidence_step, incident_step, load_step, tests_step
+from evaluator.steps import analysis_step, dataset_step, evidence_step, incident_step, load_step, tests_step
 
 StepFunction = Callable[[RunContext], StepResult]
 # Các bước đã hiện thực; bước còn lại ghi `skipped` kèm lý do
-STEPS: dict[str, StepFunction] = {"a": tests_step.run, "b": load_step.run, "c": incident_step.run, "d": analysis_step.run, "e": evidence_step.run}
+STEPS: dict[str, StepFunction] = {"a": tests_step.run, "b": load_step.run, "c": incident_step.run, "d": analysis_step.run, "e": dataset_step.run, "f": evidence_step.run}
 
 
 def run_steps(context: RunContext, steps: dict[str, StepFunction]) -> list[StepResult]:

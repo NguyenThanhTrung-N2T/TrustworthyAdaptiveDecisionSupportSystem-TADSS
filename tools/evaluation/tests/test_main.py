@@ -5,6 +5,7 @@ from pathlib import Path
 
 from evaluator import __main__ as cli
 from evaluator.results import ERROR, FAILED, PASSED, StepResult
+from evaluator.steps import dataset_step, evidence_step
 
 NOW = datetime(2026, 10, 8, tzinfo=timezone.utc)
 NO_MACHINE = lambda images: {}  # không gọi docker thật trong test
@@ -59,3 +60,40 @@ def test_invalid_configuration_exits_2(tmp_path: Path, capsys) -> None:
     code = cli.main({**_env(tmp_path), "EVAL_MODE": "turbo"}, {}, NO_MACHINE)
 
     assert code == 2 and "EVAL_MODE" in capsys.readouterr().err
+
+
+def test_steps_registry_has_dataset_step_e_before_evidence_pack_f() -> None:
+    assert list(cli.STEPS) == ["a", "b", "c", "d", "e", "f"]
+    assert cli.STEPS["e"] is dataset_step.run and cli.STEPS["f"] is evidence_step.run
+    assert (dataset_step.STEP_NAME, evidence_step.STEP_NAME) == ("e", "f")
+
+
+def test_default_run_executes_steps_in_alphabetical_order_with_evidence_pack_last(tmp_path: Path) -> None:
+    ran: list[str] = []
+
+    def tracking(name: str):
+        def run(context):
+            ran.append(name)
+            return StepResult(name, PASSED, NOW, NOW)
+
+        return run
+
+    code = cli.main({"EVAL_EVIDENCE": str(tmp_path / "evidence"), "EVAL_REPO": str(tmp_path / "repo")}, {name: tracking(name) for name in "abcdef"}, NO_MACHINE)
+
+    assert code == 0 and ran == list("abcdef")
+
+
+def test_summary_table_lists_dataset_step_e_and_sc7_line(tmp_path: Path, capsys) -> None:
+    def step_e(context):
+        return StepResult("e", PASSED, NOW, NOW, notes=["RP: gửi 215/215 request tới eval-proxy, 0 lỗi contract", "PT: gửi 10000/10000 request, 0 lỗi contract"])
+
+    def step_f(context):
+        return StepResult("f", PASSED, NOW, NOW, notes=["SC7: INSUFFICIENT_DATA — 10000 bản ghi gửi, 0 lỗi contract, 0 lần thử lại", "EV-1…EV-5: EV-1 đạt, EV-2 đạt, EV-3 đạt, EV-4 đạt, EV-5 đạt"])
+
+    code = cli.main(_env(tmp_path, "e,f"), {"e": step_e, "f": step_f}, NO_MACHINE)
+
+    lines = capsys.readouterr().out.splitlines()
+    assert code == 0
+    assert any(line.startswith("e ") and "RP: gửi 215/215" in line for line in lines), "dòng bước (e) kèm ghi chú RP"
+    assert any("PT: gửi 10000/10000" in line for line in lines)
+    assert any(line.startswith("f ") for line in lines) and any("SC7: INSUFFICIENT_DATA" in line for line in lines), "dòng SC7 nằm trong ghi chú bước (f)"

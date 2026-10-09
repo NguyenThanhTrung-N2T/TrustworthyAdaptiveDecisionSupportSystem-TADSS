@@ -8,7 +8,10 @@ from datetime import datetime
 from pathlib import Path
 
 MODES = ("quick", "full")
-ALL_STEPS = ("a", "b", "c", "d", "e")
+ALL_STEPS = ("a", "b", "c", "d", "e", "f")  # e = dữ liệu thực tế (RP + PT), f = Evidence Pack (luôn cuối, Q-01)
+DEFAULT_WORKERS = 8  # số luồng gửi của bước (e), chốt ở spike S-5 (gói 5.6)
+DEFAULT_DATASETS_PRIVATE = "/datasets/private"
+DEFAULT_DATASETS_CACHE = "/datasets/cache"
 _RUN_ID = re.compile(r"^EV-(?P<date>\d{8})-EVAL-(?:quick|full)-r(?P<n>\d+)$")
 
 
@@ -30,7 +33,7 @@ def next_run_id(evidence_root: Path, mode: str, now: datetime) -> str:
 
 
 def parse_steps(value: str | None) -> tuple[str, ...]:
-    """Tập con của `a,b,c,d,e` (giữ thứ tự chuẩn); rỗng → tất cả."""
+    """Tập con của `a,b,c,d,e,f` (giữ thứ tự chuẩn); rỗng → tất cả."""
     if not value or not value.strip():
         return ALL_STEPS
     wanted = {part.strip().lower() for part in value.split(",") if part.strip()}
@@ -47,6 +50,7 @@ class Endpoints:
     tadss: str = "http://eval-tadss-1:8080"
     tadss2: str = "http://eval-tadss-2:8080"
     proxy: str = "http://eval-proxy:8080"
+    portability: str = "http://eval-tadss-portability:8080"
     grafana: str = "http://eval-grafana:3000"
     prometheus: str = "http://eval-grafana:3000/api/datasources/proxy/uid/prometheus"
     toxiproxy: str = "http://eval-toxiproxy:8474"
@@ -59,6 +63,7 @@ class Endpoints:
             tadss=env.get("EVAL_TADSS_URL", defaults.tadss),
             tadss2=env.get("EVAL_TADSS2_URL", defaults.tadss2),
             proxy=env.get("EVAL_PROXY_URL", defaults.proxy),
+            portability=env.get("EVAL_PT_URL", defaults.portability),
             grafana=env.get("EVAL_GRAFANA_URL", defaults.grafana),
             prometheus=env.get("EVAL_PROMETHEUS_URL", defaults.prometheus),
             toxiproxy=env.get("EVAL_TOXIPROXY_URL", defaults.toxiproxy),
@@ -79,7 +84,11 @@ class RunContext:
     evidence_root: Path
     endpoints: Endpoints
     env: dict[str, str] = field(default_factory=dict)
-    # Kết quả các bước đã chạy trong lượt này (run_steps nối thêm sau mỗi bước) để bước (e) tổng hợp
+    # Dữ liệu của bước (e): thư mục CSV SmashCourt thô (mount chỉ đọc), cache dataset khách sạn (volume eval-datasets), số luồng gửi
+    datasets_private: Path = Path(DEFAULT_DATASETS_PRIVATE)
+    datasets_cache: Path = Path(DEFAULT_DATASETS_CACHE)
+    workers: int = DEFAULT_WORKERS
+    # Kết quả các bước đã chạy trong lượt này (run_steps nối thêm sau mỗi bước) để bước (f) tổng hợp
     outcomes: list = field(default_factory=list)
 
     @property
@@ -93,8 +102,22 @@ class RunContext:
         return path
 
 
+def parse_workers(value: str | None) -> int:
+    """`EVAL_WORKERS`: số nguyên dương; rỗng/thiếu → mặc định."""
+    if value is None or not value.strip():
+        return DEFAULT_WORKERS
+    try:
+        workers = int(value.strip())
+    except ValueError:
+        workers = 0
+    if workers < 1:
+        raise ConfigurationError(f"EVAL_WORKERS phải là số nguyên dương, nhận {value!r}")
+    return workers
+
+
 def build_context(env: dict[str, str], now: datetime) -> RunContext:
-    """Dựng ngữ cảnh từ biến môi trường: `EVAL_MODE` (mặc định quick), `EVAL_STEPS`, `EVAL_REPO` (/repo), `EVAL_WORK` (/work), `EVAL_EVIDENCE` (/evidence)."""
+    """Dựng ngữ cảnh từ biến môi trường: `EVAL_MODE` (mặc định quick), `EVAL_STEPS`, `EVAL_REPO` (/repo), `EVAL_WORK` (/work), `EVAL_EVIDENCE` (/evidence),
+    `EVAL_DATASETS_PRIVATE` (/datasets/private), `EVAL_DATASETS_CACHE` (/datasets/cache), `EVAL_WORKERS` (8)."""
     mode = env.get("EVAL_MODE", "quick").strip().lower() or "quick"
     evidence_root = Path(env.get("EVAL_EVIDENCE", "/evidence"))
     return RunContext(
@@ -107,4 +130,7 @@ def build_context(env: dict[str, str], now: datetime) -> RunContext:
         evidence_root=evidence_root,
         endpoints=Endpoints.from_env(env),
         env=dict(env),
+        datasets_private=Path(env.get("EVAL_DATASETS_PRIVATE", DEFAULT_DATASETS_PRIVATE)),
+        datasets_cache=Path(env.get("EVAL_DATASETS_CACHE", DEFAULT_DATASETS_CACHE)),
+        workers=parse_workers(env.get("EVAL_WORKERS")),
     )

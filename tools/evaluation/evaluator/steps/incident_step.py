@@ -35,7 +35,7 @@ TOXIC_TEXT = {
     KIND_POSTGRES_DOWN: "toxiproxy tắt proxy postgres",
     KIND_REDIS_LATENCY: f"toxiproxy latency {REDIS_LATENCY_MS} ms (downstream) trên proxy redis",
 }
-# Biểu thức cho biểu đồ dòng thời gian LT-03 (bước e); mỗi cái ghi ra raw/metrics/lt03-<tên>.json
+# Biểu thức cho biểu đồ dòng thời gian LT-03 (bước f); mỗi cái ghi ra raw/metrics/lt03-<tên>.json
 TIMELINE_QUERIES = {
     "request-rate": 'sum(rate(tadss_decision_duration_milliseconds_count{endpoint="POST api/v2/decisions"}[15s]))',
     "p99-ms": 'histogram_quantile(0.99, sum by (le) (rate(tadss_decision_duration_milliseconds_bucket{endpoint="POST api/v2/decisions"}[15s])))',

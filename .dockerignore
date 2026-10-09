@@ -24,3 +24,7 @@ evidence/
 ## Python (tools/evaluation)
 __pycache__/
 .pytest_cache/
+
+## Môi trường ảo Python và CSV SmashCourt thô: không bao giờ vào build context
+.venv/
+data/private/

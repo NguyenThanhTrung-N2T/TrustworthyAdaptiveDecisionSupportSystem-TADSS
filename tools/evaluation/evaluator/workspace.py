@@ -17,6 +17,10 @@ EXCLUDED_FILE_PATTERNS = ("appsettings.Development.json", ".env", ".env.*")
 FORBIDDEN_FILE_PATTERNS = EXCLUDED_FILE_PATTERNS
 
 
+# Repo của máy Windows (core.autocrlf=true) mount vào container Linux: không chuẩn hóa dòng thì mọi file CRLF hiện "đã sửa" so với index LF (cờ dirty giả)
+NORMALIZE_EOL = ("-c", "core.autocrlf=true")
+
+
 class WorkspaceError(RuntimeError):
     """Thư mục làm việc không an toàn (có file bí mật) hoặc không dựng được."""
 
@@ -70,12 +74,12 @@ def prepare_workspace(source: Path, destination: Path) -> int:
 
 
 def read_git_info(repo: Path, run: Callable[[list[str], Path], tuple[int, str]] | None = None) -> GitInfo:
-    """Commit và cờ dirty (`git status --porcelain` rỗng ⇒ sạch) của `repo`; không đọc được (không phải repo git) ⇒ cả hai là None."""
+    """Commit và cờ dirty (`git status --porcelain` rỗng ⇒ sạch, chuẩn hóa dòng như máy chủ) của `repo`; không đọc được (không phải repo git) ⇒ cả hai là None."""
     runner = run or _run_git
     code, head = runner(["git", "rev-parse", "HEAD"], repo)
     if code != 0:
         return GitInfo(None, None)
-    code, status = runner(["git", "status", "--porcelain"], repo)
+    code, status = runner(["git", *NORMALIZE_EOL, "status", "--porcelain"], repo)
     return GitInfo(head.strip(), bool(status.strip()) if code == 0 else None)
 
 

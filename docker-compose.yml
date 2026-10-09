@@ -157,6 +157,44 @@ services:
       interval: 5s
       retries: 30
 
+  # Instance PT (PT-01, Q-02): cùng image runtime nhưng database dùng một lần RIÊNG `tadss_portability` (EF tự tạo vì ApplyMigrationsOnStartup, user `tadss` là superuser của eval-postgres),
+  # nối THẲNG eval-postgres/eval-redis (không qua Toxiproxy), không tiêm lỗi, không mở cổng host. Cấu hình miền khách sạn CHỈ bằng biến môi trường (không sửa mã):
+  # request VND của eval-tadss-1/2 không bị ảnh hưởng, và database chính giữ D1 sạch cho các bước (a)…(d).
+  eval-tadss-portability:
+    profiles: [evaluation]
+    build: .
+    image: tadss-eval-runtime:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__DefaultConnection: "Host=eval-postgres;Port=5432;Database=tadss_portability;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-redis:6379"
+      Tadss__Cache__InstanceName: "tadss-pt:"   # tiền tố khóa Redis riêng, không trùng khóa của eval-tadss-1/2 (mặc định tadss:)
+      Tadss__Database__ApplyMigrationsOnStartup: "true"   # CHỈ database dùng một lần của chính instance này
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-pt
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+      # Tham số miền khách sạn chốt một lần ở spike S-2 (spec/PHASE5_REPORT_5.6.md), từ phân bố dữ liệu và không chỉnh theo kết quả:
+      Tadss__Validation__MaxItemMinutes: "100800"   # 70 ngày: lưu trú dài nhất của dataset là 69 đêm (99.240 phút); mặc định 720 từ chối ngay cả 1 đêm (1.320 phút)
+      Tadss__Strategies__Default__HighValueThreshold: "750"   # EUR: p90 giá trị đơn (adr x số đêm) = 729, làm tròn bội số 50, khoảng 9,5 % đơn vào NEED_APPROVAL; mặc định 2.000.000 tính bằng VND
+    depends_on:
+      eval-postgres:
+        condition: service_healthy
+      eval-redis:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy   # OTLP sẵn sàng trước khi instance gửi telemetry, như eval-tadss-1
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
+
   eval-proxy:
     profiles: [evaluation]
     image: nginx:1.29.8-alpine
@@ -194,11 +232,17 @@ services:
       EVAL_STEPS: ${EVAL_STEPS:-}
       EVAL_TADSS_URL: http://eval-tadss-1:8080
       EVAL_PROXY_URL: http://eval-proxy:8080
+      EVAL_PT_URL: http://eval-tadss-portability:8080   # bước (e): PT gửi thẳng instance PT, RP gửi qua EVAL_PROXY_URL
       EVAL_API_KEY: tadss-evaluation-key   # hằng không bí mật của stack đánh giá
       EVAL_GRAFANA_URL: http://eval-grafana:3000
       EVAL_PROMETHEUS_URL: http://eval-grafana:3000/api/datasources/proxy/uid/prometheus
       EVAL_TOXIPROXY_URL: http://eval-toxiproxy:8474
       EVAL_PG_DSN: "host=eval-postgres port=5432 dbname=tadss user=tadss password=tadss_eval"
+      EVAL_PT_PG_DSN: "host=eval-postgres port=5432 dbname=tadss_portability user=tadss password=tadss_eval"   # D1 của instance PT (xuất ở bước f)
+      EVAL_DATASETS_PRIVATE: /datasets/private   # CSV SmashCourt thô do người dùng xuất (gitignore, mount chỉ đọc)
+      EVAL_DATASETS_CACHE: /datasets/cache   # cache dataset khách sạn đã kiểm SHA-256 (volume eval-datasets)
+      EVAL_WORKERS: ${EVAL_WORKERS:-8}   # số luồng gửi của bước (e), mặc định chốt ở spike S-5
+      TADSS_SCHEMA_DIR: /repo/docs/contracts/schemas/v2   # JSON schema v2 để kiểm request/response (mount chỉ đọc của repo)
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -208,6 +252,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - eval-nuget:/root/.nuget/packages
       - eval-faults:/faults
+      - ./data/private:/datasets/private:ro
+      - eval-datasets:/datasets/cache
     depends_on:
       eval-postgres:
         condition: service_healthy
@@ -218,6 +264,8 @@ services:
       eval-tadss-1:
         condition: service_healthy
       eval-tadss-2:
+        condition: service_healthy
+      eval-tadss-portability:
         condition: service_healthy
       eval-proxy:
         condition: service_healthy
@@ -231,3 +279,4 @@ networks:
 volumes:
   eval-nuget:
   eval-faults:
+  eval-datasets:   # cache dataset khách sạn giữa các lượt; `run.sh --clean` (down -v) xóa

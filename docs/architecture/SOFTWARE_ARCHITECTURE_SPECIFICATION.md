@@ -99,8 +99,8 @@ docker/
 ├── evaluation/nginx.conf              # Reverse proxy hai replica TADSS (SCALE-2)
 └── toxiproxy/toxiproxy.json           # Proxy postgres/redis của stack đánh giá
 tools/
-├── evaluation/{evaluator,tests}/      # Bộ điều phối Python: bước a…e, client Grafana/Prometheus/Toxiproxy/k6/PostgreSQL, lịch sự cố, quy tắc đạt/không đạt
-├── evidence/{report,tests}/           # Dựng Evidence Pack: ẩn danh hóa, xuất D1, manifest + EV-1…EV-5, KPI SC1…SC8, bộ sinh report.html
+├── evaluation/{evaluator,tests}/      # Bộ điều phối Python: bước a…f ((e) dữ liệu thực tế RP/PT, (f) Evidence Pack), client Grafana/Prometheus/Toxiproxy/k6/PostgreSQL, tải dataset có kiểm SHA-256, kiểm mã SC7, lịch sự cố, quy tắc đạt/không đạt; run.sh là điểm vào
+├── evidence/{report,sql,tests}/       # Dựng Evidence Pack: ẩn danh hóa, xuất D1, manifest + EV-1…EV-5, KPI SC1…SC8, bộ sinh report.html (cùng CLI dựng lại từ pack); replay SmashCourt (replay.py, time_shift.py, contract_check.py, sql/export_smashcourt_bookings.sql), adapter Hotel Booking Demand (hotel_adapter.py), phân tích RP/PT (dataset_analysis.py)
 ├── expose/ observability/ ci/         # verify-expose.sh, verify-observability.sh, quét package lỗ hổng
 tests/load/                            # Kịch bản k6: LT-01/02/03/05, SCALE-2, payload và hồ sơ tải (modes.json)
 stryker/                               # Cấu hình Stryker.NET theo MT-01…MT-03

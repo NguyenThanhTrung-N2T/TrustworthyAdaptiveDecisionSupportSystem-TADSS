@@ -57,7 +57,7 @@ Mỗi lượt chạy ghi lại: CPU, RAM, hệ điều hành, phiên bản Docke
 | **OpenTelemetry .NET** + **`grafana/otel-lgtm`** (gồm Collector, Prometheus, Tempo, Loki, Grafana) | Trace, metric, log tập trung; dashboard Grafana làm minh chứng trực quan; có dữ liệu ở cả chế độ vận hành `docker compose up` | E-EVAL, E-STAGING | FI, LT, E2E |
 | **Playwright** | E2E UI: video, trace viewer, HTML report | smashcourt-fe | E2E, FE |
 | **MSW** (Mock Service Worker) | Mock API cho FE trong Phase 6 theo API contract đã chốt | smashcourt-fe | FE |
-| **Bộ sinh báo cáo Python** (`tools/evidence/report/`, Jinja2 + biểu đồ SVG tự vẽ) | Sinh `report.html` tự chứa từ Evidence Pack (evaluator gọi ở bước e; notebook của 5.6 dùng lại cùng bộ sinh) | TADSS `tools/evidence/` | Toàn bộ |
+| **Bộ sinh báo cáo Python** (`tools/evidence/report/`, Jinja2 + biểu đồ SVG tự vẽ) | Sinh `report.html` tự chứa từ Evidence Pack (evaluator gọi ở bước f; lệnh `python -m evidence.report <thư mục pack>` dựng lại `report.html` từ một pack có sẵn bằng cùng bộ sinh, thay cho notebook, xem Mục 6.1) | TADSS `tools/evidence/` | Toàn bộ |
 
 **Tiêm lỗi cho strategy:** dùng decorator chỉ đăng ký trong môi trường kiểm thử (bật qua cấu hình `Testing`), không có trong cấu hình production. Lỗi hạ tầng (Redis, PostgreSQL, mạng giữa BE và TADSS) luôn tiêm bằng Toxiproxy.
 
@@ -216,12 +216,28 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | RP-01 | Xuất 215 booking bằng truy vấn chỉ đọc, ẩn danh hóa, dựng request v2, chạy qua TADSS với cấu hình định tuyến chuẩn | Phân bố trạng thái, mức cọc theo hạng/khung giờ; 0 lỗi contract |
 | RP-02 | So sánh chính sách cọc 100% tĩnh với chính sách v2 trên cùng tập booking | Cọc trung bình, tỷ lệ cần duyệt, số tiền giữ được trên các booking có nhãn NO_SHOW (chỉ mang tính mô tả, xem Mục 8) |
 
+**Cách chạy (bước (e) của chế độ đánh giá, Mục 6.1; gói 5.6):**
+
+- **Nguồn:** người dùng tự chạy `tools/evidence/sql/export_smashcourt_bookings.sql` (chỉ đọc, không chọn tên, số điện thoại, email, ghi chú, mã booking, token hủy) bằng `psql` và ghi `data/private/smashcourt_bookings.csv` (thư mục gitignore, mount chỉ đọc vào evaluator). Thiếu file thì phần RP ghi `skipped` kèm lý do, RP-01/RP-02 ở độ phủ danh mục là `INSUFFICIENT_DATA` và bước (e) không thất bại. Mọi định danh được băm HMAC-SHA256 bằng khóa ngẫu nhiên của lượt chạy **trước khi** ghi file vào `evidence/`.
+- **Gửi:** mọi booking đã xuất (kể cả `WALK_IN`; `channel` lấy từ `bookings.source`) thành request v2 gửi qua `eval-proxy` (định tuyến chuẩn của stack) vào database chính, khóa idempotency `replay:{runId}:{bookingHash}`. Bản ghi RP nằm chung D1 của lượt chính, phân biệt bằng khóa/`correlation_id`; response RP được nối vào nguồn kiểm EV-2/EV-3 cùng D2.
+- **Dời thời gian (Q-04):** mọi mốc của một booking (`requestedAt`, `startTime`, `endTime`, `memberSince`) dời cùng một khoảng `k × 7 ngày`, `k` nhỏ nhất để `requestedAt` sau khi dời không sớm hơn thời điểm gửi. Giữ thứ trong tuần, giờ địa phương và lead time danh nghĩa; D4 ghi `shift_days` và `lead_time_minutes` gốc. Runtime tính cửa sổ duyệt bằng giờ máy chủ chứ không bằng `requestedAt`, nên dời tiến không bao giờ biến booking còn đủ thời gian duyệt thành "không kịp duyệt". Sai lệch còn lại: booking gốc có lead time ≤ `MinLeadMinutes` (120 phút) có thể được runtime xếp `NEED_APPROVAL` trong khi thực tế không kịp duyệt; các bản ghi này gắn `window_bias = true`, và báo cáo nêu thêm kết quả hiệu chỉnh offline (áp lại quy tắc §1.1 của `INTEGRATION_SPEC` bằng lead time gốc trên `strategy_status` của D1).
+- **Phạm vi so sánh (Q-12):** bảng RP tách theo kênh; số liệu chính của RP-02 nằm trên tập `ONLINE` (đúng phạm vi BE sẽ gọi TADSS) kèm số liệu toàn tập. `demand` (trường tùy chọn) không được gửi; `tier` là hạng tại thời điểm xuất (xem Mục 8).
+- **Lỗi contract (Q-09):** một bản ghi là lỗi contract khi (1) request do adapter dựng không qua `decision-request.schema.json` (lỗi của adapter, bị bắt trước khi gửi nhưng vẫn tính), hoặc (2) response cuối cùng không phải 200, hoặc (3) body 200 không qua `decision-result.schema.json` hay vi phạm quy tắc §3.3 (`deposit` có khi và chỉ khi `APPROVED`; `amount = round(totalPrice × rate)` theo `ROUND_HALF_UP`, 0 chữ số thập phân với VND, 2 với các tiền tệ còn lại). Khi gặp 503/504, bộ gửi thử lại tối đa 2 lần **cùng khóa idempotency**, chờ theo `Retry-After` (trần 5 giây); số lần thử lại được báo cáo, không tính là lỗi nếu lần sau thành công. Bản ghi bị loại *trước khi gửi* chỉ hợp lệ khi lý do nằm trong quy tắc lọc đã duyệt và được đếm riêng (ở RP: `no_invoice`, booking không có hóa đơn; `no_active_courts`, không có sân để dựng item).
+
 ### 4.10. PT — Độc lập domain (Hotel Booking Demand)
 
 | ID | Kịch bản | Tiêu chí đạt |
 | :--- | :--- | :--- |
 | PT-01 | Adapter ánh xạ ≥ 10.000 đơn đặt phòng khách sạn (múi giờ `Europe/Lisbon`) → request v2 → TADSS | 0 lỗi contract; `git diff` của `src/TADSS.Runtime.Api` và `src/Shared.DecisionContractSDK` trước/sau khi thêm adapter là rỗng |
 | PT-02 | Phân bố quyết định và đối chiếu mô tả với nhãn `is_canceled` của dataset | Báo cáo mô tả, không kết luận nhân quả |
+
+**Cách chạy (bước (e) của chế độ đánh giá, Mục 6.1; gói 5.6):**
+
+- **Dataset:** Hotel Booking Demand (Antonio, de Almeida, Nunes, *Data in Brief* 22:41–49, 2019, DOI 10.1016/j.dib.2018.11.126; bài công bố theo CC BY 4.0, người dùng cần xác nhận giấy phép trước khi phân phối lại bất kỳ phần nào). Bản gốc của bài trên ScienceDirect không tải tự động được (HTTP 403), nên evaluator dùng bản TidyTuesday 2020-02-11 `hotels.csv` ghim theo commit và SHA-256 trong `tools/evidence/hotel_adapter.py` (119.390 dòng, 32 cột), tải vào volume `eval-datasets` (cache giữa các lượt, `--clean` xóa). Sai SHA-256 thì phần PT `failed` (bước (e) `failed`); không tải được thì PT `skipped` (SC7 `INSUFFICIENT_DATA`). File gốc không bao giờ vào repo hay Evidence Pack.
+- **Instance riêng (Q-02):** PT gửi vào `eval-tadss-portability`, cùng image runtime nhưng database riêng `tadss_portability` (nối thẳng PostgreSQL, không qua Toxiproxy), Redis với `InstanceName` riêng, không tiêm lỗi, telemetry `ServiceInstanceId = tadss-pt`. Chỉ cấu hình bằng biến môi trường, không sửa mã: `Tadss:Validation:MaxItemMinutes = 100800` (lưu trú dài nhất 69 đêm = 99.240 phút) và `Tadss:Strategies:Default:HighValueThreshold = 750` (EUR). Ngưỡng 750 EUR được chọn **một lần, trước lượt chạy**, từ phân vị p90 của `adr × số đêm` trên dataset (p90 = 729; khoảng 9,5 % đơn vào `NEED_APPROVAL`) và không chỉnh theo kết quả.
+- **Ánh xạ và lọc (Q-08):** theo spec 4.6 (múi giờ `Europe/Lisbon`, tiền tệ EUR, một item 14:00 → 12:00). Quy tắc lọc trước khi gửi, mỗi lý do được đếm và báo cáo riêng: số đêm = 0 (715 dòng), `adr` < 0 (1), ngày đến không hợp lệ (0), lưu trú vượt `MaxItemMinutes` (0); còn 118.674 dòng hợp lệ. Cỡ mẫu: bản nhanh 10.000 dòng hợp lệ lấy mẫu tất định (seed `20260907`, ghi trong manifest), bản đầy đủ mọi dòng hợp lệ. Thời gian dời theo Q-04 như RP (Lisbon đổi giờ mùa hè nên dời theo ngày lịch).
+- **Lỗi contract:** cùng định nghĩa Q-09 với RP (Mục 4.9), khóa idempotency `portability:{runId}:{source_row}`.
+- **SC7 và kiểm mã (Q-11):** evaluator đọc git của `/repo` (chỉ đọc) và xét các commit chạm `tools/evidence/hotel_adapter.py`: không commit nào được chạm `src/TADSS.Runtime.Api/**` hay `src/Shared.DecisionContractSDK/**`, và hai thư mục đó không có thay đổi chưa commit. Kết quả ghi rõ commit đã xét (`raw/analysis/sc7_code_check.json`). Khi adapter chưa commit thì phần kiểm mã là "chưa xét được" và SC7 là `INSUFFICIENT_DATA`.
 
 ### 4.11. SEC — Bảo mật (gói 5.3)
 
@@ -278,6 +294,16 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | **SC7** | Độc lập domain | PT-01 | ≥ 10.000 bản ghi; 0 lỗi contract; 0 thay đổi mã runtime/SDK |
 | **SC8** | Chất lượng bộ kiểm thử | Toàn bộ danh mục; MT | 100% test case đạt; mutation score ≥ 70% |
 
+**Cách kết luận SC7 (tính được từ gói 5.6, `tools/evidence/kpi.py`):**
+
+| Kết luận | Điều kiện |
+| :--- | :--- |
+| `PASS` | PT gửi ≥ 10.000 bản ghi, 0 lỗi contract (Q-09) và kiểm mã (Q-11) đạt |
+| `FAIL` | Kiểm mã không đạt (commit chạm adapter đồng thời chạm `src/TADSS.Runtime.Api/**` hoặc `src/Shared.DecisionContractSDK/**`, hoặc hai thư mục đó có thay đổi chưa commit), hoặc có ≥ 1 bản ghi lỗi contract (kể cả request do adapter dựng sai schema bị chặn trước khi gửi) |
+| `INSUFFICIENT_DATA` | PT bị bỏ (`skipped`) hoặc lỗi hạ tầng/sai SHA-256; gửi dưới 10.000 bản ghi; hoặc phần kiểm mã chưa kết luận được (adapter chưa commit, hoặc không đọc được git) |
+
+Số liệu RP/PT chỉ được báo cáo là "kết quả mô tả"; chỉ SC7 là KPI đạt/không đạt của PT. Lượt chạy lúc phát triển (adapter còn là tệp chưa commit) luôn cho `INSUFFICIENT_DATA`; sau khi người dùng commit adapter, chạy lại `--steps e,f` để SC7 chuyển thành `PASS`.
+
 **Bộ truy vấn bất biến booking (SC6)**, chạy trên DB SmashCourt sau mỗi kịch bản:
 
 1. Booking `CONFIRMED`/`PAID_ONLINE` từ luồng TADSS phải có hóa đơn với số đã thanh toán ≥ số tiền cọc đã áp dụng.
@@ -294,7 +320,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 2. Trước khi chạy: ghi commit 3 repo, digest image, file cấu hình, thông số máy.
 3. Chạy test/kịch bản; xuất dữ liệu thô (k6 summary + time series, báo cáo test, kết quả truy vấn, bản ghi audit liên quan).
 4. Lưu JSON snapshot dashboard Grafana cùng khoảng thời gian (không lưu ảnh) và dữ liệu metric dùng để vẽ biểu đồ.
-5. Sinh manifest SHA-256 cho mọi file; chạy notebook để sinh báo cáo HTML.
+5. Sinh manifest SHA-256 cho mọi file; chạy bộ sinh báo cáo để sinh `report.html`.
 
 Cấu trúc thư mục, schema dữ liệu và quy tắc ẩn danh hóa: xem [`DATASET_SCHEMA_SPECIFICATION.md`](DATASET_SCHEMA_SPECIFICATION.md).
 
@@ -304,7 +330,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 
 > **Hiện trạng:** đã hiện thực ở gói 5.5 (evaluator `tools/evaluation/`, bộ dựng Evidence Pack `tools/evidence/`, kịch bản k6 `tests/load/`). Thiết kế: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
 
-`docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt:
+Lệnh chuẩn: `bash tools/evaluation/run.sh [quick|full] [--steps a,b,...] [--clean]` (hướng dẫn từng bước, đọc kết quả, sự cố thường gặp: [`docs/guides/EVALUATION_RUN_GUIDE.md`](../guides/EVALUATION_RUN_GUIDE.md), nơi sở hữu quy trình chạy). Bên dưới là `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**, và thêm service `eval-tadss-portability` cho PT. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt (`EVAL_STEPS` hay `--steps` nhận các chữ a…f):
 
 | Bước | Nội dung |
 | :--- | :--- |
@@ -312,9 +338,12 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 | **b** | Kịch bản tải k6: LT-01, LT-02, LT-05 (LT-04 E2E qua SmashCourt-BE để Phase 6) |
 | **c** | Sự cố dưới tải: LT-03 + FI qua Toxiproxy (cắt PostgreSQL, làm chậm Redis, strategy lỗi); quan sát trực tiếp trên dashboard Grafana: độ trễ tăng, fallback `APPROVED` cọc 100%, 503, hồi phục |
 | **d** | Schemathesis (CT-03) và Stryker mutation (MT-01…03) |
-| **e** | Gom minh chứng vào `evidence/<run_id>/`: `report.html` (đạt/không đạt theo SC1…SC8, biểu đồ p50/p95/p99, biểu đồ dòng thời gian sự cố vẽ từ metric Grafana đã thu, số test từng nhóm), dữ liệu thô (trx theo `CatalogId`, kết quả k6, metric export, `chaos_log`) và `manifest.json` chứa SHA-256 từng file (EV-1…EV-5) |
+| **e** | Dữ liệu thực tế (gói 5.6): RP (replay booking SmashCourt qua `eval-proxy`, bỏ qua nếu không có `data/private/smashcourt_bookings.csv`) rồi PT (adapter Hotel Booking Demand vào `eval-tadss-portability`); ghi `raw/replay/`, `raw/portability/`. Mục 4.9, 4.10 |
+| **f** | Gom minh chứng vào `evidence/<run_id>/`: `report.html` (đạt/không đạt theo SC1…SC8, biểu đồ p50/p95/p99, biểu đồ dòng thời gian sự cố vẽ từ metric Grafana đã thu, số test từng nhóm, mục "Dữ liệu thực tế" cho RP/PT, SC7), dữ liệu thô (trx theo `CatalogId`, kết quả k6, metric export, `chaos_log`, D4/D5 và phân tích RP/PT) và `manifest.json` chứa SHA-256 từng file (EV-1…EV-5). Luôn là bước cuối. Bước trước `failed` (kể cả (e) khi đích chưa sẵn sàng hoặc sai SHA-256) không chặn (f); chỉ `error` hạ tầng (ngoại lệ bất ngờ) làm các bước sau `skipped` |
 
-**Hai độ dài:** **bản nhanh** (đo thật 22–25 phút, tải rút ngắn, không chạy Stryker) để diễn tập; **bản đầy đủ** (ước tính ≈ 2,8 giờ từ các bước đã đo: LT-01 3 × 11 phút, LT-02 ~15 phút, LT-05 soak 61 phút, Stryker ≈ 21 phút; đo trọn vẹn ở gói 5.7) để lấy số liệu chính thức. Replay 215 booking (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01/PT-02) đổ vào cùng Evidence Pack và báo cáo (dữ liệu của gói 5.6).
+**Thời lượng đo thật (bản nhanh, máy lab, từ Docker trống, lượt cuối của gói 5.6):** @@DURATIONS@@
+
+**Hai độ dài:** **bản nhanh** (đo thật 22–25 phút, tải rút ngắn, không chạy Stryker) để diễn tập; **bản đầy đủ** (ước tính ≈ 2,8 giờ từ các bước đã đo: LT-01 3 × 11 phút, LT-02 ~15 phút, LT-05 soak 61 phút, Stryker ≈ 21 phút; đo trọn vẹn ở gói 5.7) để lấy số liệu chính thức. Bước (e) thêm khoảng 40–55 giây ở bản nhanh (PT 10.000 request) và, theo ngoại suy từ 230–330 request/s, khoảng 8 phút ở bản đầy đủ (PT ≈ 118 nghìn request; chưa đo trọn vẹn, thuộc gói 5.7). Replay booking SmashCourt (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01/PT-02) đổ vào cùng Evidence Pack và báo cáo.
 
 **Giới hạn đo lường:** toàn bộ chạy trên một máy (k6, TADSS và cơ sở dữ liệu tranh nhau CPU) nên số liệu là số liệu phòng lab; báo cáo ghi thông số máy (CPU/RAM) và liệt kê vào Mục 8.
 
@@ -323,7 +352,7 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 ## 7. PHÂN TÍCH & TRÌNH BÀY
 
 - Độ trễ báo cáo p50/p95/p99/max kèm số mẫu; với LT-01 và LT-03 báo cáo khoảng tin cậy 95% của p95 bằng bootstrap trên 3 lần lặp.
-- Biểu đồ trong notebook: phân bố độ trễ theo kịch bản; đường thời gian độ trễ + trạng thái circuit khi tiêm lỗi; tỷ lệ trạng thái quyết định; phân bố mức cọc theo hạng/khung giờ (RP, PT).
+- Biểu đồ trong `report.html` (cần thêm bảng hay biểu đồ cho khóa luận thì lấy từ CSV D4/D5 trong pack): phân bố độ trễ theo kịch bản; đường thời gian độ trễ + trạng thái circuit khi tiêm lỗi; tỷ lệ trạng thái quyết định; phân bố mức cọc theo hạng/khung giờ (RP, PT).
 - Mỗi con số trong báo cáo dẫn về `run_id` và file dữ liệu thô tương ứng.
 
 ---
@@ -335,6 +364,12 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 | 215 booking SmashCourt là dữ liệu môi trường phát triển; nhãn `NO_SHOW` do job tự gán khi không check-in, `CANCELLED` phần lớn do hết hạn thanh toán | Không phản ánh hành vi khách thật | Chỉ dùng làm input có hình dạng thực tế (RP); mọi số liệu theo nhãn chỉ mang tính mô tả |
 | Replay là phân tích phản thực tế: mức cọc có thể làm thay đổi chính hành vi khách | Không suy ra được "đã ngăn bao nhiêu no-show" | Không đưa kết luận nhân quả; để Khóa luận xử lý bằng đánh giá off-policy/shadow mode |
 | Dataset khách sạn khác domain | Chỉ là proxy | Dùng cho kiểm chứng độc lập domain và mô tả, không kết luận về sân cầu lông |
+| Dời thời gian theo bội số 7 ngày (Q-04) để bản ghi cũ trở thành yêu cầu "trong tương lai" | Độ lệch δ ∈ [0; 7 ngày) so với thời điểm gửi; booking gốc có lead time ≤ `MinLeadMinutes` (120 phút) có thể được runtime xếp `NEED_APPROVAL` trong khi thực tế không kịp duyệt | Gắn cờ `window_bias`; báo cáo RP nêu cả kết quả runtime lẫn kết quả hiệu chỉnh offline theo lead time gốc |
+| `tier` của RP là hạng khách **tại thời điểm xuất**, không có lịch sử hạng; `demand` không gửi (trường tùy chọn) | Mức cọc theo hạng có thể lệch so với thời điểm đặt thật; tín hiệu nhu cầu không tham gia quyết định | Nêu trong báo cáo; không suy diễn mức cọc theo hạng thành hành vi lịch sử |
+| Giờ danh nghĩa của PT: check-in 14:00, check-out 12:00, giờ gửi yêu cầu 10:00 (dataset chỉ có ngày) | Lead time và độ dài lưu trú là xấp xỉ; không đại diện giờ thật | Nêu ở đây và trong docstring của adapter; PT chỉ dùng để kiểm chứng hợp đồng và độc lập domain |
+| Ngưỡng `HighValueThreshold = 750` EUR của PT chọn một lần, trước lượt chạy, từ phân vị p90 của dataset; PT chạy trên instance riêng với `MaxItemMinutes = 100800` | Tỷ lệ `NEED_APPROVAL` (≈ 9,5 %) do ngưỡng chọn, không phải kết quả đo; instance riêng khác cấu hình `eval-tadss-1/2` | Ngưỡng và cấu hình ghi trong `source.json`/manifest; PT-02 chỉ mô tả, không dùng để đánh giá chất lượng chính sách |
+| Số liệu RP chính nằm trên tập `ONLINE` (đúng phạm vi BE sẽ gọi TADSS); tập `WALK_IN` vẫn được gửi và báo cáo riêng | Số toàn tập và số `ONLINE` khác nhau | Bảng RP tách theo kênh; nêu cả hai |
+| Không có `data/private/smashcourt_bookings.csv` (người dùng chưa xuất) | RP `skipped`, RP-01/RP-02 `INSUFFICIENT_DATA`; lượt không có số liệu SmashCourt | Ghi rõ trong báo cáo; chạy lại `--steps e,f` khi có file |
 | E-EVAL chạy trên một máy: k6, TADSS, PostgreSQL, Redis, Toxiproxy và Grafana tranh nhau CPU/RAM | Số tuyệt đối là số liệu phòng lab, khác production; độ trễ đo được gồm cả nhiễu do tải của chính bộ công cụ | Báo cáo kèm thông số máy (CPU/RAM) và liệt kê vào giới hạn; so sánh tương đối giữa kịch bản trên cùng máy; ghi nhận bản nhanh chỉ để diễn tập |
 | Cách ly strategy không hợp tác (`IsolatedStrategyInvoker`, FI-05) chỉ **giới hạn thời gian chờ** của request: strategy bỏ qua `CancellationToken` hoặc chặn đồng bộ bị cắt ở inner timeout (fallback cọc 100%) nhưng không bị dừng; task bị bỏ rơi vẫn tiêu thụ CPU/thread pool tới khi tự kết thúc | Nhiều task bị bỏ rơi cùng lúc (strategy treo lặp lại dưới tải) có thể làm cạn thread pool và kéo dài độ trễ của request khác; thí nghiệm sự cố dưới tải (LT-03) có thể phóng đại hiệu ứng này | Đo `tadss.strategy.abandoned` trong LT-03; báo cáo số task bị bỏ rơi cùng độ trễ p99; không kết luận TADSS "dừng được" strategy lỗi — chỉ cô lập luồng request khỏi nó |
 | E-EVAL chạy ở môi trường ASP.NET Core `Testing` (decorator tiêm lỗi chỉ đăng ký ở đây) với rate limit nâng lên 100000 và trace lấy mẫu 10 % | HSTS, validator khóa API và giới hạn tốc độ thật khác Production; không phải request nào cũng có trace (metric và audit không lấy mẫu nên KPI không bị ảnh hưởng) | Ghi vào `report.html`; hành vi giới hạn tốc độ và khóa API được kiểm riêng ở SEC-1…7 |

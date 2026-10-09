@@ -1,4 +1,4 @@
-"""Bước (e) với dữ liệu tổng hợp: dựng pack đủ tệp, KPI/EV đúng, báo cáo tự chứa, không lộ định danh gốc; D1 lỗi → error."""
+"""Bước (f) (Evidence Pack) với dữ liệu tổng hợp: dựng pack đủ tệp, KPI/EV đúng, báo cáo tự chứa, không lộ định danh gốc; D1 lỗi → error."""
 import csv
 import json
 import re
@@ -31,7 +31,7 @@ def _db_row(decision_id: str, corr: str) -> tuple:
 
 def _setup(tmp_path: Path, mismatch: bool = False):
     evidence = tmp_path / "ev"
-    env = {"EVAL_REPO": str(REPO), "EVAL_EVIDENCE": str(evidence), "EVAL_MODE": "quick", "EVAL_STEPS": "e", "EVAL_PG_DSN": "host=x", "EVAL_API_KEY": "k"}
+    env = {"EVAL_REPO": str(REPO), "EVAL_EVIDENCE": str(evidence), "EVAL_MODE": "quick", "EVAL_STEPS": "f", "EVAL_PG_DSN": "host=x", "EVAL_API_KEY": "k"}
     context = build_context(env, NOW)
     load = context.evidence_dir / "raw" / "load" / "lt01"
     load.mkdir(parents=True)
@@ -59,6 +59,7 @@ def test_evidence_step_builds_a_valid_pack(tmp_path: Path, monkeypatch: pytest.M
 
     run_dir = context.evidence_dir
     assert result.status == PASSED, result.notes
+    assert result.name == "f"
     for expected in ("manifest.json", "report.html", "raw/d1/decision_audit.csv", "raw/d2/timeseries.csv", "raw/d2/summary.csv", "config/k6-modes.json", "config/chaos-schedule.json", "config/compose-evaluation.yml", "raw/metrics/sc1-lt01.json"):
         assert (run_dir / expected).exists(), expected
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))

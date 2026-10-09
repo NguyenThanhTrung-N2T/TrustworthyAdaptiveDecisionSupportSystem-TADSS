@@ -74,3 +74,17 @@ def test_read_git_info_reports_commit_and_dirty() -> None:
     assert workspace.read_git_info(Path("."), clean) == workspace.GitInfo("abc123", False)
     assert workspace.read_git_info(Path("."), dirty) == workspace.GitInfo("abc123", True)
     assert workspace.read_git_info(Path("."), not_git) == workspace.GitInfo(None, None)
+
+
+def test_read_git_info_normalizes_line_endings_for_status() -> None:
+    """Repo Windows (CRLF) mount vào container Linux: không chuẩn hóa dòng thì mọi file hiện "đã sửa" và manifest.dirty sai."""
+    calls: list[list[str]] = []
+
+    def record(command: list[str], cwd: Path) -> tuple[int, str]:
+        calls.append(command)
+        return (0, "abc123\n") if "rev-parse" in command else (0, "")
+
+    info = workspace.read_git_info(Path("."), record)
+
+    status = next(command for command in calls if "status" in command)
+    assert status[:3] == ["git", "-c", "core.autocrlf=true"] and info == workspace.GitInfo("abc123", False)

@@ -14,7 +14,7 @@ Kịch bản tải của chế độ đánh giá (D-12, bước **b**). Evaluato
 | `SAMPLE_ONLY=N` | Chỉ in `N` payload (không gửi) để kiểm schema |
 
 - **Đầu ra D2:** mỗi request một dòng JSON qua `console.log` (`ts`, `scenario`, `phase`, `http_status`, `duration_ms`, `decision_status`, `execution_type`, `correlation_id`, `idempotency_key`, `decision_id`). Chạy với `--console-output <file>`; k6 ghi file dạng logfmt (`time=… level=info msg="…"`), evaluator đổi thành `requests.jsonl` sạch.
-- **Warm-up:** scenario `warmup` (tag `phase=warmup`) chạy trước scenario `main`; dòng warm-up bị loại khỏi thống kê ở bước (e).
+- **Warm-up:** scenario `warmup` (tag `phase=warmup`) chạy trước scenario `main`; dòng warm-up bị loại khỏi thống kê ở bước (f).
 - **Metric:** `--out opentelemetry` với `K6_OTEL_GRPC_EXPORTER_ENDPOINT`, `K6_OTEL_GRPC_EXPORTER_INSECURE=true`, `K6_OTEL_METRIC_PREFIX=k6_` (spike S-3). Không gắn tag theo từng request (tag `name` cố định) để tránh bùng nổ nhãn.
 
 ## Hồ sơ tải (`config/modes.json`)
