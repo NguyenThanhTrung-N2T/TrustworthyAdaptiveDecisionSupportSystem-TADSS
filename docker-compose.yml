@@ -1,7 +1,10 @@
-# `docker compose up -d --build` chạy TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
+# MỘT lệnh `docker compose up -d --build` chạy cả hai phần:
+#   1. Vận hành: TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
+#   2. Đánh giá (D-14): stack cô lập (các service eval-*) và evaluator tự chạy một lượt các bước a…f (bản nhanh ~30 phút; bản đầy đủ: EVAL_MODE=full), xong thì evaluator dừng.
+#      Theo dõi: docker compose logs -f evaluator   — kết quả: evidence/<run_id>/report.html; Grafana của stack đánh giá: localhost:3002.
 # Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
 #            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
-# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok".
+# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok"; chạy đánh giá: docs/guides/EVALUATION_RUN_GUIDE.md.
 name: tadss
 
 services:
@@ -51,11 +54,10 @@ services:
     networks:
       - smashcourt-network
 
-  # ── Chế độ đánh giá (D-12, O-12, O-13): mọi service dưới đây nằm sau profile `evaluation`, dùng mạng mặc định riêng của project (KHÔNG nối smashcourt-network) và không bao giờ chạm Neon/Redis Cloud.
-  # Chạy bằng: docker compose -p tadss-eval --profile evaluation run --rm --build evaluator   (KHÔNG dùng `up --profile evaluation`: lệnh đó cũng khởi động tadss-runtime/ngrok vì chúng không có profile)
-  # Dọn: docker compose -p tadss-eval --profile evaluation down -v
+  # ── Chế độ đánh giá (D-12, D-14, O-12, O-13): không profile, khởi động cùng `docker compose up` ở trên. Mọi service dưới đây dùng mạng mặc định riêng của project
+  # (KHÔNG nối smashcourt-network), không bao giờ chạm Neon/Redis Cloud, và không service vận hành nào phụ thuộc vào chúng.
+  # Chạy lại riêng vài bước: bash tools/evaluation/run.sh quick --steps e,f   — dọn riêng stack đánh giá: bash tools/evaluation/run.sh --clean-only
   eval-postgres:
-    profiles: [evaluation]
     image: postgres:16.15-alpine
     environment:
       POSTGRES_DB: tadss
@@ -68,7 +70,6 @@ services:
       retries: 20
 
   eval-redis:
-    profiles: [evaluation]
     image: redis:7.4-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -78,7 +79,6 @@ services:
 
   # Toxiproxy đứng giữa TADSS và PostgreSQL/Redis để kịch bản sự cố cắt hoặc làm chậm hạ tầng thật (cổng proxy 15432 và 16379, cổng điều khiển 8474)
   eval-toxiproxy:
-    profiles: [evaluation]
     image: ghcr.io/shopify/toxiproxy:2.12.0
     command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
     volumes:
@@ -96,7 +96,6 @@ services:
 
   # Instance 1: migrate database dùng một lần, tiêm lỗi (file JSON trong volume eval-faults đổi nóng Profile/DelayMs)
   eval-tadss-1:
-    profiles: [evaluation]
     build: .
     image: tadss-eval-runtime:local
     environment:
@@ -131,7 +130,6 @@ services:
 
   # Instance 2: cùng database/Redis, không migrate, không tiêm lỗi (đối chứng SCALE-2); chờ instance 1 khỏe để hai instance không cùng migrate
   eval-tadss-2:
-    profiles: [evaluation]
     build: .
     image: tadss-eval-runtime:local
     environment:
@@ -161,7 +159,6 @@ services:
   # nối THẲNG eval-postgres/eval-redis (không qua Toxiproxy), không tiêm lỗi, không mở cổng host. Cấu hình miền khách sạn CHỈ bằng biến môi trường (không sửa mã):
   # request VND của eval-tadss-1/2 không bị ảnh hưởng, và database chính giữ D1 sạch cho các bước (a)…(d).
   eval-tadss-portability:
-    profiles: [evaluation]
     build: .
     image: tadss-eval-runtime:local
     environment:
@@ -196,7 +193,6 @@ services:
       retries: 30
 
   eval-proxy:
-    profiles: [evaluation]
     image: nginx:1.29.8-alpine
     volumes:
       - ./docker/evaluation/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -210,9 +206,8 @@ services:
       interval: 5s
       retries: 20
 
-  # Grafana của stack đánh giá: cổng host duy nhất của profile (NG-5), cùng provisioning dashboard như chế độ vận hành
+  # Grafana của stack đánh giá: cổng host duy nhất của stack đánh giá (NG-5), cùng provisioning dashboard như chế độ vận hành
   eval-grafana:
-    profiles: [evaluation]
     image: grafana/otel-lgtm:0.34.0
     ports:
       - "127.0.0.1:3002:3000"
@@ -221,8 +216,9 @@ services:
       - ./docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro
 
   # Evaluator: chạy test, tải, sự cố và gom minh chứng. Mount docker.sock (Testcontainers cho integration test, đọc digest image): có quyền điều khiển Docker của máy, nên chỉ dùng trên máy của chính bạn.
+  # Chạy một lượt rồi dừng (không restart); mỗi lần `docker compose up` sau đó khởi động lại nó, tức là chạy lại một lượt đánh giá.
   evaluator:
-    profiles: [evaluation]
+    restart: "no"
     build:
       context: .
       dockerfile: docker/evaluator/Dockerfile
@@ -279,4 +275,4 @@ networks:
 volumes:
   eval-nuget:
   eval-faults:
-  eval-datasets:   # cache dataset khách sạn giữa các lượt; `run.sh --clean` (down -v) xóa
+  eval-datasets:   # cache dataset khách sạn giữa các lượt; `run.sh --clean` / `--clean-only` xóa

@@ -41,7 +41,7 @@ TADSS — Đồ án 2
 │   ├── 5A Contract v2 & lõi           → cọc trong response, domain v2, DB bất biến, override/outcome,
 │   │                                     hàng chờ, API key, múi giờ, routing + shadow, cache policy
 │   ├── 5B Hạ tầng kiểm thử            → Testcontainers, OTel + Grafana, chế độ đánh giá một lệnh
-│   │                                     (compose profile evaluation: evaluator, Toxiproxy, k6, Schemathesis,
+│   │                                     (stack đánh giá trong compose: evaluator, Toxiproxy, k6, Schemathesis,
 │   │                                     Stryker.NET, báo cáo + Evidence Pack), replay, adapter khách sạn
 │   └── 5C Chuẩn bị E2E (SV2)          → Playwright, k6, đặc tả E2E
 ├── 6. SmashCourt-BE ∥ smashcourt-fe

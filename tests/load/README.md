@@ -39,4 +39,4 @@ docker run --rm -v "$PWD/tests/load:/load:ro" -v "$PWD:/out" -w /load grafana/k6
   run -e SAMPLE_ONLY=5 --console-output /out/samples.log --quiet scenarios/lt01.js
 ```
 
-Chạy thật cần stack đánh giá (`docker compose -p tadss-eval --profile evaluation run --rm --build -e EVAL_STEPS=b evaluator`).
+Chạy thật cần stack đánh giá (`bash tools/evaluation/run.sh quick --steps b`; `docker compose up -d --build` chạy cả lượt a…f).

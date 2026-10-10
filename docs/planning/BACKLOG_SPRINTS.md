@@ -62,7 +62,7 @@
 
 ### Epic 5B — Hạ tầng kiểm thử & observability (SV1)
 
-> **Chế độ đánh giá một lệnh (D-12, 04/10/2026):** T5.14…T5.20 được hiện thực quanh `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` (gói 5.5, **đã làm**): một container evaluator điều phối test gộp, k6, sự cố dưới tải qua Toxiproxy, Schemathesis, Stryker rồi dựng `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`). Các script rời đã dự kiến trước đây được evaluator thay thế; profile `lab` / môi trường E-LOCAL được thay bằng profile `evaluation` / E-EVAL. Gói 5.5 dựng chế độ đánh giá; 5.6 thêm dữ liệu (replay, adapter khách sạn); 5.7 chạy bản đầy đủ để đóng băng (Gate M5).
+> **Chế độ đánh giá một lệnh (D-12, 04/10/2026):** T5.14…T5.20 được hiện thực quanh container evaluator của `docker-compose.yml` (gói 5.5, **đã làm**; từ D-14 ngày 10/10/2026 chạy cùng lệnh `docker compose up -d --build`): một container evaluator điều phối test gộp, k6, sự cố dưới tải qua Toxiproxy, Schemathesis, Stryker rồi dựng `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`). Các script rời đã dự kiến trước đây được evaluator thay thế; profile `lab` / môi trường E-LOCAL được thay bằng stack đánh giá / E-EVAL (ban đầu sau profile `evaluation`, D-14 bỏ profile). Gói 5.5 dựng chế độ đánh giá; 5.6 thêm dữ liệu (replay, adapter khách sạn); 5.7 chạy bản đầy đủ để đóng băng (Gate M5).
 
 | Mã | Task | Tuần | Đầu ra |
 |:---|:---|:---:|:---|
@@ -138,7 +138,7 @@
 
 | Mã | Task | Owner |
 |:---|:---|:---:|
-| T8.1 | Chạy UT/IT/CT/MT trên cả 3 repo (phần TADSS bằng bản đầy đủ của chế độ đánh giá một lệnh `docker compose --profile evaluation up`, D-12) | SV1 |
+| T8.1 | Chạy UT/IT/CT/MT trên cả 3 repo (phần TADSS bằng bản đầy đủ của chế độ đánh giá một lệnh `EVAL_MODE=full docker compose up -d --build`, D-12, D-14) | SV1 |
 | T8.2 | Ma trận lỗi FI-01…FI-14 (Toxiproxy) + truy vấn bất biến booking sau mỗi kịch bản | SV1 |
 | T8.3 | Tải LT-01…LT-05 (k6) | SV2 |
 | T8.4 | Playwright E2E-01…E2E-10 trên môi trường tích hợp (video + trace) | SV2 |

@@ -8,7 +8,7 @@
 
 ## 1. NGUYÊN TẮC
 
-1. Dữ liệu minh chứng chỉ được sinh từ các lượt chạy trên hạ tầng thật (E-TC, E-EVAL, E-STAGING; E-EVAL là chế độ đánh giá một lệnh `docker compose --profile evaluation up`, thay cho E-LOCAL ở bản trước — D-12).
+1. Dữ liệu minh chứng chỉ được sinh từ các lượt chạy trên hạ tầng thật (E-TC, E-EVAL, E-STAGING; E-EVAL là chế độ đánh giá một lệnh, chạy cùng `docker compose up -d --build` (D-14), thay cho E-LOCAL ở bản trước — D-12).
 2. Schema production không chứa cột phục vụ thực nghiệm; thông tin lượt chạy nằm trong manifest của Evidence Pack.
 3. Không lưu dữ liệu cá nhân (tên, số điện thoại, email, ghi chú tự do); định danh được ẩn danh hóa theo Mục 4.
 4. Mỗi file dữ liệu có SHA-256 trong manifest; báo cáo dẫn về `run_id` và file cụ thể.

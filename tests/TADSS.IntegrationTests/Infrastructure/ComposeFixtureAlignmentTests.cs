@@ -7,7 +7,8 @@ using YamlDotNet.Serialization;
 namespace TADSS.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// T5.30 / OB-2: <c>docker-compose.yml</c> (một lệnh <c>docker compose up -d --build</c> khởi động tadss-runtime ở Development, ngrok và Grafana, không profile)
+/// T5.30 / OB-2 / D-14: <c>docker-compose.yml</c> (một lệnh <c>docker compose up -d --build</c> khởi động tadss-runtime ở Development, ngrok, Grafana và stack đánh giá
+/// kèm evaluator chạy một lượt, không profile)
 /// và <c>tools/expose/verify-expose.sh</c> phải khớp với phần còn lại của repo. File được phân tích <b>theo từng service</b> bằng YamlDotNet (không quét văn bản cả file):
 /// các ràng buộc bảo mật áp cho <c>tadss-runtime</c> (không mount, migration literal <c>"false"</c>, không biến secret), còn <c>grafana</c> được mount chỉ đọc dashboard + provisioning
 /// và <c>tadss-runtime</c> gửi telemetry tới nó. Mọi cổng host chỉ bind loopback, image ngrok/Grafana ghim tag cụ thể, mọi service nối mạng external <c>smashcourt-network</c>.
@@ -20,7 +21,6 @@ public class ComposeFixtureAlignmentTests
     private const string Runtime = "tadss-runtime";
     private const string ProvisioningTarget = "/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml";
     private const string DashboardsTarget = "/otel-lgtm/tadss-dashboards";
-    private const string EvaluationProfile = "evaluation";
     private const string EvaluationGrafanaPort = "127.0.0.1:3002:3000";
     private static readonly string[] OperationsServiceNames = ["tadss-runtime", "ngrok", "grafana"];
     private static readonly string[] EvaluationServiceNames =
@@ -52,12 +52,12 @@ public class ComposeFixtureAlignmentTests
         ports.Should().OnlyContain(entry => entry.StartsWith(LoopbackPrefix, StringComparison.Ordinal), "mọi cổng của compose phải bind {0}", LoopbackPrefix);
     }
 
-    /// <summary>Các service đánh giá chỉ publish đúng một cổng ra máy chủ: Grafana ở <c>127.0.0.1:3002</c> (NG-5 áp cho cả profile đánh giá).</summary>
+    /// <summary>Các service đánh giá chỉ publish đúng một cổng ra máy chủ: Grafana ở <c>127.0.0.1:3002</c> (NG-5 áp cho cả stack đánh giá).</summary>
     [Fact]
     [Trait("CatalogId", "NG-5")]
-    public void EvaluationProfile_OnlyGrafanaPortOnLoopback()
+    public void EvaluationServices_OnlyGrafanaPortOnLoopback()
     {
-        var ports = Services().Where(service => IsEvaluation(service.Value))
+        var ports = Services().Where(service => EvaluationServiceNames.Contains(service.Key))
             .SelectMany(service => List(service.Value, "ports").Select(port => (Service: service.Key, Port: port))).ToList();
 
         ports.Should().ContainSingle().Which.Should().Be(("eval-grafana", EvaluationGrafanaPort));
@@ -141,15 +141,23 @@ public class ComposeFixtureAlignmentTests
     }
 
     /// <summary>
-    /// Một lệnh <c>docker compose up -d --build</c> khởi động đúng ba service vận hành (giống SmashCourt-BE): chỉ ba service này không nằm sau profile, nên profile đánh giá không làm đổi chế độ vận hành.
+    /// D-14: một lệnh <c>docker compose up -d --build</c> khởi động ba service vận hành (giống SmashCourt-BE) <b>và</b> toàn bộ stack đánh giá: không service nào nằm sau profile.
+    /// Service vận hành không phụ thuộc service đánh giá (<c>up tadss-runtime</c> của các script verify không kéo theo stack đánh giá; app không chờ lượt đánh giá),
+    /// evaluator không restart nên mỗi lần <c>up</c> chạy đúng một lượt.
     /// ngrok chỉ cần <c>NGROK_AUTHTOKEN</c> (không domain tĩnh): lệnh <c>http tadss-runtime:8080</c>, không <c>--url</c>, không <c>NGROK_DOMAIN</c>.
     /// </summary>
     [Fact]
     [Trait("CatalogId", "NG-1")]
-    public void OperationsServices_UnaffectedByEvaluationProfile()
+    public void SingleUp_StartsOperationsAndEvaluation_OperationsIndependent()
     {
-        Services().Where(service => !service.Value.ContainsKey("profiles")).Select(service => service.Key).Should().BeEquivalentTo(OperationsServiceNames);
+        Services().Should().OnlyContain(service => !service.Value.ContainsKey("profiles"), "một lệnh up phải khởi động mọi service");
         Services().Select(service => service.Key).Should().BeEquivalentTo(OperationsServiceNames.Concat(EvaluationServiceNames));
+        foreach (var name in OperationsServiceNames)
+        {
+            DependsOn(Service(name)).Should().NotContain(EvaluationServiceNames, "service vận hành {0} không được chờ stack đánh giá", name);
+        }
+
+        Scalar(Service("evaluator"), "restart").Should().Be("no", "evaluator chạy một lượt rồi dừng, không lặp lại");
 
         var ngrok = Service("ngrok");
         Scalar(ngrok, "command").Should().Be("http tadss-runtime:8080", "ngrok chuyển tiếp tới tadss-runtime:8080 trong mạng compose");
@@ -186,14 +194,14 @@ public class ComposeFixtureAlignmentTests
         network["external"].Should().Be("true", "mạng dùng chung với BE/FE phải là external, tên smashcourt-network");
         networks.Should().ContainSingle();
 
-        foreach (var service in Services().Where(service => !IsEvaluation(service.Value)))
+        foreach (var service in Services().Where(service => OperationsServiceNames.Contains(service.Key)))
         {
             List(service.Value, "networks").Should().Equal(["smashcourt-network"], "service {0} phải nối mạng smashcourt-network", service.Key);
         }
     }
 
     /// <summary>
-    /// Mỗi service đánh giá nằm sau profile <c>evaluation</c> và <b>không</b> nối <c>smashcourt-network</c> (stack cô lập, mạng mặc định riêng). Hai instance TADSS chính chạy <c>Testing</c> và chỉ nối
+    /// Mỗi service đánh giá <b>không</b> nối <c>smashcourt-network</c> (stack cô lập, mạng mặc định riêng). Hai instance TADSS chính chạy <c>Testing</c> và chỉ nối
     /// PostgreSQL/Redis <b>qua</b> <c>eval-toxiproxy</c> (không trỏ thẳng vào <c>eval-postgres</c>/<c>eval-redis</c>, không host ngoài). Instance PT (<c>eval-tadss-portability</c>, gói 5.6) ngược lại nối
     /// <b>thẳng</b> <c>eval-postgres</c>/<c>eval-redis</c> với database <c>tadss_portability</c> riêng, không tiêm lỗi, không cổng host, không mount, cấu hình miền khách sạn chỉ bằng biến môi trường.
     /// Image PostgreSQL/Redis/Toxiproxy/Grafana bằng hằng của fixture hoặc compose vận hành; mọi image dựng sẵn ghim tag cụ thể (không <c>latest</c>); evaluator build từ Dockerfile của nó.
@@ -213,7 +221,6 @@ public class ComposeFixtureAlignmentTests
     {
         var service = Service(name);
 
-        List(service, "profiles").Should().Equal([EvaluationProfile], "{0} phải nằm sau profile evaluation", name);
         service.Should().NotContainKey("networks", "stack đánh giá dùng mạng mặc định riêng, không nối smashcourt-network");
         if (name is not "eval-tadss-1" and not "eval-tadss-2" and not "eval-tadss-portability" and not "evaluator")
         {
@@ -313,8 +320,6 @@ public class ComposeFixtureAlignmentTests
             .ToDictionary(pair => (string)pair.Key, pair => (Dictionary<object, object>)pair.Value);
 
     private static Dictionary<object, object> Service(string name) => Services()[name];
-
-    private static bool IsEvaluation(Dictionary<object, object> service) => List(service, "profiles").Contains(EvaluationProfile);
 
     private static string Scalar(Dictionary<object, object> service, string key) => (string)service[key];
 

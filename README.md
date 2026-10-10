@@ -4,7 +4,7 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (09/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project), 5.3 (quản trị và bảo mật), 5.4 (runtime thích ứng), 5.5 (observability, chế độ đánh giá một lệnh) và phần mã của 5.6 (replay dữ liệu SmashCourt, adapter Hotel Booking Demand, hướng dẫn chạy từng bước) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); định tuyến strategy theo từng request (`Tadss:Routing`, nạp lại nóng), shadow mode, pipeline và circuit breaker riêng cho từng strategy, cách ly strategy không hợp tác, circuit breaker Redis (gói 5.4); hiện có **1871 unit + 240 integration test** và **454 test Python** (`tools/evaluation` 228, `tools/evidence` 226). Gói 5.6 còn chờ người dùng xuất CSV SmashCourt, xác nhận giấy phép dataset khách sạn và commit adapter (xem [guide](docs/guides/EVALUATION_RUN_GUIDE.md)). Chưa làm: lượt đánh giá đầy đủ chính thức và đóng băng contract v2 (gói 5.7). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (09/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project), 5.3 (quản trị và bảo mật), 5.4 (runtime thích ứng), 5.5 (observability, chế độ đánh giá một lệnh) và phần mã của 5.6 (replay dữ liệu SmashCourt, adapter Hotel Booking Demand, hướng dẫn chạy từng bước) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana và tự chạy một lượt đánh giá, D-14); migration `DecisionPersistenceV2` (chưa áp lên Neon); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); định tuyến strategy theo từng request (`Tadss:Routing`, nạp lại nóng), shadow mode, pipeline và circuit breaker riêng cho từng strategy, cách ly strategy không hợp tác, circuit breaker Redis (gói 5.4); hiện có **1871 unit + 240 integration test** và **457 test Python** (`tools/evaluation` 231, `tools/evidence` 226). Gói 5.6 còn chờ người dùng xuất CSV SmashCourt, xác nhận giấy phép dataset khách sạn và commit adapter (xem [guide](docs/guides/EVALUATION_RUN_GUIDE.md)). Chưa làm: lượt đánh giá đầy đủ chính thức và đóng băng contract v2 (gói 5.7). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -76,15 +76,15 @@ Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.jso
 
 `docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file nhưng sau profile `evaluation` (không bao giờ được `up` thường khởi động), xem "Chế độ đánh giá một lệnh" bên dưới.
 
-**Ba chế độ chạy (D-12):**
+**Ba chế độ chạy (D-12; D-14: chế độ vận hành và đánh giá chung một lệnh `up`):**
 
 | Chế độ | Lệnh | Dùng để | Trạng thái |
 | :--- | :--- | :--- | :--- |
 | Dev hằng ngày | `dotnet run --project src/TADSS.Runtime.Api` | Neon + Redis Cloud qua `appsettings.Development.json`; chỉ app + Swagger để kiểm tra luồng, không Docker, không Grafana | Đã có |
-| Vận hành / demo | `docker compose up -d --build` | TADSS + ngrok + Grafana (`grafana/otel-lgtm`, `localhost:3001`) | Đã có (D-11) |
-| Đánh giá cho hội đồng | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) × 2 sau reverse proxy + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~25 phút, bản đầy đủ ~2,8 giờ; chạy trên một máy nên là số liệu phòng lab | Đã có (gói 5.5, mở rộng ở 5.6), xem mục "Chế độ đánh giá một lệnh" và [hướng dẫn chạy](docs/guides/EVALUATION_RUN_GUIDE.md) |
+| Vận hành / demo **+ đánh giá** | `docker compose up -d --build` | TADSS + ngrok + Grafana (`grafana/otel-lgtm`, `localhost:3001`), **và** tự chạy một lượt đánh giá (dòng dưới) | Đã có (D-11, D-14) |
+| Đánh giá cho hội đồng | Chạy kèm `docker compose up -d --build` (D-14); chạy lại riêng: `bash tools/evaluation/run.sh` | Stack cô lập, **không bao giờ chạm Neon**: TADSS (Release) × 2 sau reverse proxy + PostgreSQL 16 + Redis 7 + Toxiproxy + Grafana + container evaluator chạy toàn bộ test, k6, sự cố dưới tải, Schemathesis, Stryker rồi sinh `evidence/<run_id>/` (`report.html`, dữ liệu thô, `manifest.json`); bản nhanh ~30 phút, bản đầy đủ ~2,8 giờ; chạy trên một máy nên là số liệu phòng lab | Đã có (gói 5.5, mở rộng ở 5.6), xem mục "Chế độ đánh giá một lệnh" và [hướng dẫn chạy](docs/guides/EVALUATION_RUN_GUIDE.md) |
 
-> **Không chạy chế độ đánh giá bằng `docker compose --profile evaluation up`.** Service không gắn profile (`tadss-runtime` ở `Development` đọc Neon, và `ngrok`) luôn được `up` khởi động bất kể profile, nên lệnh đó sẽ nối Neon thật và mở tunnel Internet (đã kiểm chứng ở spike S-5 của gói 5.5). Dùng `run evaluator` trong project riêng `tadss-eval` như bảng trên; `docker compose -p tadss-eval --profile evaluation down -v` chỉ dọn stack đánh giá, không dừng stack vận hành.
+> **Một lệnh chạy hết (D-14, 10/10/2026).** `docker compose up -d --build` khởi động app + ngrok + Grafana **và** stack đánh giá; evaluator tự chạy các bước a…f (bản nhanh, ~30 phút) rồi dừng, kết quả ở `evidence/<run_id>/report.html` (theo dõi: `docker compose logs -f evaluator`). Muốn bản đầy đủ: `EVAL_MODE=full docker compose up -d --build` (PowerShell: `$env:EVAL_MODE="full"; docker compose up -d --build`). Mỗi lần `up` lại là chạy lại một lượt đánh giá. Stack đánh giá vẫn cô lập: mạng riêng, PostgreSQL/Redis dùng một lần, không chạm Neon; service vận hành không phụ thuộc nó. Đổi lại: cần thêm RAM (≥ 8 GB cho Docker) và lúc đánh giá chạy, TADSS vận hành cùng máy làm số liệu nhiễu thêm một chút (ghi vào giới hạn).
 
 Test tự động trên CI vẫn dùng Testcontainers (`dotnet test`). Chi tiết: quyết định D-12 trong [`spec/PHASE5_DESIGN_SPEC.md`](spec/PHASE5_DESIGN_SPEC.md) và Mục 6.1 của [`docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
@@ -215,7 +215,7 @@ Meter `TADSS.Runtime` (13 instrument, khai báo ở `TadssMetricNames`): quyết
 - **Chế độ vận hành** (`docker compose up -d --build`): TADSS gửi trace, metric và log tới `grafana/otel-lgtm` (cổng OTLP `4317`); mở `http://localhost:3001`, thư mục **TADSS** có dashboard **TADSS Runtime** nạp sẵn (36 panel: tổng quan, quyết định, chịu lỗi, cache, quản trị và shadow, tải k6; biến `instance`; annotation `chaos`).
 - **`dotnet run` hằng ngày:** telemetry tắt (không cần collector). Muốn xem dashboard khi chạy tay, bật collector riêng và trỏ TADSS tới nó:
   `docker run --rm -p 3001:3000 -p 4317:4317 -v "$PWD/docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro" -v "$PWD/docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro" grafana/otel-lgtm:0.34.0`, rồi đặt `Tadss__Telemetry__Enabled=true` và `Tadss__Telemetry__OtlpEndpoint=http://localhost:4317`. Collector chết hoặc không tới được không ảnh hưởng request.
-- Kiểm tự động (không cần Neon/ngrok): `bash tools/observability/verify-observability.sh` (OB-2 dashboard đã nạp, OB-4 có `tadss_decisions_total` sau vài request).
+- Kiểm tự động (không cần Neon/ngrok): `bash tools/observability/verify-observability.sh` (OB-2 dashboard đã nạp, OB-4 có `tadss_decisions_total` sau vài request); bước (a) của lượt đánh giá đã chạy sẵn script này.
 
 | Khóa `Tadss:Telemetry:*` | Mặc định | Ý nghĩa |
 | :--- | :---: | :--- |
@@ -231,29 +231,31 @@ Meter `TADSS.Runtime` (13 instrument, khai báo ở `TadssMetricNames`): quyết
 
 ### Chế độ đánh giá một lệnh
 
-Dựng stack cô lập (hai instance TADSS sau nginx, instance riêng cho dữ liệu khách sạn, PostgreSQL 16, Redis 7, Toxiproxy, Grafana) và một container **evaluator** chạy tuần tự sáu bước: (a) toàn bộ test gộp theo mã danh mục + `verify-expose.sh` + kiểm dashboard; (b) k6 LT-01, LT-02 (và LT-05 ở bản đầy đủ); (c) sự cố dưới tải LT-03 + SCALE-2; (d) Schemathesis CT-03, coverage gộp, Stryker MT-01…03 (chỉ bản đầy đủ); (e) **dữ liệu thực tế**: replay booking SmashCourt (RP) và dataset khách sạn (PT); (f) gom Evidence Pack `evidence/<run_id>/`. Dữ liệu SmashCourt (`data/private/smashcourt_bookings.csv`) là **tùy chọn**: thiếu thì phần RP bị bỏ qua, các phần khác vẫn chạy.
+Dựng stack cô lập (hai instance TADSS sau nginx, instance riêng cho dữ liệu khách sạn, PostgreSQL 16, Redis 7, Toxiproxy, Grafana) và một container **evaluator** chạy tuần tự sáu bước: (a) toàn bộ test gộp theo mã danh mục + `verify-expose.sh` + `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành) + `verify-export.sh` + hai bộ pytest của `tools/` + kiểm dashboard; (b) k6 LT-01, LT-02 (và LT-05 ở bản đầy đủ); (c) sự cố dưới tải LT-03 + SCALE-2; (d) Schemathesis CT-03, coverage gộp, Stryker MT-01…03 (chỉ bản đầy đủ); (e) **dữ liệu thực tế**: replay booking SmashCourt (RP) và dataset khách sạn (PT); (f) gom Evidence Pack `evidence/<run_id>/`. Dữ liệu SmashCourt (`data/private/smashcourt_bookings.csv`) là **tùy chọn**: thiếu thì phần RP bị bỏ qua, các phần khác vẫn chạy.
 
 **Hướng dẫn chạy từng bước, đọc kết quả, chạy lại một bước, xử lý sự cố, dọn Docker: [`docs/guides/EVALUATION_RUN_GUIDE.md`](docs/guides/EVALUATION_RUN_GUIDE.md).** Các lệnh chính (chạy trong thư mục `TADSS-Runtime/`):
 
 ```bash
+docker compose up -d --build                       # cách chính: app + ngrok + Grafana + một lượt đánh giá bản nhanh (D-14)
+docker compose logs -f evaluator                   # theo dõi; dòng cuối in đường dẫn report.html và mã thoát
+# Chạy lại mà không khởi động lại app:
 bash tools/evaluation/run.sh                       # bản nhanh (tự build/tải image ở lần đầu, in đường dẫn report.html)
 bash tools/evaluation/run.sh full                  # bản đầy đủ (số liệu chính thức)
 bash tools/evaluation/run.sh quick --steps e,f     # chỉ chạy một vài bước (a..f); kèm f để có report.html
-bash tools/evaluation/run.sh quick --clean         # chạy xong dọn sạch container/volume/image/build cache (~6 GB)
-bash tools/evaluation/run.sh --clean-only          # chỉ dọn
+bash tools/evaluation/run.sh quick --clean         # chạy xong dọn sạch phần đánh giá: container/volume/image/build cache (~6 GB); app vận hành giữ nguyên
+bash tools/evaluation/run.sh --clean-only          # chỉ dọn phần đánh giá
 ```
 
 - **Kết quả:** `evidence/<run_id>/` (`run_id` = `EV-{yyyyMMdd}-EVAL-{quick|full}-r{n}`; thư mục làm việc, không commit): `report.html` (tự chứa), `manifest.json` (SHA-256 từng file, commit, máy, KPI SC1…SC8, EV-1…EV-5), `raw/` (dữ liệu thô từng bước), `grafana/dashboard-snapshot.json`, `config/`.
 - **Mã thoát:** `0` đạt mọi tiêu chí; `1` chạy hết nhưng có tiêu chí không đạt; `2` lỗi hạ tầng, tham số sai hoặc không chạy hết.
 - **Thời lượng đo thật:** bản nhanh **22-25 phút** cho (a)…(d) trên máy tác giả, cộng bước (e) khoảng 40-55 s và (f) khoảng 10-15 s (chưa tính lần đầu dựng image); bản đầy đủ **ước tính ≈ 2,8 giờ** + khoảng 8 phút cho (e), chưa đo trọn vẹn (gói 5.7). Bảng từng bước nằm trong guide.
 - **Tài nguyên:** ≥ 8 GB RAM cấp cho Docker, ≥ 15 GB ổ trống (image ~6 GB); tắt chế độ ngủ khi chạy.
-- **Không dùng `docker compose --profile evaluation up`** (xem cảnh báo ở mục "Ba chế độ chạy").
 - **Cảnh báo bảo mật:** evaluator mount `/var/run/docker.sock` (Testcontainers cho integration test) nên có quyền điều khiển Docker của máy; chỉ chạy trên máy của chính bạn. Mã nguồn được mount chỉ đọc và copy sang `/work` **loại trừ** `appsettings.Development.json`, `.env*`; stack đánh giá dùng khóa API cố định không bí mật (`tadss-evaluation-key`). CSV SmashCourt thô nằm ở `data/private/` (gitignore, mount chỉ đọc), mọi định danh được băm trước khi ghi vào `evidence/`.
 - **Giới hạn:** một máy (k6, TADSS, DB tranh CPU), môi trường `Testing`, rate limit nâng, trace lấy mẫu 10 % — xem Mục 8 của methodology và phần "Giới hạn" của `report.html`.
 
 ## Chạy bằng Docker và expose qua ngrok
 
-Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Grafana cùng lúc (SmashCourt-BE ở máy khác, demo). `docker-compose.yml` là file compose duy nhất, không profile, cấu hình **giống SmashCourt-BE**: `tadss-runtime` chạy `ASPNETCORE_ENVIRONMENT=Development` (cổng host chỉ `127.0.0.1`), `ngrok` chỉ cần `NGROK_AUTHTOKEN` (không domain tĩnh), Grafana (`grafana/otel-lgtm`). Database là Neon, cache là Redis Cloud và API key đều khai báo trong `src/TADSS.Runtime.Api/appsettings.Development.json` (file duy nhất `dotnet run` và Docker dùng chung): file đó được **copy vào image** lúc build (`.dockerignore` không loại nó), không mount thêm gì lúc chạy. `.env` chỉ chứa `NGROK_AUTHTOKEN`.
+Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Grafana cùng lúc (SmashCourt-BE ở máy khác, demo), kèm một lượt đánh giá tự chạy trong stack cô lập (D-14, mục "Chế độ đánh giá một lệnh"). `docker-compose.yml` là file compose duy nhất, không profile, cấu hình **giống SmashCourt-BE**: `tadss-runtime` chạy `ASPNETCORE_ENVIRONMENT=Development` (cổng host chỉ `127.0.0.1`), `ngrok` chỉ cần `NGROK_AUTHTOKEN` (không domain tĩnh), Grafana (`grafana/otel-lgtm`). Database là Neon, cache là Redis Cloud và API key đều khai báo trong `src/TADSS.Runtime.Api/appsettings.Development.json` (file duy nhất `dotnet run` và Docker dùng chung): file đó được **copy vào image** lúc build (`.dockerignore` không loại nó), không mount thêm gì lúc chạy. `.env` chỉ chứa `NGROK_AUTHTOKEN`.
 
 1. Thêm API key **thật** vào `src/TADSS.Runtime.Api/appsettings.Development.json` (không commit), mục `Tadss:Security:ApiKeys`: một phần tử `{ "ClientId": "smashcourt-be", "KeySha256": "<mã băm>" }` (cách sinh khóa và mã băm: [Tạo API key và mã băm](#tạo-api-key-và-mã-băm)). **Không** dùng khóa local công khai `tadss-local-dev-key`: ở `Development` validator vẫn chấp nhận nó nên không có gì chặn bạn expose nhầm. SmashCourt-BE dùng cùng một khóa cho cả `dotnet run` lẫn Docker. Chuỗi kết nối Neon và Redis Cloud trong file đó cũng được container dùng; schema `tadss` trên Neon do bạn migrate sẵn (`dotnet ef database update`), container **không bao giờ tự migrate**.
 2. Tạo mạng dùng chung với SmashCourt-BE/FE (một lần): `docker network create smashcourt-network`.
@@ -261,7 +263,7 @@ Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Gr
 4. Chạy tất cả: `docker compose up -d --build`. TADSS ở `http://localhost:8081`, Grafana ở `http://localhost:3001`. Mỗi lần đổi `appsettings.Development.json` phải build lại image (`--build`).
 5. Lấy URL công khai của ngrok: mở `http://localhost:4040` hoặc chạy `docker compose logs ngrok`. URL **đổi mỗi lần khởi động lại** ngrok, nên phải cập nhật `Tadss:BaseUrl` của SmashCourt-BE mỗi lần. Muốn URL cố định, lấy domain tĩnh miễn phí ở dashboard ngrok rồi thêm `--url=<domain>` vào cuối dòng `command` của service `ngrok` trong `docker-compose.yml` (sửa một dòng).
 6. Grafana: mở `http://localhost:3001`. Image `grafana/otel-lgtm` bật sẵn truy cập ẩn danh với quyền Admin nên vào thẳng không cần đăng nhập; nếu cần đăng nhập thì mặc định là `admin` / `admin` (đây là mặc định công khai của Grafana, không phải secret của dự án). Cổng OTLP `4317` (gRPC) và `4318` (HTTP) chỉ bind `127.0.0.1`. TADSS gửi trace, metric và log tới Grafana qua OTLP: dashboard **TADSS Runtime** (thư mục "TADSS", uid `tadss-runtime`, nạp sẵn từ `docker/grafana/dashboards`, chỉ đọc) có số liệu sau vài request. Kiểm tự động: `bash tools/observability/verify-observability.sh` (cần Docker; lần đầu tải image ~3,7 GB).
-7. Dừng tất cả: `docker compose down`.
+7. Dừng tất cả (gồm stack đánh giá): `docker compose down`.
 
 ### Lệnh Docker thường dùng
 
@@ -270,15 +272,17 @@ Chạy trong thư mục `TADSS-Runtime/`.
 | Việc | Lệnh |
 | :--- | :--- |
 | Tạo mạng dùng chung (chỉ lần đầu, có thể đã có do SmashCourt-BE tạo) | `docker network create smashcourt-network` |
-| Khởi động / build lại chế độ vận hành | `docker compose up -d --build` |
+| Khởi động / build lại: vận hành + một lượt đánh giá bản nhanh | `docker compose up -d --build` |
+| Như trên nhưng đánh giá bản đầy đủ | `EVAL_MODE=full docker compose up -d --build` (PowerShell: `$env:EVAL_MODE="full"; docker compose up -d --build`) |
+| Theo dõi lượt đánh giá; kết quả | `docker compose logs -f evaluator`; `evidence/<run_id>/report.html` |
 | Trạng thái; log TADSS; log ngrok | `docker compose ps`; `docker compose logs -f tadss-runtime`; `docker compose logs ngrok` |
-| Dừng chế độ vận hành (giữ image) | `docker compose down` |
+| Dừng tất cả (giữ image) | `docker compose down` |
 | Kiểm tra cấu hình expose (không đụng Neon) | `bash tools/expose/verify-expose.sh` |
 | Kiểm tra observability (không đụng Neon) | `bash tools/observability/verify-observability.sh` |
-| Chạy chế độ đánh giá (bản nhanh; đầy đủ thêm `-e EVAL_MODE=full`) | `docker compose -p tadss-eval --profile evaluation run --rm --build evaluator` |
+| Chạy lại một lượt đánh giá / vài bước (không khởi động lại app) | `bash tools/evaluation/run.sh [quick\|full] [--steps e,f]` |
 | Xem lại Grafana sau khi đánh giá xong | mở `http://127.0.0.1:3002` (stack đánh giá còn chạy tới khi dọn) |
-| Log một service của stack đánh giá | `docker compose -p tadss-eval --profile evaluation logs eval-tadss-1` |
-| Dọn stack đánh giá (container, volume, mạng) | `docker compose -p tadss-eval --profile evaluation down -v` |
+| Log một service của stack đánh giá | `docker compose logs eval-tadss-1` |
+| Dọn riêng stack đánh giá (container, volume, image, build cache), giữ app | `bash tools/evaluation/run.sh --clean-only` |
 | Unit test (không cần Docker) | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` |
 | Integration test (cần Docker; tự tải PostgreSQL, Redis, Toxiproxy, ryuk) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` |
 | Xem dung lượng Docker | `docker system df` |

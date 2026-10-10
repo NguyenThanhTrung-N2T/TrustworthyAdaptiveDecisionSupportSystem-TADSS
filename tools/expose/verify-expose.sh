@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của docker-compose.yml bằng Docker thật (không mở tunnel ngrok, không khởi động Grafana, không kết nối database ngoài).
-#   NG-1  : docker compose config hợp lệ (với NGROK_AUTHTOKEN giả) và `config --services` liệt kê đủ tadss-runtime, ngrok, grafana (không profile nào);
+#   NG-1  : docker compose config hợp lệ (với NGROK_AUTHTOKEN giả) và `config --services` liệt kê đủ tadss-runtime, ngrok, grafana cùng 9 service của stack đánh giá
+#           (không profile nào: một lệnh `up` chạy cả hai, D-14);
 #           service tadss-runtime: môi trường Development (giống SmashCourt-BE), migration "false", không mount file, không biến ConnectionStrings/RedisConnectionString/ApiKeys,
 #           gửi telemetry tới grafana; service grafana: đúng hai mount, đều chỉ đọc (dashboard + provisioning).
 #   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200 (Swagger được phục vụ ở Development nên không kiểm 404).
@@ -114,12 +115,13 @@ FAKE_NGROK="fake-token-for-compose-config-only"  # compose cần NGROK_AUTHTOKEN
 # ── NG-1: compose config của file đã commit ──
 # NGROK_AUTHTOKEN là biến duy nhất file compose cần (ngrok); env-file giả chỉ chứa token giả, đồng thời cô lập khỏi .env của người dùng.
 printf '%s\n' "NGROK_AUTHTOKEN=${FAKE_NGROK}" >"$FAKE_ENV_FILE"
-# Một lệnh `up` khởi động cả ba service (không profile): config phải hợp lệ và liệt kê đủ tadss-runtime, ngrok, grafana.
+# Một lệnh `up` khởi động mọi service (không profile, D-14): config phải hợp lệ và liệt kê đủ ba service vận hành cùng 9 service của stack đánh giá.
+EXPECTED_SERVICES="eval-grafana eval-postgres eval-proxy eval-redis eval-tadss-1 eval-tadss-2 eval-tadss-portability eval-toxiproxy evaluator grafana ngrok tadss-runtime "
 cfg="FAIL"
 if dc_main "$FAKE_ENV_FILE" config --quiet >/dev/null 2>&1; then cfg="PASS"; fi
 services="$(dc_main "$FAKE_ENV_FILE" config --services 2>/dev/null | tr -d '\r' | sort | tr '\n' ' ')"
 svc="FAIL"
-if [ "$services" = "grafana ngrok tadss-runtime " ]; then svc="PASS"; fi
+if [ "$services" = "$EXPECTED_SERVICES" ]; then svc="PASS"; fi
 # Ràng buộc bảo mật áp cho RIÊNG service tadss-runtime (đọc từ cấu hình render dạng YAML, tách khối theo service): môi trường Development (giống SmashCourt-BE),
 # migration "false", không mount file, không biến chuỗi kết nối/Redis/ApiKeys. Grafana được mount dashboard chỉ đọc (không chứa secret) và tadss-runtime gửi telemetry tới nó.
 rendered_main="$(dc_main "$FAKE_ENV_FILE" config --format json 2>/dev/null)"

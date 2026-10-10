@@ -7,6 +7,8 @@
 # vào MỘT MẠNG RIÊNG của project thử (không dùng smashcourt-network, nên không đụng container của người dùng và không trùng tên DNS "grafana"); không publish cổng nào ra host.
 # Không khởi động ngrok. Chạy trong project compose riêng (tadss-observability-check) nên không đụng project `tadss` của người dùng. Image build ra bị xóa khi thoát.
 # Khóa API sinh ngẫu nhiên mỗi lần chạy, không bao giờ được in ra. Chạy được trên Git Bash (Windows) và Ubuntu. Lần đầu phải tải image otel-lgtm (~3,7 GB).
+# OBS_DASHBOARDS_BY_COPY=1 (chỉ evaluator đặt, D-14): script chạy trong container nên mount ./docker/grafana/... của compose trỏ tới đường dẫn mà daemon Docker (máy chủ) không thấy;
+# khi đó Grafana không mount mà nhận file provisioning + dashboard bằng `docker compose cp` rồi khởi động lại. Chạy tay và CI vẫn kiểm đúng mount của compose.
 set -uo pipefail
 
 # Git Bash đổi đường dẫn kiểu /dev/null thành đường dẫn Windows khi gọi docker.exe; tắt để tham số tới container nguyên vẹn.
@@ -33,6 +35,8 @@ if command -v cygpath >/dev/null 2>&1; then TMP_DIR="$(cygpath -m "$TMP_DIR")"; 
 ENV_FILE="${TMP_DIR}/obs.env"
 OVERRIDE_FILE="${TMP_DIR}/override.yml"
 ERR_FILE="${TMP_DIR}/up.err"
+COPY_OVERRIDE_FILE="${TMP_DIR}/copy-dashboards.yml"
+COMPOSE_FILES=(-f docker-compose.yml -f "$OVERRIDE_FILE")
 
 declare -a RESULT_IDS=() RESULT_STATES=() RESULT_NOTES=()
 failures=0
@@ -50,7 +54,7 @@ sha256_hex() { # đọc stdin, in hex SHA-256
   fi
 }
 
-dc() { docker compose -p "$PROJECT" --env-file "$ENV_FILE" -f docker-compose.yml -f "$OVERRIDE_FILE" "$@"; }
+dc() { docker compose -p "$PROJECT" --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "$@"; }
 
 cleanup() {
   # Chỉ dọn tài nguyên của đúng project này: container, volume, mạng, image build ra (có thể chứa appsettings.Development.json thật).
@@ -137,11 +141,23 @@ networks:
   obs-net: {}
 EOF
 printf '%s\n' "CHECK_API_KEY_SHA256=${API_KEY_SHA256}" "NGROK_AUTHTOKEN=fake-token-for-compose-config-only" >"$ENV_FILE"
+if [ "${OBS_DASHBOARDS_BY_COPY:-0}" = 1 ]; then
+  printf '%s\n' "services:" "  grafana:" "    volumes: !override []" >"$COPY_OVERRIDE_FILE"
+  COMPOSE_FILES+=(-f "$COPY_OVERRIDE_FILE")
+fi
 
 # ── Dựng stack (tadss-runtime + grafana + PostgreSQL/Redis tạm; không ngrok) ──
 echo ">> Dựng project ${PROJECT} (build image + tải otel-lgtm lần đầu, có thể mất vài phút)..."
 stack_up="FAIL"
 if dc up -d --build --wait tadss-runtime grafana >/dev/null 2>"$ERR_FILE"; then stack_up="PASS"; fi
+if [ "$stack_up" = PASS ] && [ "${OBS_DASHBOARDS_BY_COPY:-0}" = 1 ]; then
+  # Cùng hai đường dẫn đích như mount của compose; provider đọc tadss.yaml lúc khởi động nên phải restart Grafana sau khi copy.
+  if ! { dc cp docker/grafana/provisioning/dashboards/tadss.yaml grafana:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml \
+         && dc cp docker/grafana/dashboards grafana:/otel-lgtm/tadss-dashboards \
+         && dc restart grafana; } >/dev/null 2>>"$ERR_FILE"; then
+    stack_up="FAIL"
+  fi
+fi
 if [ "$stack_up" != "PASS" ]; then
   echo "LỖI: không dựng được stack:" >&2; tail -n 20 "$ERR_FILE" >&2; dc logs --tail 30 tadss-runtime >&2
 fi

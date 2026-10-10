@@ -15,11 +15,14 @@ STEP_NAME = "a"
 TEST_PROJECTS = ("TADSS.UnitTests", "TADSS.IntegrationTests")
 TESTCONTAINERS_HOST = "host.docker.internal"
 EXPOSE_SCRIPT = "tools/expose/verify-expose.sh"
-OBSERVABILITY_SKIP_REASON = (
-    "verify-observability.sh không chạy trong container evaluator: file compose mount ./docker/grafana/... bằng đường dẫn của container (/work), "
-    "daemon Docker (máy chủ) không thấy đường dẫn đó nên Grafana sẽ không có dashboard. OB-2 vẫn được kiểm trên eval-grafana (đường dẫn mount là của máy chủ); "
-    "kết quả verify-observability.sh lấy từ job CI observability-check."
-)
+OBSERVABILITY_SCRIPT = "tools/observability/verify-observability.sh"
+EXPORT_SCRIPT = "tools/evidence/sql/verify-export.sh"
+# Mount ./docker/grafana/... của compose là đường dẫn trong container (/work) mà daemon Docker (máy chủ) không thấy: trong evaluator, script copy dashboard vào container Grafana
+# thay cho mount (CI và chạy tay vẫn kiểm mount thật; đường dẫn mount được ComposeFixtureAlignmentTests khóa tĩnh).
+OBSERVABILITY_ENV = {"OBS_DASHBOARDS_BY_COPY": "1"}
+PYTEST_SUITES = ("tools/evaluation", "tools/evidence")
+# Biến của lượt chạy không được lọt vào pytest (test tự dựng môi trường của chúng)
+_RUN_ENV_PREFIXES = ("EVAL_", "TADSS_")
 
 
 def run_command(command: list[str], cwd: Path, env: dict[str, str], log_file: Path) -> int:
@@ -54,7 +57,8 @@ def _test_command(project: str, trx: str, results: Path) -> list[str]:
 def run(context: RunContext, command: Command = run_command, check_dashboard=grafana.check_dashboard) -> StepResult:
     """
     Trên bản sao `/work` của mã nguồn: restore khóa và build Release `--warnaserror` hai project test, unit + IT (trx + coverlet cobertura, chỉ mục catalog), ghép `catalog-results.csv`,
-    `verify-expose.sh` và OB-2 trên Grafana của stack đánh giá. `failed` nếu có test/kiểm tra đỏ; `error` nếu không dựng được môi trường hoặc không build được.
+    `verify-expose.sh`, `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành), `verify-export.sh`, hai bộ pytest của công cụ đánh giá và OB-2 trên Grafana của stack đánh giá.
+    `failed` nếu có test/kiểm tra đỏ; `error` nếu không dựng được môi trường hoặc không build được.
     """
     started = utc_now()
     results_dir = context.raw_dir("tests")
@@ -95,14 +99,33 @@ def run(context: RunContext, command: Command = run_command, check_dashboard=gra
     artifacts.append(str(expose_log))
     expose_code = command(["bash", EXPOSE_SCRIPT], work, env, expose_log)
     notes.append(f"verify-expose.sh: {'TẤT CẢ ĐẠT' if expose_code == 0 else f'không đạt (mã {expose_code})'}")
-    notes.append(OBSERVABILITY_SKIP_REASON)
     failed = failed or expose_code != 0
+
+    failed = _run_extra_checks(work, env, results_dir, command, notes, artifacts) or failed
 
     dashboard = check_dashboard(context.endpoints.grafana)
     notes.append(f"OB-2 (eval-grafana): {'đạt' if dashboard.passed else 'không đạt'} — {dashboard.detail}")
     failed = failed or not dashboard.passed
 
     return finish(FAILED if failed else PASSED)
+
+
+def _run_extra_checks(work: Path, env: dict[str, str], results_dir: Path, command: Command, notes: list[str], artifacts: list[str]) -> bool:
+    """Các kiểm tra ngoài `dotnet test`: script verify (Docker thật, tự dọn) và pytest của `tools/`. Trả True nếu có kiểm tra không đạt."""
+    pytest_env = {name: value for name, value in env.items() if not name.startswith(_RUN_ENV_PREFIXES)}
+    checks = [
+        ("verify-observability.sh", ["bash", OBSERVABILITY_SCRIPT], {**env, **OBSERVABILITY_ENV}, "verify-observability.log"),
+        ("verify-export.sh", ["bash", EXPORT_SCRIPT], env, "verify-export.log"),
+        *((f"pytest {suite}", ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", suite], pytest_env, f"pytest-{suite.split('/')[-1]}.log") for suite in PYTEST_SUITES),
+    ]
+    failed = False
+    for label, cmd, check_env, log_name in checks:
+        log = results_dir / log_name
+        artifacts.append(str(log))
+        code = command(cmd, work, check_env, log)
+        notes.append(f"{label}: {'đạt' if code == 0 else f'không đạt (mã {code}, xem {log_name})'}")
+        failed = failed or code != 0
+    return failed
 
 
 def _join_catalog(results_dir: Path, notes: list[str], artifacts: list[str]) -> bool:

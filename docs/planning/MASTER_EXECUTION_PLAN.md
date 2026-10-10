@@ -52,7 +52,7 @@ Sau Phase 4, nhóm rà soát lại toàn bộ mã nguồn và tài liệu (01/10
 | Cấu phần | Owner | Reviewer | Deliverable |
 |:---|:---:|:---:|:---|
 | TADSS: SDK, Runtime, Strategies, Contract v2 | SV1 | SV2 (góc nhìn consumer) | `Shared.DecisionContractSDK` v2, `TADSS.Runtime.Api`, strategies v2 |
-| Hạ tầng kiểm thử & observability | SV1 | SV2 | Testcontainers; chế độ đánh giá một lệnh `docker compose --profile evaluation up` (D-12: TADSS, Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`, evaluator điều phối k6, Schemathesis, Stryker.NET và dựng báo cáo minh chứng) |
+| Hạ tầng kiểm thử & observability | SV1 | SV2 | Testcontainers; chế độ đánh giá một lệnh `docker compose up -d --build` (D-12, D-14: TADSS, Postgres, Redis, Toxiproxy, `grafana/otel-lgtm`, evaluator điều phối k6, Schemathesis, Stryker.NET và dựng báo cáo minh chứng) |
 | Harness replay & portability | SV1 | SV2 | Replay 215 booking SmashCourt, adapter Hotel Booking Demand |
 | SmashCourt-BE (tích hợp cọc, duyệt, job) | SV1 | SV2 | API booking cọc, proxy duyệt, job hết hạn, job báo outcome |
 | smashcourt-fe (khách + Manager) | SV2 | SV1 | Màn hình cọc, chờ duyệt, dashboard duyệt |
@@ -135,14 +135,14 @@ gantt
 | Tuần | SV1 (TADSS + hạ tầng) | SV2 (chuẩn bị kiểm thử) |
 |:---|:---|:---|
 | **W05** (05–11/10) | ✅ Gói 5.1–5.3 xong sớm (02/10 – 05/10): contract v2 (OpenAPI + JSON schema + SDK), migration DB v2, integration test chuyển sang **Testcontainers** (PostgreSQL 16 + Redis 7, gỡ EF InMemory), hiện thực v2 (số cọc trong response, strategies v2, snapshot request, bảng `decision_overrides` / `decision_outcomes` append-only + trigger, hàng chờ theo chi nhánh có hạn, API key, sửa múi giờ, map exception), Docker Compose + ngrok. Gói **5.4**: định tuyến strategy theo từng request + shadow mode; cách ly timeout cho strategy không hợp tác; chính sách cache theo strategy + breaker cho Redis | Review contract v2 từ phía consumer; dựng **Playwright** trong `smashcourt-fe`; dựng dự án **k6** |
-| **W06** (12–18/10) | ✅ (xong sớm 06–08/10) Gói **5.5** (phần 1): gắn **OpenTelemetry**, dựng dashboard **Grafana**; khung **chế độ đánh giá một lệnh** (`docker compose --profile evaluation up`, D-12) | Viết script k6 cho TADSS (tải danh nghĩa, tăng dần, soak); bắt đầu đặc tả kịch bản E2E |
+| **W06** (12–18/10) | ✅ (xong sớm 06–08/10) Gói **5.5** (phần 1): gắn **OpenTelemetry**, dựng dashboard **Grafana**; khung **chế độ đánh giá một lệnh** (D-12; từ D-14 chạy cùng `docker compose up -d --build`) | Viết script k6 cho TADSS (tải danh nghĩa, tăng dần, soak); bắt đầu đặc tả kịch bản E2E |
 | **W07** (19–25/10) | ✅ (xong sớm 08–09/10) Gói **5.5** (phần 2): evaluator điều phối kịch bản lỗi **Toxiproxy**, k6, **Schemathesis**, **Stryker.NET** và bộ sinh báo cáo | Hoàn thiện script k6; khung kịch bản Playwright (đặc tả từng bước, chờ FE) |
 | **W08** (26/10–01/11) | ✅ (xong sớm 09/10) phần mã của gói **5.6**: harness **replay** 215 booking (xuất ẩn danh) và adapter **Hotel Booking Demand**, đổ dữ liệu vào báo cáo của chế độ đánh giá (bước (e) của evaluator, Evidence Pack thành bước (f)), kèm hướng dẫn chạy từng bước `docs/guides/EVALUATION_RUN_GUIDE.md`; **còn chờ người dùng:** xuất CSV SmashCourt (U-3), xác nhận giấy phép dataset (U-2), commit adapter để SC7 thành `PASS`. Gói **5.7**: chạy **bản đầy đủ** của chế độ đánh giá (toàn bộ danh mục TADSS, ~1,5–2 giờ) → đạt 100%; **đóng băng contract v2**; chốt **API contract BE ↔ FE** cho Phase 6; chốt môi trường tích hợp (Docker Compose + ngrok, VNPay sandbox) | Review API contract BE ↔ FE; hoàn tất danh mục kiểm thử E2E/FE |
 
 - **Gate M5 — TADSS Complete & Test-Ready:**
   - Toàn bộ test case TADSS trong danh mục (UT, IT, CT, FI, LT mức TADSS, MT) đạt trên hạ tầng thật; không còn EF InMemory trong solution.
   - Contract v2 đóng băng (OpenAPI v2, JSON schema v2, public API baseline v2).
-  - Dashboard Grafana, kịch bản Toxiproxy, k6, Schemathesis, Stryker và bộ sinh báo cáo chạy được bằng một lệnh (`docker compose --profile evaluation up`, chế độ đánh giá, D-12) và đã có lượt chạy đầy đủ sinh `evidence/<run_id>/`.
+  - Dashboard Grafana, kịch bản Toxiproxy, k6, Schemathesis, Stryker và bộ sinh báo cáo chạy được bằng một lệnh (`docker compose up -d --build`, chế độ đánh giá, D-12, D-14) và đã có lượt chạy đầy đủ sinh `evidence/<run_id>/`.
   - Danh mục kiểm thử **toàn hệ thống** (gồm BE, FE, E2E) viết xong; API contract BE ↔ FE đã chốt.
 
 ### ⏳ Phase 6 — SmashCourt-BE ∥ smashcourt-fe (W09–W12, 02/11 – 29/11)
@@ -164,7 +164,7 @@ gantt
 
 ### ⏳ Phase 8 — Kiểm thử & đánh giá (W14–W15, 07/12 – 20/12)
 
-- Chạy **bản đầy đủ** của chế độ đánh giá một lệnh (`docker compose --profile evaluation up`, D-12) trên hạ tầng cô lập; quan sát trực tiếp trên Grafana.
+- Chạy **bản đầy đủ** của chế độ đánh giá một lệnh (`EVAL_MODE=full docker compose up -d --build`, D-12, D-14) trên hạ tầng cô lập; quan sát trực tiếp trên Grafana.
 - Chạy E2E (Playwright) và LT-04 (k6 qua SmashCourt-BE) trên môi trường tích hợp.
 - Đánh giá chất lượng quyết định bằng dữ liệu import: replay 215 booking SmashCourt (RP) và dataset Hotel Booking Demand (PT). Không có pilot với người dùng thật: toàn bộ kiểm thử do nhóm tự thực hiện ở mức phát triển.
 - Chỉ sửa lỗi; mọi lần sửa phải chạy lại các test case liên quan.

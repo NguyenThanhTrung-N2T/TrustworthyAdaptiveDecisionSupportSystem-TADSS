@@ -48,6 +48,8 @@ def format_summary(context: RunContext, outcomes: list[StepResult]) -> str:
         lines.extend(f"{'':<30}{note}" for note in rest)
     code = exit_code(outcomes)
     lines += ["", {0: "KẾT QUẢ: đạt mọi tiêu chí.", 1: "KẾT QUẢ: chạy hết nhưng có tiêu chí không đạt.", 2: "KẾT QUẢ: lỗi hạ tầng hoặc không chạy hết."}[code]]
+    # Khi chạy bằng `docker compose up` không có run.sh in hộ: đường dẫn trên máy (thư mục evidence/ của repo được mount vào /evidence)
+    lines.append(f"Báo cáo trên máy: evidence/{context.run_id}/report.html (mã thoát {code}: 0 đạt hết, 1 có tiêu chí không đạt, 2 lỗi hạ tầng)")
     return "\n".join(lines)
 
 

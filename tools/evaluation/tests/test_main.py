@@ -62,6 +62,15 @@ def test_invalid_configuration_exits_2(tmp_path: Path, capsys) -> None:
     assert code == 2 and "EVAL_MODE" in capsys.readouterr().err
 
 
+def test_summary_ends_with_host_report_path_and_exit_code(tmp_path: Path, capsys) -> None:
+    code = cli.main(_env(tmp_path, "a,b"), {"a": _step("a", PASSED), "b": _step("b", FAILED)}, NO_MACHINE)
+
+    last = capsys.readouterr().out.splitlines()[-1]
+    run_id = next((tmp_path / "evidence").iterdir()).name
+    assert code == 1
+    assert last.startswith(f"Báo cáo trên máy: evidence/{run_id}/report.html") and "mã thoát 1" in last, "chạy bằng docker compose up vẫn thấy đường dẫn báo cáo trên máy"
+
+
 def test_steps_registry_has_dataset_step_e_before_evidence_pack_f() -> None:
     assert list(cli.STEPS) == ["a", "b", "c", "d", "e", "f"]
     assert cli.STEPS["e"] is dataset_step.run and cli.STEPS["f"] is evidence_step.run
