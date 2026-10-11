@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Callable
 
 # Tên thư mục bị loại ở mọi cấp
-EXCLUDED_DIRS = frozenset({"bin", "obj", "TestResults", "logs", "evidence", ".vs", ".git", ".idea", ".venv", "node_modules", ".superpowers", ".claude"})
+EXCLUDED_DIRS = frozenset({"bin", "obj", "TestResults", "logs", ".vs", ".git", ".idea", ".venv", "node_modules", ".superpowers", ".claude"})
+# Chỉ loại ở gốc repo: `evidence/` là kết quả các lượt chạy; `tools/evidence/` là mã nguồn (verify-export.sh, pytest) và phải được copy
+ROOT_ONLY_EXCLUDED_DIRS = frozenset({"evidence"})
 # Mẫu tên file bị loại ở mọi cấp (secret)
 EXCLUDED_FILE_PATTERNS = ("appsettings.Development.json", ".env", ".env.*")
 # Sau khi copy, không file nào khớp các mẫu này được phép tồn tại trong thư mục làm việc
@@ -43,7 +45,8 @@ def copy_workspace(source: Path, destination: Path) -> int:
         shutil.rmtree(destination)
     copied = 0
     for root, dirs, files in os.walk(source):
-        dirs[:] = [name for name in dirs if name not in EXCLUDED_DIRS]
+        at_root = Path(root) == source
+        dirs[:] = [name for name in dirs if name not in EXCLUDED_DIRS and not (at_root and name in ROOT_ONLY_EXCLUDED_DIRS)]
         target_root = destination / Path(root).relative_to(source)
         target_root.mkdir(parents=True, exist_ok=True)
         for name in files:

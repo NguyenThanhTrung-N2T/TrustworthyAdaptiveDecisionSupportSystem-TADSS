@@ -46,18 +46,17 @@ docker compose logs -f evaluator
 
 Không muốn bật app/ngrok mà chỉ chạy đánh giá: `bash tools/evaluation/run.sh` (chỉ khởi động stack đánh giá; in `>> Mã thoát` và `>> Báo cáo` khi xong).
 
-**Thời lượng đo thật** (máy của tác giả, bản nhanh, stack đã dựng sẵn):
+**Thời lượng đo thật** (máy của tác giả, bản nhanh, lượt `EV-20261011-EVAL-quick-r1` chạy bằng `docker compose up -d --build`, đạt mọi tiêu chí):
 
-<!-- TASK7-REFRESH: thay toàn bộ cột "Thời lượng" và dòng "Tổng" bằng số đo của lượt chạy cuối gói 5.6 -->
 | Bước | Việc | Thời lượng |
 | :--- | :--- | :--- |
-| (a) | Test gộp + 3 script verify + pytest | 5-9 phút (325-532 s) đo trước khi gom thêm `verify-observability`, `verify-export`, pytest; ước tính thêm ~3-4 phút |
-| (b) | Tải k6 LT-01, LT-02 | ~7 phút (400 s) |
+| (a) | 3 script verify + test gộp + pytest + OB-2 | ~9 phút (547 s) |
+| (b) | Tải k6 LT-01, LT-02 | ~7 phút (404 s) |
 | (c) | Sự cố dưới tải LT-03 + SCALE-2 | ~8,5 phút (510 s) |
-| (d) | Schemathesis + coverage | 40 s |
-| (e) | Dữ liệu thực tế (RP + PT) | ~40 s (khi máy bận có thể 2-3 phút) |
-| (f) | Evidence Pack + báo cáo | 10-15 s |
-| **Tổng** | | **~27-31 phút** ước tính (đo thật ~23-27 phút trước khi gom thêm kiểm tra vào (a); chưa tính lần đầu dựng image) |
+| (d) | Schemathesis + coverage | ~1 phút (53 s) |
+| (e) | Dữ liệu thực tế (PT 10.000 request; RP bỏ qua khi chưa có CSV) | ~1,5-2 phút (101 s; máy rảnh có thể ~40 s) |
+| (f) | Evidence Pack + báo cáo | ~1,5 phút (83 s) |
+| **Tổng** | | **~28 phút** (1.698 s; chưa tính lần đầu dựng image) |
 
 **Nhận biết bị treo.** Mở cửa sổ Git Bash thứ hai và chạy:
 
@@ -122,7 +121,7 @@ $env:EVAL_MODE="full"; docker compose up -d --build   # PowerShell
 bash tools/evaluation/run.sh full                     # hoặc: chỉ stack đánh giá, không bật app
 ```
 
-- Thời lượng **ước tính ≈ 2,8 giờ** + khoảng 8 phút cho bước (e) (PT ~118 nghìn request, 230-330 request/s). Chưa đo trọn vẹn.
+- Thời lượng **ước tính ≈ 2,8 giờ** + khoảng 8-18 phút cho bước (e) (PT ~118 nghìn request, 107-330 request/s tùy độ bận của máy). Chưa đo trọn vẹn.
 - Chỉ chạy khi máy rảnh và đã tắt chế độ ngủ. Muốn dọn ngay sau khi xong: thêm `--clean` (`bash tools/evaluation/run.sh full --clean`).
 
 ## 7. Chạy lại một bước
@@ -214,6 +213,7 @@ Bảng này gom các lỗi đã gặp thật khi làm gói 5.5-5.6.
 
 | Triệu chứng | Nguyên nhân | Cách xử lý |
 | :--- | :--- | :--- |
+| `tadss-runtime` khởi động lại liên tục, log `KeySha256 phải là chuỗi hex 64 ký tự` | Ô `KeySha256` trong `appsettings.Development.json` đang chứa key gốc thay vì mã băm của nó (chỉ phần vận hành lỗi; lượt đánh giá vẫn chạy) | `python tools/security/hash_api_key.py` (tự băm, key gốc chuyển vào `.env`, biến `TADSS_API_KEY_SMASHCOURT_BE`), rồi `docker compose up -d --build`. Chi tiết: README mục "Tạo API key và mã băm". |
 | `network smashcourt-network declared as external, but could not be found` | Chưa tạo mạng dùng chung | `docker network create smashcourt-network` rồi `docker compose up -d --build` lại. |
 | `Cannot connect to the Docker daemon` / `error during connect`, lệnh dừng ngay | Docker Desktop chưa bật | Mở Docker Desktop, chờ "Engine running", kiểm tra `docker info`, chạy lại. |
 | Container bị dừng đột ngột, test/k6 chậm bất thường, máy đơ | Docker thiếu RAM (< 8 GB) | Tăng RAM cho Docker (mục 2), đóng ứng dụng khác, tắt stack Docker khác (`docker ps`). |

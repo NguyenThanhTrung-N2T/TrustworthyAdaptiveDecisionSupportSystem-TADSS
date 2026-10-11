@@ -56,8 +56,8 @@ def _test_command(project: str, trx: str, results: Path) -> list[str]:
 
 def run(context: RunContext, command: Command = run_command, check_dashboard=grafana.check_dashboard) -> StepResult:
     """
-    Trên bản sao `/work` của mã nguồn: restore khóa và build Release `--warnaserror` hai project test, unit + IT (trx + coverlet cobertura, chỉ mục catalog), ghép `catalog-results.csv`,
-    `verify-expose.sh`, `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành), `verify-export.sh`, hai bộ pytest của công cụ đánh giá và OB-2 trên Grafana của stack đánh giá.
+    Trên bản sao `/work` của mã nguồn, theo thứ tự: `verify-expose.sh`, `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành), `verify-export.sh`; restore khóa và build
+    Release `--warnaserror` hai project test, unit + IT (trx + coverlet cobertura, chỉ mục catalog), ghép `catalog-results.csv`; hai bộ pytest của công cụ đánh giá; OB-2 trên Grafana của stack đánh giá.
     `failed` nếu có test/kiểm tra đỏ; `error` nếu không dựng được môi trường hoặc không build được.
     """
     started = utc_now()
@@ -77,6 +77,9 @@ def run(context: RunContext, command: Command = run_command, check_dashboard=gra
     notes.append(f"Đã copy {copied} file vào {context.work_dir} (không có file bí mật)")
 
     work = context.work_dir
+    # Script verify chạy TRƯỚC: chúng build image và dựng/gỡ stack thử (thêm Grafana, TADSS, PostgreSQL); để chúng sát bước (b) thì máy còn bận gỡ stack lúc đo tải
+    failed = _run_checks(_docker_checks(env), work, results_dir, command, notes, artifacts)
+
     # SDK .NET 8 của image không đọc được TADSS.slnx (định dạng slnx cần SDK ≥ 9): restore và build theo hai project test, kéo theo mọi project src qua tham chiếu
     for label, cmd in _build_commands():
         log = results_dir / f"{label}.log"
@@ -85,7 +88,6 @@ def run(context: RunContext, command: Command = run_command, check_dashboard=gra
             notes.append(f"{label} thất bại (xem {log.name})")
             return finish(ERROR)
 
-    failed = False
     for project, trx in zip(TEST_PROJECTS, ("unit.trx", "integration.trx")):
         log = results_dir / f"{trx}.log"
         artifacts.append(str(log))
@@ -94,14 +96,7 @@ def run(context: RunContext, command: Command = run_command, check_dashboard=gra
         failed = failed or code != 0
 
     failed = _join_catalog(results_dir, notes, artifacts) or failed
-
-    expose_log = results_dir / "verify-expose.log"
-    artifacts.append(str(expose_log))
-    expose_code = command(["bash", EXPOSE_SCRIPT], work, env, expose_log)
-    notes.append(f"verify-expose.sh: {'TẤT CẢ ĐẠT' if expose_code == 0 else f'không đạt (mã {expose_code})'}")
-    failed = failed or expose_code != 0
-
-    failed = _run_extra_checks(work, env, results_dir, command, notes, artifacts) or failed
+    failed = _run_checks(_pytest_checks(env), work, results_dir, command, notes, artifacts) or failed
 
     dashboard = check_dashboard(context.endpoints.grafana)
     notes.append(f"OB-2 (eval-grafana): {'đạt' if dashboard.passed else 'không đạt'} — {dashboard.detail}")
@@ -110,14 +105,26 @@ def run(context: RunContext, command: Command = run_command, check_dashboard=gra
     return finish(FAILED if failed else PASSED)
 
 
-def _run_extra_checks(work: Path, env: dict[str, str], results_dir: Path, command: Command, notes: list[str], artifacts: list[str]) -> bool:
-    """Các kiểm tra ngoài `dotnet test`: script verify (Docker thật, tự dọn) và pytest của `tools/`. Trả True nếu có kiểm tra không đạt."""
-    pytest_env = {name: value for name, value in env.items() if not name.startswith(_RUN_ENV_PREFIXES)}
-    checks = [
+Check = tuple[str, list[str], dict[str, str], str]  # (nhãn, lệnh, môi trường, tên log)
+
+
+def _docker_checks(env: dict[str, str]) -> list[Check]:
+    """Script verify dùng Docker thật (tự dọn khi thoát)."""
+    return [
+        ("verify-expose.sh", ["bash", EXPOSE_SCRIPT], env, "verify-expose.log"),
         ("verify-observability.sh", ["bash", OBSERVABILITY_SCRIPT], {**env, **OBSERVABILITY_ENV}, "verify-observability.log"),
         ("verify-export.sh", ["bash", EXPORT_SCRIPT], env, "verify-export.log"),
-        *((f"pytest {suite}", ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", suite], pytest_env, f"pytest-{suite.split('/')[-1]}.log") for suite in PYTEST_SUITES),
     ]
+
+
+def _pytest_checks(env: dict[str, str]) -> list[Check]:
+    """Hai bộ pytest của `tools/`, không mang biến của lượt chạy."""
+    pytest_env = {name: value for name, value in env.items() if not name.startswith(_RUN_ENV_PREFIXES)}
+    return [(f"pytest {suite}", ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", suite], pytest_env, f"pytest-{suite.split('/')[-1]}.log") for suite in PYTEST_SUITES]
+
+
+def _run_checks(checks: list[Check], work: Path, results_dir: Path, command: Command, notes: list[str], artifacts: list[str]) -> bool:
+    """Chạy lần lượt, mỗi kiểm tra một dòng ghi chú; trả True nếu có kiểm tra không đạt."""
     failed = False
     for label, cmd, check_env, log_name in checks:
         log = results_dir / log_name

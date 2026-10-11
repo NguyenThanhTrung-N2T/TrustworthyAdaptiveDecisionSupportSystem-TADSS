@@ -51,6 +51,9 @@ public class MultiInstanceTests : FaultInjectionTestBase
     [Trait("CatalogId", "SCALE-1")]
     public async Task SameIdempotencyKey_50ParallelAcrossTwoHosts_SingleRecordSameResponse()
     {
+        // Ca này kiểm idempotency giữa hai host, không kiểm độ trễ (đã có LT/FI): ngân sách rộng để 50 request đồng thời trên máy đang bận
+        // (cả stack đánh giá chạy cùng lúc) không vượt OuterTimeoutMs mặc định 500 ms thành 504
+        Resilience = new ResilienceOptions { OuterTimeoutMs = 10_000, InnerTimeoutMs = 5_000, MaxRetryAttempts = 0, RetryBaseDelayMs = 30 };
         var key = NewKey();
         var body = UpcomingRequest();
         var hostA = CreateApiClient();

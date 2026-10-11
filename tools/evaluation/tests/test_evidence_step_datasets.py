@@ -14,6 +14,8 @@ from evaluator.steps import evidence_step as step
 from evidence import kpi
 from test_evidence_step import NOW, REPO, _db_row, _query_ok, _setup
 
+pytestmark = pytest.mark.usefixtures("fixed_git_info")
+
 EVIDENCE_FIXTURES = REPO / "tools" / "evidence" / "tests" / "fixtures"
 PT_DSN = "host=pt"
 FIRST_BOOKING_UUID = "10000000-0000-4000-8000-000000000001"  # booking_id đầu tiên của smashcourt_expected_export.csv

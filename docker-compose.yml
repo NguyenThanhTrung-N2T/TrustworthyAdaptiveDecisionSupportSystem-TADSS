@@ -36,7 +36,8 @@ services:
       - "127.0.0.1:4040:4040"   # trang theo dõi của ngrok
     depends_on:
       tadss-runtime:
-        condition: service_healthy
+        # Chỉ chờ khởi động, KHÔNG chờ khỏe: app vận hành lỗi cấu hình (ví dụ API key sai) thì `up` vẫn chạy tiếp lượt đánh giá (D-14); ngrok trả 502 tới khi app lên
+        condition: service_started
     networks:
       - smashcourt-network
 
@@ -59,6 +60,9 @@ services:
   # Chạy lại riêng vài bước: bash tools/evaluation/run.sh quick --steps e,f   — dọn riêng stack đánh giá: bash tools/evaluation/run.sh --clean-only
   eval-postgres:
     image: postgres:16.15-alpine
+    # 3 instance TADSS dùng chung database này, mỗi instance pool tối đa 100 kết nối (mặc định Npgsql); mặc định 100 của PostgreSQL bị chạm khi tải ập vào lúc
+    # TADSS còn nguội ("too many clients" → 503 ở LT-01/LT-02). 350 = 3 × 100 + dư cho evaluator/psql
+    command: ["postgres", "-c", "max_connections=350"]
     environment:
       POSTGRES_DB: tadss
       POSTGRES_USER: tadss

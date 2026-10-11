@@ -14,6 +14,7 @@ from evaluator.steps import evidence_step as step
 
 NOW = datetime(2026, 10, 9, 1, 0, tzinfo=timezone.utc)
 REPO = Path(__file__).resolve().parents[3]
+pytestmark = pytest.mark.usefixtures("fixed_git_info")
 
 
 def _iso(seconds: float) -> str:

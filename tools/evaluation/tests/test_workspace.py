@@ -13,11 +13,16 @@ def _build_tree(root: Path) -> None:
     (root / "src" / "App" / "appsettings.Development.json").write_text("SECRET", encoding="utf-8")
     (root / ".env").write_text("SECRET", encoding="utf-8")
     (root / ".env.production").write_text("SECRET", encoding="utf-8")
-    for build_dir in ("bin", "obj", "TestResults", "logs", "evidence", ".vs", ".git"):
+    for build_dir in ("bin", "obj", "TestResults", "logs", ".vs", ".git"):
         (root / "src" / "App" / build_dir).mkdir()
         (root / "src" / "App" / build_dir / "junk.dll").write_text("x", encoding="utf-8")
     (root / "docs").mkdir()
     (root / "docs" / "readme.md").write_text("doc", encoding="utf-8")
+    # evidence/ ở gốc là kết quả lượt chạy (loại); tools/evidence/ là mã nguồn (giữ)
+    (root / "evidence" / "EV-1").mkdir(parents=True)
+    (root / "evidence" / "EV-1" / "report.html").write_text("x", encoding="utf-8")
+    (root / "tools" / "evidence").mkdir(parents=True)
+    (root / "tools" / "evidence" / "verify-export.sh").write_text("x", encoding="utf-8")
 
 
 def test_workspace_excludes_secrets(tmp_path: Path) -> None:
@@ -27,8 +32,8 @@ def test_workspace_excludes_secrets(tmp_path: Path) -> None:
     copied = workspace.prepare_workspace(source, work)
 
     names = sorted(str(path.relative_to(work)).replace("\\", "/") for path in work.rglob("*") if path.is_file())
-    assert names == ["docs/readme.md", "src/App/Program.cs", "src/App/appsettings.json"]
-    assert copied == 3
+    assert names == ["docs/readme.md", "src/App/Program.cs", "src/App/appsettings.json", "tools/evidence/verify-export.sh"]
+    assert copied == 4
     assert workspace.find_forbidden(work) == []
 
 

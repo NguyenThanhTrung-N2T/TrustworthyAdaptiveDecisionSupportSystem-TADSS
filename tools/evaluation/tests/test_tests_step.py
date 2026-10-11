@@ -51,10 +51,10 @@ def test_step_a_runs_commands_in_order_and_fails_on_red_test(tmp_path: Path) -> 
     result = tests_step.run(_context(tmp_path), commands, _dashboard(True))
 
     verbs = [(call[0], call[1]) for call in commands.calls]
-    assert verbs == [("dotnet", "restore")] * 2 + [("dotnet", "build")] * 2 + [("dotnet", "test")] * 2 + [
+    # Script verify (build image, dựng/gỡ stack thử) chạy trước dotnet test để máy đã yên khi sang bước (b) đo tải
+    assert verbs == [
         ("bash", "tools/expose/verify-expose.sh"), ("bash", "tools/observability/verify-observability.sh"), ("bash", "tools/evidence/sql/verify-export.sh"),
-        ("python", "-m"), ("python", "-m"),
-    ]
+    ] + [("dotnet", "restore")] * 2 + [("dotnet", "build")] * 2 + [("dotnet", "test")] * 2 + [("python", "-m"), ("python", "-m")]
     assert [call[-1] for call in commands.calls if call[0] == "python"] == ["tools/evaluation", "tools/evidence"], "hai bộ pytest của công cụ đánh giá"
     assert result.status == "failed", "trx mẫu có một ca đỏ"
     assert any("UT-02" in note and "FI-03" in note for note in result.notes)
