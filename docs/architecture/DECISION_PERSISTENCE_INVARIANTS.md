@@ -11,7 +11,7 @@
 | Migration | Nội dung |
 | :--- | :--- |
 | `20260912105336_InitialCreate`, `20260915152502_UpdateUniqueIndexes`, `20260930190021_AddCreatedAtIndex` | Schema của Phase 1–4 (một bảng `decision_executions`). Giữ lại chỉ để lịch sử migration khớp với database đã áp chúng (Neon); không có mã nào dùng schema này |
-| `20261002101457_DecisionPersistenceV2` | **Xóa** bảng cũ (kể cả dữ liệu — chỉ là dữ liệu kiểm thử) rồi tạo ba bảng, hàm và trigger ở Mục B; `Down` dựng lại bảng cũ rỗng. Chưa áp lên Neon (người dùng quyết định riêng) |
+| `20261002101457_DecisionPersistenceV2` | **Xóa** bảng cũ (kể cả dữ liệu — chỉ là dữ liệu kiểm thử) rồi tạo ba bảng, hàm và trigger ở Mục B; `Down` dựng lại bảng cũ rỗng. Đã áp lên Neon 10/10/2026 (người dùng cho phép) |
 
 Thiết kế ở Mục B khắc phục các hạn chế của schema cũ: override sửa trực tiếp bản ghi máy (DB không chặn), không lưu trạng thái đích và mức cọc của override, không lưu input quyết định, không có `branch_id` cho hàng chờ.
 

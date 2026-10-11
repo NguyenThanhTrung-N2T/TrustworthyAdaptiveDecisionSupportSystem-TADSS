@@ -85,20 +85,24 @@ sequenceDiagram
     participant T as TADSS
     actor C as Khách
     M->>FE: Mở hàng chờ (chi nhánh của mình)
-    FE->>BE: GET /api/decision-approvals?branchId=...
-    BE->>T: GET /api/v2/decisions/pending-approvals?branchId=...
+    FE->>BE: GET /api/bookings/pending-approval?branchId=...
+    BE->>BE: Đọc booking PENDING_APPROVAL chưa hết hạn (DB của BE)
     M->>FE: Duyệt, cọc 30%, lý do
-    FE->>BE: POST /api/decision-approvals/{decisionId}/approve
-    BE->>T: POST /api/v2/decisions/{id}/override (X-Actor-Id = userId từ JWT)
+    FE->>BE: POST /api/bookings/{bookingId}/approve
+    BE->>BE: Kiểm quyền chi nhánh, booking còn PENDING_APPROVAL; lấy tadss_decision_id đã lưu
+    BE->>T: POST /api/v2/decisions/{decisionId}/override (deposit.rate, X-Actor-Id = userId từ JWT)
     alt 200 OK
         BE->>BE: Cập nhật booking, tạo URL thanh toán cọc
         BE-)C: SignalR/email: link thanh toán
-    else 409 ALREADY_OVERRIDDEN / APPROVAL_EXPIRED
+    else 409 ALREADY_OVERRIDDEN / NOT_PENDING_APPROVAL / APPROVAL_EXPIRED
         BE-->>FE: Thông báo xung đột / đã hết hạn
     end
 ```
 
-Endpoint phía SmashCourt-BE (`/api/decision-approvals/...`) là bản đề xuất; API contract BE ↔ FE được chốt ở task T5.22 (W08).
+- FE chỉ dùng `bookingId`; `decisionId` của TADSS chỉ BE biết (lưu trên booking/hóa đơn, Mục 4.4).
+- Hàng chờ của Manager đọc từ DB của SmashCourt (trạng thái booking là nguồn sự thật, Mục 4.3), nên có sẵn tên khách, sân, giờ chơi. `GET /api/v2/decisions/pending-approvals` (Mục 3.5) dùng để đối soát và vận hành, không gọi mỗi lần mở hàng chờ.
+- Manager nhập mức cọc dạng tỷ lệ; BE gửi `deposit.rate`, TADSS quy đổi ra số tiền (Mục 3.6).
+- Route ở trên là mẫu; đặc tả đầy đủ API BE ↔ FE (request/response, mã lỗi, sự kiện SignalR) là task T5.22, viết trong repo SmashCourt-BE.
 
 ### 2.3. Báo kết quả thực tế (outcome)
 
