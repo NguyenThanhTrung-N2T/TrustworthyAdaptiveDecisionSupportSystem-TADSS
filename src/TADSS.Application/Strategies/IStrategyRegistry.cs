@@ -1,14 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace TADSS.Application.Strategies;
 
 /// <summary>
-/// Danh bạ các strategy: strategy đang kích hoạt (<c>Tadss:Strategy:ActiveStrategyName</c>) và tra theo tên.
+/// Danh bạ các strategy đã đăng ký, tra theo tên (không phân biệt hoa thường). Việc chọn strategy cho từng request thuộc
+/// <c>IStrategyRouter</c> (<c>Tadss:Routing</c>, A-01); registry không còn giữ "strategy đang kích hoạt" (A-03).
 /// </summary>
 public interface IStrategyRegistry
 {
     /// <summary>
-    /// Strategy đang được kích hoạt theo cấu hình.
+    /// Tìm strategy theo tên, không phân biệt hoa thường; tên rỗng hoặc không có thì trả <c>false</c> (không ném).
     /// </summary>
-    RegisteredStrategy ResolveActive();
+    bool TryResolve(string strategyName, [NotNullWhen(true)] out RegisteredStrategy? strategy);
 
     /// <summary>
     /// Tìm strategy theo tên, không phân biệt hoa thường.

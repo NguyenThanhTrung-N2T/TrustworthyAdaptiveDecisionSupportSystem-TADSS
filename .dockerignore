@@ -11,4 +11,20 @@ docs/
 docker/
 *.md
 *.user
-src/TADSS.Runtime.Api/appsettings.Development.json
+
+# SEC-6: .env/khóa riêng không vào build context. appsettings.Development.json CÓ vào image (như SmashCourt-BE): image chỉ dùng local, không push registry
+.env
+.env.*
+**/appsettings.*.local.json
+**/*.pfx
+
+## Minh chứng của chế độ đánh giá (evidence/<run_id>/)
+evidence/
+
+## Python (tools/evaluation)
+__pycache__/
+.pytest_cache/
+
+## Môi trường ảo Python và CSV SmashCourt thô: không bao giờ vào build context
+.venv/
+data/private/

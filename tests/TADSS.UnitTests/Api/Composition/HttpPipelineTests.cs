@@ -16,6 +16,7 @@ using Shared.DecisionContractSDK.Common;
 using Swashbuckle.AspNetCore.Swagger;
 using TADSS.Application.Decisions;
 using TADSS.Runtime.Api.Common;
+using TADSS.Runtime.Api.Controllers;
 using TADSS.UnitTests.TestData;
 using TADSS.UnitTests.TestDoubles;
 using Xunit;
@@ -129,13 +130,18 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         apply.Should().NotThrow();
     }
 
-    /// <summary>Chỉ có đúng 5 endpoint controller v2 (đánh giá, chi tiết, hàng chờ, override, outcome) và không có route v1 nào.</summary>
+    /// <summary>
+    /// Chỉ có đúng 5 endpoint controller v2 (đánh giá, chi tiết, hàng chờ, override, outcome), cộng một route catch-all ẩn khỏi OpenAPI trả 404 <c>DECISION_NOT_FOUND</c>
+    /// cho định danh sai hình thức (CT-03), và không có route v1 nào.
+    /// </summary>
     [Fact]
     [Trait("CatalogId", "UT-09")]
     public void Routes_OnlyV2DecisionEndpointsExist()
     {
-        var actions = _factory.Services.GetRequiredService<IActionDescriptorCollectionProvider>()
-            .ActionDescriptors.Items.OfType<ControllerActionDescriptor>()
+        var allActions = _factory.Services.GetRequiredService<IActionDescriptorCollectionProvider>()
+            .ActionDescriptors.Items.OfType<ControllerActionDescriptor>().ToList();
+        var catchAll = allActions.Where(action => action.ControllerTypeInfo.AsType() == typeof(UnmatchedDecisionRoutesController)).ToList();
+        var actions = allActions.Except(catchAll)
             .Select(action => (
                 Method: action.ActionConstraints?.OfType<HttpMethodActionConstraint>().SelectMany(c => c.HttpMethods).Single(),
                 Template: action.AttributeRouteInfo?.Template))
@@ -153,6 +159,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
             (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/override"),
             (Method: (string?)"POST", Template: (string?)"api/v2/decisions/{decisionId:guid}/outcome")
         });
+        catchAll.Should().ContainSingle().Which.AttributeRouteInfo!.Template.Should().Be("api/v2/decisions/{identifier}/{**rest}");
         allRoutePatterns.Should().NotContain(pattern => pattern.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -163,7 +170,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
     {
         var document = _factory.Services.GetRequiredService<ISwaggerProvider>().GetSwagger("v2");
 
-        document.Info.Version.Should().Be("2.0.0-draft");
+        document.Info.Version.Should().Be("2.0.0");
         document.Paths.Keys.Should().BeEquivalentTo(
         [
             "/api/v2/decisions",
@@ -175,9 +182,9 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
         var post = document.Paths["/api/v2/decisions"].Operations.Should().ContainSingle().Which.Value;
         var get = document.Paths["/api/v2/decisions/{decisionId}"].Operations.Should().ContainSingle().Which.Value;
         var overrideOperation = document.Paths["/api/v2/decisions/{decisionId}/override"].Operations.Should().ContainSingle().Which.Value;
-        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "415", "500", "503", "504"]);
-        get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "500", "503"]);
-        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
+        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "413", "415", "429", "500", "503", "504"]);
+        get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "429", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "413", "415", "429", "500", "503"]);
         overrideOperation.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.ActorId).Which.Required.Should().BeTrue();
         var idempotency = post.Parameters.Should().ContainSingle(p => p.Name == HttpHeaderNames.IdempotencyKey).Which;
         idempotency.Required.Should().BeTrue();

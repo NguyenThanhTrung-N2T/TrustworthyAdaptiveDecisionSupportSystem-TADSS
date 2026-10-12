@@ -16,6 +16,21 @@ public sealed class DecisionNotFoundException : Exception
         DecisionId = decisionId;
     }
 
-    /// <summary>Định danh quyết định đã tra cứu.</summary>
+    /// <summary>
+    /// Khởi tạo lỗi cho định danh không thể là <c>decisionId</c> (không phải GUID): không có quyết định nào mang định danh đó nên cũng là 404, đúng contract.
+    /// </summary>
+    /// <param name="rawIdentifier">Giá trị client gửi trên đường dẫn; message chỉ giữ tối đa <see cref="MaxEchoedLength"/> ký tự.</param>
+    public DecisionNotFoundException(string rawIdentifier)
+        : base($"Không tìm thấy quyết định '{Truncate(rawIdentifier)}'.")
+    {
+        DecisionId = Guid.Empty;
+    }
+
+    /// <summary>Số ký tự tối đa của định danh sai hình thức được lặp lại trong message.</summary>
+    public const int MaxEchoedLength = 64;
+
+    /// <summary>Định danh quyết định đã tra cứu (<see cref="Guid.Empty"/> khi client gửi giá trị không phải GUID).</summary>
     public Guid DecisionId { get; }
+
+    private static string Truncate(string value) => value.Length <= MaxEchoedLength ? value : value[..MaxEchoedLength];
 }

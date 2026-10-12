@@ -1,0 +1,13 @@
+source_row,hotel,arrival_local,nights,room_type,total_price,is_repeated_guest,previous_cancellations,previous_bookings_not_canceled,status,deposit_rate,deposit_amount,reason_code,is_canceled,decision_id,strategy_status,contract_errors,shift_days,lead_time_minutes,deposit_type,market_segment,attempts
+2,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.3,60,TIER,0,p-02,APPROVED,,7,1000,No Deposit,Online TA,1
+3,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.3,60,TIER,1,p-03,APPROVED,,7,1000,No Deposit,Online TA,1
+4,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.3,60,TIER,1,p-04,APPROVED,,7,1000,No Deposit,Direct,1
+5,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.5,100,TIER,0,p-05,APPROVED,,7,1000,No Deposit,Direct,1
+6,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.5,100,TIER,1,p-06,APPROVED,,7,1000,Non Refund,Groups,1
+7,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,1,200,TIER,1,p-07,APPROVED,,7,1000,Non Refund,Groups,1
+8,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,1,200,TIER,0,p-08,APPROVED,,7,1000,Non Refund,Groups,1
+9,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,NEED_APPROVAL,,,TIER,1,p-09,NEED_APPROVAL,,7,1000,No Deposit,Online TA,1
+10,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,NEED_APPROVAL,,,TIER,0,p-10,NEED_APPROVAL,,7,1000,No Deposit,Online TA,1
+11,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,,,,,0,,,"STATUS: HTTP 503, kỳ vọng 200",7,1000,No Deposit,Direct,1
+12,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.3,60,TIER,0,p-12,APPROVED,,7,1000,Refundable,Corporate,1
+13,City Hotel,2016-06-14T14:00:00,2,A,200,0,0,0,APPROVED,0.5,100,TIER,0,p-13,APPROVED,,7,1000,Refundable,Corporate,1

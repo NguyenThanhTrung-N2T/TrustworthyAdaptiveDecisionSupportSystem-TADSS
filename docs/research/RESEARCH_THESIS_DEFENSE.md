@@ -1,6 +1,6 @@
 # ĐỊNH HƯỚNG KHÓA LUẬN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA) `[NGOÀI PHẠM VI ĐỒ ÁN 2]`
 
-> Tài liệu định hướng cho Khóa luận tốt nghiệp (Lớp 3 — strategy TADS và khung ATDA). Không thuộc kế hoạch 18 tuần của Đồ án 2 ([`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md)).
+> Tài liệu định hướng cho Khóa luận tốt nghiệp (Lớp 3 — strategy TADS và khung ATDA). Không thuộc kế hoạch 16 tuần của Đồ án 2 ([`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md)).
 
 - **Tên đề tài dự kiến:** Thiết kế và đánh giá kiến trúc quyết định tin cậy thích ứng cho các nền tảng đặt chỗ dịch vụ (*Design and Evaluation of an Adaptive Trust Decision Architecture for Service Reservation Platforms*).
 - **Thời lượng dự kiến:** 12 tuần sau khi bảo vệ Đồ án 2.
@@ -35,7 +35,7 @@ $$\max \mathbb{E}[Utility] = \alpha \cdot \frac{Revenue}{Rev_{max}} + \beta \cdo
 
 | Nguồn | Nội dung | Ghi chú |
 | :--- | :--- | :--- |
-| Audit TADSS từ pilot/vận hành thật (bộ D1) | Đặc trưng request, quyết định, override, outcome thật | Nhãn hành vi thật; cỡ mẫu phụ thuộc thời gian vận hành |
+| Audit TADSS từ vận hành thật (bộ D1) | Đặc trưng request, quyết định, override, outcome thật | Nhãn hành vi thật; cỡ mẫu phụ thuộc thời gian vận hành |
 | Hotel Booking Demand (Antonio, Almeida & Nunes, *Data in Brief*, 2019) | ~119 nghìn đơn đặt phòng, nhãn `is_canceled` | Proxy cho bài toán hủy; đã có adapter từ Đồ án 2 |
 | Medical Appointment No-Shows (Kaggle) | ~110 nghìn lịch hẹn, nhãn no-show | Proxy cho bài toán no-show |
 | Mô phỏng (agent-based) | Hành vi đặt/hủy của các nhóm khách | Hiệu chỉnh tham số theo các nguồn trên; dùng cho ablation |

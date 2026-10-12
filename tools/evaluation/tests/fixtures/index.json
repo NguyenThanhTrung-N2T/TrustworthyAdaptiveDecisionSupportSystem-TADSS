@@ -1,0 +1,6 @@
+{
+  "TADSS.UnitTests.Sample.Alpha": ["UT-01"],
+  "TADSS.UnitTests.Sample.Theory": ["UT-02", "FI-03"],
+  "TADSS.UnitTests.Outer+Inner.Nested": ["UT-14"],
+  "TADSS.UnitTests.Sample.Skipped": ["UT-01"]
+}

@@ -1,10 +1,14 @@
 @TADSS.Runtime.Api_HostAddress = http://localhost:5296
 @idempotencyKey = booking-0001
 @decisionId = 0f9c7e5a-0000-4000-8000-00000000d001
+@branchId = 1f2e3d4c-0000-4000-8000-000000000001
+# Khóa API thô (không phải mã băm). Đặt giá trị của bạn khi chạy; Development (appsettings.Development.json) dùng khóa công khai tadss-local-dev-key; expose qua ngrok dùng khóa riêng.
+@apiKey = <khóa-api-của-bạn>
 
 ### Đánh giá quyết định đặt sân (INTEGRATION_SPEC §3.3). Cùng X-Idempotency-Key + cùng nội dung thì trả lại response đã lưu.
 POST {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions
 Content-Type: application/json
+X-Api-Key: {{apiKey}}
 X-Idempotency-Key: {{idempotencyKey}}
 X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544
 
@@ -46,6 +50,29 @@ X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544
 ### Chi tiết quyết định (INTEGRATION_SPEC §3.4): thay decisionId bằng giá trị trả về từ lệnh POST ở trên.
 GET {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions/{{decisionId}}
 Accept: application/json
+X-Api-Key: {{apiKey}}
 X-Correlation-ID: 018e3a2b-8a71-7000-8c24-998877665544
+
+### Hàng chờ duyệt (INTEGRATION_SPEC §3.5).
+GET {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions/pending-approvals?branchId={{branchId}}&page=1&pageSize=20
+Accept: application/json
+X-Api-Key: {{apiKey}}
+
+### Manager duyệt hoặc từ chối (INTEGRATION_SPEC §3.6): cần X-Idempotency-Key và X-Actor-Id; APPROVE kèm đúng một trong deposit.rate / deposit.amount.
+POST {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions/{{decisionId}}/override
+Content-Type: application/json
+X-Api-Key: {{apiKey}}
+X-Idempotency-Key: {{decisionId}}:APPROVE
+X-Actor-Id: manager-001
+
+{ "action": "APPROVE", "deposit": { "rate": 0.3 }, "reason": "Khách quen, chi nhánh bảo lãnh" }
+
+### Báo kết quả thực tế (INTEGRATION_SPEC §3.7).
+POST {{TADSS.Runtime.Api_HostAddress}}/api/v2/decisions/{{decisionId}}/outcome
+Content-Type: application/json
+X-Api-Key: {{apiKey}}
+X-Idempotency-Key: {{decisionId}}:outcome
+
+{ "outcome": "COMPLETED", "occurredAt": "2026-11-20T20:00:00+07:00" }
 
 ###

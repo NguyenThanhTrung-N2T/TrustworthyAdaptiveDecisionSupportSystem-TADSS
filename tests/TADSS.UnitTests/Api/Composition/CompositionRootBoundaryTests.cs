@@ -24,6 +24,9 @@ public class CompositionRootBoundaryTests
         "Polly",
         "StackExchange.Redis",
         "Microsoft.EntityFrameworkCore",
+        // Telemetry (O-02): SDK OpenTelemetry và sink log OTLP chỉ được dựng ở composition root
+        "OpenTelemetry",
+        "Serilog.Sinks.OpenTelemetry",
     ];
 
     /// <summary>

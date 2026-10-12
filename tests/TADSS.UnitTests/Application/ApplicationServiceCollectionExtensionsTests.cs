@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TADSS.Application;
 using TADSS.Application.Decisions;
+using TADSS.Application.Routing;
 using TADSS.Application.Strategies;
 using TADSS.UnitTests.TestData;
 using Xunit;
@@ -22,6 +23,7 @@ public class ApplicationServiceCollectionExtensionsTests
         { typeof(IDecisionService), ServiceLifetime.Scoped },
         { typeof(IDecisionQueryService), ServiceLifetime.Scoped },
         { typeof(IStrategyRegistry), ServiceLifetime.Singleton },
+        { typeof(IStrategyRouter), ServiceLifetime.Singleton },
         { typeof(DecisionResponseComposer), ServiceLifetime.Singleton },
         { typeof(StrategyEvaluator), ServiceLifetime.Singleton },
         { typeof(ApprovalWindowPolicy), ServiceLifetime.Singleton },
@@ -36,6 +38,10 @@ public class ApplicationServiceCollectionExtensionsTests
         {
             "PeakWindowStartAfterEnd",
             ["Tadss:Calendar:PeakWindows:0:Day", "Monday", "Tadss:Calendar:PeakWindows:0:Start", "21:00", "Tadss:Calendar:PeakWindows:0:End", "17:00"]
+        },
+        {
+            "RoutingRuleWithoutCondition",
+            ["Tadss:Routing:Rules:0:Name", "catch-all", "Tadss:Routing:Rules:0:Strategy", "DefaultDecisionStrategy"]
         },
     };
 
@@ -69,7 +75,7 @@ public class ApplicationServiceCollectionExtensionsTests
         provider.GetRequiredService<TimeProvider>().Should().BeSameAs(TimeProvider.System);
     }
 
-    /// <summary>Cấu hình sai (approval window = 0, min &gt; max, lịch sai) làm host không khởi động được.</summary>
+    /// <summary>Cấu hình sai (approval window = 0, min &gt; max, lịch sai, rule định tuyến không điều kiện) làm host không khởi động được.</summary>
     [Theory]
     [Trait("CatalogId", "UT-01")]
     [MemberData(nameof(InvalidOptions))]

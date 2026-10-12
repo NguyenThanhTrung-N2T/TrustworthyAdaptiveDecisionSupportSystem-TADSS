@@ -10,7 +10,8 @@ using TADSS.Runtime.Api.Options;
 namespace TADSS.Runtime.Api.Composition;
 
 /// <summary>
-/// Đăng ký DI của tầng presentation: bảo mật (API key), exception handler, ProblemDetails, controller + JSON và Swagger.
+/// Đăng ký DI của tầng presentation: bảo mật (API key, giới hạn kích thước, header chuyển tiếp, HSTS), exception handler, ProblemDetails, controller + JSON và Swagger.
+/// Thứ tự middleware tương ứng khai báo ở <see cref="RequestPipelineExtensions.UseTadssRequestPipeline"/>.
 /// </summary>
 public static class PresentationServiceCollectionExtensions
 {
@@ -18,9 +19,9 @@ public static class PresentationServiceCollectionExtensions
     private const string ApiKeySchemeName = "ApiKey";
 
     /// <summary>
-    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc section <c>Tadss:ErrorHandling</c> từ <paramref name="configuration"/>.
+    /// Đăng ký các thành phần HTTP của Runtime.Api (không đụng tới Application/Infrastructure); chỉ đọc các section <c>Tadss:ErrorHandling</c>, <c>Tadss:Security</c> và <c>Tadss:Telemetry</c> từ <paramref name="configuration"/>.
     /// </summary>
-    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         // Cấu hình xử lý lỗi (Retry-After): sai thì ứng dụng không khởi động
         services.AddOptions<ErrorHandlingOptions>()
@@ -28,8 +29,11 @@ public static class PresentationServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<ErrorHandlingOptions>, ErrorHandlingOptionsValidator>();
 
-        // Xác thực API key (Tadss:Security)
+        // Bảo mật (Tadss:Security): API key, trần kích thước body, forwarded headers, HSTS, header Server của Kestrel
         services.AddTadssSecurity(configuration);
+
+        // Telemetry (Tadss:Telemetry): OpenTelemetry cho trace + metric; tắt mặc định (không đăng ký provider nào)
+        services.AddTadssTelemetry(configuration, environment);
 
         services.AddExceptionHandler<GlobalExceptionHandler>();
         // Các ProblemDetails do framework dựng (vd. 415 khi Content-Type không phải JSON) cũng mang traceId = correlation id đã chuẩn hóa
@@ -50,7 +54,7 @@ public static class PresentationServiceCollectionExtensions
             c.SwaggerDoc("v2", new Microsoft.OpenApi.Models.OpenApiInfo
             {
                 Title = "TADSS Decision Runtime API",
-                Version = "2.0.0-draft",
+                Version = "2.0.0",
                 Description = "Decision Runtime của TADSS cho SmashCourt: đánh giá quyết định đặt sân (POST /api/v2/decisions), tra cứu chi tiết quyết định (GET /api/v2/decisions/{decisionId}), hàng chờ duyệt (GET /api/v2/decisions/pending-approvals), Manager duyệt hoặc từ chối (POST /api/v2/decisions/{decisionId}/override) và ghi kết cục thực tế (POST /api/v2/decisions/{decisionId}/outcome). Contract v2: INTEGRATION_SPEC."
             });
 

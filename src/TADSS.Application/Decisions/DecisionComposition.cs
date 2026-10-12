@@ -1,5 +1,6 @@
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.DTOs.Decisions;
+using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
 using TADSS.Application.Strategies;
 
@@ -16,8 +17,9 @@ namespace TADSS.Application.Decisions;
 /// <param name="CacheHit">Quyết định của strategy lấy từ cache.</param>
 /// <param name="NowUtc">Thời điểm đánh giá, lấy một lần cho cả request (B-03).</param>
 /// <param name="RequestHash">Hash của request đã chuẩn hóa.</param>
-/// <param name="IdempotencyKey">Khóa idempotency của request.</param>
+/// <param name="IdempotencyKey">Khóa idempotency của request; bắt buộc với <c>PRIMARY</c>, phải là <c>null</c> với <c>SHADOW</c>.</param>
 /// <param name="CorrelationId">Mã tương quan; <c>null</c> khi không có.</param>
+/// <param name="Role">Vai trò bản ghi: <c>PRIMARY</c> (mặc định, có khóa idempotency) hoặc <c>SHADOW</c> (chạy ở nền, không khóa idempotency).</param>
 public sealed record DecisionComposition(
     Guid DecisionId,
     DecisionRequestDto Request,
@@ -27,5 +29,6 @@ public sealed record DecisionComposition(
     bool CacheHit,
     DateTimeOffset NowUtc,
     string RequestHash,
-    string IdempotencyKey,
-    string? CorrelationId);
+    string? IdempotencyKey,
+    string? CorrelationId,
+    ExecutionRole Role = ExecutionRole.PRIMARY);

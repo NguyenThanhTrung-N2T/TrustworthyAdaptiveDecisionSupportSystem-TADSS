@@ -1,19 +1,17 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using TADSS.Application.Options;
 using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Composition;
 using TADSS.UnitTests.TestData;
 using Xunit;
-using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace TADSS.UnitTests.Application.Strategies;
 
 /// <summary>
-/// UT-04 (phần resolver): <see cref="StrategyRegistry"/> tra strategy v2 theo tên không phân biệt hoa thường, phát hiện
-/// trùng tên và tên kích hoạt sai ngay lúc khởi tạo (fail-fast), và có thể dựng chỉ với một strategy (test double).
+/// UT-04 (phần resolver): <see cref="StrategyRegistry"/> tra strategy v2 theo tên không phân biệt hoa thường (<c>TryResolve</c>, <c>ResolveByName</c>),
+/// phát hiện trùng tên ngay lúc khởi tạo (fail-fast) và có thể dựng chỉ với một strategy (test double). Registry không còn chọn strategy kích hoạt:
+/// việc chọn strategy theo request thuộc <c>StrategyRouter</c> (A-03), tên lạ trong <c>Tadss:Routing</c> được kiểm ở <c>StrategyRouterTests</c>.
 /// </summary>
 public class StrategyRegistryTests
 {
@@ -23,8 +21,8 @@ public class StrategyRegistryTests
     private static RegisteredStrategy CreateMock() =>
         StrategyRegistrations.CreateMockAlternative(new ConfigurationBuilder().Build(), DomainTestData.StandardCalendar());
 
-    private static StrategyRegistry Build(string active, params RegisteredStrategy[] strategies) =>
-        new(strategies, MsOptions.Create(new StrategyOptions { ActiveStrategyName = active }), NullLogger<StrategyRegistry>.Instance);
+    private static StrategyRegistry Build(params RegisteredStrategy[] strategies) =>
+        new(strategies, NullLogger<StrategyRegistry>.Instance);
 
     [Theory]
     [Trait("CatalogId", "UT-04")]
@@ -32,22 +30,23 @@ public class StrategyRegistryTests
     [InlineData("MockAlternativeDecisionStrategy", "MockAlternativeDecisionStrategy")]
     [InlineData("defaultdecisionstrategy", "DefaultDecisionStrategy")]
     [InlineData("MOCKALTERNATIVEDECISIONSTRATEGY", "MockAlternativeDecisionStrategy")]
-    public void ResolveActive_Configured_ReturnsThatStrategy_Theory(string configured, string expectedName)
+    public void TryResolve_KnownNameAnyCase_ReturnsThatStrategy_Theory(string configured, string expectedName)
     {
-        var registry = Build(configured, CreateDefault(), CreateMock());
+        var registry = Build(CreateDefault(), CreateMock());
 
-        var active = registry.ResolveActive();
+        registry.TryResolve(configured, out var resolved).Should().BeTrue();
 
-        active.Strategy.StrategyName.Should().Be(expectedName);
-        active.Strategy.StrategyVersion.Should().Be("2.0.0");
-        active.OptionsFingerprint.Should().MatchRegex("^[0-9a-f]{16}$");
+        var strategy = ContractSamples.Required(resolved);
+        strategy.Strategy.StrategyName.Should().Be(expectedName);
+        strategy.Strategy.StrategyVersion.Should().Be("2.0.0");
+        strategy.OptionsFingerprint.Should().MatchRegex("^[0-9a-f]{16}$");
     }
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
     public void Constructor_DuplicateName_Throws()
     {
-        var act = () => Build("DefaultDecisionStrategy", CreateDefault(), CreateDefault());
+        var act = () => Build(CreateDefault(), CreateDefault());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*DefaultDecisionStrategy*");
     }
@@ -57,21 +56,19 @@ public class StrategyRegistryTests
     [InlineData("Foo")]
     [InlineData("")]
     [InlineData("   ")]
-    public void Constructor_UnknownActive_ThrowsListingAvailable_Theory(string active)
+    public void TryResolve_UnknownOrBlankName_ReturnsFalse_Theory(string name)
     {
-        var act = () => Build(active, CreateDefault(), CreateMock());
+        var registry = Build(CreateDefault(), CreateMock());
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*DefaultDecisionStrategy*")
-            .WithMessage("*MockAlternativeDecisionStrategy*")
-            .WithMessage("*Tadss:Strategy*");
+        registry.TryResolve(name, out var resolved).Should().BeFalse();
+        resolved.Should().BeNull();
     }
 
     [Fact]
     [Trait("CatalogId", "UT-04")]
     public void ResolveByName_Unknown_ThrowsKeyNotFound()
     {
-        var registry = Build("DefaultDecisionStrategy", CreateDefault(), CreateMock());
+        var registry = Build(CreateDefault(), CreateMock());
 
         var act = () => registry.ResolveByName("Foo");
 
@@ -84,7 +81,7 @@ public class StrategyRegistryTests
     [InlineData("mockalternativedecisionstrategy")]
     public void ResolveByName_KnownNameAnyCase_ReturnsThatStrategy_Theory(string name)
     {
-        var registry = Build("DefaultDecisionStrategy", CreateDefault(), CreateMock());
+        var registry = Build(CreateDefault(), CreateMock());
 
         registry.ResolveByName(name).Strategy.StrategyName.Should().Be("MockAlternativeDecisionStrategy");
     }
@@ -93,7 +90,7 @@ public class StrategyRegistryTests
     [Trait("CatalogId", "UT-04")]
     public void All_ListsEveryRegisteredStrategy()
     {
-        var registry = Build("DefaultDecisionStrategy", CreateDefault(), CreateMock());
+        var registry = Build(CreateDefault(), CreateMock());
 
         registry.All.Select(registered => registered.Strategy.StrategyName)
             .Should().BeEquivalentTo("DefaultDecisionStrategy", "MockAlternativeDecisionStrategy");
@@ -103,7 +100,7 @@ public class StrategyRegistryTests
     [Trait("CatalogId", "UT-04")]
     public void All_RegisteredInReverseAlphabeticalOrder_PreservesRegistrationOrder()
     {
-        var registry = Build("DefaultDecisionStrategy", CreateMock(), CreateDefault());
+        var registry = Build(CreateMock(), CreateDefault());
 
         registry.All.Select(registered => registered.Strategy.StrategyName)
             .Should().Equal("MockAlternativeDecisionStrategy", "DefaultDecisionStrategy");
@@ -113,9 +110,9 @@ public class StrategyRegistryTests
     [Trait("CatalogId", "UT-04")]
     public void Constructor_SingleStrategy_IsAccepted()
     {
-        var registry = Build("DefaultDecisionStrategy", CreateDefault());
+        var registry = Build(CreateDefault());
 
         registry.All.Should().ContainSingle();
-        registry.ResolveActive().Strategy.StrategyName.Should().Be("DefaultDecisionStrategy");
+        registry.ResolveByName("DefaultDecisionStrategy").Strategy.StrategyName.Should().Be("DefaultDecisionStrategy");
     }
 }

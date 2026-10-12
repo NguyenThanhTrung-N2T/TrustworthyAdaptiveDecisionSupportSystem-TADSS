@@ -86,7 +86,7 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
             (OutcomePath, OperationType.Post)
         });
         document.Servers.Should().BeNullOrEmpty("tài liệu phải xác định, không chứa URL máy chủ riêng của môi trường sinh");
-        document.Info.Version.Should().Be("2.0.0-draft");
+        document.Info.Version.Should().Be("2.0.0");
         document.Paths.Keys.Should().NotContain(path => path.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -138,11 +138,11 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
         pageSize.Schema.Maximum.Should().Be(100);
         pending.Parameters.Should().ContainSingle(p => p.Name == "page").Which.Schema.Minimum.Should().Be(1);
 
-        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "415", "500", "503", "504"]);
-        get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "500", "503"]);
-        pending.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "500", "503"]);
-        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
-        outcome.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "415", "500", "503"]);
+        post.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "409", "413", "415", "429", "500", "503", "504"]);
+        get.Responses.Keys.Should().BeEquivalentTo(["200", "401", "404", "429", "500", "503"]);
+        pending.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "429", "500", "503"]);
+        overrideOperation.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "413", "415", "429", "500", "503"]);
+        outcome.Responses.Keys.Should().BeEquivalentTo(["200", "400", "401", "404", "409", "413", "415", "429", "500", "503"]);
         foreach (var (status, response) in all.SelectMany(operation => operation.Responses).Where(r => r.Key != "200"))
         {
             response.Content.Keys.Should().Contain(ProblemMediaType, $"phản hồi {status} phải là problem+json");

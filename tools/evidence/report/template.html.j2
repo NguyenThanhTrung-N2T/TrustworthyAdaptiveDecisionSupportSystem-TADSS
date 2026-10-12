@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Báo cáo đánh giá TADSS — {{ manifest.runId }}</title>
+<style>
+  body { font: 14px/1.5 system-ui, "Segoe UI", sans-serif; color: #24292f; max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 30px; border-bottom: 1px solid #d0d7de; padding-bottom: 4px; } h3 { font-size: 14px; margin-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; } th, td { border: 1px solid #d0d7de; padding: 4px 8px; text-align: left; vertical-align: top; } th { background: #f6f8fa; }
+  .PASS, .pass { color: #1a7f37; font-weight: 600; } .FAIL, .fail { color: #d1242f; font-weight: 600; } .NOT_APPLICABLE, .INSUFFICIENT_DATA, .muted { color: #6e7781; }
+  .banner { background: #ffebe9; border: 1px solid #d1242f; padding: 8px 12px; border-radius: 6px; margin: 12px 0; }
+  .chart { width: 100%; height: auto; max-width: 760px; background: #fff; border: 1px solid #d0d7de; } .legends { margin: 2px 0 12px; font-size: 12px; }
+  .legend { margin-right: 14px; } .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: middle; }
+  code { background: #f6f8fa; padding: 0 3px; border-radius: 3px; } small { color: #6e7781; }
+</style>
+</head>
+<body>
+<h1>Báo cáo đánh giá TADSS</h1>
+{% if not usable %}
+<div class="banner"><strong>Lượt chạy này không dùng làm minh chứng:</strong> có kiểm tra toàn vẹn Evidence Pack (EV-1…EV-5) không đạt — xem mục cuối.</div>
+{% endif %}
+<table>
+  <tr><th>run_id</th><td><code>{{ manifest.runId }}</code></td><th>Chế độ</th><td>{{ manifest.mode }}</td></tr>
+  <tr><th>Thời điểm (UTC)</th><td>{{ manifest.createdAtUtc }}</td><th>Môi trường</th><td>{{ manifest.environment }}</td></tr>
+  <tr><th>Commit TADSS</th><td><code>{{ manifest.commits.tadss or "-" }}</code>{% if manifest.dirty %} <span class="fail">(cây làm việc có thay đổi chưa commit)</span>{% endif %}</td>
+      <th>Commit BE / FE</th><td>{% if manifest.commits.smashcourtBe is none %}<span class="muted">không có — {{ (manifest.commitNotes or {}).smashcourtBe }}</span>{% else %}{{ manifest.commits.smashcourtBe }}{% endif %}</td></tr>
+  <tr><th>Máy</th><td colspan="3">{% for key, value in (manifest.machine or {}).items() %}{% if value is not mapping and value is not sequence or value is string %}{{ key }}: {{ value }}{% if not loop.last %}; {% endif %}{% endif %}{% endfor %}</td></tr>
+</table>
+
+<h2>1. Kết luận KPI (SC1…SC8)</h2>
+<table>
+  <tr><th>KPI</th><th>Kết luận</th><th>Giá trị</th><th>Lý do / căn cứ</th></tr>
+  {% for item in kpis %}
+  <tr><td>{{ item.code }}</td><td class="{{ item.verdict }}">{{ item.verdict }}</td><td>{{ item.value }}</td><td>{{ item.reason }}{% if item.sources %}<br><small>{{ item.sources | join(", ") }}</small>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+<p><small>SC1: bucket đếm "≤ 150 ms" còn KPI viết "&lt; 150 ms"; phép kiểm "&lt; 150" chính xác là p95 phía client của k6 (đo từng request).</small></p>
+
+<h2>2. Các bước của evaluator</h2>
+<table>
+  <tr><th>Bước</th><th>Trạng thái</th><th>Thời gian (s)</th></tr>
+  {% for step in manifest.steps or [] %}
+  <tr><td>{{ step.name }}</td><td class="{{ 'pass' if step.status == 'passed' else ('fail' if step.status in ('failed', 'error') else 'muted') }}">{{ step.status }}</td><td>{{ step.duration_seconds }}</td></tr>
+  {% else %}
+  <tr><td colspan="3" class="muted">Không có dữ liệu: lượt chạy không ghi kết quả bước.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>3. Độ phủ danh mục kiểm thử</h2>
+<table>
+  <tr><th>Nhóm mã</th><th>Có test đạt</th><th>Có test đỏ</th><th>Chưa có test</th><th>Tổng</th></tr>
+  {% for group in groups %}
+  <tr><td>{{ group.group }}</td><td>{{ group.passed }}</td><td class="{{ 'fail' if group.failed else '' }}">{{ group.failed }}</td><td>{{ group.untested }}</td><td>{{ group.total }}</td></tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Không có dữ liệu: chưa đọc được danh mục hoặc bước a chưa chạy.</td></tr>
+  {% endfor %}
+</table>
+{% if coverage.failed %}<p class="fail">Mã có ca đỏ: {{ coverage.failed | join(", ") }}</p>{% endif %}
+{% if coverage.untested %}
+<details><summary>Mã chưa có test và lý do ({{ coverage.untested | length }})</summary>
+<table><tr><th>Mã</th><th>Lý do</th></tr>
+{% for code, reason in coverage.untested.items() %}<tr><td>{{ code }}</td><td>{{ reason }}</td></tr>{% endfor %}
+</table></details>
+{% endif %}
+
+<h2>4. Kiểm thử tải (LT-01, LT-02, LT-05)</h2>
+{% for run in load %}
+<h3>{{ run.name }}</h3>
+<table>
+  <tr><th>Số mẫu</th><th>p50 (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th><th>max (ms)</th><th>Tỉ lệ lỗi</th></tr>
+  <tr><td>{{ run.stats.samples }}</td><td>{{ run.stats.p50 | ms }}</td><td>{{ run.stats.p95 | ms }}</td><td>{{ run.stats.p99 | ms }}</td><td>{{ run.stats.max | ms }}</td><td>{{ run.stats.error_rate | pct }}</td></tr>
+</table>
+{% if run.chart %}{{ run.chart | safe }}{{ run.rps_chart | safe }}{% else %}<p class="muted">Không có dữ liệu thời gian: requests.jsonl rỗng.</p>{% endif %}
+{% if run.breakpoint %}
+<table>
+  <tr><th>Bậc (RPS)</th><th>Số mẫu</th><th>p95 (ms)</th><th>Tỉ lệ lỗi</th><th>Đạt (p95 &lt; 150 ms, lỗi &lt; 1 %)</th></tr>
+  {% for step in run.breakpoint.steps %}
+  <tr><td>{{ step.rate }}</td><td>{{ step.samples }}</td><td>{{ step.p95 | ms }}</td><td>{{ step.error_rate | pct }}</td><td class="{{ 'pass' if step.good else 'fail' }}">{{ 'đạt' if step.good else 'không' }}</td></tr>
+  {% endfor %}
+</table>
+<p><strong>Điểm gãy:</strong> {% if run.breakpoint.last_good_rate is none %}ngay từ bậc đầu tiên{% else %}RPS lớn nhất đạt liên tiếp từ đầu: {{ run.breakpoint.last_good_rate }}{% endif %}{% if not run.breakpoint.broke %} (không gãy ở bậc cao nhất đã thử){% endif %}.</p>
+{% endif %}
+{% else %}
+<p class="muted">Không có dữ liệu: bước b chưa chạy.</p>
+{% endfor %}
+
+<h2>5. Sự cố dưới tải (LT-03)</h2>
+{% if incident.rows %}
+<table>
+  <tr><th>Lỗi</th><th>Cách tiêm</th><th>Bắt đầu → kết thúc (UTC)</th><th>Kết quả</th><th>Vi phạm bất biến</th></tr>
+  {% for row in incident.rows %}
+  <tr><td>{{ row.fi_id }}</td><td>{{ row.toxic }}</td><td>{{ row.started_at_utc }}<br>{{ row.ended_at_utc }}</td><td class="{{ 'pass' if row.passed == 'True' else 'fail' }}">{{ 'đạt' if row.passed == 'True' else 'không đạt' }}</td><td>{{ row.invariant_violations }}</td></tr>
+  <tr><td colspan="5"><small><strong>Kỳ vọng:</strong> {{ row.expected }}<br><strong>Quan sát:</strong> {{ row.observed }}</small></td></tr>
+  {% endfor %}
+</table>
+{% for chart in incident.charts %}<h3>{{ chart.title }}</h3>{% if chart.svg %}{{ chart.svg | safe }}{% else %}<p class="muted">Không có dữ liệu metric cho biểu đồ này.</p>{% endif %}{% endfor %}
+<p><small>Vùng tô màu là khoảng thời gian mỗi lỗi được bật (theo chaos_log); đường lấy từ metric Prometheus đã thu (raw/metrics/lt03-*.json) và từ k6.</small></p>
+{% else %}
+<p class="muted">Không có dữ liệu: {{ incident.reason or "bước c chưa chạy" }}.</p>
+{% endif %}
+
+<h2>6. SCALE-2 (hai instance sau reverse proxy)</h2>
+{% if scale2 %}
+<table><tr><th>Điều kiện</th><th>Kết quả</th><th>Chi tiết</th></tr>
+{% for name, check in scale2.checks.items() %}<tr><td>{{ name }}</td><td class="{{ 'pass' if check.passed else 'fail' }}">{{ 'đạt' if check.passed else 'không đạt' }}</td><td>{{ check.detail }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="muted">Không có dữ liệu: bước c chưa chạy SCALE-2.</p>{% endif %}
+
+<h2>7. Hợp đồng API (CT-03, Schemathesis)</h2>
+{% if contract %}
+<p>{{ contract.generated_cases }} ca sinh ra ({{ contract.examples_per_operation }} ví dụ/operation, seed {{ contract.seed }}) —
+  <span class="{{ 'pass' if contract.passed else 'fail' }}">{{ 'đạt' if contract.passed else 'không đạt' }}</span>; lỗi chặn: {{ contract.blocking or "không" }}; cảnh báo: {{ contract.warnings or "không" }}.</p>
+<table><tr><th>Operation</th><th>Lỗi</th></tr>
+{% for name, item in contract.operations.items() %}<tr><td>{{ name }}</td><td>{{ item.checks or "không" }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="muted">Không có dữ liệu: bước d chưa chạy.</p>{% endif %}
+
+<h2>8. Mutation testing và coverage</h2>
+{% if mutation %}
+<table><tr><th>MT</th><th>Điểm</th><th>Ngưỡng</th><th>Bị giết</th><th>Sống/không phủ</th></tr>
+{% for code, result in mutation.results.items() %}<tr><td>{{ code }}</td><td class="{{ 'pass' if result.passed else 'fail' }}">{{ result.score | ms }} %</td><td>{{ result.threshold }} %</td><td>{{ result.killed }}</td><td>{{ result.survived }}</td></tr>{% endfor %}
+</table>
+<p><small>Công thức: {{ mutation.formula }}.</small></p>
+{% else %}<p class="muted">Không có dữ liệu: Stryker không chạy ở lượt này (bản nhanh bỏ Stryker).</p>{% endif %}
+{% if coverage_rates %}<p>Coverage gộp (unit + integration): dòng {{ coverage_rates.line }} %, nhánh {{ coverage_rates.branch }} %. HTML đầy đủ ở <code>raw/coverage/index.html</code>.</p>
+{% else %}<p class="muted">Không có dữ liệu coverage: cần chạy cùng bước a (EVAL_STEPS=a,d).</p>{% endif %}
+
+<h2>9. Dữ liệu thực tế (RP-01, RP-02, PT-01, PT-02)</h2>
+{% set rp = datasets.rp %}
+<h3>RP-01 — Replay booking SmashCourt qua TADSS</h3>
+{% if rp.available %}
+{% set rs = rp.summary or {} %}
+<p>{{ rp.bookings }} booking đã ẩn danh, dời thời gian k × 7 ngày và gửi qua <code>eval-proxy</code>; {{ rs.sent if rs.sent is defined else "-" }} request đã gửi, {{ rs.contract_error_requests if rs.contract_error_requests is defined else "-" }} lỗi contract, {{ rs.retries if rs.retries is defined else "-" }} lần thử lại;
+  booking bị loại trước khi gửi: {{ (rs.rejected or {}) | dictsort | map("join", ": ") | join(", ") or "không" }}; gắn cờ <code>window_bias</code> (lead time gốc ≤ 120 phút): {{ rs.window_bias_count if rs.window_bias_count is defined else "-" }}.</p>
+<table>
+  <tr><th>Kênh</th>{% for status in rp.status_order %}<th>{{ status }}</th>{% endfor %}<th>Tổng</th></tr>
+  {% for row in rp.channels %}
+  <tr><td>{{ row.channel }}</td>{% for count in row.cells %}<td>{{ count }}</td>{% endfor %}<td>{{ row.total }}</td></tr>
+  {% endfor %}
+</table>
+<p><small>Phân bố trạng thái quyết định của <code>TADSS_V2</code> theo kênh (NO_RESULT: không có response 200).</small></p>
+<table>
+  <tr><th rowspan="2">Nhóm</th><th colspan="3">ONLINE (phạm vi tích hợp thật)</th><th colspan="3">Toàn tập</th></tr>
+  <tr><th>Booking</th><th>Cọc TB</th><th>NEED_APPROVAL</th><th>Booking</th><th>Cọc TB</th><th>NEED_APPROVAL</th></tr>
+  <tr><th colspan="7">Theo hạng khách (hạng tại thời điểm xuất dữ liệu)</th></tr>
+  {% for row in rp.tiers %}<tr><td>{{ row.label }}</td>{% for cell in row.online %}<td>{{ cell }}</td>{% endfor %}{% for cell in row.all %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+  <tr><th colspan="7">Theo khung giờ (PEAK: nằm trong <code>Tadss:Calendar:PeakWindows</code>; OFFPEAK: ngoài khung)</th></tr>
+  {% for row in rp.windows %}<tr><td>{{ row.label }}</td>{% for cell in row.online %}<td>{{ cell }}</td>{% endfor %}{% for cell in row.all %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<p><small>Cọc TB = tỷ lệ cọc trung bình trên các booking có cọc (APPROVED) của <code>TADSS_V2</code>, kết quả runtime. Lịch cao điểm đọc từ appsettings của runtime (một nguồn duy nhất).</small></p>
+
+<h3>RP-02 — Cọc 100 % tĩnh so với chính sách v2 trên cùng tập booking</h3>
+{% for scope in rp.compare %}
+<table>
+  <tr><th colspan="{{ rp.policy_labels | length + 1 }}">Phạm vi {{ scope.scope }}: {{ scope.bookings }} booking; gắn cờ window_bias: {{ scope.bias }}; số booking đổi kết quả sau hiệu chỉnh: {{ scope.changes }}</th></tr>
+  <tr><th>Chỉ số</th>{% for label in rp.policy_labels %}<th>{{ label }}</th>{% endfor %}</tr>
+  {% for row in scope.rows %}<tr><td>{{ row.label }}</td>{% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+{% endfor %}
+<p><small>Phạm vi ONLINE là số liệu chính (đúng phạm vi BE sẽ gọi TADSS, INTEGRATION_SPEC §4.2), toàn tập kèm theo. Kết quả hiệu chỉnh áp lại quy tắc approval window (INTEGRATION_SPEC §1.1) bằng lead time gốc lên <code>strategy_status</code> của D1;
+  nhãn NO_SHOW/CANCELLED của môi trường phát triển nên chỉ mang tính mô tả.</small></p>
+{% if rp.chart %}{{ rp.chart | safe }}{% else %}<p class="muted">Không có dữ liệu cho biểu đồ so sánh.</p>{% endif %}
+{% else %}
+<p class="muted">Không có dữ liệu: {{ rp.reason }}.</p>
+<h3>RP-02 — Cọc 100 % tĩnh so với chính sách v2 trên cùng tập booking</h3>
+<p class="muted">Không có dữ liệu: {{ rp.reason }}.</p>
+{% endif %}
+
+{% set pt = datasets.pt %}
+<h3>PT-01 — Tính di động sang miền khách sạn (Hotel Booking Demand)</h3>
+{% if pt.info %}
+<table>
+  {% for label, value in pt.info %}<tr><th>{{ label }}</th><td>{{ value }}</td></tr>{% endfor %}
+</table>
+{% else %}
+<p class="muted">Không có dữ liệu: {{ pt.reason }}.</p>
+{% endif %}
+
+<h3>PT-02 — Phân bố quyết định và đối chiếu với nhãn <code>is_canceled</code></h3>
+{% if pt.analysis %}
+{% set analysis = pt.analysis %}
+<p>{{ analysis.records }} bản ghi; tỷ lệ cọc trung bình trên booking có cọc: {{ analysis.mean_rate | rate }}; tỷ lệ <code>is_canceled</code> chung: {{ analysis.cancel_rate_overall | pct }}. Đây là chỉ số mô tả, không kết luận nhân quả.</p>
+<table>
+  <tr><th>Quyết định TADSS</th><th>Số bản ghi</th><th>is_canceled = 1</th><th>is_canceled = 0</th><th>Tỷ lệ hủy</th></tr>
+  {% for row in analysis.status_by_canceled %}<tr><td>{{ row.status }}</td><td>{{ row.total }}</td><td>{{ row.canceled }}</td><td>{{ row.not_canceled }}</td><td>{{ row.cancel_rate | pct }}</td></tr>{% endfor %}
+</table>
+{% set cross = analysis.rate_by_deposit_type %}
+<table>
+  <tr><th>Mức cọc TADSS \ deposit_type gốc</th>{% for column in cross.columns %}<th>{{ column }}</th>{% endfor %}</tr>
+  {% for label in cross.rows %}<tr><td>{{ label }}</td>{% for column in cross.columns %}<td>{{ cross.counts[label][column] }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+{% if pt.chart %}{{ pt.chart | safe }}{% endif %}
+<p><small>Biểu đồ: tỷ lệ <code>is_canceled</code> theo nhóm mức cọc TADSS. <code>deposit_type</code> của khách sạn là chính sách của khách sạn, không phải đầu vào của TADSS; hai bên chỉ được đặt cạnh nhau để mô tả.</small></p>
+{% else %}
+<p class="muted">Không có dữ liệu: {{ pt.analysis_reason }}.</p>
+{% endif %}
+
+<h2>10. Toàn vẹn Evidence Pack (EV-1…EV-5)</h2>
+<table><tr><th>Mã</th><th>Kết quả</th><th>Chi tiết</th></tr>
+{% for check in checks %}<tr><td>{{ check.code }}</td><td class="{{ 'pass' if check.passed else 'fail' }}">{{ 'đạt' if check.passed else 'không đạt' }}</td><td>{{ check.detail }}</td></tr>{% endfor %}
+</table>
+
+<h2>11. Giới hạn của lượt đánh giá</h2>
+<ul>{% for item in limitations %}<li>{{ item }}</li>{% endfor %}</ul>
+</body>
+</html>

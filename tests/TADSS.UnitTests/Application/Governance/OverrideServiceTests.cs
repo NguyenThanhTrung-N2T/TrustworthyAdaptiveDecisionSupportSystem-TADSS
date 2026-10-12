@@ -5,6 +5,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.DTOs.Governance;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Governance;
@@ -34,12 +35,18 @@ public class OverrideServiceTests
         public Fixture(DateTimeOffset? now = null)
         {
             Time = new FakeTimeProvider(now ?? Now);
-            Service = new OverrideService(Store, Store, new DepositCalculator(), Time, Logger);
+            Metrics = new TadssMetrics();
+            Recorder = new MetricRecorder(Metrics.Meter);
+            Service = new OverrideService(Store, Store, new DepositCalculator(), Metrics, Time, Logger);
         }
 
         public FakeDecisionAuditStore Store { get; } = new();
 
         public FakeTimeProvider Time { get; }
+
+        public TadssMetrics Metrics { get; }
+
+        public MetricRecorder Recorder { get; }
 
         public CapturingLogger<OverrideService> Logger { get; } = new();
 
@@ -372,6 +379,80 @@ public class OverrideServiceTests
         }
 
         fixture.Store.OverrideInsertCount.Should().Be(0, "mọi nhánh trên đều dừng trước khi insert");
+    }
+
+    /// <summary>
+    /// Replay (F-03) trên nhánh <c>amount</c> và nhánh <c>REJECT</c>: gửi lại cùng key + cùng nội dung trả đúng bản đã lưu (không ghi thêm, không đóng dấu lại);
+    /// cùng key nhưng amount khác hoặc action khác → <see cref="IdempotencyConflictException"/>.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-15")]
+    [InlineData("Amount", false)]
+    [InlineData("Amount", true)]
+    [InlineData("Reject", false)]
+    [InlineData("Reject", true)]
+    public async Task Override_ReplayOnAmountAndRejectPaths_ReturnsStoredOrConflicts_Theory(string path, bool changePayload)
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+        var original = path == "Amount" ? ApproveAmount(50_000m) : Reject();
+        var first = await fixture.OverrideAsync(original);
+        fixture.Time.Advance(TimeSpan.FromMinutes(1));
+        var retry = (path, changePayload) switch
+        {
+            ("Amount", true) => ApproveAmount(60_000m),
+            ("Reject", true) => ApproveRate(0.3m),
+            _ => original,
+        };
+
+        var act = () => fixture.OverrideAsync(retry);
+
+        if (changePayload)
+        {
+            (await act.Should().ThrowAsync<IdempotencyConflictException>()).Which.IdempotencyKey.Should().Be(Key);
+        }
+        else
+        {
+            var replay = await act();
+            replay.Should().BeEquivalentTo(first, "replay trả đúng bản đã lưu");
+            replay.OverriddenAt.Should().Be(Now, "không đóng dấu lại thời điểm");
+        }
+
+        fixture.Store.OverrideInsertCount.Should().Be(1, "chỉ lần đầu ghi");
+    }
+
+    /// <summary>Override mới tăng <c>tadss.overrides</c> đúng một lần theo <c>action</c>; gửi lại cùng key + payload (replay) không tăng thêm.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-15")]
+    public async Task Override_NewOverride_RecordsOnce_ReplayDoesNot()
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+
+        await fixture.OverrideAsync(ApproveRate(0.3m));
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(1);
+        fixture.Recorder.Sum(TadssMetricNames.Overrides, (TadssMetricNames.LabelAction, nameof(OverrideAction.APPROVE))).Should().Be(1);
+
+        await fixture.OverrideAsync(ApproveRate(0.3m));
+
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(1, "replay không phải override mới");
+    }
+
+    /// <summary>Override bị từ chối (xung đột key, thua tranh chấp, đơn không còn chờ duyệt) không tăng <c>tadss.overrides</c>.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-15")]
+    public async Task Override_RejectedOrLostRace_RecordsNothing()
+    {
+        var fixture = new Fixture();
+        fixture.Store.Seed(GovernanceTestData.Execution(DecisionId));
+        fixture.Store.SimulateLostOverrideRace(ExistingApprove(key: "winner-key"));
+
+        var act = () => fixture.OverrideAsync(ApproveRate(0.3m));
+
+        await act.Should().ThrowAsync<DecisionStateConflictException>();
+        fixture.Recorder.Sum(TadssMetricNames.Overrides).Should().Be(0);
     }
 
     /// <summary>Thua tranh chấp <c>UNIQUE(decision_id)</c>: cùng key + payload → 200 với bản thắng; khác key → <c>ALREADY_OVERRIDDEN</c>.</summary>

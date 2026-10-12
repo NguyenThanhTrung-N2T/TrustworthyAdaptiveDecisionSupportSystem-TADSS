@@ -27,13 +27,17 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # 3. Khôi phục dependencies
-      - name: Restore Dependencies
-        run: dotnet restore
+      # 3. Khôi phục dependencies ở chế độ locked-mode: packages.lock.json lệch đồ thị phụ thuộc thì job đỏ (SEC-7)
+      - name: Restore Dependencies (locked mode)
+        run: dotnet restore --locked-mode
+
+      # 3b. Quét package có lỗ hổng (kể cả bắc cầu); mức High/Critical hoặc lỗi quét thì job đỏ (SEC-7)
+      - name: Check Vulnerable Packages
+        run: bash tools/ci/check-vulnerable-packages.sh
 
       # 4. Build toàn bộ Solution (Release mode)
       - name: Build Solution
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release --warnaserror
 
       # 5a. Unit test (không cần Docker)
       - name: Run Unit Tests
@@ -87,4 +91,95 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
           tags: tadss-runtime:ci-test
+
+      # 9. SEC-6: image phải chạy bằng user non-root (Config.User không rỗng, không phải root/0)
+      - name: Verify Container Runs As Non-Root
+        run: |
+          user="$(docker inspect --format '{{.Config.User}}' tadss-runtime:ci-test)"
+          echo "Config.User = '${user}'"
+          if [ -z "${user}" ] || [ "${user}" = "root" ] || [ "${user}" = "0" ] || [[ "${user}" == 0:* ]] || [[ "${user}" == root:* ]]; then
+            echo "Image chạy bằng root (Config.User='${user}')" >&2
+            exit 1
+          fi
+
+  # T5.30 (NG-1, NG-2, NG-3, NG-5, SEC-6): dựng docker-compose.yml thật với khóa ngẫu nhiên + PostgreSQL/Redis tạm, không mở tunnel ngrok và không dùng database ngoài
+  expose-check:
+    name: Verify Expose Configuration (docker-compose.yml)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Expose Configuration
+        run: bash tools/expose/verify-expose.sh
+
+  # OB-2, OB-4 (O-23): dựng tadss-runtime + Grafana (otel-lgtm) thật với PostgreSQL/Redis tạm: dashboard TADSS được nạp và metric của TADSS tới Prometheus; không ngrok, không database ngoài
+  observability-check:
+    name: Verify Observability (dashboard + metrics)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Observability
+        run: bash tools/observability/verify-observability.sh
+
+  # Công cụ của chế độ đánh giá (D-12): pytest của evaluator (và evidence khi có) và dựng thử image evaluator (không chạy). Test payload k6 cần binary k6.
+  evaluation-tools:
+    name: Evaluation Tools (pytest + evaluator image)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: "2.3.0"
+
+      - name: Install Python Dependencies
+        run: pip install -r tools/evaluation/requirements.txt -r tools/evidence/requirements.txt
+
+      - name: Run Evaluator Tests
+        run: |
+          python -m pytest -q tools/evaluation
+          python -m pytest -q tools/evidence
+
+      - name: Build Evaluator Image (not run)
+        run: docker build -f docker/evaluator/Dockerfile -t tadss-evaluator:ci .
+
+  # DOC-1…DOC-3 (gói 5.7): bảng kiểm kê tài liệu, thuật ngữ đã gỡ trong tài liệu hiện hành, link nội bộ và anchor; chỉ dùng thư viện chuẩn của Python. DOC-4 là unit test .NET (job build-and-test).
+  docs:
+    name: Docs (DOC-1…DOC-3)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Check Documentation
+        run: python tools/docs/check_docs.py
+
+      - name: Run Docs Tool Tests
+        run: python -m pytest -q tools/docs

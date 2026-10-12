@@ -1,0 +1,14 @@
+# Build context của image evaluator chỉ gồm mã Python của evaluator và bộ dựng Evidence Pack (O-14), không gồm tests/fixtures: không mã nguồn dự án, không file bí mật.
+*
+!tools/evaluation/requirements.txt
+!tools/evaluation/evaluator/**
+!tools/evidence/requirements.txt
+!tools/evidence/*.py
+!tools/evidence/report/*.py
+!tools/evidence/report/*.j2
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/appsettings.Development.json
+evidence/

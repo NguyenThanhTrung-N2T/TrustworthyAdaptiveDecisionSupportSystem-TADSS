@@ -1,0 +1,5 @@
+# Phụ thuộc Python của evaluator và công cụ đánh giá (ghim phiên bản; cài trong image evaluator và job CI evaluation-tools).
+pytest==9.1.1
+jsonschema==4.26.0
+psycopg[binary]==3.2.13  # truy vấn chỉ đọc vào audit của stack đánh giá (bước c, e)
+schemathesis==4.29.3  # CT-03 (bước d)

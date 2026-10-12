@@ -179,6 +179,8 @@ public class SchemaConstraintTests : IntegrationTestBase
         var decisionId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 10, 2, 8, 30, 15, 123, TimeSpan.Zero);
         var expiresAt = createdAt.AddHours(2);
+        // NEED_APPROVAL + FALLBACK chỉ còn ở dữ liệu ghi trước D-13 (fallback hiện là APPROVED cọc 100%); schema không ràng buộc
+        // hai cột này với nhau nên tổ hợp vẫn hợp lệ và được dùng để mọi cột nullable đều có giá trị khi đọc lại
         var execution = new DecisionExecutionEntity
         {
             DecisionId = decisionId,

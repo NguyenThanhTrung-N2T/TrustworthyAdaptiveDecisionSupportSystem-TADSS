@@ -2,7 +2,7 @@
 
 | | |
 | :--- | :--- |
-| **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (08/11/2026) |
+| **Trạng thái** | v2.0.0 — **đã đóng băng** (11/10/2026, gói 5.7; Gate M5 chờ lượt đầy đủ); mọi thay đổi theo Mục 6 |
 | **Thay thế** | Contract v1.0.0 (Phase 1–4, chưa có consumer) — đã gỡ khỏi mã và tài liệu; tra lại qua tag git `phase4-baseline` |
 | **Consumer** | `SmashCourt-BE` (Phase 6); adapter Hotel Booking Demand (kiểm chứng độc lập domain) |
 | **Sở hữu** | Tài liệu này là nguồn duy nhất về contract v2 và luồng tích hợp. Bất biến lưu trữ: [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) |
@@ -14,7 +14,8 @@
 | Tình huống | Bên quyết định | Kết quả |
 | :--- | :--- | :--- |
 | Strategy xác định được mức cọc | TADSS | `APPROVED` + `deposit.amount` → SmashCourt tạo thanh toán VNPay đúng số tiền cọc |
-| Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) hoặc strategy lỗi (fallback) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
+| Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
+| Strategy lỗi / timeout / circuit breaker mở (fallback của runtime) | TADSS | `APPROVED` với cọc **100%**, `executionType = FALLBACK`, `fallbackUsed = true`, `reasonCode` ∈ `FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`. Không vào hàng chờ duyệt, không override được |
 | Cần duyệt nhưng không còn đủ thời gian duyệt trước giờ chơi (quy tắc *approval window*, Mục 1.1) | TADSS | `APPROVED` với cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE` |
 | Strategy từ chối theo chính sách | TADSS | `REJECTED` → SmashCourt hủy booking |
 | Feature flag tắt, hoặc TADSS không phản hồi / timeout / lỗi 5xx / lỗi xác thực | SmashCourt | Cọc **100%** (hành vi Đồ án 1), không chặn khách |
@@ -22,10 +23,14 @@
 
 Khách hàng **không** tự chọn mức cọc. Phần còn lại (tổng tiền − cọc) được thu khi checkout tại quầy.
 
+**Nguyên tắc:** mọi sự cố kỹ thuật (strategy lỗi → fallback, TADSS lỗi/không phản hồi, tắt flag, không kịp duyệt) đều dẫn tới cọc 100%;
+`NEED_APPROVAL` chỉ dành cho bất định **nghiệp vụ** do strategy quyết định (đơn giá trị lớn, lịch sử không đến…), nên circuit breaker mở
+không đẩy hàng loạt đơn sang Manager (quyết định D-13, 04/10/2026 — trước đó fallback trả `NEED_APPROVAL`).
+
 ### 1.1. Quy tắc approval window (runtime TADSS)
 
 - `approvalExpiresAt = min(createdAt + Tadss:Approval:WindowMinutes, earliestStart − Tadss:Approval:MinLeadMinutes)`; mặc định `WindowMinutes = 30`, `MinLeadMinutes = 120`.
-- Nếu strategy (hoặc fallback) trả `NEED_APPROVAL` nhưng `approvalExpiresAt ≤ createdAt` → runtime trả `APPROVED`, cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE`. Kết quả gốc của strategy vẫn được lưu nguyên trong audit (`strategy_status`).
+- Nếu strategy trả `NEED_APPROVAL` nhưng `approvalExpiresAt ≤ createdAt` → runtime trả `APPROVED`, cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE`. Kết quả gốc của strategy vẫn được lưu nguyên trong audit (`strategy_status`).
 
 ---
 
@@ -80,20 +85,24 @@ sequenceDiagram
     participant T as TADSS
     actor C as Khách
     M->>FE: Mở hàng chờ (chi nhánh của mình)
-    FE->>BE: GET /api/decision-approvals?branchId=...
-    BE->>T: GET /api/v2/decisions/pending-approvals?branchId=...
+    FE->>BE: GET /api/bookings/pending-approval?branchId=...
+    BE->>BE: Đọc booking PENDING_APPROVAL chưa hết hạn (DB của BE)
     M->>FE: Duyệt, cọc 30%, lý do
-    FE->>BE: POST /api/decision-approvals/{decisionId}/approve
-    BE->>T: POST /api/v2/decisions/{id}/override (X-Actor-Id = userId từ JWT)
+    FE->>BE: POST /api/bookings/{bookingId}/approve
+    BE->>BE: Kiểm quyền chi nhánh, booking còn PENDING_APPROVAL; lấy tadss_decision_id đã lưu
+    BE->>T: POST /api/v2/decisions/{decisionId}/override (deposit.rate, X-Actor-Id = userId từ JWT)
     alt 200 OK
         BE->>BE: Cập nhật booking, tạo URL thanh toán cọc
         BE-)C: SignalR/email: link thanh toán
-    else 409 ALREADY_OVERRIDDEN / APPROVAL_EXPIRED
+    else 409 ALREADY_OVERRIDDEN / NOT_PENDING_APPROVAL / APPROVAL_EXPIRED
         BE-->>FE: Thông báo xung đột / đã hết hạn
     end
 ```
 
-Endpoint phía SmashCourt-BE (`/api/decision-approvals/...`) là bản đề xuất; API contract BE ↔ FE được chốt ở task T5.22 (W10).
+- FE chỉ dùng `bookingId`; `decisionId` của TADSS chỉ BE biết (lưu trên booking/hóa đơn, Mục 4.4).
+- Hàng chờ của Manager đọc từ DB của SmashCourt (trạng thái booking là nguồn sự thật, Mục 4.3), nên có sẵn tên khách, sân, giờ chơi. `GET /api/v2/decisions/pending-approvals` (Mục 3.5) dùng để đối soát và vận hành, không gọi mỗi lần mở hàng chờ.
+- Manager nhập mức cọc dạng tỷ lệ; BE gửi `deposit.rate`, TADSS quy đổi ra số tiền (Mục 3.6).
+- Route BE ↔ FE đã chốt (T5.22): `GET /api/bookings/pending-approval`, `POST /api/bookings/{bookingId}/approve`, `POST /api/bookings/{bookingId}/reject` (từ chối đi cùng luồng trên với `action = REJECT`). Đặc tả đầy đủ (request/response, mã lỗi, sự kiện SignalR) nằm trong repo SmashCourt-BE: [`docs/api/DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md).
 
 ### 2.3. Báo kết quả thực tế (outcome)
 
@@ -106,6 +115,7 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 ### 3.1. Quy ước chung
 
 - Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/`: `decision-request`, `decision-result`, `decision-detail`, `pending-approvals`, `override-request`, `override-response`, `outcome-request`, `outcome-response`). Tài liệu OpenAPI [`openapi-v2.yaml`](openapi-v2.yaml) được **sinh từ mã** và có test chống lệch (CT-01); khi hai bên khác nhau, JSON schema viết tay là nguồn chuẩn.
+- **Bộ JSON schema `schemas/v2/` theo endpoint:** cặp `decision-request.schema.json` / `decision-result.schema.json` cho `POST /api/v2/decisions`; `decision-detail.schema.json` cho `GET /api/v2/decisions/{decisionId}`; `pending-approvals.schema.json` cho `GET /api/v2/decisions/pending-approvals`; cặp `override-request.schema.json` / `override-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/override`; cặp `outcome-request.schema.json` / `outcome-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/outcome`. Các schema viết tay này là nguồn chuẩn của contract. `openapi-v2.yaml` được sinh từ Swashbuckle của chính app (không sửa tay); khi API đổi có chủ đích, sinh lại theo hướng dẫn ở đầu test `OpenApiDriftTests`.
 - **Phạm vi đã hiện thực:** năm endpoint — `POST /api/v2/decisions` (3.3), `GET /api/v2/decisions/{decisionId}` (3.4), `GET /api/v2/decisions/pending-approvals` (3.5), `POST /api/v2/decisions/{decisionId}/override` (3.6) và `POST /api/v2/decisions/{decisionId}/outcome` (3.7). Mọi request `/api/*` phải mang `X-Api-Key` hợp lệ (xem 3.2); `/health/live` và `/health/ready` được miễn.
 - **Giới hạn của contract:** `X-Idempotency-Key` 1..128 ký tự; `X-Actor-Id` 1..100 ký tự; `reason` của override 5..500 ký tự và không chỉ gồm khoảng trắng; `page` ≥ 1 (mặc định 1); `pageSize` 1..100 (mặc định 20). Độ dài `X-Actor-Id` và `reason` đếm theo **Unicode code point** (khớp `char_length` của PostgreSQL, ký tự ngoài BMP như emoji tính là một); vi phạm → 400 `VALIDATION_ERROR`.
 - Thời gian dùng ISO 8601 **kèm offset** (`2026-11-20T18:00:00+07:00`). Mọi quy tắc theo khung giờ được tính theo `branchTimeZone` (IANA, ví dụ `Asia/Ho_Chi_Minh`).
@@ -243,6 +253,7 @@ Trả chi tiết của một quyết định:
 ```
 
 - `action`: `APPROVE` (bắt buộc **đúng một** trong `deposit.rate` hoặc `deposit.amount`) \| `REJECT` (không gửi `deposit`). `reason` 5..500 ký tự (code point), không chỉ gồm khoảng trắng. Schema: `override-request.schema.json`, `override-response.schema.json`.
+- **`REJECT` kèm `"deposit": null`:** runtime chấp nhận (DTO cho phép `null`, coi như không gửi `deposit`), nhưng JSON schema `override-request` từ chối vì chỉ sự có mặt của khóa `deposit` đã vi phạm nhánh `REJECT` (có test `reject-with-null-deposit`). Schema là nguồn chuẩn: client phải bỏ hẳn khóa `deposit` khi `REJECT`, không gửi `null`.
 - **Mức cọc khi `APPROVE`** (một nơi quy đổi): gửi `rate` thì `amount = round(totalPrice × rate)` theo số chữ số thập phân của tiền tệ; gửi `amount` thì giữ nguyên `amount` và `rate = round(amount / totalPrice, 4)` (làm tròn xa số 0; `totalPrice = 0` thì `amount` phải là 0 và `rate = 0`). `totalPrice` và `currency` lấy từ request đã lưu của quyết định. Từ chối bằng 400 `VALIDATION_ERROR` (không làm tròn âm thầm) khi: `rate` ngoài `[0, 1]` hoặc quá 4 chữ số thập phân; `amount` âm, lớn hơn `totalPrice` hoặc nhiều chữ số thập phân hơn tiền tệ cho phép (VND: 0).
 - Mỗi quyết định có **tối đa một** override (ràng buộc `UNIQUE(decision_id)` trên bảng `decision_overrides`). Bản ghi đánh giá bất biến nên chi tiết quyết định (3.4) vẫn hiện `result.status = NEED_APPROVAL` kèm `override`; quyết định đã override rời hàng chờ (3.5).
 - **Thứ tự kiểm tra**, dừng ở bước đầu tiên không đạt:
@@ -272,7 +283,7 @@ Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể c
 | 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header/tham số sai (kể cả body không giải mã được; `X-Idempotency-Key` dài hơn 128 hoặc `X-Actor-Id` dài hơn 100 ký tự, `page`/`pageSize` ngoài miền, mức cọc của override không hợp lệ → `VALIDATION_ERROR`) |
 | 415 | *(không có `code`)* | `Content-Type` không phải JSON. Do MVC trả mặc định, ngoài bộ mã của contract: body `application/problem+json` chuẩn không có trường `code`; `traceId` vẫn là correlation id |
 | 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key`; response kèm header `WWW-Authenticate: ApiKey header="X-Api-Key"`. Áp cho mọi đường dẫn `/api/*` (kể cả route không tồn tại) |
-| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` (với override/outcome: hoặc đó là bản `SHADOW`). `decisionId` không phải GUID thì route không khớp → 404 mặc định của framework (không có `code`) |
+| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` (với override/outcome: hoặc đó là bản `SHADOW`). `decisionId` không phải GUID (hoặc đường dẫn con lạ dưới `/api/v2/decisions/{decisionId}/`) cũng trả 404 `DECISION_NOT_FOUND` dạng `application/problem+json` (route bắt-tất-cả `UnmatchedDecisionRoutesController`, không có trong OpenAPI) |
 | 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác (đánh giá, override) |
 | 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái của override/outcome (3.6, 3.7) |
 | 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
@@ -280,6 +291,8 @@ Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể c
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (ẩn chi tiết kỹ thuật) |
 | 413 | `PAYLOAD_TOO_LARGE` | Body request lớn hơn giới hạn (mặc định 65536 byte, cấu hình `Tadss:Security:MaxRequestBodyBytes`). Kiểm tra trước xác thực nên request quá lớn không cần khóa vẫn nhận 413 |
 | 429 | `RATE_LIMITED` | Client vượt giới hạn tần suất request; response kèm header `Retry-After` (giây) và `retryAfterSeconds` trong body |
+
+Mọi response (kể cả lỗi) mang các header bảo mật `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; response của `/api/*` thêm `Cache-Control: no-store`. Ngoài môi trường `Development`/`Testing`, response https còn có `Strict-Transport-Security`. Server không gửi header `Server`. Lỗi giải mã body (400 `VALIDATION_ERROR`) chỉ nêu tên trường (đường dẫn JSON do client gửi), không chứa thông điệp nội bộ của bộ giải mã JSON.
 
 ### 3.9. Idempotency
 
@@ -326,8 +339,8 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 
 ### 4.3. Xử lý kết quả
 
-- Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát.
-- Timeout `TimeoutMs`, lỗi 5xx, 401 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id. Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
+- Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát. Quyết định fallback của runtime (`APPROVED` cọc 100%, `fallbackUsed = true`) là một quyết định `TADSS` hợp lệ: BE xử lý như mọi `APPROVED` (thanh toán `deposit.amount`), không cần nhánh riêng.
+- Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
 - **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.
 
@@ -337,6 +350,15 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 - Hóa đơn: số tiền cọc, tỷ lệ cọc, `tadss_decision_id`, nguồn áp dụng cọc; trạng thái `PARTIALLY_PAID` (đã có) dùng sau khi thanh toán cọc.
 - Job: hết hạn duyệt (hủy + giải phóng sân), báo outcome.
 - Script SQL cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` theo quy trình hiện có của SmashCourt-BE.
+
+### 4.5. Ghi chú triển khai: kết nối tới TADSS qua ngrok (dev, demo)
+
+TADSS chạy trong Docker có thể được expose qua ngrok (`docker-compose.yml`, file compose duy nhất: một lệnh `docker compose up -d --build` chạy `tadss-runtime`, `ngrok` và Grafana; cách chạy và biến môi trường: [`README.md`](../../README.md) mục "Chạy bằng Docker và expose qua ngrok"). Phía `SmashCourt-BE`:
+
+- `TadssConfig.BaseUrl` (4.1) trỏ tới URL https của ngrok. URL của ngrok bản miễn phí đổi mỗi lần khởi động lại: phải cập nhật `BaseUrl` mỗi lần (muốn URL cố định thì thêm `--url=<domain>` của domain tĩnh miễn phí vào lệnh ngrok trong compose). Không qua ngrok: TADSS chạy `dotnet run` thì `http://localhost:5296` (BE trong container dùng `http://host.docker.internal:5296`); TADSS chạy compose thì `http://localhost:8081` từ BE `dotnet run` trên host, hoặc `http://tadss-runtime:8080` từ BE trong Docker (cả hai cùng mạng external `smashcourt-network`) và khi đó không cần ngrok.
+- `TadssClient` gửi `X-Api-Key` (giá trị **khóa**, không phải mã băm) trên mọi request tới `/api/*`; khóa lấy từ user-secrets/biến môi trường của BE. Phía TADSS chỉ lưu SHA-256 của khóa và `ClientId` (`smashcourt-be`) trong `Tadss:Security:ApiKeys` của `appsettings.Development.json` (file này được copy vào image local như SmashCourt-BE, container chạy `Development`, nên `dotnet run` và Docker dùng chung một khóa; khi expose phải là khóa riêng thật, không dùng `tadss-local-dev-key`, vì Swagger công khai ở Development). Thiếu hoặc sai khóa → 401, BE áp dụng cọc 100% (4.3).
+- `HttpClient` của `TadssClient` gửi thêm header `ngrok-skip-browser-warning: true` như `FastApiClient` đang làm, để ngrok không chèn trang cảnh báo vào response.
+- Mỗi `ClientId` có một xô rate limit riêng, mặc định 100 request mỗi giây cho mỗi instance TADSS (429 `RATE_LIMITED` kèm `Retry-After`, xem 3.8 và 4.3).
 
 ---
 
@@ -350,8 +372,8 @@ TADSS dùng schema `tadss` trên cùng máy chủ PostgreSQL với SmashCourt. C
 
 ## 6. QUẢN LÝ PHIÊN BẢN
 
-- Contract v2.0.0 là phiên bản duy nhất; đóng băng tại M5 với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK (`baseline_public_api.txt`).
-- **Sau khi đóng băng** (mọi schema đều `additionalProperties: false`, nên thêm cả trường tùy chọn cũng làm client kiểm tra chặt từ chối):
+- Contract v2.0.0 là phiên bản duy nhất; đã đóng băng ngày 11/10/2026 (gói 5.7, trước Gate M5) với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK (`baseline_public_api.txt`).
+- **Từ khi đóng băng** (mọi schema đều `additionalProperties: false`, nên thêm cả trường tùy chọn cũng làm client kiểm tra chặt từ chối):
   - **Được phép trong `2.x.y`:** cải tiến nội bộ SDK/runtime không đổi wire JSON (hiệu năng, sửa lỗi, XML doc); thêm `reasonCode` mới — consumer phải xử lý `reasonCode` như chuỗi và không lỗi khi gặp mã lạ.
   - **Bắt buộc lên phiên bản lớn mới:** thêm/xóa/đổi tên/đổi kiểu trường, đổi ràng buộc, đổi tập giá trị enum. Phiên bản mới có route riêng (`/api/v3`), thư mục schema riêng (`schemas/v3/`), baseline public API riêng; phiên bản cũ chạy song song trong thời gian chuyển đổi nếu đã có consumer.
 - Contract v1.0.0 (Phase 1–4) không còn trong repo; tra lại qua tag git `phase4-baseline`.

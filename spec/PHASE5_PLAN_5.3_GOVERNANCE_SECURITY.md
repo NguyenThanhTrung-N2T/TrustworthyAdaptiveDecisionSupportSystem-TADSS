@@ -822,7 +822,7 @@ Thứ tự phụ thuộc giữa các task: 1 → 2 → 3 → 4 → 5 → 6 → 7
   - `docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md`:
     - Mục 4.2: thành phần mới (`OverrideService`, `OutcomeService`, `IDecisionGovernanceStore`, middleware bảo mật).
     - Mục 4.4: sơ đồ tuần tự thêm các bước bảo mật theo F-09 và nhánh 401/413/429; thêm sơ đồ ngắn cho override (F-03).
-    - Một đoạn về thành phần theo instance (rate limit, breaker, cache L1). Phần đánh giá SC-3 vẫn ở 5.5.
+    - Một đoạn về thành phần theo instance (rate limit, breaker, cache L1). Phần đánh giá SCALE-3 vẫn ở 5.5.
   - `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`: chỉ khi mô tả lệch hiện thực.
   - `docs/planning/BACKLOG_SPRINTS.md`: T5.5, T5.6, T5.7, T5.30 → trạng thái và số test.
   - `TADSS-Runtime/CLAUDE.md`: cây thư mục mới (`Security/`, `Governance/`, `Outcomes/`), cấu hình bảo mật, file compose.
@@ -883,7 +883,7 @@ Thứ tự phụ thuộc giữa các task: 1 → 2 → 3 → 4 → 5 → 6 → 7
 Không thuộc 5.3 (giữ theo spec và ADR-013):
 - Tiền tố key cache `tadss:v2:` và option chết `InstanceName`/`TtlHours` → 5.4.
 - EF log ERR cho mỗi `23505` mong đợi → 5.4.
-- Rate limit phân tán và đánh giá scale SC-3 → 5.5.
+- Rate limit phân tán và đánh giá scale SCALE-3 → 5.5.
 
 ## Phụ lục B — Thay đổi contract và hành vi cần duyệt
 
@@ -905,5 +905,5 @@ Không thuộc 5.3 (giữ theo spec và ADR-013):
 ## Ghi chú cho gói 5.4
 
 - Shadow ghi bản `SHADOW` qua `IDecisionEvaluationStore.InsertExecutionAsync`. Hàng chờ đã loại `SHADOW` (IT-09 ca f), override/outcome trả 404 cho `SHADOW`.
-- Nhiều instance (SC-1): rate limit SEC-1 tính theo instance. Nêu rõ trong kịch bản SC-2 và SC-3 (gói 5.5).
+- Nhiều instance (SCALE-1): rate limit SEC-1 tính theo instance. Nêu rõ trong kịch bản SCALE-2 và SCALE-3 (gói 5.5).
 - Các mục giữ từ ADR-013: tiền tố key cache `tadss:v2:` đưa vào options, `InstanceName`/`TtlHours`, log ERR của `23505`.

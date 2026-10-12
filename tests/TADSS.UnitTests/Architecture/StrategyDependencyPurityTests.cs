@@ -29,6 +29,7 @@ public class StrategyDependencyPurityTests
     ];
 
     [Theory]
+    [Trait("CatalogId", "UT-09")]
     [InlineData(typeof(DefaultDecisionStrategy))]
     [InlineData(typeof(MockAlternativeDecisionStrategy))]
     public void StrategyAssembly_DoesNotReference_ForbiddenInfrastructureOrRuntimeAssemblies(Type strategyType)
@@ -59,6 +60,7 @@ public class StrategyDependencyPurityTests
     }
 
     [Theory]
+    [Trait("CatalogId", "UT-09")]
     [InlineData(typeof(DefaultDecisionStrategy))]
     [InlineData(typeof(MockAlternativeDecisionStrategy))]
     public void StrategyImplementations_AreStateless_HaveNoMutableFields(Type strategyType)

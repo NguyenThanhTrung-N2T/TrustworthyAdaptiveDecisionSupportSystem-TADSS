@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- SEC-7: khóa đồ thị phụ thuộc (kể cả bắc cầu) vào packages.lock.json; CI và Dockerfile restore ở chế độ locked-mode -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

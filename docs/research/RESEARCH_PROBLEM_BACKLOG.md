@@ -1,3 +1,5 @@
+> **Tài liệu lịch sử** — ảnh chụp ngày 27/09/2026, không cập nhật theo mã. Nguồn hiện hành: [PROPOSAL_DO_AN_2.md](../planning/PROPOSAL_DO_AN_2.md).
+
 # [OUT-OF-SCOPE ĐỒ ÁN 2 — TÀI LIỆU KHẢO SÁT TIỀN ĐỀ] KHUNG NGHIÊN CỨU & KHẢO SÁT VẤN ĐỀ (ENTERPRISE AI OS RESEARCH BACKLOG)
 
 > **📌 Khóa Phạm vi & Ghi chú Lịch sử (`[OUT-OF-SCOPE ĐỒ ÁN 2]`):** Tài liệu này lưu trữ kết quả khảo sát diện rộng (Brainstorming & Problem Exploration) ở giai đoạn tiền đề **trước khi khóa phạm vi đề tài**. Toàn bộ các cấu phần AI/ML, Agentic AI, MCP, GraphRAG, ClickHouse CDC trong tài liệu này **KHÔNG thuộc phạm vi triển khai của Đồ án 2** (Đồ án 2 chỉ xây dựng hạ tầng thực thi quyết định `TADSS Runtime Engine` không có AI/ML). Xem định nghĩa phạm vi chính thức tại [`PROPOSAL_DO_AN_2.md`](../planning/PROPOSAL_DO_AN_2.md) và [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](./EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).

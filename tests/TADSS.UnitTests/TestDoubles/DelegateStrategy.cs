@@ -16,13 +16,15 @@ internal sealed class DelegateStrategy : IReservationDecisionStrategy
 
     public DelegateStrategy(
         Func<Reservation, DecisionContext, CancellationToken, Task<StrategyDecision>> behavior,
-        StrategyCachePolicy? cachePolicy = null)
+        StrategyCachePolicy? cachePolicy = null,
+        string strategyName = "DelegateStrategy")
     {
         _behavior = behavior;
+        StrategyName = strategyName;
         _cachePolicy = cachePolicy ?? StrategyCachePolicy.Disabled;
     }
 
-    public string StrategyName => "DelegateStrategy";
+    public string StrategyName { get; }
 
     public string StrategyVersion => "2.0.0";
 

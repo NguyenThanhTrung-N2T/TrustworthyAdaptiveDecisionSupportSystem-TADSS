@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TADSS.Infrastructure.Options;
 
@@ -24,6 +26,10 @@ internal static class PersistenceServiceCollectionExtensions
                 npgsqlOptions.MigrationsAssembly(typeof(TadssDbContext).Assembly.GetName().Name);
                 npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "tadss");
             });
+            // Tranh chấp idempotency (23505) là luồng bình thường: store đọc lại bản thắng. Hạ hai log Error của EF xuống Debug để dashboard lỗi không nhiễu;
+            // lỗi thật vẫn được ghi ở PersistenceFailureTranslator (Warning) và GlobalExceptionHandler (Error).
+            options.ConfigureWarnings(warnings => warnings
+                .Log((RelationalEventId.CommandError, LogLevel.Debug), (CoreEventId.SaveChangesFailed, LogLevel.Debug)));
         });
 
         return services;

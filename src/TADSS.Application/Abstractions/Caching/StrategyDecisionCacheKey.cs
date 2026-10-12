@@ -2,12 +2,12 @@ namespace TADSS.Application.Abstractions.Caching;
 
 /// <summary>
 /// Dựng khóa cache của <c>StrategyDecision</c> theo spec 4.2.3:
-/// <c>tadss:v2:{strategyName}:{strategyVersion}:{optionsFingerprint}:{requestHash}</c>.
-/// Tiền tố <c>tadss:</c> đã nằm trong khóa nên cache không cộng thêm <c>CacheOptions.InstanceName</c>.
+/// <c>v2:{strategyName}:{strategyVersion}:{optionsFingerprint}:{requestHash}</c>.
+/// Không gồm tiền tố namespace: cache cộng <c>CacheOptions.InstanceName</c> (mặc định <c>tadss:</c>) khi ghi/đọc nên khóa đầy đủ mặc định là <c>tadss:v2:...</c>.
 /// </summary>
 public static class StrategyDecisionCacheKey
 {
-    private const string Prefix = "tadss:v2:";
+    private const string Prefix = "v2:";
 
     /// <summary>Dựng khóa cache từ định danh strategy, dấu vân tay tham số và hash của request.</summary>
     /// <param name="strategyName">Tên strategy.</param>

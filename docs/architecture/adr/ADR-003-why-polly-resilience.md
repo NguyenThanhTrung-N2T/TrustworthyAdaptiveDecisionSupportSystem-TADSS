@@ -22,5 +22,10 @@ Sử dụng thư viện **Polly v8** để thiết lập một Resilience Pipeli
 *   Bổ sung circuit breaker cho Redis để lỗi cache không làm mọi request chờ hết timeout.
 *   Chi tiết: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../RESILIENCE_AND_FAULT_TAXONOMY.md).
 
+## Điều chỉnh 04/10/2026 (D-13) — thay thế phần nói về `NEED_APPROVAL` ở trên
+*   Kết quả của tầng `Fallback` (nay là `FallbackDecisionPolicy` trong `TADSS.Infrastructure/Resilience`) **không còn là `NEED_APPROVAL`**: fallback trả `APPROVED` với cọc 100% (`executionType = FALLBACK`, `fallbackUsed = true`, `reasonCode` `FALLBACK_*` theo nguyên nhân).
+*   Hệ quả tiêu cực ở trên ("chuyển sang `NEED_APPROVAL` chờ Quản lý phê duyệt") không còn đúng: khi strategy bị cô lập, khách thanh toán cọc 100% ngay, không có đơn nào dồn sang Manager; quyết định fallback không vào hàng chờ duyệt và không override được.
+*   Lý do: mọi sự cố kỹ thuật dùng chung một quy tắc cọc 100% (như khi SmashCourt tắt flag hoặc TADSS không phản hồi); `NEED_APPROVAL` chỉ dành cho bất định nghiệp vụ do strategy quyết định. Chi tiết: D-13 trong `spec/PHASE5_DESIGN_SPEC.md`.
+
 ## Phương án thay thế đã cân nhắc
 1.  **Tự viết logic Retry/Timeout thủ công bằng vòng lặp `try/catch` và `CancellationTokenSource`:** Loại bỏ vì khó quản lý trạng thái trượt (sliding window) của Circuit Breaker dưới tải đồng thời cao và không tận dụng được cơ chế pipeline chuẩn hóa của Polly v8.

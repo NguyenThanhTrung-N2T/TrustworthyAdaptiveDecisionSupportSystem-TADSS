@@ -28,6 +28,14 @@ public sealed class ToxiproxyControl : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>Thêm toxic độ trễ <paramref name="latencyMs"/> ms vào chiều phản hồi (từ upstream về client) của proxy <paramref name="name"/>; <see cref="ResetAsync"/> gỡ nó.</summary>
+    public async Task AddLatencyAsync(string name, int latencyMs)
+    {
+        using var response = await _http.PostAsJsonAsync($"/proxies/{name}/toxics",
+            new { name = "latency", type = "latency", stream = "downstream", toxicity = 1.0, attributes = new { latency = latencyMs, jitter = 0 } });
+        response.EnsureSuccessStatusCode();
+    }
+
     /// <summary>Bật lại mọi proxy và gỡ mọi toxic.</summary>
     public async Task ResetAsync()
     {

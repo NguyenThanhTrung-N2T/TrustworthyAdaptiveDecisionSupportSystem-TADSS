@@ -349,6 +349,29 @@ internal sealed class FakeDecisionAuditStore : IDecisionEvaluationStore, IDecisi
         }
     }
 
+    public Task<IReadOnlyDictionary<Guid, long>> CountPendingApprovalsByBranchAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            // Cùng điều kiện với GetPendingApprovalsAsync, gộp theo chi nhánh
+            IReadOnlyDictionary<Guid, long> counts = _records
+                .Where(record => record.Role == ExecutionRole.PRIMARY
+                    && record.Status == DecisionStatus.NEED_APPROVAL
+                    && record.ApprovalExpiresAt > nowUtc
+                    && !_overrides.ContainsKey(record.DecisionId)
+                    && !_outcomes.ContainsKey(record.DecisionId)
+                    && !_records.Any(newer => newer.Role == ExecutionRole.PRIMARY
+                        && newer.ReservationId == record.ReservationId
+                        && newer.BranchId == record.BranchId
+                        && IsNewer(newer, record)))
+                .GroupBy(record => record.BranchId)
+                .ToDictionary(group => group.Key, group => (long)group.Count());
+            return Task.FromResult(counts);
+        }
+    }
+
     private static bool IsNewer(DecisionExecutionRecord candidate, DecisionExecutionRecord other) =>
         candidate.CreatedAt > other.CreatedAt
         || (candidate.CreatedAt == other.CreatedAt && candidate.DecisionId.CompareTo(other.DecisionId) > 0);

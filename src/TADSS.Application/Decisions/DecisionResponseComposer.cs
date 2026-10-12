@@ -41,6 +41,7 @@ public sealed class DecisionResponseComposer
     public ComposedDecision Compose(DecisionComposition composition)
     {
         ArgumentNullException.ThrowIfNull(composition);
+        EnsureIdempotencyKeyMatchesRole(composition);
 
         var reservation = composition.Reservation;
         var outcome = composition.Outcome;
@@ -87,7 +88,7 @@ public sealed class DecisionResponseComposer
             DecisionId: composition.DecisionId,
             ReservationId: reservation.ReservationId,
             BranchId: reservation.BranchId,
-            Role: ExecutionRole.PRIMARY,
+            Role: composition.Role,
             StrategyName: response.StrategyName,
             StrategyVersion: response.StrategyVersion,
             StrategyStatus: window.StrategyStatus,
@@ -109,6 +110,23 @@ public sealed class DecisionResponseComposer
             CreatedAt: nowUtc);
 
         return new ComposedDecision(response, record);
+    }
+
+    /// <summary>
+    /// Bản <c>PRIMARY</c> phải mang khóa idempotency, bản <c>SHADOW</c> thì không (INV-2, INV-8): sai là lỗi lập trình nên ném lỗi thay vì ghi bản ghi lệch.
+    /// </summary>
+    private static void EnsureIdempotencyKeyMatchesRole(DecisionComposition composition)
+    {
+        var hasKey = composition.IdempotencyKey is not null;
+        if (composition.Role == ExecutionRole.PRIMARY && !hasKey)
+        {
+            throw new ArgumentException("Bản PRIMARY phải có khóa idempotency.", nameof(composition));
+        }
+
+        if (composition.Role == ExecutionRole.SHADOW && hasKey)
+        {
+            throw new ArgumentException("Bản SHADOW không được mang khóa idempotency.", nameof(composition));
+        }
     }
 
     /// <summary>

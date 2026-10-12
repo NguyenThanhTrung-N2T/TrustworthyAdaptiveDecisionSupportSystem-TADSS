@@ -56,6 +56,7 @@ public class GovernanceSchemaTests
         "approve-with-empty-deposit",
         "approve-with-rate-and-amount",
         "reject-with-deposit",
+        "reject-with-null-deposit",
         "rate-negative",
         "rate-above-one",
         "rate-five-decimals",
@@ -84,6 +85,12 @@ public class GovernanceSchemaTests
         "approve-with-empty-deposit" => Mutate(OverrideApprove, root => root["deposit"] = new JsonObject()),
         "approve-with-rate-and-amount" => Mutate(OverrideApprove, root => root["deposit"] = new JsonObject { ["rate"] = 0.3, ["amount"] = 68400 }),
         "reject-with-deposit" => Mutate(OverrideApprove, root => root["action"] = "REJECT"),
+        // Runtime chấp nhận REJECT kèm "deposit": null (DTO nullable), nhưng schema chặt hơn: sự có mặt của khóa deposit đã vi phạm (INTEGRATION_SPEC §3.6)
+        "reject-with-null-deposit" => Mutate(OverrideApprove, root =>
+        {
+            root["action"] = "REJECT";
+            root["deposit"] = null;
+        }),
         "rate-negative" => Mutate(OverrideApprove, root => root["deposit"] = new JsonObject { ["rate"] = -0.1 }),
         "rate-above-one" => Mutate(OverrideApprove, root => root["deposit"] = new JsonObject { ["rate"] = 1.0001 }),
         "rate-five-decimals" => Mutate(OverrideApprove, root => root["deposit"] = new JsonObject { ["rate"] = 0.12345 }),
@@ -388,7 +395,7 @@ public class GovernanceSchemaTests
             EarliestStart = new DateTimeOffset(2026, 11, 20, 18, 0, 0, TimeSpan.FromHours(7)),
             Customer = new PendingApprovalCustomerDto { IsGuest = true, Tier = Shared.DecisionContractSDK.Enums.CustomerTier.STANDARD },
             ReasonCode = "HIGH_VALUE_NEED_APPROVAL",
-            FallbackUsed = true,
+            FallbackUsed = false,
             ApprovalExpiresAt = GovernanceTestData.Now.AddMinutes(30),
             CreatedAt = GovernanceTestData.Now,
         };

@@ -36,6 +36,7 @@ public class DecisionAuditStoreContractTests
             "InsertExecutionAsync",
             "GetDecisionDetailAsync",
             "GetPendingApprovalsAsync",
+            "CountPendingApprovalsByBranchAsync",
             "InsertOverrideAsync",
             "InsertOutcomeAsync");
     }
@@ -95,7 +96,7 @@ public class DecisionAuditStoreContractTests
         MethodsOf(typeof(IDecisionEvaluationStore)).Select(method => method.Name)
             .Should().BeEquivalentTo("FindPrimaryByIdempotencyKeyAsync", "InsertExecutionAsync");
         MethodsOf(typeof(IDecisionQueryStore)).Select(method => method.Name)
-            .Should().BeEquivalentTo("GetDecisionDetailAsync", "GetPendingApprovalsAsync");
+            .Should().BeEquivalentTo("GetDecisionDetailAsync", "GetPendingApprovalsAsync", "CountPendingApprovalsByBranchAsync");
         MethodsOf(typeof(IDecisionGovernanceStore)).Select(method => method.Name)
             .Should().BeEquivalentTo("InsertOverrideAsync", "InsertOutcomeAsync");
     }

@@ -25,7 +25,7 @@ public class CacheOptionsStartupTests
         return builder.Build();
     }
 
-    /// <summary>Provider lạ, timeout thao tác hoặc timeout kết nối không dương, TTL không dương đều chặn khởi động và nêu khóa sai.</summary>
+    /// <summary>Provider lạ, timeout thao tác hoặc timeout kết nối không dương, tham số breaker Redis ngoài khoảng hợp lệ hoặc <c>InstanceName</c> sai (rỗng, có khoảng trắng, dài hơn 32 ký tự) đều chặn khởi động và nêu khóa sai.</summary>
     [Theory]
     [Trait("CatalogId", "UT-13")]
     [InlineData("Provider", "Memcached")]
@@ -34,7 +34,14 @@ public class CacheOptionsStartupTests
     [InlineData("RedisTimeoutMs", "-1")]
     [InlineData("RedisConnectTimeoutMs", "0")]
     [InlineData("RedisConnectTimeoutMs", "-5")]
-    [InlineData("TtlHours", "0")]
+    [InlineData("RedisBreakerFailureRatio", "0")]
+    [InlineData("RedisBreakerFailureRatio", "1.5")]
+    [InlineData("RedisBreakerSamplingSeconds", "0")]
+    [InlineData("RedisBreakerMinimumThroughput", "1")]
+    [InlineData("RedisBreakerBreakDurationSeconds", "0")]
+    [InlineData("InstanceName", "")]
+    [InlineData("InstanceName", "co khoang trang:")]
+    [InlineData("InstanceName", "tien-to-dai-hon-ba-muoi-hai-ky-tu-ABCDEFG")]
     public async Task CacheOptions_Invalid_FailsOnStart_Theory(string key, string value)
     {
         using var host = BuildHost(($"Tadss:Cache:{key}", value));

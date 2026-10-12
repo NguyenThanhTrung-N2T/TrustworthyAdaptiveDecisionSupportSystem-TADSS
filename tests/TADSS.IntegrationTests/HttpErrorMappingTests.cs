@@ -1,4 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using TADSS.IntegrationTests.Infrastructure;
 using TADSS.Runtime.Api.Common;
@@ -103,6 +106,33 @@ public class HttpErrorMappingTests : DecisionApiTestBase
         response.Problem.GetProperty("code").GetString().Should().Be("DOMAIN_INVARIANT_VIOLATION", caseName);
         (await ReadExecutionsAsync()).Should().BeEmpty(caseName);
         Strategies.InvocationCount.Should().Be(0, caseName);
+    }
+
+    /// <summary>
+    /// Body lớn hơn trần 64 KB (Content-Length 65537 byte, JSON hợp lệ đệm khoảng trắng): 413 <c>PAYLOAD_TOO_LARGE</c> trước khi đọc body, không bản ghi
+    /// audit, strategy không chạy (SEC-2 trên hạ tầng thật).
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "SEC-2")]
+    public async Task PostDecision_BodyOverLimit_Returns413_NoRecordNoStrategy()
+    {
+        var body = DecisionRequests.Valid();
+        var bytes = Encoding.UTF8.GetBytes(body.PadRight(65537 - (Encoding.UTF8.GetByteCount(body) - body.Length)));
+        using var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        content.Headers.ContentLength = bytes.Length;
+        using var request = new HttpRequestMessage(HttpMethod.Post, DecisionsPath) { Content = content };
+        request.Headers.TryAddWithoutValidation(HttpHeaderNames.IdempotencyKey, NewKey());
+
+        using var response = await Api.SendAsync(request);
+
+        bytes.Length.Should().Be(65537);
+        response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+        response.Content.Headers.ContentType?.MediaType.Should().Be(ProblemContentType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("PAYLOAD_TOO_LARGE");
+        (await ReadExecutionsAsync()).Should().BeEmpty();
+        Strategies.InvocationCount.Should().Be(0);
     }
 
     /// <summary>

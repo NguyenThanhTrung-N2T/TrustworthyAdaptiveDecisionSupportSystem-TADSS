@@ -2,7 +2,7 @@ openapi: 3.0.1
 info:
   title: TADSS Decision Runtime API
   description: 'Decision Runtime của TADSS cho SmashCourt: đánh giá quyết định đặt sân (POST /api/v2/decisions), tra cứu chi tiết quyết định (GET /api/v2/decisions/{decisionId}), hàng chờ duyệt (GET /api/v2/decisions/pending-approvals), Manager duyệt hoặc từ chối (POST /api/v2/decisions/{decisionId}/override) và ghi kết cục thực tế (POST /api/v2/decisions/{decisionId}/outcome). Contract v2: INTEGRATION_SPEC.'
-  version: 2.0.0-draft
+  version: 2.0.0
 paths:
   /api/v2/decisions/pending-approvals:
     get:
@@ -72,6 +72,18 @@ paths:
               description: 'Cách xác thực: ApiKey header="X-Api-Key".'
               schema:
                 type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
           content:
             application/problem+json:
               schema:
@@ -179,6 +191,24 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}/outcome':
     post:
       tags:
@@ -273,6 +303,24 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v2/decisions:
     post:
       tags:
@@ -360,6 +408,24 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: 'Body request lớn hơn giới hạn cấu hình, mặc định 65536 byte (PAYLOAD_TOO_LARGE); kiểm tra trước xác thực.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v2/decisions/{decisionId}':
     get:
       tags:
@@ -411,6 +477,18 @@ paths:
               description: 'Cách xác thực: ApiKey header="X-Api-Key".'
               schema:
                 type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt giới hạn tốc độ của client (RATE_LIMITED); chờ theo header Retry-After rồi thử lại.
+          headers:
+            Retry-After:
+              description: Số giây nên chờ trước khi thử lại.
+              schema:
+                type: integer
+                format: int32
           content:
             application/problem+json:
               schema:
@@ -885,7 +963,7 @@ components:
           description: Lý do (5..500 ký tự).
           nullable: true
       additionalProperties: false
-      description: "Request `POST /api/v2/decisions/{decisionId}/override` (INTEGRATION_SPEC §3.6). `APPROVE` bắt buộc\nđúng một trong `deposit.rate`/`deposit.amount`; `REJECT` không gửi `deposit` — runtime kiểm tra (gói 5.3)."
+      description: "Request `POST /api/v2/decisions/{decisionId}/override` (INTEGRATION_SPEC §3.6). `APPROVE` bắt buộc\nđúng một trong `deposit.rate`/`deposit.amount`; `REJECT` không gửi `deposit` — runtime kiểm tra các ràng buộc này khi nhận request."
     OverrideResponseDto:
       required:
         - action
@@ -1057,7 +1135,7 @@ components:
           description: Correlation id của request (trùng header X-Correlation-ID).
         retryAfterSeconds:
           type: integer
-          description: Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 503/504.
+          description: Số giây nên chờ trước khi thử lại (kèm header Retry-After); chỉ có ở 429/503/504.
           format: int32
         errors:
           type: object

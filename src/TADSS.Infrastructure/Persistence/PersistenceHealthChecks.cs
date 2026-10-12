@@ -22,7 +22,7 @@ internal static class PersistenceHealthChecks
                 connectionStringFactory: serviceProvider =>
                     serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString ?? string.Empty,
                 name: Name,
-                tags: new[] { "ready", "db" });
+                tags: new[] { HealthCheckTags.Ready, "db" });
 
         return services;
     }

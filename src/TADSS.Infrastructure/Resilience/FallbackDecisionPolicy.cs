@@ -1,18 +1,23 @@
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
-using Shared.DecisionContractSDK.Enums;
 
 namespace TADSS.Infrastructure.Resilience;
 
 /// <summary>
-/// Tạo quyết định dự phòng của TADSS khi strategy không dùng được. Luôn <c>NEED_APPROVAL</c> với một khuyến nghị
-/// <c>REQUIRE_APPROVAL</c>; thuần túy, không I/O. Mức cọc khi cần duyệt hoặc khi TADSS lỗi do hệ thống đặt sân
-/// quyết định (chính sách của SmashCourt), nên lý do ở đây không nêu con số cọc.
+/// Tạo quyết định dự phòng của TADSS khi strategy không dùng được (timeout, lỗi, circuit mở). Luôn <c>APPROVED</c>
+/// với tỷ lệ cọc 100% (<see cref="FullDepositRate"/>) và không kèm khuyến nghị; thuần túy, không I/O.
+/// <para>
+/// Mọi sự cố kỹ thuật dùng chung một quy tắc cọc 100% (giống khi hệ thống đặt sân tắt TADSS hoặc không gọi được TADSS);
+/// <c>NEED_APPROVAL</c> chỉ dành cho bất định nghiệp vụ do strategy quyết định. Vì vậy quyết định fallback không vào
+/// hàng chờ duyệt và không thể override (override chỉ áp cho <c>NEED_APPROVAL</c>).
+/// </para>
 /// </summary>
 public static class FallbackDecisionPolicy
 {
-    private const string RecommendationDescription =
-        "Yêu cầu Quản lý chi nhánh kiểm tra và duyệt đơn thủ công.";
+    /// <summary>Tỷ lệ cọc của quyết định fallback: cọc toàn bộ giá trị đơn.</summary>
+    public const decimal FullDepositRate = 1m;
+
+    private const string FullDepositReason = "Áp dụng đặt cọc 100% theo chính sách an toàn.";
 
     /// <summary>Tạo quyết định fallback cho <paramref name="cause"/>.</summary>
     /// <param name="cause">Nguyên nhân fallback.</param>
@@ -33,12 +38,9 @@ public static class FallbackDecisionPolicy
             _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, "Nguyên nhân fallback không hợp lệ.")
         };
 
-        return StrategyDecision.RequireApproval(
+        return StrategyDecision.Approve(
+            FullDepositRate,
             reasonCode,
-            [
-                "Chế độ an toàn tự động kích hoạt: " + detail,
-                "Đơn được chuyển sang trạng thái cần duyệt thủ công."
-            ],
-            [new DecisionRecommendation(RecommendationType.REQUIRE_APPROVAL, RecommendationDescription)]);
+            ["Chế độ an toàn tự động kích hoạt: " + detail, FullDepositReason]);
     }
 }

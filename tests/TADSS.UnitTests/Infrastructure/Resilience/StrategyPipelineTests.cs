@@ -11,6 +11,7 @@ using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
 using TADSS.Infrastructure.Resilience;
 using TADSS.UnitTests.TestData;
@@ -23,16 +24,29 @@ namespace TADSS.UnitTests.Infrastructure.Resilience;
 /// UT-07 (phần pipeline): <see cref="StrategyPipeline"/> chạy strategy v2 qua Outer timeout → Fallback → Retry →
 /// Circuit breaker → Inner timeout và biến F2–F4 (timeout, lỗi, circuit mở) thành quyết định fallback an toàn.
 /// Các ca timeout dùng strategy giả chờ vô hạn nhưng tôn trọng token cùng timeout nhỏ nên kết quả không phụ thuộc
-/// tốc độ máy; ca đo thời gian dùng <see cref="FakeTimeProvider"/>.
+/// tốc độ máy; ca không nói về timeout dùng ngân sách rộng (<see cref="GenerousInnerTimeoutMs"/>, <see cref="GenerousOuterTimeoutMs"/>)
+/// để timeout thật không bao giờ thắng kết quả của strategy khi máy bận; ca đo thời gian dùng <see cref="FakeTimeProvider"/>.
 /// </summary>
 public class StrategyPipelineTests
 {
     private const string SensitiveMessage = "chi-tiet-nhay-cam-KHONG-DUOC-LOT-RA";
 
+    /// <summary>Inner timeout mặc định của ca không nói về timeout: strategy giả trả kết quả đồng bộ nên 10 s không bao giờ hết hạn trước.</summary>
+    private const int GenerousInnerTimeoutMs = 10_000;
+
+    /// <summary>Outer timeout mặc định: đủ cho Inner × (MaxRetryAttempts + 1) + retry delay như ràng buộc của validator.</summary>
+    private const int GenerousOuterTimeoutMs = 60_000;
+
+    /// <summary>Inner timeout nhỏ của ca cần strategy chậm thật sự vượt hạn.</summary>
+    private const int ShortInnerTimeoutMs = 30;
+
+    /// <summary>Metrics dùng chung cho mọi pipeline của test (không test nào đọc số đo ở đây nên không cần dispose theo từng test).</summary>
+    private static readonly TadssMetrics SharedMetrics = new();
+
     private static ResilienceOptions SmallOptions(
         int maxRetryAttempts = 2,
-        int innerTimeoutMs = 30,
-        int outerTimeoutMs = 5_000,
+        int innerTimeoutMs = GenerousInnerTimeoutMs,
+        int outerTimeoutMs = GenerousOuterTimeoutMs,
         int minimumThroughput = 10) => new()
         {
             OuterTimeoutMs = outerTimeoutMs,
@@ -46,7 +60,7 @@ public class StrategyPipelineTests
         };
 
     private static StrategyPipeline Build(ResilienceOptions options, TimeProvider? timeProvider = null) =>
-        new(MsOptions.Create(options), timeProvider ?? TimeProvider.System, NullLogger<StrategyPipeline>.Instance);
+        new(MsOptions.Create(options), timeProvider ?? TimeProvider.System, SharedMetrics, NullLogger<StrategyPipeline>.Instance);
 
     private static StrategyDecision Approved() =>
         StrategyDecision.Approve(0.5m, ReasonCodes.TierDeposit, ["Cọc theo hạng thành viên."]);
@@ -124,7 +138,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
         strategy.InvocationCount.Should().Be(options.MaxRetryAttempts + 1);
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException)
@@ -180,7 +195,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
         outcome.FailureReason.Should().Be(FailureReasonPrefixes.FormatTimeout(options.InnerTimeoutMs));
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
@@ -207,6 +223,8 @@ public class StrategyPipelineTests
         invocationsBeforeOpen.Should().Be(2);
         third.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         third.FallbackUsed.Should().BeTrue();
+        third.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        third.Decision.DepositRate.Should().Be(1m);
         third.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackCircuitOpen);
         third.FailureReason.Should().Be(FailureReasonPrefixes.FormatCircuitBreakerOpen());
         strategy.InvocationCount.Should().Be(invocationsBeforeOpen, "circuit mở thì không chạm strategy");
@@ -248,7 +266,8 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.FallbackUsed.Should().BeTrue();
-        outcome.Decision.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
+        outcome.Decision.Status.Should().Be(DecisionStatus.APPROVED);
+        outcome.Decision.DepositRate.Should().Be(1m);
         outcome.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyException);
         outcome.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyException)
             .And.Contain(nameof(TaskCanceledException))
@@ -317,23 +336,16 @@ public class StrategyPipelineTests
     [Trait("CatalogId", "UT-07")]
     public async Task ExecuteAsync_OuterTimeoutWhileCallerCancelled_PrefersCancellation()
     {
-        // Tất định: Outer (50 ms) hết hạn trước Inner (60 s). Timeout của Polly là kiểu hợp tác nên strategy phải tôn trọng token;
-        // khi token (do Outer timeout hủy) kích hoạt, strategy hủy luôn CTS của caller TRƯỚC khi ném lại.
-        var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 50);
+        // Tất định: caller hủy ĐỒNG BỘ ngay khi strategy bắt đầu chạy, rất lâu trước khi Outer timeout (30 s) có thể hết hạn.
+        // (Trước đây strategy hủy CTS của caller bất đồng bộ sau khi thấy token pipeline bị hủy; strategy chạy trên thread pool
+        // nên việc hủy đó có thể đến sau khi Polly đã ném TimeoutRejectedException, tức là đua với catch.)
+        // Hủy của caller phải thắng: OperationCanceledException (client hủy), không phải DecisionTimeoutException.
+        var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 30_000);
         using var callerCts = new CancellationTokenSource();
-        var strategy = new DelegateStrategy(async (_, _, token) =>
+        var strategy = new DelegateStrategy((_, _, token) =>
         {
-            try
-            {
-                await Task.Delay(Timeout.Infinite, token);
-            }
-            catch (OperationCanceledException)
-            {
-                await callerCts.CancelAsync();
-                throw;
-            }
-
-            throw new InvalidOperationException("Không được tới đây: Task.Delay vô hạn chỉ kết thúc bằng hủy.");
+            callerCts.Cancel();
+            return WaitForever(token);
         });
         var pipeline = Build(options);
 
@@ -353,7 +365,7 @@ public class StrategyPipelineTests
         var options = SmallOptions(maxRetryAttempts: 0, innerTimeoutMs: 60_000, outerTimeoutMs: 50);
         using var callerCts = new CancellationTokenSource();
         var logger = new CancelOnErrorLogger(callerCts);
-        var pipeline = new StrategyPipeline(MsOptions.Create(options), TimeProvider.System, logger);
+        var pipeline = new StrategyPipeline(MsOptions.Create(options), TimeProvider.System, SharedMetrics, logger);
         var strategy = new DelegateStrategy((_, _, token) => WaitForever(token));
 
         var act = () => pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), callerCts.Token);
@@ -417,5 +429,116 @@ public class StrategyPipelineTests
 
         outcome.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         outcome.ExecutionTimeMs.Should().Be(7, "làm tròn xuống và áp dụng cả cho outcome fallback");
+    }
+
+    /// <summary>
+    /// A-05: breaker của strategy A mở thì strategy B vẫn chạy bình thường (mỗi strategy một pipeline). A luôn lỗi tới khi breaker mở
+    /// (throughput 2) rồi fast-fail <c>FALLBACK_CIRCUIT_OPEN</c> mà không chạm strategy; B khỏe vẫn <c>AUTOMATED</c>.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_BreakerOpenForStrategyA_StrategyBStillAutomated()
+    {
+        var pipeline = Build(SmallOptions(maxRetryAttempts: 0, minimumThroughput: 2));
+        var strategyA = new DelegateStrategy((_, _, _) => Throwing(), strategyName: "StrategyA");
+        var strategyB = new DelegateStrategy((_, _, _) => Task.FromResult(Approved()), strategyName: "StrategyB");
+        var reservation = DomainTestData.CreateReservation();
+        var context = DomainTestData.CreateContext();
+
+        await pipeline.ExecuteAsync(strategyA, reservation, context, CancellationToken.None);
+        await pipeline.ExecuteAsync(strategyA, reservation, context, CancellationToken.None);
+        var invocationsBeforeOpen = strategyA.InvocationCount;
+        var openA = await pipeline.ExecuteAsync(strategyA, reservation, context, CancellationToken.None);
+        var resultB = await pipeline.ExecuteAsync(strategyB, reservation, context, CancellationToken.None);
+
+        openA.Decision.ReasonCode.Should().Be(ReasonCodes.FallbackCircuitOpen);
+        strategyA.InvocationCount.Should().Be(invocationsBeforeOpen, "breaker của A đã mở nên không chạm strategy A");
+        resultB.ExecutionType.Should().Be(ExecutionType.AUTOMATED);
+        resultB.FallbackUsed.Should().BeFalse();
+        strategyB.InvocationCount.Should().Be(1);
+    }
+
+    /// <summary>A-05: pipeline tạo lười đúng một lần cho mỗi tên strategy (đếm qua log khởi tạo ở mức Debug).</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_SameStrategyName_ReusesPipeline()
+    {
+        var logger = new StateCapturingLogger();
+        var pipeline = new StrategyPipeline(MsOptions.Create(SmallOptions()), TimeProvider.System, SharedMetrics, logger);
+        var strategy = new DelegateStrategy((_, _, _) => Task.FromResult(Approved()), strategyName: "ReusedStrategy");
+        var other = new DelegateStrategy((_, _, _) => Task.FromResult(Approved()), strategyName: "OtherStrategy");
+        var reservation = DomainTestData.CreateReservation();
+        var context = DomainTestData.CreateContext();
+
+        await pipeline.ExecuteAsync(strategy, reservation, context, CancellationToken.None);
+        await pipeline.ExecuteAsync(strategy, reservation, context, CancellationToken.None);
+        await pipeline.ExecuteAsync(other, reservation, context, CancellationToken.None);
+
+        logger.Entries.Count(entry => entry.Level == LogLevel.Debug && entry.StrategyName == "ReusedStrategy")
+            .Should().Be(1, "gọi hai lần cùng tên chỉ dựng pipeline một lần");
+        logger.Entries.Count(entry => entry.Level == LogLevel.Debug && entry.StrategyName == "OtherStrategy")
+            .Should().Be(1, "tên khác thì dựng pipeline riêng");
+    }
+
+    /// <summary>
+    /// A-05: mọi log Warning/Error của pipeline (retry, fallback, breaker mở, inner timeout) có thuộc tính <c>StrategyName</c> đúng tên strategy.
+    /// Kịch bản 1: strategy lỗi, retry 1 lần rồi breaker mở (throughput 2) + fallback. Kịch bản 2: strategy chậm vượt inner timeout.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-07")]
+    public async Task ExecuteAsync_PipelineLogs_IncludeStrategyName()
+    {
+        var logger = new StateCapturingLogger();
+        var options = SmallOptions(maxRetryAttempts: 1, innerTimeoutMs: ShortInnerTimeoutMs, minimumThroughput: 2);
+        var pipeline = new StrategyPipeline(MsOptions.Create(options), TimeProvider.System, SharedMetrics, logger);
+        var failing = new DelegateStrategy((_, _, _) => Throwing(), strategyName: "FailingStrategy");
+        var slow = new DelegateStrategy((_, _, token) => WaitForever(token), strategyName: "SlowStrategy");
+        var reservation = DomainTestData.CreateReservation();
+        var context = DomainTestData.CreateContext();
+
+        await pipeline.ExecuteAsync(failing, reservation, context, CancellationToken.None);
+        await pipeline.ExecuteAsync(slow, reservation, context, CancellationToken.None);
+
+        var important = logger.Entries.Where(entry => entry.Level >= LogLevel.Warning).ToArray();
+        important.Should().NotBeEmpty();
+        important.Should().OnlyContain(entry => entry.StrategyName == "FailingStrategy" || entry.StrategyName == "SlowStrategy");
+        important.Where(entry => entry.StrategyName == "FailingStrategy").Select(entry => entry.Level)
+            .Should().Contain(LogLevel.Warning).And.Contain(LogLevel.Error, "retry/fallback (Warning) và breaker mở (Error)");
+        important.Should().Contain(entry => entry.StrategyName == "SlowStrategy", "inner timeout của strategy chậm cũng mang tên strategy");
+    }
+
+    /// <summary>Logger ghi lại mức log và giá trị thuộc tính có cấu trúc <c>StrategyName</c> của từng bản ghi (<c>null</c> nếu template không có).</summary>
+    private sealed class StateCapturingLogger : ILogger<StrategyPipeline>
+    {
+        private readonly List<(LogLevel Level, string? StrategyName)> _entries = [];
+
+        public IReadOnlyList<(LogLevel Level, string? StrategyName)> Entries
+        {
+            get
+            {
+                lock (_entries)
+                {
+                    return _entries.ToArray();
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            string? strategyName = null;
+            if (state is IEnumerable<KeyValuePair<string, object?>> properties)
+            {
+                strategyName = properties.FirstOrDefault(property => property.Key == "StrategyName").Value?.ToString();
+            }
+
+            lock (_entries)
+            {
+                _entries.Add((logLevel, strategyName));
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,6 +14,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Strategies;
 using TADSS.Runtime.Api.Common;
 using TADSS.Infrastructure.Persistence.Entities;
+using TADSS.UnitTests.TestData;
 
 namespace TADSS.IntegrationTests.Infrastructure;
 
@@ -21,7 +23,8 @@ namespace TADSS.IntegrationTests.Infrastructure;
 /// (<see cref="TadssWebApplicationFactory"/>) và chỉ thay hai thứ ở host test, không đụng mã Production (C-10): đồng hồ
 /// (<see cref="Clock"/>, <see cref="FakeTimeProvider"/> — mọi mốc <c>evaluatedAt</c>, <c>created_at</c>, <c>approvalExpiresAt</c> đều lấy từ
 /// <see cref="TimeProvider"/> nên test tất định và không trôi theo ngày chạy) và registry strategy (<see cref="Strategies"/> — đếm số lần strategy chạy,
-/// ghi đè chính sách cache).
+/// ghi đè chính sách cache). Router strategy (<c>IStrategyRouter</c>) là router thật, đọc <c>Tadss:Routing</c> từ cấu hình cuối cùng của host
+/// (gồm <see cref="ConfigurationOverrides"/>) và phân giải tên qua registry đã thay.
 /// <para>
 /// Mọi response 200 nhận qua <see cref="PostDecisionAsync"/> / <see cref="GetDecisionAsync"/> được kiểm tra schema ngay (CT-01,
 /// <see cref="ResponseSchemaAssert"/>) nên test không thể quên kiểm tra.
@@ -61,6 +64,18 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
     {
     }
 
+    /// <summary>
+    /// Điểm mở rộng để lớp dẫn xuất ghi đè cấu hình của host test (cặp khóa/giá trị, như người vận hành cấp qua biến môi trường), đi qua đăng ký DI thật
+    /// (options, validator, composition root) thay vì thay service. Được đọc khi host được dựng và nạp sau mọi nguồn cấu hình có sẵn. Mặc định rỗng.
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string?>> ConfigurationOverrides => [];
+
+    /// <summary>
+    /// Cấu hình mà mã đăng ký DI đọc <b>ngay lúc đăng ký</b> (ví dụ <c>Tadss:Telemetry:Enabled</c> quyết định có dựng OpenTelemetry hay không), chạy trước khi nguồn của
+    /// <c>ConfigureAppConfiguration</c> được nạp; đi qua <c>UseSetting</c> để vào cấu hình host từ đầu. Chỉ khai báo khóa thật sự cần (khóa dạng mảng không dùng được kiểu này). Mặc định rỗng.
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string?>> EarlySettings => [];
+
     /// <summary>Registry strategy của host test (đếm lần chạy, ghi đè chính sách cache).</summary>
     protected ProbeStrategyRegistry Strategies =>
         (ProbeStrategyRegistry)Host.Services.GetRequiredService<IStrategyRegistry>();
@@ -76,20 +91,29 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
     public override async Task InitializeAsync()
     {
         await base.InitializeAsync();
-        _host = CreateFactory(builder => builder.ConfigureTestServices(services =>
+        _host = CreateFactory(builder =>
         {
-            if (UseFakeClock)
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(ConfigurationOverrides));
+            foreach (var (key, value) in EarlySettings)
             {
-                services.RemoveAll<TimeProvider>();
-                services.AddSingleton<TimeProvider>(Clock);
+                builder.UseSetting(key, value);
             }
 
-            services.RemoveAll<IStrategyRegistry>();
-            services.AddSingleton<IStrategyRegistry>(sp =>
-                new ProbeStrategyRegistry(ActivatorUtilities.CreateInstance<StrategyRegistry>(sp)));
+            builder.ConfigureTestServices(services =>
+            {
+                if (UseFakeClock)
+                {
+                    services.RemoveAll<TimeProvider>();
+                    services.AddSingleton<TimeProvider>(Clock);
+                }
 
-            ConfigureHostServices(services);
-        }));
+                services.RemoveAll<IStrategyRegistry>();
+                services.AddSingleton<IStrategyRegistry>(sp =>
+                    new ProbeStrategyRegistry(ActivatorUtilities.CreateInstance<StrategyRegistry>(sp)));
+
+                ConfigureHostServices(services);
+            });
+        });
     }
 
     /// <inheritdoc />
@@ -223,6 +247,39 @@ public abstract class DecisionApiTestBase : IntegrationTestBase
         }
 
         return response;
+    }
+
+    /// <summary>
+    /// Khẳng định quyết định fallback (D-13) ở cả response lẫn hàng audit: <c>APPROVED</c> cọc 100% (tỷ lệ 1, số tiền = <c>totalPrice</c> của
+    /// <paramref name="requestBody"/>), không có hạn duyệt, <c>FALLBACK</c> / <c>fallbackUsed = true</c>, đúng <paramref name="expectedReasonCode"/>;
+    /// trạng thái gốc của "strategy" lưu trong audit cũng là <c>APPROVED</c> (không phải approval window đổi trạng thái).
+    /// </summary>
+    protected static void AssertFallbackFullDeposit(
+        DecisionResultDto result,
+        DecisionExecutionEntity row,
+        string requestBody,
+        string expectedReasonCode)
+    {
+        var totalPrice = ContractSamples.DeserializeRequest(requestBody).TotalPrice;
+
+        result.Status.Should().Be(DecisionStatus.APPROVED);
+        var deposit = ContractSamples.Required(result.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(totalPrice);
+        result.ApprovalExpiresAt.Should().BeNull("quyết định fallback không chờ Manager duyệt");
+        result.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        result.FallbackUsed.Should().BeTrue();
+        result.ReasonCode.Should().Be(expectedReasonCode);
+        result.Recommendations.Should().BeEmpty();
+
+        row.Status.Should().Be(DecisionStatus.APPROVED);
+        row.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        row.DepositRate.Should().Be(1m);
+        row.DepositAmount.Should().Be(totalPrice);
+        row.ApprovalExpiresAt.Should().BeNull();
+        row.ExecutionType.Should().Be(ExecutionType.FALLBACK);
+        row.FallbackUsed.Should().BeTrue();
+        row.ReasonCode.Should().Be(expectedReasonCode);
     }
 
     /// <summary>Đọc trực tiếp mọi hàng <c>decision_overrides</c> của database test (không qua API), theo thời điểm tạo.</summary>

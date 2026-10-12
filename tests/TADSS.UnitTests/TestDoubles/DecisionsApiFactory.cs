@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using TADSS.Application.Decisions;
 using TADSS.Application.Governance;
 using TADSS.Application.Outcomes;
@@ -19,6 +20,9 @@ public sealed class DecisionsApiFactory : WebApplicationFactory<Program>
 {
     /// <summary>Tên môi trường của host thử nghiệm.</summary>
     public const string EnvironmentName = "Testing";
+
+    /// <summary>Thời gian tối đa chờ host khởi động trong <see cref="CreateHost"/> (lưới an toàn, host bình thường khởi động trong vài giây).</summary>
+    private static readonly TimeSpan HostStartLimit = TimeSpan.FromMinutes(2);
 
     /// <summary>Môi trường của host (mặc định <see cref="EnvironmentName"/>); đặt <c>Staging</c> để kiểm tra các quy tắc fail-closed ngoài Development/Testing.</summary>
     internal string HostEnvironment { get; init; } = EnvironmentName;
@@ -61,6 +65,35 @@ public sealed class DecisionsApiFactory : WebApplicationFactory<Program>
     {
         base.ConfigureClient(client);
         TestApiKeys.ApplyDefaultKey(client);
+    }
+
+    /// <summary>
+    /// Khởi động host tất định (thay <c>Build()</c> + <c>Start()</c> mặc định): <c>Program</c> chạy trên thread riêng và chỉ được vào
+    /// <c>Host.StartAsync</c> sau khi thread này đã đăng ký chờ host (xem <see cref="GatedHostLifetime"/>), nên host khởi động thất bại luôn
+    /// lộ đúng exception gốc (vd. <c>OptionsValidationException</c> của <c>ValidateOnStart</c>) thay vì <see cref="ObjectDisposedException"/>
+    /// khi máy bận. Áp cho cả factory dẫn xuất qua <c>WithWebHostBuilder</c>. Cổng chỉ che lỗi xảy ra bên trong <c>Host.StartAsync</c>; lỗi ở
+    /// <c>StartupTasks</c> (trước <c>app.Run()</c>) không race vì <c>Program.cs</c> không dispose <c>app</c> khi đó — giả định này phải giữ.
+    /// </summary>
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        builder.ConfigureServices(services => GatedHostLifetime.Decorate(services, gate.Task));
+        try
+        {
+            var host = builder.Build();
+            // StartAsync của host trì hoãn (DeferredHost) resolve IHostApplicationLifetime và đăng ký ApplicationStarted đồng bộ, trước lần await
+            // đầu tiên; chỉ sau đó mới mở cổng cho Program vào Host.StartAsync (nơi có thể thất bại và dispose host)
+            var start = host.StartAsync();
+            gate.TrySetResult();
+            // Chờ có hạn: lỗi của cổng sau này làm test đỏ nhanh (TimeoutException) thay vì treo cả lượt test
+            start.WaitAsync(HostStartLimit).GetAwaiter().GetResult();
+            return host;
+        }
+        finally
+        {
+            // Build lỗi trước khi tới StartAsync: vẫn mở cổng để thread của Program không treo
+            gate.TrySetResult();
+        }
     }
 
     /// <inheritdoc />

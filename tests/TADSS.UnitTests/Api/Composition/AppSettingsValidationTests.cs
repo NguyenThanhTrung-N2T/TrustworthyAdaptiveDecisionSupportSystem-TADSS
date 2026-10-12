@@ -38,7 +38,7 @@ public class AppSettingsValidationTests
         builder.Configuration.AddInMemoryCollection(TestApiKeys.ToConfiguration(TestApiKeys.DefaultClients));
         builder.Services.AddLogging();
         builder.Services.AddRuntimeCore(builder.Configuration);
-        builder.Services.AddPresentation(builder.Configuration);
+        builder.Services.AddPresentation(builder.Configuration, builder.Environment);
         return builder.Build();
     }
 
@@ -56,7 +56,9 @@ public class AppSettingsValidationTests
         services.GetRequiredService<IOptions<ApprovalOptions>>().Value.WindowMinutes.Should().Be(30);
         services.GetRequiredService<IOptions<ValidationOptions>>().Value.MaxItemMinutes.Should().Be(720);
         services.GetRequiredService<IOptions<CalendarOptions>>().Value.Should().NotBeNull();
-        services.GetRequiredService<IOptions<StrategyOptions>>().Value.ActiveStrategyName.Should().Be("DefaultDecisionStrategy");
+        var routing = services.GetRequiredService<IOptions<StrategyRoutingOptions>>().Value;
+        routing.DefaultStrategy.Should().Be("DefaultDecisionStrategy");
+        routing.Rules.Should().BeEmpty("appsettings.json không có rule nào: hành vi mặc định không đổi (A-01)");
         services.GetRequiredService<IOptions<ResilienceOptions>>().Value.OuterTimeoutMs.Should().Be(500);
         var cache = services.GetRequiredService<IOptions<CacheOptions>>().Value;
         cache.Provider.Should().Be(CacheProviders.Redis);

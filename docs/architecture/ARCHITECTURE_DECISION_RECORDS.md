@@ -15,7 +15,7 @@
 | 009 | Kiểm thử trên hạ tầng thật | Đã duyệt | Đồ án 2 |
 | 010 | Observability bằng OpenTelemetry | Đã duyệt | Đồ án 2 |
 | 011 | Định tuyến strategy theo request + shadow mode | Đã duyệt | Đồ án 2 |
-| 012 | Evidence Pack & ba nguồn dữ liệu minh chứng | Đã duyệt | Đồ án 2 |
+| 012 | Evidence Pack & nguồn dữ liệu minh chứng | Đã duyệt | Đồ án 2 |
 | 013 | Clean Architecture nhiều project | Đã hiện thực (gói 5.2d) | Đồ án 2 |
 
 ---
@@ -26,7 +26,7 @@ Tóm tắt (chi tiết trong file riêng):
 
 - **ADR-001:** runtime chỉ làm việc qua `IReservationDecisionStrategy`; strategy được đăng ký qua DI và tra cứu theo tên. Ở v2, strategy chỉ trả quyết định nghiệp vụ (`StrategyDecision`), runtime lo định danh/thời gian/telemetry.
 - **ADR-002:** một thư viện hợp đồng dùng chung, không phụ thuộc NuGet ngoài; v1 đóng băng tại Milestone 2, v2 đóng băng tại Milestone 5.
-- **ADR-003:** Outer Timeout 500ms → Fallback → Retry 2 lần → Circuit Breaker → Inner Timeout 120ms; v2 bổ sung cách ly strategy không hợp tác và breaker cho Redis.
+- **ADR-003:** Outer Timeout 500ms → Fallback → Retry 2 lần → Circuit Breaker → Inner Timeout 120ms; v2 bổ sung cách ly strategy không hợp tác và breaker cho Redis. Từ 04/10/2026 (D-13) fallback trả `APPROVED` cọc 100% thay cho `NEED_APPROVAL`.
 - **ADR-004:** bất biến nghiệp vụ nằm trong `Reservation` và value object (`EnsureValid`, `CanBeCancelledWithoutPenalty`, `CalculateDepositRatio`, `Schedule.Duration`).
 - **ADR-005:** định hướng mô hình học máy cho Khóa luận, ngoài phạm vi Đồ án 2.
 
@@ -37,6 +37,7 @@ Tóm tắt (chi tiết trong file riêng):
 - **Bối cảnh:** contract v1 chỉ trả trạng thái; số tiền cọc nằm trong chuỗi mô tả; strategy v1 thẩm định số cọc khách đã trả, trong khi lúc tạo booking khách chưa trả gì.
 - **Quyết định:** TADSS xác định mức cọc → `APPROVED` + `deposit`; không xác định được hoặc fallback → `NEED_APPROVAL`, Manager duyệt kèm mức cọc hoặc từ chối; SmashCourt áp 100% **chỉ khi** tắt flag hoặc TADSS không phản hồi; không bao giờ tự duyệt; khách không chọn mức cọc. Khi không còn đủ thời gian duyệt trước giờ chơi, runtime trả `APPROVED` 100% (`APPROVAL_WINDOW_UNAVAILABLE`).
 - **Hệ quả:** SmashCourt phải hỗ trợ thanh toán cọc một phần và thu phần còn lại khi checkout; cần job hết hạn duyệt.
+- **Điều chỉnh 04/10/2026 (D-13, thay thế phần "hoặc fallback → `NEED_APPROVAL`" và "100% **chỉ khi** tắt flag hoặc TADSS không phản hồi"):** fallback của runtime (strategy lỗi, timeout, circuit mở) trả `APPROVED` cọc 100%; `NEED_APPROVAL` chỉ khi nghiệp vụ cần người xem xét. Mọi sự cố (fallback, TADSS lỗi/không phản hồi, tắt flag, không kịp duyệt) đều cọc 100%; vẫn không bao giờ tự duyệt.
 
 ## ADR-007: Contract v2 thay thế v1
 
@@ -68,10 +69,10 @@ Tóm tắt (chi tiết trong file riêng):
 - **Quyết định:** `StrategyRouter` chọn strategy theo quy tắc cấu hình cho từng request (reload không cần restart); `ShadowExecutor` chạy strategy ứng viên song song, chỉ ghi audit `SHADOW`.
 - **Hệ quả:** Khóa luận có thể đưa strategy TADS vào chế độ shadow để so sánh với baseline trên cùng traffic mà không ảnh hưởng khách.
 
-## ADR-012: Evidence Pack & ba nguồn dữ liệu minh chứng
+## ADR-012: Evidence Pack & nguồn dữ liệu minh chứng
 
 - **Bối cảnh:** giảng viên yêu cầu minh chứng bằng dữ liệu chạy thật; dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn do job tự sinh).
-- **Quyết định:** ba nguồn dữ liệu, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt (hình dạng input thực tế), dataset công khai Hotel Booking Demand (độc lập domain), pilot UAT với người dùng thật (luồng tích hợp, khả dụng). Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
+- **Quyết định:** hai nguồn dữ liệu import, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt đã ẩn danh (hình dạng input thực tế, so sánh với chính sách cọc 100%), dataset công khai Hotel Booking Demand (độc lập domain). *Cập nhật 05/10/2026: bỏ nguồn thứ ba là pilot UAT với người dùng thật — nhóm chỉ kiểm thử ở mức phát triển, không có đủ người dùng thật; giới hạn này ghi ở Mục 8 của tài liệu giao thức đánh giá.* Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
 - **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md).
 
 ## ADR-013: Clean Architecture nhiều project
@@ -88,6 +89,6 @@ Tóm tắt (chi tiết trong file riêng):
 - **Hệ quả:**
   - *Không đổi:* wire, JSON schema, mã lỗi và status HTTP, `openapi-v2.yaml`, `baseline_public_api.txt`, ID/nội dung migration, các khóa cấu hình hiện có và giá trị mặc định.
   - *Đổi hành vi có chủ đích:* (1) thêm validator cho `StrategyOptions`, `CacheOptions`, `ErrorHandlingOptions` nên khởi động từ chối cấu hình sai: `Tadss:Cache:Provider` lạ (khác `Redis`/`Memory`, không phân biệt hoa thường), `RedisTimeoutMs`/`RedisConnectTimeoutMs`/`TtlHours` không dương, `Tadss:Strategy:ActiveStrategyName` rỗng, `Tadss:ErrorHandling:RetryAfterSeconds` ngoài 1..3600 (`DatabaseOptions` chỉ có một cờ bool nên không có validator); (2) `Retry-After` của 503/504 đọc từ `Tadss:ErrorHandling:RetryAfterSeconds` (mặc định 5, đúng giá trị cũ); (3) khóa mới `Tadss:Cache:RedisConnectTimeoutMs` (mặc định 3000) là timeout kết nối tối thiểu, thay số 3000 hardcode: timeout kết nối thực tế vẫn là `max(RedisTimeoutMs, RedisConnectTimeoutMs)`; (4) khóa `Tadss:Cache:MaxMemoryCacheSize` bị xóa (không mã nào đọc; khóa còn sót trong file cấu hình cục bộ bị bỏ qua, không gây lỗi); (5) tên health check PostgreSQL đổi thành `postgresql` (không lộ ra response); (6) category của logger đổi theo namespace mới (cần cập nhật bộ lọc log nếu có lọc theo category); (7) kiểu `DecisionTimeoutException` mới, ánh xạ 504 `GATEWAY_TIMEOUT` giữ nguyên; (8) khi outer timeout của strategy và việc caller hủy xảy ra cùng lúc, request kết thúc như "client đã hủy" (log mức Information, không ghi response) thay vì 504 kèm log mức Error như trước (`StrategyPipeline` ném `OperationCanceledException` thay vì `DecisionTimeoutException`; xem Mục 4.4.1 của [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](SOFTWARE_ARCHITECTURE_SPECIFICATION.md)).
-  - *Chưa thay đổi / để lại cho 5.4:* (i) tiền tố khóa cache `tadss:v2:` (`StrategyDecisionCacheKey`) vẫn là hằng, chưa đưa vào cấu hình; (ii) tên health check PostgreSQL vẫn là hằng `"postgresql"`; (iii) `CacheOptions.InstanceName` và `CacheOptions.TtlHours` vẫn được bind nhưng không mã nào đọc (validator vẫn yêu cầu `TtlHours` > 0 theo plan), là ứng viên xóa ở 5.4 như `MaxMemoryCacheSize` đã xóa ở 5.2d; XML doc của hai thuộc tính ghi rõ hiện không có tác dụng.
+  - *Để lại cho 5.4 — đã xử lý ở gói 5.4:* (i) tiền tố khóa cache giờ là `CacheOptions.InstanceName` (mặc định `tadss:` nên khóa đầy đủ `tadss:v2:...` giữ nguyên; `StrategyDecisionCacheKey` không còn tiền tố); (ii) tên health check PostgreSQL/Redis đã là hằng ở một nơi (`PersistenceHealthChecks.Name`, `RedisHealthCheck.Name`), không đổi mã; (iii) `CacheOptions.TtlHours` đã xóa (TTL lấy từ tham số lời gọi cache), `InstanceName` có tác dụng và được validator kiểm (không rỗng, ≤ 32 ký tự, không khoảng trắng).
   - *Chi phí:* thêm hai project, thêm bước đăng ký qua bốn hàm `Add*`; bù lại thêm port mới ở 5.3/5.4 chỉ cần khai báo ở `Application/Abstractions` và hiện thực ở Infrastructure, còn compiler chặn mọi phụ thuộc ngược. Kiểu mới đặt sai chỗ hoặc vi phạm quy ước làm UT-14 đỏ.
-  - *Việc mang sang 5.3:* `IDecisionGovernanceStore` (đặt ở `Application/Abstractions/Persistence`), `DecisionStateConflictException` (đặt ở `Application/Exceptions`), middleware bảo mật chèn vào `UseTadssRequestPipeline`; fail-fast khi thiếu connection string, nới options đọc payload audit, log 503 giả khi client hủy trong pha SQL.
+  - *Việc mang sang 5.3 (đã hiện thực ở 5.3; truy vấn hàng chờ nằm ở `IDecisionQueryStore` vì là thao tác đọc):* `IDecisionGovernanceStore` (đặt ở `Application/Abstractions/Persistence`), `DecisionStateConflictException` (đặt ở `Application/Exceptions`), middleware bảo mật chèn vào `UseTadssRequestPipeline`; fail-fast khi thiếu connection string, nới options đọc payload audit, log 503 giả khi client hủy trong pha SQL.

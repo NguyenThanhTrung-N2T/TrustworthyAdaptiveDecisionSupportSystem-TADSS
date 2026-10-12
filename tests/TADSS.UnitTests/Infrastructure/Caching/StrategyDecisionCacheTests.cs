@@ -3,6 +3,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+using TADSS.Application.Common;
 using TADSS.Infrastructure.Options;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using Moq;
@@ -23,14 +25,27 @@ namespace TADSS.UnitTests.Infrastructure.Caching;
 /// </summary>
 public sealed class StrategyDecisionCacheTests : IDisposable
 {
-    private const string Key = "tadss:v2:Default:2.0.0:a1b2c3d4e5f60718:9f86d081884c7d659a2feaa0c55ad015";
+    private const string Key = "v2:Default:2.0.0:a1b2c3d4e5f60718:9f86d081884c7d659a2feaa0c55ad015";
+
+    /// <summary>Khóa đầy đủ trong Redis/memory với <c>InstanceName</c> mặc định.</summary>
+    private const string FullKey = "tadss:" + Key;
 
     private const string ValidTail = "\"reasonCode\":\"OFF_PEAK_DEPOSIT\",\"reasons\":[\"a\"],\"recommendations\":[]";
 
     private readonly MemoryCache _memory = new(new MemoryCacheOptions());
     private readonly CapturingLogger<StrategyDecisionCache> _logger = new();
+    private readonly TadssMetrics _metrics = new();
+    private readonly FakeTimeProvider _time = new();
+    private readonly MetricRecorder _recorder;
 
-    public void Dispose() => _memory.Dispose();
+    public StrategyDecisionCacheTests() => _recorder = new MetricRecorder(_metrics.Meter);
+
+    public void Dispose()
+    {
+        _recorder.Dispose();
+        _metrics.Dispose();
+        _memory.Dispose();
+    }
 
     /// <summary>Redis giả: <c>IDatabase</c> Moq lưu chuỗi đã ghi (kèm expiry) và trả lại khi đọc.</summary>
     private sealed class RedisFake
@@ -63,15 +78,17 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         bool fallbackToMemory = true,
         IConnectionMultiplexer? redis = null,
         IMemoryCache? memory = null,
-        string instanceName = "tadss:")
+        string instanceName = "tadss:",
+        int breakerMinimumThroughput = 10)
     {
         var options = MsOptions.Create(new CacheOptions
         {
             Provider = provider,
             EnableFallbackToMemory = fallbackToMemory,
             InstanceName = instanceName,
+            RedisBreakerMinimumThroughput = breakerMinimumThroughput,
         });
-        return new StrategyDecisionCache(memory ?? _memory, options, _logger, redis);
+        return new StrategyDecisionCache(memory ?? _memory, options, _metrics, _time, _logger, redis);
     }
 
     private static StrategyDecision CreateDecision(string status) => status switch
@@ -124,9 +141,10 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         cached.Should().NotBeSameAs(decision, "tầng Redis dựng lại từ JSON");
         cached.Should().BeEquivalentTo(decision);
 
-        // Khóa dùng nguyên văn, không cộng InstanceName; chuỗi ghi là JSON theo TadssJson (camelCase, enum là chuỗi đúng tên)
-        redis.Store.Should().ContainKey(Key).And.HaveCount(1);
-        using var json = JsonDocument.Parse(redis.Store[Key].Value);
+        // Khóa đầy đủ = InstanceName ("khac:") + khóa; chuỗi ghi là JSON theo TadssJson (camelCase, enum là chuỗi đúng tên)
+        const string InstanceKey = "khac:" + Key;
+        redis.Store.Should().ContainKey(InstanceKey).And.HaveCount(1);
+        using var json = JsonDocument.Parse(redis.Store[InstanceKey].Value);
         json.RootElement.GetProperty("status").GetString().Should().Be(status);
         json.RootElement.GetProperty("reasonCode").GetString().Should().Be(decision.ReasonCode);
         json.RootElement.GetProperty("reasons").GetArrayLength().Should().Be(decision.Reasons.Count);
@@ -144,7 +162,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
 
         await cache.SetAsync(Key, CreateDecision("NEED_APPROVAL"), TimeSpan.FromMinutes(5), CancellationToken.None);
 
-        using var json = JsonDocument.Parse(redis.Store[Key].Value);
+        using var json = JsonDocument.Parse(redis.Store[FullKey].Value);
         var types = json.RootElement.GetProperty("recommendations").EnumerateArray()
             .Select(item => item.GetProperty("type").GetString())
             .ToArray();
@@ -160,7 +178,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
 
         await cache.SetAsync(Key, CreateDecision("APPROVED"), TimeSpan.FromMinutes(60), CancellationToken.None);
 
-        redis.Store[Key].Expiry.Should().Be(TimeSpan.FromMinutes(60), "TTL lấy từ tham số, không phải TtlHours");
+        redis.Store[FullKey].Expiry.Should().Be(TimeSpan.FromMinutes(60), "TTL lấy từ tham số của lời gọi");
         redis.Database.Verify(
             db => db.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), TimeSpan.FromMinutes(60), It.IsAny<When>(), It.IsAny<CommandFlags>()),
             Times.Once);
@@ -276,7 +294,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
     public async Task Get_CorruptPayload_Theory(string scenario, string payload)
     {
         var redis = new RedisFake();
-        redis.Store[Key] = (payload, null);
+        redis.Store[FullKey] = (payload, null);
         var cache = CreateCache("Redis", fallbackToMemory: false, redis.Multiplexer.Object);
 
         var cached = await cache.GetAsync(Key, CancellationToken.None);
@@ -293,7 +311,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         var cache = CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object);
         var decision = CreateDecision("APPROVED");
         await cache.SetAsync(Key, decision, TimeSpan.FromMinutes(5), CancellationToken.None);
-        redis.Store[Key] = ("{not json", null);
+        redis.Store[FullKey] = ("{not json", null);
 
         var cached = await cache.GetAsync(Key, CancellationToken.None);
 
@@ -316,7 +334,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
 
         await act.Should().NotThrowAsync();
         AssertWarningWithKey();
-        _memory.TryGetValue(Key, out StrategyDecision? inMemory).Should().BeTrue("memory vẫn được ghi khi Redis lỗi");
+        _memory.TryGetValue(FullKey, out StrategyDecision? inMemory).Should().BeTrue("memory vẫn được ghi khi Redis lỗi");
         inMemory.Should().BeSameAs(decision);
     }
 
@@ -329,8 +347,8 @@ public sealed class StrategyDecisionCacheTests : IDisposable
 
         await cache.SetAsync(Key, CreateDecision("APPROVED"), TimeSpan.FromMinutes(5), CancellationToken.None);
 
-        _memory.TryGetValue(Key, out StrategyDecision? _).Should().BeFalse();
-        redis.Store.Should().ContainKey(Key);
+        _memory.TryGetValue(FullKey, out StrategyDecision? _).Should().BeFalse();
+        redis.Store.Should().ContainKey(FullKey);
     }
 
     [Fact]
@@ -414,7 +432,7 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         var act = async () => await cache.SetAsync(Key, CreateDecision("APPROVED"), TimeSpan.FromMinutes(5), cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
-        _memory.TryGetValue(Key, out StrategyDecision? _).Should().BeFalse();
+        _memory.TryGetValue(FullKey, out StrategyDecision? _).Should().BeFalse();
     }
 
     [Theory]
@@ -458,5 +476,116 @@ public sealed class StrategyDecisionCacheTests : IDisposable
         var act = async () => await cache.SetAsync(Key, CreateDecision("APPROVED"), TimeSpan.FromMinutes(minutes), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>Với <c>InstanceName</c> mặc định, khóa đầy đủ trong Redis và memory khớp đúng định dạng trước đây (<c>tadss:v2:...</c>).</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-13")]
+    public async Task FullKey_DefaultInstanceName_MatchesPreviousFormat()
+    {
+        var redis = new RedisFake();
+        var cache = CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object);
+
+        await cache.SetAsync(Key, CreateDecision("APPROVED"), TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        redis.Store.Keys.Should().ContainSingle().Which.Should().Be("tadss:v2:Default:2.0.0:a1b2c3d4e5f60718:9f86d081884c7d659a2feaa0c55ad015");
+        _memory.TryGetValue(redis.Store.Keys.Single(), out StrategyDecision? _).Should().BeTrue("memory dùng cùng khóa đầy đủ");
+    }
+
+    /// <summary>Breaker Redis mở: ghi chỉ vào memory, không gọi Redis; đọc lại từ memory là hit.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-13")]
+    public async Task SetAsync_BreakerOpen_SkipsRedisWritesMemory()
+    {
+        var redis = new RedisFake();
+        var cache = CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object, breakerMinimumThroughput: 2);
+        OpenBreaker(redis, cache);
+        var decision = CreateDecision("APPROVED");
+
+        await cache.SetAsync(Key, decision, TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        redis.Database.Verify(
+            db => db.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>(), It.IsAny<CommandFlags>()),
+            Times.Never);
+        (await cache.GetAsync(Key, CancellationToken.None)).Should().BeSameAs(decision);
+    }
+
+    /// <summary>Gauge <c>tadss.cache.circuit.state</c> theo breaker Redis: đóng (0) rồi mở (2) khi đủ lỗi; thăm dò thành công thì đóng lại.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-13")]
+    public async Task CacheCircuitStateGauge_FollowsRedisBreaker()
+    {
+        var redis = new RedisFake();
+        var cache = CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object, breakerMinimumThroughput: 2);
+
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(0, "chưa lỗi thì breaker đóng");
+
+        OpenBreaker(redis, cache);
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(2, "đủ lỗi thì breaker mở");
+
+        redis.Database
+            .Setup(db => db.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisValue.Null);
+        _time.Advance(TimeSpan.FromSeconds(31));
+        await cache.GetAsync(Key, CancellationToken.None);
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().ContainSingle().Which.Value.Should().Be(0, "thăm dò thành công thì đóng lại");
+    }
+
+    /// <summary>Không dùng Redis (<c>Provider = Memory</c>) thì không có breaker Redis nên gauge không phát số đo.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-13")]
+    public void CacheCircuitStateGauge_MemoryProvider_EmitsNothing()
+    {
+        _ = CreateCache("Memory");
+
+        _recorder.ObserveGauge(TadssMetricNames.CacheCircuitState).Should().BeEmpty();
+    }
+
+    private static void OpenBreaker(RedisFake redis, StrategyDecisionCache cache)
+    {
+        redis.Database
+            .Setup(db => db.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis không kết nối được"));
+        cache.GetAsync(Key, CancellationToken.None).GetAwaiter().GetResult();
+        cache.GetAsync(Key, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    /// <summary>Mỗi lần <c>GetAsync</c> ghi đúng một số đo <c>tadss.cache.requests</c> với nhãn đúng (bypass khi breaker Redis mở).</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-13")]
+    [InlineData("redis-hit", "hit")]
+    [InlineData("memory-hit", "hit")]
+    [InlineData("miss", "miss")]
+    [InlineData("bypass-memory-hit", "bypass")]
+    [InlineData("bypass-memory-miss", "bypass")]
+    public async Task GetAsync_RecordsExactlyOneCacheMetric_Theory(string scenario, string expectedResult)
+    {
+        var redis = new RedisFake();
+        var cache = scenario.StartsWith("memory", StringComparison.Ordinal)
+            ? CreateCache("Memory")
+            : CreateCache("Redis", fallbackToMemory: true, redis.Multiplexer.Object, breakerMinimumThroughput: 2);
+        var decision = CreateDecision("APPROVED");
+        switch (scenario)
+        {
+            case "redis-hit" or "memory-hit":
+                await cache.SetAsync(Key, decision, TimeSpan.FromMinutes(5), CancellationToken.None);
+                break;
+            case "bypass-memory-hit":
+                await cache.SetAsync(Key, decision, TimeSpan.FromMinutes(5), CancellationToken.None);
+                OpenBreaker(redis, cache);
+                break;
+            case "bypass-memory-miss":
+                OpenBreaker(redis, cache);
+                break;
+        }
+
+        var before = _recorder.Sum(TadssMetricNames.CacheRequests);
+        var beforeResult = _recorder.Sum(TadssMetricNames.CacheRequests, ("result", expectedResult));
+        await cache.GetAsync(Key, CancellationToken.None);
+
+        _recorder.Sum(TadssMetricNames.CacheRequests).Should().Be(before + 1);
+        _recorder.Sum(TadssMetricNames.CacheRequests, ("result", expectedResult)).Should().Be(beforeResult + 1);
     }
 }

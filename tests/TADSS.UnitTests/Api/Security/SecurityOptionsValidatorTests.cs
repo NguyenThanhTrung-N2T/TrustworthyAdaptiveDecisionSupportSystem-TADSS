@@ -124,4 +124,27 @@ public class SecurityOptionsValidatorTests
 
         start.Should().NotThrow();
     }
+
+    /// <summary><c>MaxRequestBodyBytes</c> chỉ hợp lệ trong 1024..1048576 (biên trong hợp lệ, ngay ngoài biên không hợp lệ); thông báo nêu tên khóa.</summary>
+    [Theory]
+    [InlineData(1023, false)]
+    [InlineData(1024, true)]
+    [InlineData(65536, true)]
+    [InlineData(1048576, true)]
+    [InlineData(1048577, false)]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    [Trait("CatalogId", "SEC-2")]
+    public void Validate_MaxRequestBodyBytesRange_Theory(long maxRequestBodyBytes, bool expectedValid)
+    {
+        var options = new SecurityOptions { MaxRequestBodyBytes = maxRequestBodyBytes };
+
+        var result = CreateValidator("Testing").Validate(null, options);
+
+        result.Succeeded.Should().Be(expectedValid);
+        if (!expectedValid)
+        {
+            result.Failures.Should().ContainSingle().Which.Should().Contain("MaxRequestBodyBytes");
+        }
+    }
 }

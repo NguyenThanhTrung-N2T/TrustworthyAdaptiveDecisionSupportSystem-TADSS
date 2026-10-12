@@ -333,6 +333,8 @@ public class DecisionQueryServiceTests
             createdAt: createdB,
             totalPrice: 20.01m,
             currency: "USD",
+            // Bản ghi NEED_APPROVAL kèm fallbackUsed chỉ còn ở dữ liệu cũ (fallback hiện là APPROVED cọc 100%, D-13);
+            // hàng chờ vẫn phải map nguyên vẹn cờ đã lưu
             fallbackUsed: true,
             reasonCode: "STRATEGY_TIMEOUT_FALLBACK",
             isGuest: true,

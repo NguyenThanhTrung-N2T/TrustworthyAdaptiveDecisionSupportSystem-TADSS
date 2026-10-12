@@ -1,0 +1,14 @@
+# Provisioning dashboard TADSS cho grafana/otel-lgtm (O-10): đọc dashboard từ thư mục mount chỉ đọc, đặt vào thư mục "TADSS", không cho sửa trên giao diện.
+# Đường dẫn trong container (S-1): /otel-lgtm/grafana/conf/provisioning/dashboards/ (file này) và /otel-lgtm/tadss-dashboards (thư mục docker/grafana/dashboards).
+apiVersion: 1
+
+providers:
+  - name: tadss
+    orgId: 1
+    folder: TADSS
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /otel-lgtm/tadss-dashboards

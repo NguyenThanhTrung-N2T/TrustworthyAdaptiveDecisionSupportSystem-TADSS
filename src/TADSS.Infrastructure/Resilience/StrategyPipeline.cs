@@ -1,46 +1,60 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.CircuitBreaker;
-using Polly.Fallback;
-using Polly.Retry;
+using Polly.Registry;
 using Polly.Timeout;
 using Shared.DecisionContractSDK.Decisions;
 using Shared.DecisionContractSDK.Domain;
 using Shared.DecisionContractSDK.Enums;
 using Shared.DecisionContractSDK.Interfaces;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Application.Exceptions;
 using TADSS.Infrastructure.Options;
 
 namespace TADSS.Infrastructure.Resilience;
 
 /// <summary>
-/// Pipeline chịu lỗi của strategy (Polly, theo SAS 4.2):
-/// Outer timeout → Fallback → Retry → Circuit breaker → Inner timeout, tham số lấy từ <see cref="ResilienceOptions"/>.
+/// Pipeline chịu lỗi của strategy (Polly, theo SAS 4.2): thực thi, dịch exception của Polly sang kiểu của Application và ánh xạ fallback.
 /// <para>
-/// Pipeline là singleton dùng chung cho mọi strategy nên chỉ có <b>một</b> circuit breaker cho tất cả strategy
-/// (không tách breaker theo từng strategy).
-/// <see cref="TimeProvider"/> được gán cho cả pipeline Polly nên timeout, retry delay và breaker cùng
-/// chạy theo đồng hồ được tiêm (test dùng <c>FakeTimeProvider</c>).
+/// Mỗi strategy có pipeline riêng, tạo lười lần đầu dùng trong một <see cref="ResiliencePipelineRegistry{TKey}"/> (khóa = <c>StrategyName</c>,
+/// an toàn đa luồng) nên circuit breaker của strategy A mở không làm strategy B fast-fail. Các lớp Polly dựng ở
+/// <see cref="StrategyResilienceBuilder"/>; lượt chạy trong cùng đi qua <see cref="IsolatedStrategyInvoker"/> để strategy không hợp tác
+/// vẫn bị cắt đúng hạn. <see cref="TimeProvider"/> được gán cho mọi pipeline nên timeout, retry delay và breaker cùng chạy theo
+/// đồng hồ được tiêm (test dùng <c>FakeTimeProvider</c>).
 /// </para>
 /// </summary>
-public sealed class StrategyPipeline : IStrategyPipeline
+public sealed class StrategyPipeline : IStrategyPipeline, IDisposable
 {
     private readonly ResilienceOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<StrategyPipeline> _logger;
-    private readonly ResiliencePipeline<StrategyExecutionOutcome> _pipeline;
+    private readonly IsolatedStrategyInvoker _invoker;
+    private readonly TadssMetrics _metrics;
+    private readonly ResiliencePipelineRegistry<string> _registry = new();
+    // Mỗi strategy đúng một mục (pipeline + đối tượng đọc trạng thái breaker của chính pipeline đó). Lazy bảo đảm dựng đúng một lần dù nhiều request đầu tiên
+    // đến cùng lúc: registry của Polly có thể gọi callback cấu hình nhiều lần khi tranh chấp, còn CircuitBreakerStateProvider chỉ gắn được vào MỘT breaker.
+    private readonly ConcurrentDictionary<string, Lazy<PipelineEntry>> _pipelines = new();
 
     /// <summary>Khởi tạo pipeline từ cấu hình <c>Tadss:Resilience</c>.</summary>
-    public StrategyPipeline(IOptions<ResilienceOptions> options, TimeProvider timeProvider, ILogger<StrategyPipeline> logger)
+    public StrategyPipeline(
+        IOptions<ResilienceOptions> options,
+        TimeProvider timeProvider,
+        TadssMetrics metrics,
+        ILogger<StrategyPipeline> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(metrics);
         _options = options.Value;
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        _pipeline = BuildPipeline();
+        _metrics = metrics;
+        _invoker = new IsolatedStrategyInvoker(metrics, logger);
+        // Gauge breaker đọc trạng thái hiện tại của mọi strategy đã có pipeline (tạo lười nên strategy chưa chạy thì chưa có)
+        metrics.RegisterCircuitStateSource(ReadCircuitStates);
     }
 
     /// <inheritdoc />
@@ -54,15 +68,18 @@ public sealed class StrategyPipeline : IStrategyPipeline
         ArgumentNullException.ThrowIfNull(reservation);
         ArgumentNullException.ThrowIfNull(context);
 
+        var pipeline = GetPipeline(strategy.StrategyName);
         var startedAt = _timeProvider.GetTimestamp();
+        using var activity = TadssActivitySource.Source.StartActivity(TadssActivitySource.StrategyExecute);
+        activity?.SetTag(TadssActivitySource.TagStrategy, strategy.StrategyName);
 
         StrategyExecutionOutcome outcome;
         try
         {
-            outcome = await _pipeline.ExecuteAsync(
+            outcome = await pipeline.ExecuteAsync(
                 static async (state, token) =>
                 {
-                    var decision = await state.Strategy.EvaluateAsync(state.Reservation, state.Context, token).ConfigureAwait(false);
+                    var decision = await state.Invoker.InvokeAsync(state.Strategy, state.Reservation, state.Context, token).ConfigureAwait(false);
 
                     // Strategy trả null là lỗi hợp đồng: đi chung đường lỗi để được retry rồi fallback
                     if (decision is null)
@@ -72,7 +89,7 @@ public sealed class StrategyPipeline : IStrategyPipeline
 
                     return new StrategyExecutionOutcome(decision, ExecutionType.AUTOMATED, FallbackUsed: false, FailureReason: null, ExecutionTimeMs: 0);
                 },
-                (Strategy: strategy, Reservation: reservation, Context: context),
+                (Invoker: _invoker, Strategy: strategy, Reservation: reservation, Context: context),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutRejectedException ex) when (cancellationToken.IsCancellationRequested)
@@ -82,6 +99,13 @@ public sealed class StrategyPipeline : IStrategyPipeline
         }
         catch (TimeoutRejectedException ex)
         {
+            activity?.SetTag(TadssActivitySource.TagOutcome, TadssMetricNames.PipelineOutcomeTimeout);
+            TadssActivitySource.MarkError(activity, ex);
+            _metrics.RecordPipelineDuration(
+                strategy.StrategyName,
+                TadssMetricNames.PipelineOutcomeTimeout,
+                _timeProvider.GetElapsedTime(startedAt).TotalMilliseconds);
+
             // Dịch exception của Polly tại ranh giới adapter: lớp trên chỉ biết kiểu của Application
             throw new DecisionTimeoutException("Pipeline strategy vượt ngân sách thời gian cho phép.", ex);
         }
@@ -89,123 +113,60 @@ public sealed class StrategyPipeline : IStrategyPipeline
         var elapsed = _timeProvider.GetElapsedTime(startedAt);
         var elapsedMs = (int)Math.Max(0d, Math.Floor(elapsed.TotalMilliseconds));
 
+        // Hủy của caller và outer timeout không tới đây (đã ném ở trên); mỗi fallback đã được đếm ở CreateFallbackOutcome
+        _metrics.RecordPipelineDuration(
+            strategy.StrategyName,
+            outcome.FallbackUsed ? TadssMetricNames.PipelineOutcomeFallback : TadssMetricNames.PipelineOutcomeAutomated,
+            elapsed.TotalMilliseconds);
+        activity?.SetTag(TadssActivitySource.TagOutcome, outcome.FallbackUsed ? TadssMetricNames.PipelineOutcomeFallback : TadssMetricNames.PipelineOutcomeAutomated);
+        if (outcome.FallbackUsed)
+        {
+            activity?.SetTag(TadssActivitySource.TagFallbackReason, FallbackReasonOf(outcome.FailureReason));
+        }
+
         return outcome with { ExecutionTimeMs = elapsedMs };
     }
 
-    private ResiliencePipeline<StrategyExecutionOutcome> BuildPipeline()
+    /// <summary>Giải phóng registry (dispose các pipeline và timer của Polly) cùng singleton.</summary>
+    public void Dispose() => _registry.Dispose();
+
+    private ResiliencePipeline<StrategyExecutionOutcome> GetPipeline(string strategyName) =>
+        _pipelines.GetOrAdd(strategyName, static (name, self) => new Lazy<PipelineEntry>(() => self.CreateEntry(name)), this).Value.Pipeline;
+
+    private PipelineEntry CreateEntry(string strategyName)
     {
-        var builder = new ResiliencePipelineBuilder<StrategyExecutionOutcome> { TimeProvider = _timeProvider };
-
-        // 1. Outer timeout: hạn cứng của cả pipeline; nằm ngoài Fallback nên lỗi lan ra và được dịch thành DecisionTimeoutException (504)
-        builder.AddTimeout(new TimeoutStrategyOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(_options.OuterTimeoutMs),
-            OnTimeout = _ =>
-            {
-                _logger.LogError("Pipeline strategy v2 vượt Outer timeout ({TimeoutMs} ms).", _options.OuterTimeoutMs);
-                return default;
-            }
-        });
-
-        // 2. Fallback: timeout / lỗi / circuit mở của strategy -> quyết định NEED_APPROVAL; hủy từ caller không bị bắt
-        builder.AddFallback(new FallbackStrategyOptions<StrategyExecutionOutcome>
-        {
-            ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: true)),
-            FallbackAction = args =>
-            {
-                var outcome = CreateFallbackOutcome(args.Outcome.Exception);
-                _logger.LogWarning(
-                    args.Outcome.Exception,
-                    "Fallback strategy v2: ReasonCode {ReasonCode}, FailureReason {FailureReason}.",
-                    outcome.Decision.ReasonCode,
-                    outcome.FailureReason);
-                return new ValueTask<Outcome<StrategyExecutionOutcome>>(Outcome.FromResult(outcome));
-            }
-        });
-
-        // 3. Retry: lỗi nhất thời; không retry khi circuit mở hoặc bị hủy
-        if (_options.MaxRetryAttempts > 0)
-        {
-            builder.AddRetry(new RetryStrategyOptions<StrategyExecutionOutcome>
-            {
-                MaxRetryAttempts = _options.MaxRetryAttempts,
-                Delay = TimeSpan.FromMilliseconds(_options.RetryBaseDelayMs),
-                BackoffType = DelayBackoffType.Constant,
-                ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: false)),
-                OnRetry = args =>
-                {
-                    _logger.LogWarning(
-                        "Retry strategy v2 lần {AttemptNumber}/{MaxAttempts} do {ExceptionType}.",
-                        args.AttemptNumber + 1,
-                        _options.MaxRetryAttempts,
-                        args.Outcome.Exception?.GetType().Name);
-                    return default;
-                }
-            });
-        }
-
-        // 4. Circuit breaker: cách ly khi tỷ lệ lỗi vượt ngưỡng trong khung lấy mẫu
-        builder.AddCircuitBreaker(new CircuitBreakerStrategyOptions<StrategyExecutionOutcome>
-        {
-            FailureRatio = _options.CircuitBreakerFailureRatio,
-            SamplingDuration = TimeSpan.FromSeconds(_options.CircuitBreakerSamplingSeconds),
-            MinimumThroughput = _options.CircuitBreakerMinimumThroughput,
-            BreakDuration = TimeSpan.FromSeconds(_options.CircuitBreakerBreakDurationSeconds),
-            ShouldHandle = args => ValueTask.FromResult(IsFailure(args.Outcome, args.Context, includeBrokenCircuit: false)),
-            OnOpened = args =>
-            {
-                _logger.LogError("Circuit breaker strategy v2 MỞ trong {BreakDuration}s do tỷ lệ lỗi vượt ngưỡng.", args.BreakDuration.TotalSeconds);
-                return default;
-            },
-            OnClosed = _ =>
-            {
-                _logger.LogInformation("Circuit breaker strategy v2 ĐÓNG: chạy strategy bình thường trở lại.");
-                return default;
-            },
-            OnHalfOpened = _ =>
-            {
-                _logger.LogInformation("Circuit breaker strategy v2 NỬA MỞ: đang thăm dò sức khỏe strategy.");
-                return default;
-            }
-        });
-
-        // 5. Inner timeout: giới hạn cho từng lượt thử
-        builder.AddTimeout(new TimeoutStrategyOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(_options.InnerTimeoutMs),
-            OnTimeout = _ =>
-            {
-                _logger.LogWarning("Một lượt thử strategy v2 vượt Inner timeout ({InnerTimeoutMs} ms).", _options.InnerTimeoutMs);
-                return default;
-            }
-        });
-
-        return builder.Build();
+        var stateProvider = new CircuitBreakerStateProvider();
+        var pipeline = _registry.GetOrAddPipeline<StrategyExecutionOutcome>(
+            strategyName,
+            (builder, _) => ConfigurePipeline(builder, strategyName, stateProvider));
+        return new PipelineEntry(pipeline, stateProvider);
     }
 
-    /// <summary>
-    /// Phân biệt lỗi của strategy với hủy từ phía hệ thống. <see cref="OperationCanceledException"/> chỉ là lỗi của strategy
-    /// khi token của lớp đang xét <b>chưa</b> bị hủy (vd. HttpClient timeout trong strategy ném <c>TaskCanceledException</c> — F3);
-    /// token này là token của lớp Polly bao ngoài nên đã gộp cả hủy của caller và Outer timeout, hai trường hợp đó vẫn lan ra.
-    /// Circuit mở (<see cref="BrokenCircuitException"/>) chỉ được fallback bắt, không tính vào retry/breaker.
-    /// </summary>
-    private static bool IsFailure(Outcome<StrategyExecutionOutcome> outcome, ResilienceContext context, bool includeBrokenCircuit)
+    private void ConfigurePipeline(
+        ResiliencePipelineBuilder<StrategyExecutionOutcome> builder, string strategyName, CircuitBreakerStateProvider stateProvider)
     {
-        var exception = outcome.Exception;
-        if (exception is null)
-        {
-            return false;
-        }
-
-        if (exception is OperationCanceledException)
-        {
-            return !context.CancellationToken.IsCancellationRequested;
-        }
-
-        return includeBrokenCircuit || exception is not BrokenCircuitException;
+        builder.TimeProvider = _timeProvider;
+        _logger.LogDebug("Dựng pipeline chịu lỗi cho strategy {StrategyName}.", strategyName);
+        StrategyResilienceBuilder.Configure(builder, _options, strategyName, _logger, stateProvider, exception => CreateFallbackOutcome(exception, strategyName));
     }
 
-    private StrategyExecutionOutcome CreateFallbackOutcome(Exception? exception)
+    // Chỉ strategy đã dựng xong pipeline mới có trạng thái (IsValueCreated), nên gauge không bao giờ chặn chờ một lần dựng đang chạy
+    private IEnumerable<KeyValuePair<string, CircuitStateValue>> ReadCircuitStates() =>
+        _pipelines
+            .Where(entry => entry.Value.IsValueCreated)
+            .Select(entry => new KeyValuePair<string, CircuitStateValue>(entry.Key, CircuitStateMapper.ToValue(entry.Value.Value.StateProvider.CircuitState)));
+
+    private sealed record PipelineEntry(ResiliencePipeline<StrategyExecutionOutcome> Pipeline, CircuitBreakerStateProvider StateProvider);
+
+    // FailureReason mang tiền tố máy đọc được; suy ngược ra nhãn lý do giống nhãn của metric tadss.fallbacks
+    private static string FallbackReasonOf(string? failureReason) => failureReason switch
+    {
+        not null when failureReason.StartsWith(FailureReasonPrefixes.StrategyTimeout, StringComparison.Ordinal) => TadssMetricNames.FallbackReasonTimeout,
+        not null when failureReason.StartsWith(FailureReasonPrefixes.CircuitBreakerOpen, StringComparison.Ordinal) => TadssMetricNames.FallbackReasonCircuitOpen,
+        _ => TadssMetricNames.FallbackReasonException,
+    };
+
+    private StrategyExecutionOutcome CreateFallbackOutcome(Exception? exception, string strategyName)
     {
         var (cause, failureReason) = exception switch
         {
@@ -214,6 +175,15 @@ public sealed class StrategyPipeline : IStrategyPipeline
             // Chỉ ghi tên kiểu: message của exception có thể chứa chi tiết nội bộ, không được đi vào audit/response
             _ => (FallbackCause.Exception, FailureReasonPrefixes.FormatException(exception?.GetType().Name))
         };
+
+        _metrics.RecordFallback(
+            cause switch
+            {
+                FallbackCause.Timeout => TadssMetricNames.FallbackReasonTimeout,
+                FallbackCause.CircuitOpen => TadssMetricNames.FallbackReasonCircuitOpen,
+                _ => TadssMetricNames.FallbackReasonException,
+            },
+            strategyName);
 
         return new StrategyExecutionOutcome(
             FallbackDecisionPolicy.Create(cause),

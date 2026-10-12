@@ -13,6 +13,7 @@ using Shared.DecisionContractSDK.Enums;
 using TADSS.Application.Abstractions.Caching;
 using TADSS.Application.Abstractions.Persistence;
 using TADSS.Application.Abstractions.Resilience;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Application.Exceptions;
 using TADSS.Application.Options;
@@ -31,7 +32,7 @@ namespace TADSS.UnitTests.Application.Decisions;
 /// window → audit (fail-closed, INV-10), replay nguyên văn khi trùng key và hash, báo xung đột khi khác hash (kể cả khi
 /// thua tranh chấp), lấy thời gian từ <see cref="TimeProvider"/> và không ghi gì khi lỗi xảy ra trước bước ghi audit.
 /// Service được dựng với <see cref="StrategyEvaluator"/> thật; các kịch bản thuần của bộ đánh giá (khóa/TTL cache, chính sách cache tắt,
-/// lỗi hủy nội bộ) nằm ở <c>StrategyEvaluatorTests</c>, ở đây chỉ giữ hệ quả ở cấp service. Store, cache, pipeline và registry là test double viết tay;
+/// lỗi hủy nội bộ) nằm ở <c>StrategyEvaluatorTests</c>, ở đây chỉ giữ hệ quả ở cấp service. Store, cache, pipeline và router là test double viết tay;
 /// quyết định thật lấy từ strategy v2.
 /// </summary>
 public class DecisionServiceTests
@@ -81,27 +82,31 @@ public class DecisionServiceTests
     /// <summary>Bộ phụ thuộc giả dùng chung cho một lần dựng <see cref="DecisionService"/>.</summary>
     private sealed class Fixture
     {
+        private MetricRecorder? _recorder;
+
         public Fixture(
             RegisteredStrategy? strategy = null,
             FakeStrategyPipeline? pipeline = null,
-            FakeStrategyRegistry? registry = null,
+            FakeStrategyRouter? router = null,
             FakeDecisionAuditStore? store = null,
             DateTimeOffset? now = null)
         {
             Strategy = strategy ?? DefaultStrategy();
             Time = new FakeTimeProvider(now ?? Now);
             Pipeline = pipeline ?? new FakeStrategyPipeline();
-            Registry = registry ?? new FakeStrategyRegistry(Strategy);
+            Router = router ?? new FakeStrategyRouter(Strategy);
             Store = store ?? new FakeDecisionAuditStore();
 
             Service = new DecisionService(
                 Store,
-                Registry,
+                Router,
                 new StrategyEvaluator(Pipeline, Cache, Time, EvaluatorLogger),
                 new ItemDurationPolicy(MsOptions.Create(new ValidationOptions())),
                 new DecisionResponseComposer(
                     new DepositCalculator(),
                     new ApprovalWindowPolicy(MsOptions.Create(new ApprovalOptions()))),
+                ShadowDispatcher,
+                Metrics,
                 DomainTestData.StandardCalendar(),
                 Time,
                 Logger);
@@ -113,11 +118,17 @@ public class DecisionServiceTests
 
         public FakeStrategyPipeline Pipeline { get; }
 
-        public FakeStrategyRegistry Registry { get; }
+        public FakeStrategyRouter Router { get; }
 
         public FakeDecisionAuditStore Store { get; }
 
         public FakeStrategyDecisionCache Cache { get; } = new();
+
+        public FakeShadowDispatcher ShadowDispatcher { get; } = new();
+
+        public TadssMetrics Metrics { get; } = new();
+
+        public MetricRecorder Recorder => _recorder ??= new MetricRecorder(Metrics.Meter);
 
         public CapturingLogger<DecisionService> Logger { get; } = new();
 
@@ -163,7 +174,7 @@ public class DecisionServiceTests
         second.Should().BeEquivalentTo(first);
         second.DecisionId.Should().Be(first.DecisionId);
         fixture.Pipeline.InvocationCount.Should().Be(1);
-        fixture.Registry.ResolveCount.Should().Be(1);
+        fixture.Router.RouteCount.Should().Be(1);
         fixture.Store.Records.Should().HaveCount(1);
         fixture.Store.InsertCount.Should().Be(1);
     }
@@ -201,7 +212,7 @@ public class DecisionServiceTests
         exception.IdempotencyKey.Should().Be(IdempotencyKey);
         fixture.Store.InsertCount.Should().Be(1, "request xung đột không được ghi audit");
         fixture.Pipeline.InvocationCount.Should().Be(1, "request xung đột không được chạy strategy");
-        fixture.Registry.ResolveCount.Should().Be(1);
+        fixture.Router.RouteCount.Should().Be(1);
     }
 
     [Fact]
@@ -212,12 +223,12 @@ public class DecisionServiceTests
         var first = await original.EvaluateAsync(Request());
         var store = new FakeDecisionAuditStore();
         store.Seed(original.Store.Records.Single());
-        var fixture = new Fixture(registry: new FakeStrategyRegistry(), store: store);
+        var fixture = new Fixture(router: new FakeStrategyRouter(), store: store);
 
         var replayed = await fixture.EvaluateAsync(Request());
 
         replayed.DecisionId.Should().Be(first.DecisionId);
-        fixture.Registry.ResolveCount.Should().Be(0);
+        fixture.Router.RouteCount.Should().Be(0);
         fixture.Pipeline.InvocationCount.Should().Be(0);
         fixture.Store.InsertCount.Should().Be(0);
     }
@@ -238,7 +249,7 @@ public class DecisionServiceTests
         var exception = (await act.Should().ThrowAsync<DomainInvariantException>()).Which;
         exception.InvariantCode.Should().Be("INVALID_ITEM_DURATION");
         fixture.Store.InsertCount.Should().Be(0);
-        fixture.Registry.ResolveCount.Should().Be(0);
+        fixture.Router.RouteCount.Should().Be(0);
         fixture.Pipeline.InvocationCount.Should().Be(0);
     }
 
@@ -253,7 +264,7 @@ public class DecisionServiceTests
 
         await act.Should().ThrowAsync<ContractValidationException>();
         fixture.Store.InsertCount.Should().Be(0);
-        fixture.Registry.ResolveCount.Should().Be(0);
+        fixture.Router.RouteCount.Should().Be(0);
         fixture.Pipeline.InvocationCount.Should().Be(0);
     }
 
@@ -325,13 +336,22 @@ public class DecisionServiceTests
             $"{FailureReasonPrefixes.StrategyTimeout}: vượt 400 ms");
         var fixture = new Fixture(strategy, pipeline);
 
-        var response = await fixture.EvaluateAsync(Request());
+        var request = Request();
+
+        var response = await fixture.EvaluateAsync(request);
 
         fixture.Cache.Sets.Should().BeEmpty("chỉ kết quả AUTOMATED mới được cache");
-        response.Status.Should().Be(DecisionStatus.NEED_APPROVAL);
-        response.ApprovalExpiresAt.Should().NotBeNull();
+        response.Status.Should().Be(DecisionStatus.APPROVED);
+        var deposit = ContractSamples.Required(response.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(request.TotalPrice);
+        response.ApprovalExpiresAt.Should().BeNull();
+        response.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
         response.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         response.FallbackUsed.Should().BeTrue();
+        var record = fixture.Store.Records.Should().ContainSingle().Subject;
+        record.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        record.FailureReason.Should().StartWith(FailureReasonPrefixes.StrategyTimeout);
     }
 
     [Fact]
@@ -413,8 +433,160 @@ public class DecisionServiceTests
             .And.Contain(CorrelationId)
             .And.Contain("DefaultDecisionStrategy")
             .And.Contain("AUTOMATED")
-            .And.Contain("APPROVED");
+            .And.Contain("APPROVED")
+            .And.Contain("rule default", "strategy mặc định (không rule nào khớp) được ghi là rule 'default'");
         entry.Message.Should().NotContain("9d3f1c2a-0000-4000-8000-000000000123", "không được log payload/dữ liệu khách hàng");
+    }
+
+    /// <summary>
+    /// A-04: service đánh giá đúng strategy do <c>IStrategyRouter</c> chọn cho reservation của request (strategy B, không phải strategy mặc định của fixture);
+    /// response và audit mang tên strategy B, log tóm tắt có <c>RuleName</c> của rule đã khớp.
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_UsesRoutedStrategy()
+    {
+        var strategyB = new DelegateStrategy(
+            (_, _, _) => Task.FromResult(StrategyDecision.Approve(0.5m, ReasonCodes.PeakHourDeposit, ["Khung giờ cao điểm áp dụng cọc 50%."])),
+            strategyName: "StrategyB");
+        var fixture = new Fixture(router: new FakeStrategyRouter(new RegisteredStrategy(strategyB, StrategyFingerprint), "peak-hour"));
+
+        var response = await fixture.EvaluateAsync(Request());
+
+        strategyB.InvocationCount.Should().Be(1);
+        fixture.Router.RouteCount.Should().Be(1);
+        ContractSamples.Required(fixture.Router.LastReservation).ReservationId.Should().Be(response.ReservationId);
+        response.StrategyName.Should().Be("StrategyB");
+        ContractSamples.Required(response.Deposit).Rate.Should().Be(0.5m);
+        fixture.Store.Records.Should().ContainSingle().Which.StrategyName.Should().Be("StrategyB");
+        var entry = fixture.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Information).Subject;
+        entry.Message.Should().Contain("StrategyB").And.Contain("rule peak-hour");
+    }
+
+    /// <summary>Request mới ghi được bản PRIMARY thì gửi đúng một việc shadow với đúng mốc, hash, correlation và tên strategy chính.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_FreshPrimary_DispatchesOnce()
+    {
+        var fixture = new Fixture();
+        var request = Request();
+
+        await fixture.EvaluateAsync(request);
+
+        var call = fixture.ShadowDispatcher.Calls.Should().ContainSingle().Subject;
+        call.PrimaryStrategyName.Should().Be(fixture.Strategy.Strategy.StrategyName);
+        call.Item.NowUtc.Should().Be(Now);
+        call.Item.RequestHash.Should().Be(RequestHasher.ComputeHash(request));
+        call.Item.CorrelationId.Should().Be(CorrelationId);
+        call.Item.Request.Should().BeSameAs(request);
+    }
+
+    /// <summary>Replay idempotency, thua tranh chấp hoặc ghi audit lỗi thì không gửi việc shadow (chỉ bản PRIMARY mới của chính request mới được shadow).</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-11")]
+    [InlineData("replay")]
+    [InlineData("race-loser")]
+    [InlineData("store-failure")]
+    public async Task EvaluateAsync_ReplayOrRaceLoserOrFailure_DoesNotDispatch_Theory(string scenario)
+    {
+        Fixture fixture;
+        switch (scenario)
+        {
+            case "replay":
+                fixture = new Fixture();
+                await fixture.EvaluateAsync(Request());
+                break;
+            case "race-loser":
+                var original = new Fixture();
+                await original.EvaluateAsync(Request());
+                var store = new FakeDecisionAuditStore();
+                store.SimulateLostRace(original.Store.Records.Single());
+                fixture = new Fixture(store: store);
+                break;
+            default:
+                var failing = new FakeDecisionAuditStore();
+                failing.FailInsertWithPersistenceUnavailable();
+                fixture = new Fixture(store: failing);
+                break;
+        }
+
+        // Replay: lần ghi đầu của chính fixture này đã gửi 1 việc; hai kịch bản còn lại chưa gửi gì
+        var dispatchedBefore = fixture.ShadowDispatcher.Calls.Count;
+        try
+        {
+            await fixture.EvaluateAsync(Request());
+        }
+        catch (PersistenceUnavailableException)
+        {
+            // Kịch bản store-failure: lỗi lan ra như thiết kế (fail-closed)
+        }
+
+        fixture.ShadowDispatcher.Calls.Should().HaveCount(dispatchedBefore, "lần gọi sau không gửi thêm việc shadow nào");
+    }
+
+    /// <summary>Request mới ghi được bản PRIMARY thì <c>tadss.decisions</c> tăng đúng một lần với trạng thái, strategy và loại thực thi của response.</summary>
+    [Fact]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-11")]
+    public async Task EvaluateAsync_FreshPrimary_RecordsDecisionOnce()
+    {
+        var fixture = new Fixture();
+        _ = fixture.Recorder;
+
+        var response = await fixture.EvaluateAsync(Request());
+
+        fixture.Recorder.Sum(TadssMetricNames.Decisions).Should().Be(1);
+        fixture.Recorder.Sum(
+            TadssMetricNames.Decisions,
+            (TadssMetricNames.LabelStatus, response.Status.ToString()),
+            (TadssMetricNames.LabelStrategy, fixture.Strategy.Strategy.StrategyName),
+            (TadssMetricNames.LabelExecutionType, response.ExecutionType.ToString())).Should().Be(1);
+    }
+
+    /// <summary>Replay idempotency, thua tranh chấp hoặc ghi audit lỗi thì không đếm thêm quyết định nào (số đếm khớp số bản ghi PRIMARY mới).</summary>
+    [Theory]
+    [Trait("CatalogId", "OB-5")]
+    [Trait("CatalogId", "UT-11")]
+    [InlineData("replay")]
+    [InlineData("race-loser")]
+    [InlineData("store-failure")]
+    public async Task EvaluateAsync_ReplayOrRaceLoserOrFailure_RecordsNoDecision_Theory(string scenario)
+    {
+        Fixture fixture;
+        switch (scenario)
+        {
+            case "replay":
+                fixture = new Fixture();
+                _ = fixture.Recorder;
+                await fixture.EvaluateAsync(Request());
+                break;
+            case "race-loser":
+                var original = new Fixture();
+                await original.EvaluateAsync(Request());
+                var store = new FakeDecisionAuditStore();
+                store.SimulateLostRace(original.Store.Records.Single());
+                fixture = new Fixture(store: store);
+                _ = fixture.Recorder;
+                break;
+            default:
+                var failing = new FakeDecisionAuditStore();
+                failing.FailInsertWithPersistenceUnavailable();
+                fixture = new Fixture(store: failing);
+                _ = fixture.Recorder;
+                break;
+        }
+
+        var recordedBefore = fixture.Recorder.Sum(TadssMetricNames.Decisions);
+        try
+        {
+            await fixture.EvaluateAsync(Request());
+        }
+        catch (PersistenceUnavailableException)
+        {
+            // Kịch bản store-failure: lỗi lan ra như thiết kế (fail-closed)
+        }
+
+        fixture.Recorder.Sum(TadssMetricNames.Decisions).Should().Be(recordedBefore, "không bản PRIMARY mới nào được ghi bởi lần gọi này");
     }
 
     [Fact]
@@ -577,7 +749,7 @@ public class DecisionServiceTests
         await act.Should().ThrowAsync<ArgumentException>();
         fixture.Store.FindCount.Should().Be(0);
         fixture.Store.InsertCount.Should().Be(0);
-        fixture.Registry.ResolveCount.Should().Be(0);
+        fixture.Router.RouteCount.Should().Be(0);
     }
 
     [Fact]

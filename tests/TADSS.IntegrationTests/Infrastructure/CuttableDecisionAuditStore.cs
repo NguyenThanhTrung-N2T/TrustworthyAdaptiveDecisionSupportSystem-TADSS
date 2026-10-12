@@ -61,4 +61,8 @@ public sealed class CuttableDecisionAuditStore : IDecisionEvaluationStore, IDeci
     /// <inheritdoc />
     public Task<PendingApprovalsPage> GetPendingApprovalsAsync(Guid branchId, int page, int pageSize, DateTimeOffset nowUtc, CancellationToken cancellationToken) =>
         _queryInner.GetPendingApprovalsAsync(branchId, page, pageSize, nowUtc, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<Guid, long>> CountPendingApprovalsByBranchAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken) =>
+        _queryInner.CountPendingApprovalsByBranchAsync(nowUtc, cancellationToken);
 }

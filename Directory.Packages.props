@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- SEC-7: cho phép ghim phiên bản phụ thuộc bắc cầu bằng PackageVersion (xem mục "Ghim bắc cầu" bên dưới) -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <!-- Database & Infrastructure Packages -->
@@ -12,7 +14,7 @@
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     
     <!-- Microsoft.Extensions.* cho TADSS.Application / TADSS.Infrastructure (8.0.x, không thấp hơn bản restore bắc cầu) -->
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
@@ -22,6 +24,13 @@
     <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageVersion Include="Serilog.Enrichers.Process" Version="3.0.0" />
+
+    <!-- OpenTelemetry (chỉ Runtime.Api/Composition; bộ 1.15.3 vì ≤ 1.15.2 dính GHSA-g94r-2vxg-569j và GHSA-4625-4j76-fww9; AspNetCore instrumentation 1.15.2 là bản mới nhất) -->
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageVersion Include="Npgsql.OpenTelemetry" Version="8.0.6" />
+    <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.1.1" />
 
     <!-- Test Packages -->
     <PackageVersion Include="FluentAssertions" Version="6.12.1" />
@@ -38,5 +47,12 @@
     <PackageVersion Include="Testcontainers.Redis" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.Toxiproxy" Version="4.15.0" />
     <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.15.3" />
+    <PackageVersion Include="YamlDotNet" Version="16.3.0" />
+
+    <!-- Ghim bắc cầu (SEC-7): xunit 2.5.3 -> NETStandard.Library 1.6.1 kéo 2 package có lỗ hổng High; chỉ ảnh hưởng project test, không vào image runtime.
+         Dùng bản vá thấp nhất; gỡ khi nâng xunit lên bản không còn phụ thuộc NETStandard.Library 1.x. -->
+    <PackageVersion Include="System.Net.Http" Version="4.3.4" />
+    <PackageVersion Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 </Project>

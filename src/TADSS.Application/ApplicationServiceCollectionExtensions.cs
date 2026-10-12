@@ -2,17 +2,20 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using TADSS.Application.Common;
 using TADSS.Application.Decisions;
 using TADSS.Application.Governance;
 using TADSS.Application.Options;
 using TADSS.Application.Outcomes;
+using TADSS.Application.Routing;
+using TADSS.Application.Shadow;
 using TADSS.Application.Strategies;
 
 namespace TADSS.Application;
 
 /// <summary>
 /// Đăng ký DI cho tầng Application: options của use case (có kiểm tra khi khởi động), lịch cao điểm, policy,
-/// bộ ghép response, bộ đánh giá strategy, registry strategy và các use case (đánh giá, tra cứu, override, outcome). Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
+/// bộ ghép response, bộ đánh giá strategy, registry và router strategy, shadow và các use case (đánh giá, tra cứu, override, outcome). Hạ tầng (kho audit, cache, pipeline) do project Infrastructure đăng ký.
 /// </summary>
 public static class ApplicationServiceCollectionExtensions
 {
@@ -21,6 +24,9 @@ public static class ApplicationServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
+        // Meter TADSS.Runtime: nơi duy nhất khai báo tên metric; singleton, dispose cùng host
+        services.TryAddSingleton<TadssMetrics>();
+
         // Thời gian lấy qua TimeProvider để test điều khiển được đồng hồ
         services.TryAddSingleton(TimeProvider.System);
 
@@ -47,12 +53,24 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<DepositCalculator>();
         services.AddSingleton<ApprovalWindowPolicy>();
 
-        // Strategy đang kích hoạt: section Tadss:Strategy
-        services.AddOptions<StrategyOptions>()
-            .Bind(configuration.GetSection(StrategyOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<StrategyOptions>, StrategyOptionsValidator>();
+        // Danh bạ strategy (tra theo tên) và định tuyến theo request: section Tadss:Routing (A-01). Cấu hình sai lúc khởi động thì không khởi động;
+        // nạp lại nóng do StrategyRouter theo dõi qua port IRoutingRulesSource (A-02; adapter do AddInfrastructure đăng ký), không qua IOptionsMonitor
         services.AddSingleton<IStrategyRegistry, StrategyRegistry>();
+        services.AddOptions<StrategyRoutingOptions>()
+            .Bind(configuration.GetSection(StrategyRoutingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<StrategyRoutingOptions>, StrategyRoutingOptionsValidator>();
+        services.AddSingleton<IStrategyRouter, StrategyRouter>();
+
+        // Shadow (A-11, section Tadss:Shadow, mặc định tắt): hàng đợi có giới hạn (singleton) và bộ thực thi mỗi việc (scoped vì dùng kho audit scoped);
+        // worker nền đọc hàng đợi do AddInfrastructure đăng ký. Bật mà strategy shadow không có trong registry thì không khởi động
+        services.AddOptions<ShadowOptions>()
+            .Bind(configuration.GetSection(ShadowOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<ShadowOptions>, ShadowOptionsValidator>();
+        services.AddSingleton<ShadowDispatcher>();
+        services.AddSingleton<IShadowDispatcher>(sp => sp.GetRequiredService<ShadowDispatcher>());
+        services.AddScoped<ShadowExecutor>();
 
         // Bộ ghép response + bản ghi audit (phép biến đổi thuần)
         services.AddSingleton<DecisionResponseComposer>();

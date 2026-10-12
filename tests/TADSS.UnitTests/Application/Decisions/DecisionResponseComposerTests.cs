@@ -146,7 +146,17 @@ public class DecisionResponseComposerTests
         composed.Response.ExecutionType.Should().Be(ExecutionType.FALLBACK);
         composed.Response.FallbackUsed.Should().BeTrue();
         composed.Response.ReasonCode.Should().Be(ReasonCodes.FallbackStrategyTimeout);
+        composed.Response.Status.Should().Be(DecisionStatus.APPROVED);
+        var deposit = ContractSamples.Required(composed.Response.Deposit);
+        deposit.Rate.Should().Be(1m);
+        deposit.Amount.Should().Be(composition.Reservation.TotalPrice);
+        composed.Response.ApprovalExpiresAt.Should().BeNull();
 
+        composed.Record.StrategyStatus.Should().Be(DecisionStatus.APPROVED);
+        composed.Record.Status.Should().Be(DecisionStatus.APPROVED);
+        composed.Record.DepositRate.Should().Be(1m);
+        composed.Record.DepositAmount.Should().Be(composition.Reservation.TotalPrice);
+        composed.Record.ApprovalExpiresAt.Should().BeNull();
         composed.Record.StrategyName.Should().Be(composition.Strategy.Strategy.StrategyName);
         composed.Record.StrategyVersion.Should().Be(composition.Strategy.Strategy.StrategyVersion);
         composed.Record.ExecutionType.Should().Be(ExecutionType.FALLBACK);
@@ -405,6 +415,48 @@ public class DecisionResponseComposerTests
             RequestHash: RequestHash,
             IdempotencyKey: IdempotencyKey,
             CorrelationId: CorrelationId);
+    }
+
+    /// <summary>Bản SHADOW có đúng Role và không có khóa idempotency; trạng thái, cọc và response như bản PRIMARY cùng đầu vào (chỉ <c>decisionId</c> khác).</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-11")]
+    public void Compose_ShadowRole_RecordHasRoleAndNullIdempotencyKey()
+    {
+        var composer = CreateComposer();
+        var primaryInput = CreateComposition(Scenario.ApprovedAutomated);
+        var shadowInput = primaryInput with { DecisionId = Guid.NewGuid(), IdempotencyKey = null, Role = ExecutionRole.SHADOW };
+
+        var primary = composer.Compose(primaryInput);
+        var shadow = composer.Compose(shadowInput);
+
+        shadow.Record.Role.Should().Be(ExecutionRole.SHADOW);
+        shadow.Record.IdempotencyKey.Should().BeNull();
+        primary.Record.Role.Should().Be(ExecutionRole.PRIMARY);
+        shadow.Record.Should().BeEquivalentTo(
+            primary.Record,
+            options => options.Excluding(record => record.DecisionId)
+                .Excluding(record => record.Role)
+                .Excluding(record => record.IdempotencyKey)
+                .Excluding(record => record.ResponsePayload));
+        shadow.Response.Should().BeEquivalentTo(primary.Response, options => options.Excluding(response => response.DecisionId));
+    }
+
+    /// <summary>Bản PRIMARY thiếu khóa idempotency hoặc bản SHADOW mang khóa là lỗi lập trình: ném lỗi thay vì ghi bản ghi lệch (INV-2, INV-8).</summary>
+    [Theory]
+    [Trait("CatalogId", "UT-11")]
+    [InlineData(ExecutionRole.PRIMARY, false)]
+    [InlineData(ExecutionRole.SHADOW, true)]
+    public void Compose_IdempotencyKeyDoesNotMatchRole_Throws(ExecutionRole role, bool withKey)
+    {
+        var composition = CreateComposition(Scenario.ApprovedAutomated) with
+        {
+            Role = role,
+            IdempotencyKey = withKey ? IdempotencyKey : null,
+        };
+
+        var act = () => CreateComposer().Compose(composition);
+
+        act.Should().Throw<ArgumentException>();
     }
 
     private static class Scenario

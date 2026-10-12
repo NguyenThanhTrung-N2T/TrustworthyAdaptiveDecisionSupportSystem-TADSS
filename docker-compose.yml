@@ -1,72 +1,282 @@
-# Môi trường E-LOCAL của TADSS (Phase 5): TADSS + PostgreSQL + Redis + Toxiproxy + Grafana LGTM.
-# Chạy: docker compose up -d --build   ·   Dừng và xóa dữ liệu: docker compose down -v
-# TADSS kết nối PostgreSQL/Redis QUA Toxiproxy để kịch bản FI tiêm lỗi được mà không phải khởi động lại.
-# Nối vào smashcourt-network của SmashCourt-BE làm ở Phase 7 bằng file override.
-name: tadss-local
+# MỘT lệnh `docker compose up -d --build` chạy cả hai phần:
+#   1. Vận hành: TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
+#   2. Đánh giá (D-14): stack cô lập (các service eval-*) và evaluator tự chạy một lượt các bước a…f (bản nhanh ~30 phút; bản đầy đủ: EVAL_MODE=full), xong thì evaluator dừng.
+#      Theo dõi: docker compose logs -f evaluator   — kết quả: evidence/<run_id>/report.html; Grafana của stack đánh giá: localhost:3002.
+# Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
+#            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
+# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok"; chạy đánh giá: docs/guides/EVALUATION_RUN_GUIDE.md.
+name: tadss
 
 services:
-  tadss-postgres:
+  tadss-runtime:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"   # chỉ máy này truy cập được
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Database__ApplyMigrationsOnStartup: "false"   # không bao giờ tự migrate Neon
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://grafana:4317   # service grafana trong cùng mạng compose
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 20
+    networks:
+      - smashcourt-network
+
+  ngrok:
+    image: ngrok/ngrok:3.39.11-alpine
+    restart: unless-stopped
+    command: http tadss-runtime:8080
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "127.0.0.1:4040:4040"   # trang theo dõi của ngrok
+    depends_on:
+      tadss-runtime:
+        # Chỉ chờ khởi động, KHÔNG chờ khỏe: app vận hành lỗi cấu hình (ví dụ API key sai) thì `up` vẫn chạy tiếp lượt đánh giá (D-14); ngrok trả 502 tới khi app lên
+        condition: service_started
+    networks:
+      - smashcourt-network
+
+  grafana:
+    image: grafana/otel-lgtm:0.34.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"   # Grafana
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+    volumes:
+      # Chỉ đọc: cấu hình provisioning (file, để không che các file provisioning có sẵn của otel-lgtm) và thư mục dashboard; không chứa secret
+      - ./docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro
+      - ./docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro
+    networks:
+      - smashcourt-network
+
+  # ── Chế độ đánh giá (D-12, D-14, O-12, O-13): không profile, khởi động cùng `docker compose up` ở trên. Mọi service dưới đây dùng mạng mặc định riêng của project
+  # (KHÔNG nối smashcourt-network), không bao giờ chạm Neon/Redis Cloud, và không service vận hành nào phụ thuộc vào chúng.
+  # Chạy lại riêng vài bước: bash tools/evaluation/run.sh quick --steps e,f   — dọn riêng stack đánh giá: bash tools/evaluation/run.sh --clean-only
+  eval-postgres:
     image: postgres:16.15-alpine
+    # 3 instance TADSS dùng chung database này, mỗi instance pool tối đa 100 kết nối (mặc định Npgsql); mặc định 100 của PostgreSQL bị chạm khi tải ập vào lúc
+    # TADSS còn nguội ("too many clients" → 503 ở LT-01/LT-02). 350 = 3 × 100 + dư cho evaluator/psql
+    command: ["postgres", "-c", "max_connections=350"]
     environment:
       POSTGRES_DB: tadss
-      POSTGRES_USER: ${TADSS_PG_USER:-tadss}
-      POSTGRES_PASSWORD: ${TADSS_PG_PASSWORD:-tadss_local}
-    ports:
-      - "5433:5432"
-    volumes:
-      - tadss-pg-data:/var/lib/postgresql/data
+      POSTGRES_USER: tadss
+      POSTGRES_PASSWORD: tadss_eval   # database dùng một lần của stack đánh giá, không phải secret
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  tadss-redis:
+  eval-redis:
     image: redis:7.4-alpine
-    ports:
-      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  toxiproxy:
+  # Toxiproxy đứng giữa TADSS và PostgreSQL/Redis để kịch bản sự cố cắt hoặc làm chậm hạ tầng thật (cổng proxy 15432 và 16379, cổng điều khiển 8474)
+  eval-toxiproxy:
     image: ghcr.io/shopify/toxiproxy:2.12.0
     command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
     volumes:
       - ./docker/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
-    ports:
-      - "8474:8474"
     depends_on:
-      tadss-postgres:
+      eval-postgres:
         condition: service_healthy
-      tadss-redis:
+      eval-redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  tadss-runtime:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: on-failure
-    ports:
-      - "8081:8080"
+  # Instance 1: migrate database dùng một lần, tiêm lỗi (file JSON trong volume eval-faults đổi nóng Profile/DelayMs)
+  eval-tadss-1:
+    build: .
+    image: tadss-eval-runtime:local
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=toxiproxy;Port=15432;Database=tadss;Username=${TADSS_PG_USER:-tadss};Password=${TADSS_PG_PASSWORD:-tadss_local}"
-      Tadss__Cache__Provider: Redis
-      Tadss__Cache__RedisConnectionString: "toxiproxy:16379"
-      Tadss__Database__ApplyMigrationsOnStartup: "true"
+      ASPNETCORE_ENVIRONMENT: Testing   # decorator tiêm lỗi chỉ đăng ký ở Testing; Testing không nạp appsettings.Development.json
+      ConnectionStrings__DefaultConnection: "Host=eval-toxiproxy;Port=15432;Database=tadss;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-toxiproxy:16379"
+      Tadss__Database__ApplyMigrationsOnStartup: "true"   # CHỈ database dùng một lần của stack đánh giá
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"   # SHA-256 của hằng không bí mật `tadss-evaluation-key`, chỉ có hiệu lực ở stack này
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-1
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+      Tadss__Testing__FaultInjection__Enabled: "true"
+      Tadss__Testing__FaultInjection__Profile: None
+      TADSS_FAULT_INJECTION_FILE: /faults/fault.json
+    volumes:
+      - eval-faults:/faults:ro
     depends_on:
-      toxiproxy:
-        condition: service_started
+      eval-toxiproxy:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
 
-  otel-lgtm:
+  # Instance 2: cùng database/Redis, không migrate, không tiêm lỗi (đối chứng SCALE-2); chờ instance 1 khỏe để hai instance không cùng migrate
+  eval-tadss-2:
+    build: .
+    image: tadss-eval-runtime:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__DefaultConnection: "Host=eval-toxiproxy;Port=15432;Database=tadss;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-toxiproxy:16379"
+      Tadss__Database__ApplyMigrationsOnStartup: "false"
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-2
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+    depends_on:
+      eval-tadss-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
+
+  # Instance PT (PT-01, Q-02): cùng image runtime nhưng database dùng một lần RIÊNG `tadss_portability` (EF tự tạo vì ApplyMigrationsOnStartup, user `tadss` là superuser của eval-postgres),
+  # nối THẲNG eval-postgres/eval-redis (không qua Toxiproxy), không tiêm lỗi, không mở cổng host. Cấu hình miền khách sạn CHỈ bằng biến môi trường (không sửa mã):
+  # request VND của eval-tadss-1/2 không bị ảnh hưởng, và database chính giữ D1 sạch cho các bước (a)…(d).
+  eval-tadss-portability:
+    build: .
+    image: tadss-eval-runtime:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__DefaultConnection: "Host=eval-postgres;Port=5432;Database=tadss_portability;Username=tadss;Password=tadss_eval"
+      Tadss__Cache__RedisConnectionString: "eval-redis:6379"
+      Tadss__Cache__InstanceName: "tadss-pt:"   # tiền tố khóa Redis riêng, không trùng khóa của eval-tadss-1/2 (mặc định tadss:)
+      Tadss__Database__ApplyMigrationsOnStartup: "true"   # CHỈ database dùng một lần của chính instance này
+      Tadss__Security__ApiKeys__0__ClientId: evaluator
+      Tadss__Security__ApiKeys__0__KeySha256: "0065f53b16f1098163cf687e50c0533eb8a546be30b53683cf6194893c7ee406"
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Security__TrustForwardedHeaders: "true"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://eval-grafana:4317
+      Tadss__Telemetry__ServiceInstanceId: tadss-pt
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: "0.1"
+      # Tham số miền khách sạn chốt một lần ở spike S-2 (spec/PHASE5_REPORT_5.6.md), từ phân bố dữ liệu và không chỉnh theo kết quả:
+      Tadss__Validation__MaxItemMinutes: "100800"   # 70 ngày: lưu trú dài nhất của dataset là 69 đêm (99.240 phút); mặc định 720 từ chối ngay cả 1 đêm (1.320 phút)
+      Tadss__Strategies__Default__HighValueThreshold: "750"   # EUR: p90 giá trị đơn (adr x số đêm) = 729, làm tròn bội số 50, khoảng 9,5 % đơn vào NEED_APPROVAL; mặc định 2.000.000 tính bằng VND
+    depends_on:
+      eval-postgres:
+        condition: service_healthy
+      eval-redis:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy   # OTLP sẵn sàng trước khi instance gửi telemetry, như eval-tadss-1
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 30
+
+  eval-proxy:
+    image: nginx:1.29.8-alpine
+    volumes:
+      - ./docker/evaluation/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      eval-tadss-1:
+        condition: service_healthy
+      eval-tadss-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      retries: 20
+
+  # Grafana của stack đánh giá: cổng host duy nhất của stack đánh giá (NG-5), cùng provisioning dashboard như chế độ vận hành
+  eval-grafana:
     image: grafana/otel-lgtm:0.34.0
     ports:
-      - "3001:3000"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:3002:3000"
+    volumes:
+      - ./docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro
+      - ./docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro
+
+  # Evaluator: chạy test, tải, sự cố và gom minh chứng. Mount docker.sock (Testcontainers cho integration test, đọc digest image): có quyền điều khiển Docker của máy, nên chỉ dùng trên máy của chính bạn.
+  # Chạy một lượt rồi dừng (không restart); mỗi lần `docker compose up` sau đó khởi động lại nó, tức là chạy lại một lượt đánh giá.
+  evaluator:
+    restart: "no"
+    build:
+      context: .
+      dockerfile: docker/evaluator/Dockerfile
+    image: tadss-evaluator:local
+    environment:
+      EVAL_MODE: ${EVAL_MODE:-quick}
+      EVAL_STEPS: ${EVAL_STEPS:-}
+      EVAL_TADSS_URL: http://eval-tadss-1:8080
+      EVAL_PROXY_URL: http://eval-proxy:8080
+      EVAL_PT_URL: http://eval-tadss-portability:8080   # bước (e): PT gửi thẳng instance PT, RP gửi qua EVAL_PROXY_URL
+      EVAL_API_KEY: tadss-evaluation-key   # hằng không bí mật của stack đánh giá
+      EVAL_GRAFANA_URL: http://eval-grafana:3000
+      EVAL_PROMETHEUS_URL: http://eval-grafana:3000/api/datasources/proxy/uid/prometheus
+      EVAL_TOXIPROXY_URL: http://eval-toxiproxy:8474
+      EVAL_PG_DSN: "host=eval-postgres port=5432 dbname=tadss user=tadss password=tadss_eval"
+      EVAL_PT_PG_DSN: "host=eval-postgres port=5432 dbname=tadss_portability user=tadss password=tadss_eval"   # D1 của instance PT (xuất ở bước f)
+      EVAL_DATASETS_PRIVATE: /datasets/private   # CSV SmashCourt thô do người dùng xuất (gitignore, mount chỉ đọc)
+      EVAL_DATASETS_CACHE: /datasets/cache   # cache dataset khách sạn đã kiểm SHA-256 (volume eval-datasets)
+      EVAL_WORKERS: ${EVAL_WORKERS:-8}   # số luồng gửi của bước (e), mặc định chốt ở spike S-5
+      TADSS_SCHEMA_DIR: /repo/docs/contracts/schemas/v2   # JSON schema v2 để kiểm request/response (mount chỉ đọc của repo)
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/repo:ro
+      - ./evidence:/evidence
+      - /var/run/docker.sock:/var/run/docker.sock
+      - eval-nuget:/root/.nuget/packages
+      - eval-faults:/faults
+      - ./data/private:/datasets/private:ro
+      - eval-datasets:/datasets/cache
+    depends_on:
+      eval-postgres:
+        condition: service_healthy
+      eval-redis:
+        condition: service_healthy
+      eval-toxiproxy:
+        condition: service_healthy
+      eval-tadss-1:
+        condition: service_healthy
+      eval-tadss-2:
+        condition: service_healthy
+      eval-tadss-portability:
+        condition: service_healthy
+      eval-proxy:
+        condition: service_healthy
+      eval-grafana:
+        condition: service_healthy
+
+networks:
+  smashcourt-network:
+    external: true
 
 volumes:
-  tadss-pg-data:
+  eval-nuget:
+  eval-faults:
+  eval-datasets:   # cache dataset khách sạn giữa các lượt; `run.sh --clean` / `--clean-only` xóa
