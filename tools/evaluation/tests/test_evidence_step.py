@@ -137,3 +137,31 @@ def test_write_d2_outputs_csv_with_spec_columns(tmp_path: Path) -> None:
     assert len(entries) == 40
     header = next(csv.reader((context.evidence_dir / "raw" / "d2" / "timeseries.csv").open(encoding="utf-8")))
     assert header == ["timestamp_utc", "scenario", "http_status", "duration_ms", "decision_status", "execution_type", "correlation_id"]
+
+
+def _docs_outcome(note: str) -> StepResult:
+    return StepResult("a", PASSED, NOW, NOW, notes=["pytest tools/docs: đạt", note, "OB-2 (eval-grafana): đạt — ok"])
+
+
+def test_verified_codes_include_doc_checks_when_check_docs_passed(tmp_path: Path) -> None:
+    context, _ = _setup(tmp_path)
+    context.outcomes.append(_docs_outcome("check_docs.py: đạt"))
+
+    assert step.verified_codes(context, None, []) == {"DOC-1", "DOC-2", "DOC-3"}
+    assert step.failed_codes(context) == set()
+
+
+def test_doc_checks_are_failed_codes_when_check_docs_failed(tmp_path: Path) -> None:
+    context, _ = _setup(tmp_path)
+    context.outcomes.append(_docs_outcome("check_docs.py: không đạt (mã 1, xem check-docs.log)"))
+
+    assert step.verified_codes(context, None, []) == set()
+    assert step.failed_codes(context) == {"DOC-1", "DOC-2", "DOC-3"}
+
+
+def test_doc_checks_are_untested_when_step_a_did_not_run_check_docs(tmp_path: Path) -> None:
+    context, _ = _setup(tmp_path)
+    context.outcomes.append(StepResult("a", ERROR, NOW, NOW, notes=["restore thất bại (xem restore.log)"]))
+
+    assert step.verified_codes(context, None, []) == set()
+    assert step.failed_codes(context) == set()

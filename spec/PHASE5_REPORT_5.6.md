@@ -1,10 +1,81 @@
-# Báo cáo gói 5.6 — Minh chứng dữ liệu và hướng dẫn chạy (bản đang viết)
+# Báo cáo gói 5.6 — Minh chứng dữ liệu và hướng dẫn chạy
 
-> Không stage file này (`spec/PHASE5_*.md`). Hiện mới có phần **Spike S-1…S-5** của Task 1; các phần còn lại do Task 2–7 bổ sung.
+> Không stage file này (`spec/PHASE5_*.md`). Khép ngày 11/10/2026: phần mã xong ở commit `b43294a`; đợt sửa "một lệnh `docker compose up`" (D-14) ở `21482fe`, `2d11288`. Mục 1–7 bên dưới là tổng kết; phần Spike và Task 3 phía sau giữ nguyên làm hồ sơ chi tiết.
+
+## 1. Đối chiếu Phụ lục A của plan 5.6
+
+| Yêu cầu (spec 4.6 và liên quan) | Task | Trạng thái |
+| :--- | :---: | :--- |
+| `sql/export_smashcourt_bookings.sql` chỉ đọc, người dùng tự chạy | 2 | ✅ có file + `verify-export.sh` (chạy trong bước (a)); **người dùng chưa xuất CSV thật (U-3)** |
+| `anonymize.py` HMAC-SHA256 dùng lại của 5.5 | 2, 3 | ✅ EV-4 đạt ở mọi lượt |
+| `replay.py`: request v2, dời bội số 7 ngày, khóa `replay:{runId}:{bookingHash}`, D4 kèm `STATIC_100` | 1, 2, 4, 5 | ✅ (chạy trên fixture 20 booking; số liệu thật chờ U-3) |
+| `hotel_adapter.py`: URL + SHA-256 ghim, ánh xạ spec, dời thời gian, D5 | 1, 3, 4 | ✅ |
+| Evidence Pack, EV-1…EV-5 | 5 | ✅ |
+| Notebook sinh báo cáo | 5 | ✅ thay bằng CLI `python -m evidence.report <pack>` (Q-10) |
+| RP-01, RP-02 | 2, 4, 5 | ⏳ mã xong; kết quả thật cần CSV (U-3, sẽ có ở lượt đầy đủ của 5.7) |
+| PT-01, PT-02, SC7 | 3, 4, 5 | ✅ bản nhanh 10.000/10.000, 0 lỗi contract, **SC7 `PASS`** (lượt `EV-20261011-EVAL-quick-r1`) |
+| Đổ vào cùng Evidence Pack và `report.html` | 4, 5 | ✅ |
+| Giới hạn: nhãn môi trường phát triển | 5, 7 | ✅ methodology Mục 8 |
+| Hướng dẫn chạy từng bước | 6 | ✅ `docs/guides/EVALUATION_RUN_GUIDE.md` (cập nhật theo D-14, số đo thật của r1) |
+| Tài liệu Mục 9 của spec | 7 | ✅ |
+
+## 2. Tham số PT đã áp dụng
+
+Các giá trị đề xuất ở spike được dùng nguyên (người dùng không đổi): dataset TidyTuesday ghim commit `d75aaa0`, SHA-256 `7c2ae42a…fc06`; `MaxItemMinutes = 100800`; `HighValueThreshold = 750` EUR; 8 luồng gửi. Bảng chi tiết ở mục "Kết quả spike" phía dưới.
+
+## 3. Kết quả lượt bản nhanh cuối gói — `EV-20261011-EVAL-quick-r1`
+
+Chạy bằng đúng một lệnh `docker compose up -d --build` (D-14), mã thoát **0**, "đạt mọi tiêu chí".
+
+| Bước | Trạng thái | Thời lượng | Ghi chú chính |
+| :--- | :--- | ---: | :--- |
+| (a) | passed | 547 s | `verify-expose.sh`, `verify-observability.sh`, `verify-export.sh` đạt; unit + IT đạt (2111 kết quả → 2145 dòng theo 57 mã); pytest hai bộ đạt; OB-2 đạt |
+| (b) | passed | 404 s | LT-01 6.000 request, LT-02 19.871 request, 100 % `200` |
+| (c) | passed | 510 s | FI-02/03/07/08 bất biến vi phạm 0; SCALE-2 đạt 5/5 điều kiện; dashboard 24/27 panel có dữ liệu (3 panel trống đúng nghĩa: override, shadow, lỗi nạp cấu hình) |
+| (d) | passed | 53 s | CT-03 1.484 ca, 0 lỗi; coverage dòng 98,4 %, nhánh 89,8 % |
+| (e) | passed | 101 s | PT 10.000/10.000, 0 lỗi contract, 0 thử lại, 107 request/s; RP bỏ qua (chưa có CSV) |
+| (f) | passed | 83 s | EV-1…EV-5 đạt |
+| **Tổng** | | **1.698 s (~28 phút)** | |
+
+KPI: SC1 `PASS` (server ≤ 150 ms tối thiểu 99,96 %, p95 client lớn nhất 43,0 ms), SC2 `PASS`, SC3 `PASS`, SC4 `PASS`, SC7 `PASS`; SC5/SC6 `NOT_APPLICABLE` (Phase 6); SC8 `INSUFFICIENT_DATA` (bản nhanh không chạy Stryker).
+
+## 4. Sự cố gặp trong đợt D-14 và cách sửa
+
+| Sự cố | Nguyên nhân gốc | Sửa |
+| :--- | :--- | :--- |
+| `docker compose up` dừng ngay | Thiếu mạng external `smashcourt-network` | Người dùng tạo mạng; guide ghi bước chuẩn bị |
+| Cả lượt `up` không chạy vì `tadss-runtime` unhealthy | ngrok `depends_on` `service_healthy` | Đổi sang `service_started` |
+| `tadss-runtime` không khởi động | `KeySha256` chứa key gốc thay vì SHA-256 | `tools/security/hash_api_key.py`: băm tại chỗ, key gốc chuyển vào `.env` (`TADSS_API_KEY_SMASHCOURT_BE`) |
+| 500 `relation "tadss.decision_overrides" does not exist` | Neon chưa áp migration v2 | Áp `DecisionPersistenceV2` lên Neon (người dùng cho phép, 10/10/2026) |
+| `$'\r': command not found` trong container | Script `.sh` bị ghi CRLF | Chuyển về LF; `.gitattributes` `*.sh text eol=lf` |
+| `verify-export.sh` không thấy, pytest thoát mã 4 | Bản copy `/work` loại cả `tools/evidence` (trùng tên thư mục `evidence/`) | Chỉ loại `evidence/` ở gốc repo |
+| 4 ca pytest bước (f) đỏ trong container | `/work` không có `.git`, EV-5 cần commit | Fixture `fixed_git_info` cho test |
+| LT-01/02 503/504, SC1 `FAIL` (r2, r3) | `eval-postgres` `max_connections` 100 < 3 instance × pool 100 ("too many clients") | `max_connections=350`; script verify chạy đầu bước (a) để không chồng lên bước (b) |
+| SCALE-1 504 khi máy bận | Ngân sách resilience mặc định quá chặt cho ca kiểm idempotency | Nới ngân sách trong test, giữ nguyên assertion |
+
+## 5. Kiểm chứng cuối gói (11/10/2026)
+
+- `dotnet build TADSS.slnx -c Release --warnaserror`: 0 warning, 0 error. Unit **1871**, IT **240** (đầu gói 1871/238).
+- pytest `tools/evaluation` **231**, `tools/evidence` **226** (đầu gói 135 + 40).
+- `docker compose config` hợp lệ; `ComposeFixtureAlignmentTests` 25 đạt; mọi `.sh` là LF.
+- `src/` không đổi trong gói; container `tadss-runtime` và image hiện tại trùng checksum (dòng `sha256:` trong `ps -a` là cách hiển thị của kho image containerd).
+
+## 6. Việc của người dùng còn mở
+
+- **U-2:** xác nhận giấy phép Hotel Booking Demand (CC BY 4.0). Chưa có thì D5 không vào repo (plan 5.7, M-10).
+- **U-3:** xuất CSV SmashCourt (`data/private/smashcourt_bookings.csv`, guide mục 8) trước lượt đầy đủ của 5.7.
+
+## 7. Chuyển sang gói 5.7
+
+Plan [`PHASE5_PLAN_5.7_M5_FREEZE.md`](PHASE5_PLAN_5.7_M5_FREEZE.md): tồn đọng của r1 (log ERR giả cho 404, dòng SC4, k6 bỏ lượt theo pha, số SCALE-2 lẻ), DOC-1…DOC-4, T5.22, T5.23, đóng băng v2, lượt đầy đủ có RP, Evidence Pack chính thức và báo cáo Gate M5.
+
+Docker sau gói: chỉ còn image của chế độ vận hành và đánh giá (`docker system df` 11/10/2026: image 7,77 GB, thu hồi được 765 MB; build cache 3,44 GB; 2 image treo). Dọn phần đánh giá: `bash tools/evaluation/run.sh --clean-only`.
+
+---
 
 ## Kết quả spike (giá trị cho các task sau sao chép nguyên văn)
 
-Trạng thái: **ĐỀ XUẤT, chờ người dùng duyệt** `MaxItemMinutes`, `HighValueThreshold`, nguồn dataset và số luồng trước Task 4.
+Trạng thái: **đã áp dụng** (người dùng không đổi các giá trị đề xuất).
 
 | Tham số | Giá trị đề xuất |
 | :--- | :--- |

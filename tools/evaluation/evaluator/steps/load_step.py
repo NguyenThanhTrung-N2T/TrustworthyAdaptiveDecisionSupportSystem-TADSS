@@ -132,21 +132,38 @@ def _check_responses(name: str, requests_path: Path, notes: list[str]) -> bool:
     return bool(forbidden)
 
 
-def dropped_iterations(summary_path: Path) -> int | None:
-    """Số lượt k6 phải bỏ vì hết VU (`dropped_iterations` trong summary.json; k6 ≥ 1 ghi phẳng `{count, rate}`, bản cũ có lớp `values`); không đọc được ⇒ None."""
+def _metric_count(metric: dict) -> int:
+    """k6 ≥ 1 ghi phẳng `{count, rate}`, bản cũ có lớp `values`."""
+    return int(metric.get("count", metric.get("values", {}).get("count", 0)))
+
+
+def dropped_iterations(summary_path: Path) -> dict[str, int] | None:
+    """
+    Số lượt k6 phải bỏ vì hết VU, trong summary.json: `{"warmup": n, "main": n}` khi có metric theo scenario (`dropped_iterations{scenario:…}`, do threshold trong options.js sinh ra),
+    `{"total": n}` khi chỉ có metric tổng (summary cũ; không có metric nào ⇒ 0); không đọc được ⇒ None.
+    """
     try:
-        metric = json.loads(summary_path.read_text(encoding="utf-8"))["metrics"].get("dropped_iterations")
+        metrics = json.loads(summary_path.read_text(encoding="utf-8"))["metrics"]
     except (OSError, KeyError, json.JSONDecodeError):
         return None
-    if metric is None:
-        return 0
-    return int(metric.get("count", metric.get("values", {}).get("count", 0)))
+    by_phase = {phase: metrics.get(f"dropped_iterations{{scenario:{phase}}}") for phase in ("warmup", "main")}
+    if any(metric is not None for metric in by_phase.values()):
+        return {phase: _metric_count(metric) if metric is not None else 0 for phase, metric in by_phase.items()}
+    total = metrics.get("dropped_iterations")
+    return {"total": _metric_count(total) if total is not None else 0}
 
 
 def _note_dropped_iterations(name: str, summary_path: Path, notes: list[str]) -> None:
     dropped = dropped_iterations(summary_path)
-    if dropped:
-        notes.append(f"{name}: k6 bỏ {dropped} lượt (dropped_iterations; thường ở pha khởi động, xem summary.json)")
+    if not dropped:
+        return
+    if "total" in dropped:
+        if dropped["total"]:
+            notes.append(f"{name}: k6 bỏ {dropped['total']} lượt (dropped_iterations; thường ở pha khởi động, xem summary.json)")
+    elif dropped["main"]:
+        notes.append(f"{name}: k6 bỏ {dropped['main']} lượt ở pha chính — tải thực tế thấp hơn danh nghĩa (xem summary.json)")
+    elif dropped["warmup"]:
+        notes.append(f"{name}: k6 bỏ {dropped['warmup']} lượt ở warm-up, 0 ở pha chính (pha chính đủ tải)")
 
 
 def _check_prometheus(context: RunContext, windows: list[dict], query_increase, notes: list[str]) -> bool:

@@ -50,6 +50,17 @@ def test_scale2_fails_when_one_instance_has_no_metrics() -> None:
         assert not evaluate_scale2(entries, counts, instances)["checks"]["both_instances_in_prometheus"]["passed"]
 
 
+def test_scale2_instance_detail_prints_rounded_numbers_but_decides_on_real_values() -> None:
+    entries, counts, _ = _good()
+
+    verdict = evaluate_scale2(entries, counts, {"tadss-1": 1475.047, "tadss-2": 1459.28})
+    detail = verdict["checks"]["both_instances_in_prometheus"]["detail"]
+
+    assert "'tadss-1': 1475" in detail and "'tadss-2': 1459" in detail and "1475.04" not in detail and "1459.28" not in detail
+    # Giá trị 0.4 làm tròn thành 0 nhưng vẫn > 0: quyết định đạt/không dùng số thực
+    assert evaluate_scale2(entries, counts, {"tadss-1": 0.4, "tadss-2": 0.4})["checks"]["both_instances_in_prometheus"]["passed"]
+
+
 def test_scale2_fails_when_no_request_was_repeated() -> None:
     entries, counts, instances = _good()
     for entry in entries:

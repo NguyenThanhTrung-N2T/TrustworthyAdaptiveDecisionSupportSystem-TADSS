@@ -4,7 +4,9 @@
 
 TADSS là nền tảng runtime độc lập ra quyết định cho hệ thống đặt chỗ dịch vụ. Hệ thống nhận yêu cầu quyết định (ví dụ mức đặt cọc cho một booking), chọn strategy phù hợp, thực thi strategy trong pipeline chịu lỗi Polly v8, lưu audit và cho phép người quản lý phê duyệt hoặc ghi đè. Ứng dụng đối chứng là **SmashCourt** (Đồ án 1). Chiến lược học máy (TADS) thuộc Khóa luận và nằm ngoài phạm vi repo ở Đồ án 2.
 
-> **Trạng thái (11/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project), 5.3 (quản trị và bảo mật), 5.4 (runtime thích ứng), 5.5 (observability, chế độ đánh giá một lệnh) và phần mã của 5.6 (replay dữ liệu SmashCourt, adapter Hotel Booking Demand, hướng dẫn chạy từng bước) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana và tự chạy một lượt đánh giá, D-14); migration `DecisionPersistenceV2` (đã áp lên Neon 10/10/2026); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); định tuyến strategy theo từng request (`Tadss:Routing`, nạp lại nóng), shadow mode, pipeline và circuit breaker riêng cho từng strategy, cách ly strategy không hợp tác, circuit breaker Redis (gói 5.4); hiện có **1871 unit + 240 integration test** và **457 test Python** (`tools/evaluation` 231, `tools/evidence` 226). Bản nhanh của chế độ đánh giá đạt mọi tiêu chí áp dụng được (lượt `EV-20261011-EVAL-quick-r1`, ~28 phút). Gói 5.6 còn chờ người dùng xuất CSV SmashCourt và xác nhận giấy phép dataset khách sạn (xem [guide](docs/guides/EVALUATION_RUN_GUIDE.md)). Chưa làm: lượt đánh giá đầy đủ chính thức và đóng băng contract v2 (gói 5.7). Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (12/10/2026):** Phase 1–4 hoàn thành trên contract v1. **Phase 5** (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10) mở đầu bằng bước 0 — rà soát và điều chỉnh kế hoạch (re-baseline v2.0, Gate MR đạt 01/10/2026); contract v1 đã gỡ hoàn toàn khỏi mã và tài liệu, tra lại qua tag `phase4-baseline`. Phase 5 hiện thực contract v2 và chuyển toàn bộ kiểm thử sang hạ tầng thật. **Gói 5.1 (nền móng kiểm thử), 5.2a–5.2d (SDK v2, lõi runtime v2, Clean Architecture nhiều project), 5.3 (quản trị và bảo mật), 5.4 (runtime thích ứng), 5.5 (observability, chế độ đánh giá một lệnh) và phần mã của 5.6 (replay dữ liệu SmashCourt, adapter Hotel Booking Demand, hướng dẫn chạy từng bước) đã xong:** năm endpoint `POST /api/v2/decisions`, `GET /api/v2/decisions/{decisionId}`, `GET /api/v2/decisions/pending-approvals`, `POST /api/v2/decisions/{decisionId}/override`, `POST /api/v2/decisions/{decisionId}/outcome`; xác thực `X-Api-Key`, giới hạn tốc độ theo client, giới hạn kích thước body, security headers, health `live`/`ready`, container non-root, lock file và quét lỗ hổng; cấu hình chạy Docker và expose qua ngrok (một file `docker-compose.yml`, một lệnh `docker compose up -d --build` chạy TADSS + ngrok + Grafana và tự chạy một lượt đánh giá, D-14); migration `DecisionPersistenceV2` (đã áp lên Neon 10/10/2026); integration test chạy trên Testcontainers (PostgreSQL 16, Redis 7, Toxiproxy); định tuyến strategy theo từng request (`Tadss:Routing`, nạp lại nóng), shadow mode, pipeline và circuit breaker riêng cho từng strategy, cách ly strategy không hợp tác, circuit breaker Redis (gói 5.4); hiện có **1874 unit + 240 integration test** (240 là số của lần chạy trước; chưa chạy lại 12/10/2026 vì Docker tắt) và **504 test Python** (`tools/evaluation` 240, `tools/evidence` 230, `tools/docs` 34; máy không có Docker/k6 thì 3 test của `tools/evaluation` được bỏ qua, còn 501 đạt). Bản nhanh của chế độ đánh giá đạt mọi tiêu chí áp dụng được (lượt `EV-20261011-EVAL-quick-r1`, ~28 phút). Gói 5.6 còn chờ người dùng xuất CSV SmashCourt và xác nhận giấy phép dataset khách sạn (xem [guide](docs/guides/EVALUATION_RUN_GUIDE.md)). **Phần mã và tài liệu của gói 5.7 đã xong:** contract v2 đã đóng băng ở `2.0.0` (11/10/2026), kiểm tra tài liệu tự động DOC-1…4 (`python tools/docs/check_docs.py`, bảng kiểm kê tài liệu ở mục [Tài liệu](#tài-liệu) của README này, bảng cấu hình [`docs/guides/CONFIGURATION_REFERENCE.md`](docs/guides/CONFIGURATION_REFERENCE.md)). Chưa làm (chờ người dùng): xuất CSV SmashCourt (U-3) và lượt đánh giá đầy đủ chính thức cùng Evidence Pack (U-4), sau đó là báo cáo Gate M5. Kế hoạch: [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md).
+
+**Tổng hợp Phase 5** (để review, trình bày với hội đồng và tra lệnh chạy): [`docs/PHASE5_SUMMARY.md`](docs/PHASE5_SUMMARY.md). Khi khác tài liệu sở hữu, tài liệu sở hữu thắng.
 
 ---
 
@@ -23,7 +25,7 @@ Chi tiết và contract v2: [`docs/contracts/INTEGRATION_SPEC.md`](docs/contract
 
 | Project | Vai trò | Phụ thuộc |
 | :--- | :--- | :--- |
-| `src/Shared.DecisionContractSDK` | Hợp đồng dùng chung v2 (`2.0.0-draft`): `Reservation` (rich domain model), DTO, enum, `StrategyDecision`/`DecisionContext`, `IReservationDecisionStrategy` | Chỉ BCL |
+| `src/Shared.DecisionContractSDK` | Hợp đồng dùng chung v2 (`2.0.0`, đã đóng băng trong gói 5.7 (11/10/2026), trước lượt đánh giá đầy đủ; Gate M5 chờ lượt đầy đủ; đổi public API ⇒ phiên bản lớn mới, trừ thay đổi nội bộ được phép ở `INTEGRATION_SPEC.md` Mục 6): `Reservation` (rich domain model), DTO, enum, `StrategyDecision`/`DecisionContext`, `IReservationDecisionStrategy` | Chỉ BCL |
 | `src/TADSS.Application` | Use case (`DecisionService`, `DecisionQueryService`, `StrategyEvaluator`, `Governance/` = `OverrideService`, `Outcomes/` = `OutcomeService`), port (`Abstractions/{Caching,Persistence,Resilience}`), `IStrategyRegistry`, options nghiệp vụ + validator, exception của runtime | SDK |
 | `src/TADSS.Infrastructure` | Adapter: audit và quản trị PostgreSQL schema `tadss` (EF Core, migration, hàng chờ duyệt), cache `StrategyDecision` Redis/`IMemoryCache`, pipeline Polly v8, health check | Application, SDK |
 | `src/TADSS.Runtime.Api` | Presentation + composition root: `Program.cs`, `Composition/`, controller, middleware (gồm bảo mật: API key, giới hạn kích thước, security headers), `Security/`, xử lý lỗi RFC 7807, OpenAPI | Tất cả |
@@ -54,7 +56,9 @@ Phiên bản package khai báo tập trung trong `Directory.Packages.props`.
 ```bash
 dotnet restore TADSS.slnx
 dotnet build TADSS.slnx -c Release --warnaserror        # bắt buộc 0 warning
-dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1871 unit + 240 integration; integration cần Docker Desktop đang chạy
+dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1874 unit + 240 integration (240: số của lần chạy trước; chưa chạy lại 12/10/2026 vì Docker tắt); integration cần Docker Desktop đang chạy
+python tools/docs/check_docs.py                         # DOC-1…3 (kiểm kê, thuật ngữ đã gỡ, link nội bộ); DOC-4 là unit test .NET
+python -m pytest -q tools/evaluation                    # chạy riêng từng bộ: tools/evaluation, tools/evidence, tools/docs
 dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296/swagger (mọi /api/* cần X-Api-Key, xem mục Bảo mật)
 ```
 
@@ -74,7 +78,7 @@ Cấu hình kết nối PostgreSQL/Redis và API key đặt trong user-secrets h
 
 Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.json` (PostgreSQL Neon + Redis Cloud, khóa API của bạn), **không dùng compose** (quyết định D-04). Schema `tadss` trên Neon do người dùng tự migrate bằng `dotnet ef database update` (quy tắc D-05); ứng dụng không tự migrate: `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ bật cho database thử dùng một lần (Testcontainers, `tools/expose/verify-expose.sh`).
 
-`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file nhưng sau profile `evaluation` (không bao giờ được `up` thường khởi động), xem "Chế độ đánh giá một lệnh" bên dưới.
+`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file, cũng không profile: các service `eval-*` và `evaluator` khởi động cùng ba service trên bằng một lệnh `docker compose up -d --build` (D-14), xem "Chế độ đánh giá một lệnh" bên dưới.
 
 **Ba chế độ chạy (D-12; D-14: chế độ vận hành và đánh giá chung một lệnh `up`):**
 
@@ -98,16 +102,7 @@ Mọi request `/api/*` phải mang `X-Api-Key`. Thứ tự middleware (khai báo
 
 ### Cấu hình `Tadss:Security:*`
 
-Khai báo trong `appsettings.json`, ghi đè bằng biến môi trường dạng `Tadss__Security__...`; có validator và `ValidateOnStart` nên giá trị sai làm app không khởi động (thông báo chỉ nêu tên khóa, không in mã băm).
-
-| Khóa | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `ApiKeys` | `[]` | Danh sách `{ ClientId, KeySha256 }`. `ClientId` 1..64 ký tự `A-Za-z0-9._-`, duy nhất (không phân biệt hoa thường), không dùng `health`/`anonymous`. `KeySha256` là SHA-256 dạng hex 64 ký tự của khóa, duy nhất. Rỗng thì mọi `/api/*` bị 401 (`Development`/`Testing` vẫn khởi động và ghi Warning); môi trường khác thì app **không khởi động** và cũng từ chối mã băm của khóa local công khai |
-| `MaxRequestBodyBytes` | `65536` | Trần kích thước body (1024..1048576 byte). Vượt thì 413 `PAYLOAD_TOO_LARGE`, kiểm tra trước xác thực |
-| `RateLimiting:PermitLimit` | `100` | Dung lượng xô token của mỗi client (1..100000), cũng là số request liên tiếp tối đa khi xô đầy |
-| `RateLimiting:TokensPerPeriod` | `100` | Số token nạp lại mỗi chu kỳ (1..`PermitLimit`) |
-| `RateLimiting:ReplenishmentPeriodSeconds` | `1` | Chu kỳ nạp token (1..3600 giây) |
-| `TrustForwardedHeaders` | `false` | Tin `X-Forwarded-For/Proto/Host`. Chỉ bật khi chỉ reverse proxy (ngrok) chạm được app; `docker-compose.yml` đặt `true` |
+Khai báo trong `appsettings.json`, ghi đè bằng biến môi trường dạng `Tadss__Security__...`; có validator và `ValidateOnStart` nên giá trị sai làm app không khởi động (thông báo chỉ nêu tên khóa, không in mã băm). Danh sách khóa, mặc định và ràng buộc: [`docs/guides/CONFIGURATION_REFERENCE.md`](docs/guides/CONFIGURATION_REFERENCE.md#tadsssecurity). Khi `ApiKeys` rỗng: mọi `/api/*` bị 401 ở `Development`/`Testing`, các môi trường khác không khởi động.
 
 ### Tạo API key và mã băm
 
@@ -171,11 +166,7 @@ Cấu hình dưới đây đều qua validator + `ValidateOnStart`: sai thì app
 
 ### `Tadss:Routing` — chọn strategy theo từng request (nạp lại nóng)
 
-| Khóa | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `DefaultStrategy` | `DefaultDecisionStrategy` | Strategy dùng khi không rule nào khớp (thay khóa cũ `Tadss:Strategy:ActiveStrategyName`, nay chỉ còn sinh Warning khi gặp khóa đó) |
-| `Rules[]` | `[]` | Danh sách rule, **rule đầu tiên khớp** được chọn. Mỗi rule: `Name` (duy nhất, ≤ 64 ký tự), `Strategy`, `When` |
-| `Rules[].When` | — | Phải có ít nhất một điều kiện; mọi điều kiện là AND; danh sách rỗng hoặc bỏ trống = không ràng buộc: `PeakHour` (bool, theo lịch cao điểm giờ chi nhánh), `BranchIds`, `Channels` (`ONLINE`/`WALK_IN`), `Tiers` (`CustomerTier`), `IsGuest` (bool) |
+Khóa, mặc định và ràng buộc (`DefaultStrategy`, `Rules`, `Rules[].When`): [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadssrouting).
 
 Ví dụ: giờ cao điểm dùng `MockAlternativeDecisionStrategy`, còn lại dùng mặc định:
 
@@ -188,35 +179,23 @@ Tên strategy phải có trong registry (sai thì không khởi động). Đổi
 
 ### `Tadss:Shadow` — chạy thêm một strategy ứng viên ở nền
 
-| Khóa | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `Enabled` | `false` | Bật shadow (không nạp lại nóng: đổi phải khởi động lại) |
-| `Strategy` | `""` | Strategy chạy shadow; bắt buộc và phải có trong registry khi bật; trùng strategy chính của request thì bỏ qua |
-| `SampleRate` | `1.0` | Tỷ lệ request được chạy shadow, [0, 1] |
-| `QueueCapacity` | `256` | Sức chứa hàng đợi (1..10000); đầy thì bỏ việc và tăng `tadss.shadow.dropped{reason="queue_full"}` |
+Khóa, mặc định và ràng buộc: [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadssshadow). Ví dụ bật shadow với `MockAlternativeDecisionStrategy` cho mọi request (cần khởi động lại):
+
+```json
+"Tadss": { "Shadow": { "Enabled": true, "Strategy": "MockAlternativeDecisionStrategy" } }
+```
 
 Sau khi bản `PRIMARY` của chính request đã lưu, một worker nền chạy strategy shadow (pipeline riêng, không cache, cùng mốc thời gian) và ghi bản `role = SHADOW` (không khóa idempotency; ghép cặp với `PRIMARY` qua `reservation_id`, `request_hash`, `created_at`, `correlation_id`). Shadow không đổi response, không vào hàng chờ duyệt, không override/outcome được (404). Shadow lỗi/treo thì có bản `SHADOW` là `FALLBACK` hoặc chỉ ghi log + `tadss.shadow.executions{outcome="failed"}`.
 
 ### `Tadss:Cache` — khóa và circuit breaker Redis
 
-| Khóa | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `InstanceName` | `tadss:` | Tiền tố cộng vào mọi khóa cache (Redis và memory), không rỗng, ≤ 32 ký tự, không khoảng trắng; khóa đầy đủ mặc định `tadss:v2:...` (khóa TTL cũ của section này đã gỡ: TTL do strategy khai báo) |
-| `RedisBreakerFailureRatio` | `0.5` | Tỷ lệ lệnh Redis lỗi/quá hạn trong khung lấy mẫu để breaker mở, (0, 1] |
-| `RedisBreakerSamplingSeconds` | `30` | Khung lấy mẫu (giây), ≥ 1 |
-| `RedisBreakerMinimumThroughput` | `10` | Số lệnh tối thiểu trước khi được mở, ≥ 2 |
-| `RedisBreakerBreakDurationSeconds` | `30` | Thời gian mở (giây), ≥ 1 |
+Khóa, mặc định và ràng buộc (gồm `InstanceName` và bốn tham số breaker `RedisBreaker*`): [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadsscache). Ví dụ đặt tiền tố khóa riêng bằng biến môi trường: `Tadss__Cache__InstanceName=tadss-pt:`.
 
 Breaker mở thì request bỏ qua Redis ngay (dùng memory nếu `EnableFallbackToMemory`), không chờ `RedisTimeoutMs`; `tadss.cache.requests{result="bypass"}` đếm các lần đó. Lỗi cache không bao giờ kích hoạt fallback của strategy. Breaker (Redis và strategy) và cache memory đều **theo từng instance**.
 
 ### `Tadss:Testing:FaultInjection` — tiêm lỗi strategy (chỉ môi trường `Testing`)
 
-| Khóa | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `Enabled` | `false` | Chỉ có tác dụng khi `ASPNETCORE_ENVIRONMENT=Testing`; ở môi trường khác bật cờ này chỉ sinh Warning, không bọc strategy |
-| `Profile` | `None` | `None`, `Delay` (chờ có tôn trọng token), `Throw`, `IgnoreToken` (chờ không tôn trọng token), `BusyCpu` (quay vòng CPU) |
-| `DelayMs` | `1000` | 1..60000 |
-| `TargetStrategy` | rỗng | Rỗng = mọi strategy |
+Chỉ có tác dụng khi `ASPNETCORE_ENVIRONMENT=Testing` và `Enabled=true`; ở môi trường khác bật cờ này chỉ sinh Warning, không bọc strategy. Khóa, mặc định và ràng buộc (`Profile`, `DelayMs`, `TargetStrategy`): [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadsstestingfaultinjection). Ví dụ làm strategy `DefaultDecisionStrategy` treo 1 giây: `Tadss__Testing__FaultInjection__Enabled=true`, `Tadss__Testing__FaultInjection__Profile=Delay`, `Tadss__Testing__FaultInjection__TargetStrategy=DefaultDecisionStrategy`.
 
 Dùng cho kịch bản sự cố dưới tải (LT-03). Strategy bị bỏ qua token vẫn bị cắt đúng hạn (pipeline cách ly nó khỏi luồng request) nhưng CPU của nó chỉ dừng khi nó tự kết thúc — xem giới hạn ở `docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md`.
 
@@ -228,26 +207,16 @@ Meter `TADSS.Runtime` (13 instrument, khai báo ở `TadssMetricNames`): quyết
 
 ### Observability (OpenTelemetry + Grafana)
 
-- **Chế độ vận hành** (`docker compose up -d --build`): TADSS gửi trace, metric và log tới `grafana/otel-lgtm` (cổng OTLP `4317`); mở `http://localhost:3001`, thư mục **TADSS** có dashboard **TADSS Runtime** nạp sẵn (36 panel: tổng quan, quyết định, chịu lỗi, cache, quản trị và shadow, tải k6; biến `instance`; annotation `chaos`).
+- **Chế độ vận hành** (`docker compose up -d --build`): TADSS gửi trace, metric và log tới `grafana/otel-lgtm` (cổng OTLP `4317`); mở `http://localhost:3001`, thư mục **TADSS** có dashboard **TADSS Runtime** nạp sẵn (29 panel hiển thị trong 7 nhóm: tổng quan, quyết định, chịu lỗi, cache, quản trị và shadow, tải k6, log và trace; biến `instance`; annotation `chaos`).
 - **`dotnet run` hằng ngày:** telemetry tắt (không cần collector). Muốn xem dashboard khi chạy tay, bật collector riêng và trỏ TADSS tới nó:
-  `docker run --rm -p 3001:3000 -p 4317:4317 -v "$PWD/docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro" -v "$PWD/docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro" grafana/otel-lgtm:0.34.0`, rồi đặt `Tadss__Telemetry__Enabled=true` và `Tadss__Telemetry__OtlpEndpoint=http://localhost:4317`. Collector chết hoặc không tới được không ảnh hưởng request.
+  `MSYS_NO_PATHCONV=1 docker run --rm -p 3001:3000 -p 4317:4317 -v "$(pwd -W)/docker/grafana/provisioning/dashboards/tadss.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tadss.yaml:ro" -v "$(pwd -W)/docker/grafana/dashboards:/otel-lgtm/tadss-dashboards:ro" grafana/otel-lgtm:0.34.0` (Git Bash; thiếu `MSYS_NO_PATHCONV=1` và `$(pwd -W)` thì Git Bash đổi đường dẫn trong container thành đường dẫn Windows; trong PowerShell dùng `"${PWD}/…"` và bỏ `MSYS_NO_PATHCONV=1`), rồi đặt `Tadss__Telemetry__Enabled=true` và `Tadss__Telemetry__OtlpEndpoint=http://localhost:4317`. Collector chết hoặc không tới được không ảnh hưởng request.
 - Kiểm tự động (không cần Neon/ngrok): `bash tools/observability/verify-observability.sh` (OB-2 dashboard đã nạp, OB-4 có `tadss_decisions_total` sau vài request); bước (a) của lượt đánh giá đã chạy sẵn script này.
 
-| Khóa `Tadss:Telemetry:*` | Mặc định | Ý nghĩa |
-| :--- | :---: | :--- |
-| `Enabled` | `false` | `false` ⇒ không đăng ký provider OpenTelemetry nào, worker gauge hàng chờ không truy vấn |
-| `OtlpEndpoint` | `http://localhost:4317` | URI tuyệt đối http/https khi `Enabled` |
-| `OtlpProtocol` | `Grpc` | `Grpc` hoặc `HttpProtobuf` |
-| `ServiceName` | `tadss-runtime` | Nhãn `job`; không rỗng, tối đa 64 ký tự |
-| `ServiceInstanceId` | rỗng | Nhãn `instance`; rỗng ⇒ tên máy/container |
-| `TraceSampleRatio` | `1.0` | 0..1, lấy mẫu trace `ParentBased(TraceIdRatioBased)` |
-| `ExportLogs` | `true` | Thêm sink log OTLP (Loki) |
-| `MetricExportIntervalMs` | `10000` | 1000..60000 |
-| `PendingApprovalsRefreshSeconds` | `30` | 5..3600, chu kỳ làm mới gauge hàng chờ duyệt |
+Khóa `Tadss:Telemetry:*`, mặc định và ràng buộc: [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadsstelemetry). Mặc định `Enabled=false` (không đăng ký provider OpenTelemetry nào).
 
 ### Chế độ đánh giá một lệnh
 
-Dựng stack cô lập (hai instance TADSS sau nginx, instance riêng cho dữ liệu khách sạn, PostgreSQL 16, Redis 7, Toxiproxy, Grafana) và một container **evaluator** chạy tuần tự sáu bước: (a) toàn bộ test gộp theo mã danh mục + `verify-expose.sh` + `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành) + `verify-export.sh` + hai bộ pytest của `tools/` + kiểm dashboard; (b) k6 LT-01, LT-02 (và LT-05 ở bản đầy đủ); (c) sự cố dưới tải LT-03 + SCALE-2; (d) Schemathesis CT-03, coverage gộp, Stryker MT-01…03 (chỉ bản đầy đủ); (e) **dữ liệu thực tế**: replay booking SmashCourt (RP) và dataset khách sạn (PT); (f) gom Evidence Pack `evidence/<run_id>/`. Dữ liệu SmashCourt (`data/private/smashcourt_bookings.csv`) là **tùy chọn**: thiếu thì phần RP bị bỏ qua, các phần khác vẫn chạy.
+Dựng stack cô lập (hai instance TADSS sau nginx, instance riêng cho dữ liệu khách sạn, PostgreSQL 16, Redis 7, Toxiproxy, Grafana) và một container **evaluator** chạy tuần tự sáu bước: (a) toàn bộ test gộp theo mã danh mục + `verify-expose.sh` + `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành) + `verify-export.sh` + ba bộ pytest của `tools/` (`evaluation`, `evidence`, `docs`) + `python tools/docs/check_docs.py` (DOC-1…3) + kiểm dashboard; (b) k6 LT-01, LT-02 (và LT-05 ở bản đầy đủ); (c) sự cố dưới tải LT-03 + SCALE-2; (d) Schemathesis CT-03, coverage gộp, Stryker MT-01…03 (chỉ bản đầy đủ); (e) **dữ liệu thực tế**: replay booking SmashCourt (RP) và dataset khách sạn (PT); (f) gom Evidence Pack `evidence/<run_id>/`. Dữ liệu SmashCourt (`data/private/smashcourt_bookings.csv`) là **tùy chọn**: thiếu thì phần RP bị bỏ qua, các phần khác vẫn chạy.
 
 **Hướng dẫn chạy từng bước, đọc kết quả, chạy lại một bước, xử lý sự cố, dọn Docker: [`docs/guides/EVALUATION_RUN_GUIDE.md`](docs/guides/EVALUATION_RUN_GUIDE.md).** Các lệnh chính (chạy trong thư mục `TADSS-Runtime/`):
 
@@ -333,15 +302,15 @@ Lưu ý khác:
 
 ### Cấu hình và biến
 
-Cấu hình của `tadss-runtime` (không biến môi trường nào chứa secret):
+Cấu hình của `tadss-runtime` (không biến môi trường nào chứa secret). Toàn bộ khóa `Tadss:*` và thứ tự nguồn cấu hình: [`docs/guides/CONFIGURATION_REFERENCE.md`](docs/guides/CONFIGURATION_REFERENCE.md):
 
 | Mục trong `appsettings.Development.json` | Ý nghĩa |
 | :--- | :--- |
 | `ConnectionStrings:DefaultConnection` | Chuỗi kết nối PostgreSQL của Neon dạng Npgsql `key=value` với `SSL Mode=Require` (URI `postgresql://...` không được chấp nhận) |
-| `Tadss:Cache:RedisConnectionString` | Kết nối Redis Cloud `host:port,user=...,password=...` |
-| `Tadss:Security:ApiKeys` | `ClientId` `smashcourt-be` + SHA-256 hex của khóa riêng (không dùng mã băm của khóa local công khai) |
+| `Tadss:Cache:RedisConnectionString` | Kết nối Redis Cloud (dạng và ràng buộc: [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadsscache)) |
+| `Tadss:Security:ApiKeys` | `ClientId` `smashcourt-be` + SHA-256 hex của khóa riêng (không dùng mã băm của khóa local công khai); ràng buộc: [bảng tham chiếu](docs/guides/CONFIGURATION_REFERENCE.md#tadsssecurity) |
 
-Biến trong `.env` (mẫu: [`.env.example`](.env.example)):
+Biến trong `.env` (mẫu: `.env.example`):
 
 | Biến | Ý nghĩa |
 | :--- | :--- |
@@ -389,15 +358,87 @@ Phía SmashCourt-BE: ghi chú triển khai ở [`docs/contracts/INTEGRATION_SPEC
 
 ## Tài liệu
 
-Bản đồ tài liệu (mỗi chủ đề một file sở hữu): Mục III của [`docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md`](docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md).
+Repo chỉ có hai file `README.md`: file này (điểm vào của repo, đồng thời giữ bảng kiểm kê tài liệu) và [`src/Shared.DecisionContractSDK/README.md`](src/Shared.DecisionContractSDK/README.md) (đóng gói vào NuGet của SDK qua `PackageReadmeFile`). Toàn bộ tài liệu của Đồ án 2 (kiến trúc, contract v2, kế hoạch, phương pháp thực nghiệm, hướng dẫn chạy) nằm ở `docs/`, cùng `CLAUDE.md` ở gốc repo. Bảng kiểm kê dưới đây là **danh sách tài liệu duy nhất** của repo: mỗi tài liệu có đúng một dòng, cho biết tài liệu thuộc nhóm nào và ai là nơi sở hữu chủ đề của nó. Bản đồ tài liệu theo chủ đề: Mục III của [`docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md`](docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md).
 
-| Cần tìm | Tài liệu |
-| :--- | :--- |
-| Đề cương | [`docs/planning/PROPOSAL_DO_AN_2.md`](docs/planning/PROPOSAL_DO_AN_2.md) |
-| Lịch trình, phase, gate | [`docs/planning/MASTER_EXECUTION_PLAN.md`](docs/planning/MASTER_EXECUTION_PLAN.md) |
-| Tổng quan & sơ đồ | [`docs/PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md`](docs/PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md) |
-| Contract v2 & tích hợp SmashCourt | [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) |
-| Danh mục kiểm thử & KPI | [`docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) |
+Tài liệu cấp workspace SmashCourt (kiến trúc hệ thống, use case, API của BE) nằm ở repo SmashCourt-BE, không thuộc bảng kiểm kê của repo này: [`SmashCourt-BE/docs/3.1-kien-truc-he-thong.md`](../SmashCourt-BE/docs/3.1-kien-truc-he-thong.md), [`SmashCourt-BE/docs/use-cases/`](../SmashCourt-BE/docs/use-cases/), [`SmashCourt-BE/docs/api/`](../SmashCourt-BE/docs/api/).
+
+### Quy tắc "tài liệu sở hữu thắng"
+
+- Mỗi chủ đề (kiến trúc, contract, schema DB, chịu lỗi, danh mục kiểm thử, cấu hình, cách chạy...) có **một** tài liệu sở hữu, là một tài liệu nhóm `hiện hành` trong bảng kiểm kê; cột *Ghi chú* của dòng đó mô tả ngắn nội dung và phạm vi của file (không phải danh sách chủ đề). Các tài liệu khác chỉ tóm tắt và dẫn link tới nơi sở hữu, không chép lại thông số.
+- Khi hai tài liệu mâu thuẫn, nội dung của tài liệu sở hữu thắng; tài liệu còn lại phải sửa theo.
+- Khi mã, contract hoặc kế hoạch đổi, sửa tài liệu sở hữu trong cùng đợt thay đổi.
+
+### Hai nhóm tài liệu
+
+| Nhóm | Ý nghĩa | Yêu cầu |
+| :--- | :--- | :--- |
+| `hiện hành` | Sở hữu một chủ đề và phải khớp mã, contract, kế hoạch hiện tại. | Không mô tả như đang dùng những thứ đã gỡ khỏi repo (DOC-2); link và anchor phải đúng (DOC-3). |
+| `lịch sử` | Ảnh chụp tại một thời điểm, không cập nhật theo mã (bản đã nộp, khảo sát tiền đề...). | File `.md` mở đầu bằng banner `> **Tài liệu lịch sử** — ảnh chụp ngày dd/mm/yyyy, không cập nhật theo mã. Nguồn hiện hành: [...](...)`; cột *Ghi chú* nêu tài liệu thay thế. Được miễn DOC-2. |
+
+Một file chỉ là `lịch sử` khi **toàn bộ** nội dung là ảnh chụp cũ. Nếu chỉ một đoạn nói về quá khứ (ví dụ mục lưu trữ Phase 4), file vẫn là `hiện hành` và đoạn đó được viết ở thì quá khứ.
+
+### Bảng kiểm kê
+
+Cột *File* ghi đường dẫn tính từ gốc repo. Bảng này do `tools/docs/check_docs.py` đọc nên giữ nguyên tiêu đề cột `File | Nhóm` và đúng hai giá trị `hiện hành` / `lịch sử` ở cột *Nhóm*.
+
+| File | Nhóm | Ghi chú |
+| :--- | :--- | :--- |
+| `README.md` | hiện hành | Tổng quan repo, cách chạy, bảng kiểm kê tài liệu (DOC-1) và quy tắc phân nhóm |
+| `CLAUDE.md` | hiện hành | Hướng dẫn làm việc với repo (quy ước, quyết định D-xx đang áp dụng) |
+| `docs/PROJECT_BLUEPRINT_AND_SYSTEM_OVERVIEW.md` | hiện hành | Tổng quan hệ thống và luồng nghiệp vụ, trạng thái dự án |
+| `docs/PHASE5_SUMMARY.md` | hiện hành | Tổng hợp Phase 5 để review và trình bày (gói, kiến trúc, hạ tầng, kiểm thử, lệnh); tài liệu sở hữu vẫn thắng |
+| `docs/PROPOSAL_DO_AN_2.docx` | lịch sử | Bản đề cương đã nộp (file sửa lần cuối 07/09/2026), mô tả kiến trúc v1. Thay thế: `docs/planning/PROPOSAL_DO_AN_2.md` |
+| `docs/23521683_23521709_Design_and_Development_of_a_Fault_Tolerant_Decision_Runtime_Engine_for_Service_Reservation_Systems.docx` | lịch sử | Bản đề cương đã nộp (file sửa lần cuối 05/10/2026), một số thông số chưa theo mã hiện tại. Thay thế: `docs/planning/PROPOSAL_DO_AN_2.md` |
+| `docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md` | hiện hành | Cấu trúc solution, các project và quy tắc phụ thuộc |
+| `docs/architecture/DECISION_PERSISTENCE_INVARIANTS.md` | hiện hành | Schema `tadss` và bất biến lưu trữ quyết định |
+| `docs/architecture/RESILIENCE_AND_FAULT_TAXONOMY.md` | hiện hành | Pipeline chịu lỗi và phân loại lỗi (FI-xx) |
+| `docs/architecture/ARCHITECTURE_DECISION_RECORDS.md` | hiện hành | Bảng tổng hợp ADR-001…013 |
+| `docs/architecture/adr/ADR-001-why-strategy-pattern.md` | hiện hành | ADR-001, Strategy Pattern (Accepted) |
+| `docs/architecture/adr/ADR-002-why-sdk-first-approach.md` | hiện hành | ADR-002, SDK-first (Accepted) |
+| `docs/architecture/adr/ADR-003-why-polly-resilience.md` | hiện hành | ADR-003, Polly v8 (Accepted) |
+| `docs/architecture/adr/ADR-004-why-rich-domain-model.md` | hiện hành | ADR-004, Rich Domain Model (Accepted) |
+| `docs/architecture/adr/ADR-005-why-catboost-ml.md` | hiện hành | ADR-005, định hướng Khóa luận (ngoài phạm vi Đồ án 2) |
+| `docs/contracts/INTEGRATION_SPEC.md` | hiện hành | Contract v2, luồng tích hợp BE ↔ TADSS và bộ JSON schema v2 theo endpoint |
+| `docs/contracts/openapi-v2.yaml` | hiện hành | OpenAPI v2 sinh từ mã, khóa bởi `OpenApiDriftTests` |
+| `docs/contracts/baseline_public_api.txt` | hiện hành | Baseline bề mặt public của SDK, khóa bởi `PublicApiSurfaceTests` |
+| `docs/contracts/schemas/v2/decision-detail.schema.json` | hiện hành | JSON schema v2, chi tiết quyết định |
+| `docs/contracts/schemas/v2/decision-request.schema.json` | hiện hành | JSON schema v2, request đánh giá |
+| `docs/contracts/schemas/v2/decision-result.schema.json` | hiện hành | JSON schema v2, kết quả quyết định |
+| `docs/contracts/schemas/v2/outcome-request.schema.json` | hiện hành | JSON schema v2, request ghi outcome |
+| `docs/contracts/schemas/v2/outcome-response.schema.json` | hiện hành | JSON schema v2, response outcome |
+| `docs/contracts/schemas/v2/override-request.schema.json` | hiện hành | JSON schema v2, request override |
+| `docs/contracts/schemas/v2/override-response.schema.json` | hiện hành | JSON schema v2, response override |
+| `docs/contracts/schemas/v2/pending-approvals.schema.json` | hiện hành | JSON schema v2, hàng chờ duyệt |
+| `docs/database/schema_smashcourt.sql` | hiện hành | Bản `pg_dump` schema DB SmashCourt (đầu vào của `tools/evidence/sql/verify-export.sh`) |
+| `docs/guides/CONFIGURATION_REFERENCE.md` | hiện hành | Bảng tham chiếu khóa cấu hình `Tadss:*` (kiểu, mặc định, ràng buộc), khớp mã bởi test DOC-4 |
+| `docs/guides/EVALUATION_RUN_GUIDE.md` | hiện hành | Hướng dẫn chạy chế độ đánh giá từng bước, kèm kịch bản tải k6 (LT-01, LT-02, LT-05) |
+| `docs/planning/MASTER_EXECUTION_PLAN.md` | hiện hành | Kế hoạch v2.1, nguồn duy nhất về lịch trình |
+| `docs/planning/BACKLOG_SPRINTS.md` | hiện hành | Backlog theo phase và trạng thái task |
+| `docs/planning/PROJECT_WBS_MAPPING.md` | hiện hành | WBS, phụ thuộc và rủi ro |
+| `docs/planning/PROPOSAL_DO_AN_2.md` | hiện hành | Phạm vi chính thức của Đồ án 2 |
+| `docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md` | hiện hành | Thuật ngữ chuẩn, ranh giới phạm vi, bản đồ tài liệu |
+| `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | hiện hành | Danh mục kiểm thử, KPI SC1–SC8, quy tắc DOC-1…DOC-4 |
+| `docs/research/E2E_TEST_SPECIFICATION.md` | hiện hành | Đặc tả từng bước các kịch bản E2E-01…E2E-13 (T5.27): dữ liệu thử, bước, quan sát kỳ vọng, minh chứng, truy vết |
+| `docs/research/DATASET_SCHEMA_SPECIFICATION.md` | hiện hành | Cấu trúc dataset và Evidence Pack |
+| `docs/research/RESEARCH_THESIS_DEFENSE.md` | hiện hành | Định hướng Khóa luận (ngoài phạm vi Đồ án 2) |
+| `docs/research/RESEARCH_PROBLEM_BACKLOG.md` | lịch sử | Khảo sát tiền đề trước khi khóa phạm vi, ảnh chụp 27/09/2026. Thay thế: `docs/planning/PROPOSAL_DO_AN_2.md` |
+| `src/Shared.DecisionContractSDK/README.md` | hiện hành | Giới thiệu SDK `Shared.DecisionContractSDK` (đóng gói vào NuGet) |
+
+### Cách kiểm
+
+Từ gốc repo:
+
+```bash
+python tools/docs/check_docs.py
+```
+
+Lệnh thoát 0 khi cả ba mã đạt, ngược lại liệt kê từng vấn đề kèm đường dẫn và số dòng:
+
+- **DOC-1:** mọi file dưới `docs/` và mọi `README.md` / `CLAUDE.md` có đúng một dòng trong bảng trên; dòng không trỏ tới file không tồn tại; file `lịch sử` dạng `.md` mở đầu bằng banner.
+- **DOC-2:** tài liệu `hiện hành` không nhắc những thứ đã gỡ khỏi repo như đang dùng. Dòng nói về quá khứ hoặc điều cấm (ví dụ "đã gỡ", "không còn", "cấm") không bị tính.
+- **DOC-3:** link nội bộ và anchor trong mọi file `.md` đều trỏ tới nơi tồn tại (link ra ngoài repo và `http` được bỏ qua, chỉ đếm; các link tới tài liệu workspace ở repo SmashCourt-BE nói trên thuộc loại này).
+
+Không có cơ chế bỏ qua từng dòng: khi báo lỗi, sửa câu cho đúng hiện trạng hoặc phân loại lại file, không chèn từ khóa để lọt kiểm tra. Khi thêm tài liệu mới (hoặc README mới), thêm luôn một dòng vào bảng kiểm kê. Bộ kiểm này chạy trong CI và ở bước (a) của evaluator (`tools/evaluation/evaluator/steps/tests_step.py` chạy nó trên bản sao `/work`), nên tài liệu không được link tới file bị loại khỏi bản sao (`.env*`, `appsettings.Development.json`, `evidence/`, `logs/`).
 
 ---
 

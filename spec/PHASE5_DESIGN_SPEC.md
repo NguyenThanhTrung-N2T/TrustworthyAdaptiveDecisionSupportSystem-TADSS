@@ -481,6 +481,8 @@ Chạy toàn bộ danh mục TADSS: test tự động trên E-TC và **bản đ�
 | **R-06** | Manager nhập mức cọc dạng **tỷ lệ %**; BE gửi `deposit.rate`, TADSS quy đổi ra số tiền | Một nơi quy đổi tiền (§3.6), đúng cách TADSS tính cọc |
 | **R-07** | **E-STAGING dùng nhánh Neon riêng `staging`** (cho cả DB SmashCourt lẫn schema `tadss`), không dùng chung DB chính; làm sạch bằng cách xóa rồi tạo lại nhánh từ nhánh chính. Chuỗi kết nối của nhánh chỉ nằm trong file bí mật/biến môi trường | Dữ liệu nền (user, chi nhánh, sân, giá, hạng) được sao nguyên nên khóa ngoại luôn khớp, không phải seed; dữ liệu E2E không lẫn vào DB chính, kể cả ba bảng audit chỉ-thêm của `tadss` (không xóa được từng dòng) |
 
+**Trạng thái hiện thực (12/10/2026):** M-01…M-09 và R-01…R-07 (M-xx định nghĩa ở `PHASE5_PLAN_5.7_M5_FREEZE.md`) đã hiện thực ở phần mã và tài liệu (đóng băng contract v2.0.0 ngày 11/10/2026, DOC-1…DOC-4 tự động, đặc tả BE ↔ FE, E-STAGING, dọn tồn đọng của các lượt chạy). Còn chờ: M-10 (lưu Evidence Pack), lượt đánh giá đầy đủ chính thức (người dùng xuất CSV SmashCourt trước, R-04) và báo cáo Gate M5.
+
 ---
 
 ## 5. CHUYỂN ĐỔI BỘ TEST v1 → v2

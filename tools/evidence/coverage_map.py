@@ -4,14 +4,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_CODE_ROW = re.compile(r"^\|\s*([A-Z][A-Z0-9]*-\d{1,2}[a-z]?)\s*\|", re.MULTILINE)
+# Mã một hoặc hai đoạn tiền tố: `UT-01`, `SCALE-2`, `E2E-13`, `BE-UT-01`, `BE-IT-20`
+_CODE_ROW = re.compile(r"^\|\s*([A-Z][A-Z0-9]*(?:-[A-Z]{2})?-\d{1,2}[a-z]?)\s*\|", re.MULTILINE)
 # Mã nằm ngoài phạm vi lượt đánh giá TADSS đơn lẻ: tiền tố hoặc mã cụ thể → lý do
 NOT_IN_SCOPE = (
-    (re.compile(r"^(BE-IT|E2E|CT-04)"), "thuộc SmashCourt-BE/FE, Phase 6"),
+    (re.compile(r"^(BE-|FE-|E2E-|CT-04$)"), "thuộc SmashCourt-BE/FE, Phase 6–8 (không thuộc lượt đánh giá TADSS)"),
     (re.compile(r"^LT-04$"), "E2E qua SmashCourt-BE, Phase 6"),
     (re.compile(r"^FI-1[1-4]$"), "kịch bản E2E với SmashCourt-BE, Phase 6"),
     (re.compile(r"^(RP|PT)-"), "dữ liệu replay/khách sạn (bước e, gói 5.6) chưa chạy hoặc thiếu dữ liệu trong lượt này"),
-    (re.compile(r"^DOC-"), "rà soát tài liệu, gói 5.7"),
     (re.compile(r"^NG-4$"), "do người dùng chạy bằng token ngrok của mình"),
 )
 

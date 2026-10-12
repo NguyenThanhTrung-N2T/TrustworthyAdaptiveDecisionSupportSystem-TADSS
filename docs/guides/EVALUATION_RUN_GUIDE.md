@@ -91,7 +91,7 @@ explorer.exe evidence
 
 Xem theo thứ tự: mục **1 Kết luận KPI** (SC1…SC8) > mục **2 Các bước** > mục **10 Toàn vẹn (EV-1…EV-5)** phải toàn "đạt" > mục **11 Giới hạn**. Các mục 4-9 là chi tiết từng bước.
 
-Ở bản nhanh, các trạng thái sau là **bình thường**: SC5/SC6 `NOT_APPLICABLE` (thuộc Phase 6); SC8 `INSUFFICIENT_DATA` (bản nhanh bỏ Stryker); SC7 `INSUFFICIENT_DATA` khi chưa commit `tools/evidence/hotel_adapter.py`. Ý nghĩa từng tiêu chí: [methodology](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
+Ở bản nhanh, các trạng thái sau là **bình thường**: SC5/SC6 `NOT_APPLICABLE` (đo trên E-STAGING ở Phase 7–8, không thuộc evaluator); SC8 `INSUFFICIENT_DATA` (bản nhanh bỏ Stryker); SC7 `INSUFFICIENT_DATA` khi chưa commit `tools/evidence/hotel_adapter.py`. Ý nghĩa từng tiêu chí: [methodology](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
 Grafana của stack đánh giá ở `http://127.0.0.1:3002` (dashboard TADSS Runtime) để xem lại, tới khi bạn `docker compose down` hoặc dọn (mục 11).
 
@@ -101,8 +101,8 @@ Evaluator chạy tuần tự sáu bước; mỗi bước ghi dữ liệu thô v�
 
 | Bước | Làm gì | Mã danh mục | Kết quả trong `raw/` |
 | :--- | :--- | :--- | :--- |
-| (a) test | Build Release `--warnaserror`, chạy unit + integration test (unit chạy tuần tự), `verify-expose.sh`, `verify-observability.sh`, `verify-export.sh`, hai bộ pytest của `tools/`, kiểm dashboard Grafana. Mọi kiểm tra ở mục 9 đều nằm ở đây. | UT, IT, NG, SEC, OB-2, OB-4... | `tests/` (trx, `catalog-results.csv`, coverage, log từng kiểm tra: `verify-*.log`, `pytest-*.log`) |
-| (b) tải | k6 LT-01 và LT-02 trên instance 1 (LT-05 chỉ ở bản đầy đủ). | LT-01, LT-02 | `load/<kịch bản>/`, `load/windows.json` |
+| (a) test | Build Release `--warnaserror`, chạy unit + integration test (unit chạy tuần tự), `verify-expose.sh`, `verify-observability.sh`, `verify-export.sh`, `python tools/docs/check_docs.py` (DOC-1…3), ba bộ pytest của `tools/` (`evaluation`, `evidence`, `docs`), kiểm dashboard Grafana. Mọi kiểm tra ở mục 9 đều nằm ở đây. | UT, IT, NG, SEC, OB-2, OB-4, DOC-1…DOC-4... | `tests/` (trx, `catalog-results.csv`, coverage, log từng kiểm tra: `verify-*.log`, `pytest-*.log`, `check-docs.log`) |
+| (b) tải | k6 LT-01 và LT-02 trên instance 1 (LT-05 chỉ ở bản đầy đủ). | LT-01, LT-02 (kịch bản và giao diện: mục con "Kịch bản tải k6" bên dưới) | `load/<kịch bản>/`, `load/windows.json` |
 | (c) sự cố | k6 50 RPS trong khi tiêm lỗi theo lịch (strategy chậm/lỗi, cắt PostgreSQL, Redis chậm), rồi SCALE-2 qua nginx với hai instance. | LT-03, FI-02/03/07/08, SCALE-2, OB-3 | `load/lt03/`, `chaos/chaos_log.csv`, `metrics/`, `scale/scale2-checks.json`, `grafana/dashboard-snapshot.json` |
 | (d) hợp đồng | Schemathesis trên `openapi-v2.yaml` (25 ví dụ; 500 ở bản đầy đủ), gộp coverage; Stryker chỉ ở bản đầy đủ. | CT-03, MT-01…03 | `contract/`, `coverage/`, `mutation/` |
 | (e) dữ liệu thực tế | **RP**: gửi booking SmashCourt (CSV của bạn, mục 8) qua `eval-proxy`. **PT**: tải dataset khách sạn (ghim SHA-256), gửi 10.000 dòng (đầy đủ: ~118 nghìn) tới instance `eval-tadss-portability`. Kiểm từng response theo schema v2. | RP-01/02, PT-01/02 | `replay/`, `portability/` (`requests.jsonl`, `summary.json`, `source.json`) |
@@ -110,6 +110,50 @@ Evaluator chạy tuần tự sáu bước; mỗi bước ghi dữ liệu thô v�
 
 Ghi chú về (e): thiếu CSV SmashCourt thì RP `skipped`; không tải được dataset thì PT `skipped`; dataset sai SHA-256 hoặc có lỗi contract thì `failed`. Bước (f) vẫn chạy sau (e) kể cả khi (e) `failed`, để báo cáo ghi rõ lý do.
 Chi tiết kỹ thuật: [methodology mục 6.1](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [DATASET_SCHEMA](../research/DATASET_SCHEMA_SPECIFICATION.md).
+
+### Kịch bản tải k6 (bước b)
+
+Kịch bản tải nằm ở `tests/load/` (`scenarios/lt01.js`, `lt02.js`, `lt03.js`, `lt05.js`, `scale2.js`, `config/modes.json`, `lib/`). Evaluator chạy LT-01, LT-02 (và LT-05 ở bản đầy đủ) trên instance 1 của stack đánh giá; LT-03 và SCALE-2 thuộc bước (c). T5.26 là việc của SV2: có thể chỉnh kịch bản nhưng **giữ giao diện** dưới đây để evaluator chạy được.
+
+| Biến (`--env`) | Ý nghĩa |
+| :--- | :--- |
+| `BASE_URL` | Địa chỉ TADSS, mặc định `http://eval-tadss-1:8080` |
+| `API_KEY` | Giá trị header `X-Api-Key` |
+| `RUN_ID`, `SCENARIO` | Định danh lượt chạy và kịch bản (ghi vào mỗi dòng D2) |
+| `MODE` | `quick` (mặc định) hoặc `full`; chọn khối trong `config/modes.json` |
+| `SUMMARY_PATH` | Nơi `handleSummary` ghi `summary.json` |
+| `SAMPLE_ONLY=N` | Chỉ in `N` payload (không gửi) để kiểm schema |
+
+- **Đầu ra D2:** mỗi request một dòng JSON qua `console.log` (`ts`, `scenario`, `phase`, `http_status`, `duration_ms`, `decision_status`, `execution_type`, `correlation_id`, `idempotency_key`, `decision_id`). Chạy với `--console-output <file>`; k6 ghi file dạng logfmt (`time=… level=info msg="…"`), evaluator đổi thành `requests.jsonl` sạch.
+- **Warm-up:** scenario `warmup` (tag `phase=warmup`) chạy trước scenario `main`; dòng warm-up bị loại khỏi thống kê ở bước (f).
+- **Metric:** `--out opentelemetry` với `K6_OTEL_GRPC_EXPORTER_ENDPOINT`, `K6_OTEL_GRPC_EXPORTER_INSECURE=true`, `K6_OTEL_METRIC_PREFIX=k6_` (spike S-3). Không gắn tag theo từng request (tag `name` cố định) để tránh bùng nổ nhãn.
+
+Hồ sơ tải trong `config/modes.json`:
+
+| Kịch bản | Bản nhanh | Bản đầy đủ |
+| :--- | :--- | :--- |
+| LT-01 | `constant-arrival-rate` 50 RPS, warm-up 30 s + 2 phút, 1 lần | warm-up 1 phút + 10 phút, 3 lần lặp |
+| LT-02 | `ramping-arrival-rate` 10 → 200 RPS theo 6 bậc × 30 s | 10 → 400 RPS theo 17 bậc × 50 s (~15 phút) |
+| LT-05 | không chạy | 50 RPS, warm-up 1 phút + 60 phút |
+
+k6 vẫn có thể bỏ lượt (`dropped_iterations`) khi tải cao hơn khả năng phục vụ; số lượt bỏ có trong `summary.json` và evaluator báo cáo riêng cho từng pha (warm-up và phần chính; cách xử lý ở mục 10). LT-02 cấp sẵn 400 VU (`preAllocatedVUs`).
+
+**Payload** (`lib/payload.js`). Bảng trộn khai báo ngay trong file: chi nhánh cố định; giờ cao điểm/thấp điểm theo giờ chi nhánh (`Asia/Ho_Chi_Minh`); khách vãng lai và 5 hạng thành viên; giá dưới/trên ngưỡng giá trị lớn (2.000.000 VND); 1–3 item. Thời gian chơi luôn ở tương lai (7–30 ngày) để cửa sổ duyệt còn tồn tại. Payload hợp lệ schema v2 và bất biến domain: **response 400 nghĩa là bộ sinh sai**. Kiểm bằng `tools/evaluation/tests/test_payload_samples.py` (500 mẫu).
+
+**Chạy thử riêng** (chỉ in 5 payload mẫu, không gửi):
+
+```bash
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/tests/load:/load:ro" -v "$(pwd -W):/out" -w /load grafana/k6:2.3.0 \
+  run -e SAMPLE_ONLY=5 --console-output /out/samples.log --quiet scenarios/lt01.js
+```
+
+```powershell
+docker run --rm -v "${PWD}/tests/load:/load:ro" -v "${PWD}:/out" -w /load grafana/k6:2.3.0 run -e SAMPLE_ONLY=5 --console-output /out/samples.log --quiet scenarios/lt01.js
+```
+
+Trong Git Bash phải giữ `MSYS_NO_PATHCONV=1` và `$(pwd -W)`: nếu không, Git Bash tự đổi các đường dẫn `/load…`, `/out…` thành đường dẫn Windows và lệnh hỏng.
+
+Chạy thật cần stack đánh giá: `bash tools/evaluation/run.sh quick --steps b` (mục 7), hoặc `docker compose up -d --build` chạy cả lượt a…f.
 
 ## 6. Bản đầy đủ
 
@@ -123,6 +167,13 @@ bash tools/evaluation/run.sh full                     # hoặc: chỉ stack đá
 
 - Thời lượng **ước tính ≈ 2,8 giờ** + khoảng 8-18 phút cho bước (e) (PT ~118 nghìn request, 107-330 request/s tùy độ bận của máy). Chưa đo trọn vẹn.
 - Chỉ chạy khi máy rảnh và đã tắt chế độ ngủ. Muốn dọn ngay sau khi xong: thêm `--clean` (`bash tools/evaluation/run.sh full --clean`).
+
+Trước khi chạy lượt đầy đủ chính thức, kiểm lần lượt:
+
+1. **Xuất CSV SmashCourt trước** (mục 8) để phần RP có dữ liệu; thiếu file thì RP `skipped` và lượt đó không đủ chứng cứ cho hội đồng.
+2. **Tự commit mọi thay đổi (mã, tài liệu, `check_docs.py`) trước khi chạy**, để kiểm mã của SC7 đạt và `manifest.json` ghi `dirty=false`: adapter `tools/evidence/hotel_adapter.py` chưa commit thì SC7 là `INSUFFICIENT_DATA`, còn thay đổi chưa commit ở `src/TADSS.Runtime.Api/**` hay `src/Shared.DecisionContractSDK/**` làm kiểm mã SC7 không đạt (việc commit do bạn tự làm). Cờ `dirty` chỉ được ghi vào manifest, EV-5 không đọc git. Thư mục `spec/` cố ý không commit (không stage) nên manifest vẫn ghi `dirty=true` vì `spec/`; điều đó **không** làm SC7 không đạt vì `spec/` nằm ngoài hai thư mục được kiểm.
+3. Docker Desktop đang chạy, `docker network create smashcourt-network` đã có, máy cắm điện và đã tắt chế độ ngủ của Windows (cách làm ở mục 2).
+4. **Đóng cửa sổ PowerShell sau khi chạy xong** (hoặc `Remove-Item Env:EVAL_MODE`), vì `$env:EVAL_MODE="full"` còn hiệu lực trong cửa sổ đó và lần `docker compose up -d --build` sau sẽ lại chạy bản đầy đủ ~2,8 giờ. Ở Git Bash, `EVAL_MODE=full docker compose ...` chỉ có hiệu lực cho đúng lệnh đó.
 
 ## 7. Chạy lại một bước
 
@@ -190,22 +241,26 @@ Kiểm riêng câu truy vấn trên database dùng một lần (không cần k�
 | Việc | Lệnh | Thấy gì là đúng | Mất |
 | :--- | :--- | :--- | :--- |
 | Build | `dotnet build TADSS.slnx -c Release -nologo -v q --warnaserror` | `0 Warning(s)`, `0 Error(s)` | ~15 s (lần đầu lâu hơn) |
-| Unit test | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 1871` | ~15 s |
-| Integration test (cần Docker) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 240` | ~2 phút |
+| Unit test | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 1874` | ~15 s |
+| Integration test (cần Docker) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 240` (số của lần chạy trước; chưa chạy lại 12/10/2026 vì Docker tắt) | ~2 phút |
 | Kiểm expose | `bash tools/expose/verify-expose.sh` | Bảng NG-1…SEC-6 toàn `PASS`, cuối `TẤT CẢ ĐẠT.` | ~1 phút (lần đầu tải image) |
 | Kiểm observability | `bash tools/observability/verify-observability.sh` | OB-2, OB-4 `PASS`, cuối `TẤT CẢ ĐẠT.` | ~2 phút (lần đầu tải otel-lgtm 3,7 GB) |
 | Kiểm truy vấn xuất | `bash tools/evidence/sql/verify-export.sh` | `ĐẠT: verify-export` | ~15 s |
+| Kiểm tài liệu (DOC-1…3) | `python tools/docs/check_docs.py` | ba dòng `DOC-1: đạt`, `DOC-2: đạt`, `DOC-3: đạt`, thoát mã 0 (DOC-4 là một unit test .NET, đã nằm trong dòng Unit test) | ~1 s |
 
-Hai bộ pytest của công cụ đánh giá cần Python 3.11+ và một môi trường ảo (làm một lần; `.venv/` đã được gitignore):
+Ba bộ pytest của `tools/` (`evaluation`, `evidence`, `docs`) cần Python 3.11+ và một môi trường ảo (làm một lần; `.venv/` đã được gitignore):
 
 ```bash
 python -m venv .venv && source .venv/Scripts/activate
 pip install -r tools/evaluation/requirements.txt -r tools/evidence/requirements.txt
 python -m pytest -q tools/evaluation
 python -m pytest -q tools/evidence
+python -m pytest -q tools/docs
 ```
 
-Thấy gì là đúng: `231 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `228 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker) và `226 passed` cho `tools/evidence` (khoảng 5 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
+Chạy từng bộ riêng (không gộp một lệnh pytest). Bộ `tools/docs` và `check_docs.py` chỉ dùng thư viện chuẩn của Python (cần `pytest` đã cài ở bước `pip` trên).
+
+Thấy gì là đúng: `240 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `237 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `230 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
 
 ## 10. Sự cố thường gặp
 
@@ -222,6 +277,7 @@ Bảng này gom các lỗi đã gặp thật khi làm gói 5.5-5.6.
 | Mã thoát `2` | Hạ tầng lỗi (Docker, mạng, database của stack), tham số sai, hoặc một bước `error` làm các bước sau `skipped` | Đọc cột "Ghi chú" của bảng tóm tắt; `docker compose logs eval-tadss-1`; chạy lại bước lỗi theo mục 7. |
 | Dựng image lần đầu thất bại (`pip` hoặc tải image đứt giữa chừng) | Mạng rớt khi build | Chạy lại đúng lệnh cũ; phần đã tải được lưu cache. |
 | Bước (a) `failed`, đúng 1 test `ErrorHandlingOptionsTests...InvalidRetryAfter...` với `ObjectDisposedException` | Test không ổn định có sẵn (đua trong `WebApplicationFactory`, thỉnh thoảng ~1/10 lượt khi máy bận) | Chạy lại `bash tools/evaluation/run.sh quick --steps a`. Đỏ lặp lại hoặc test khác đỏ thì là lỗi thật. |
+| (b) ghi chú `k6 bỏ N lượt` (dropped_iterations) | k6 hết VU nên bỏ lượt. Evaluator ghi chú theo từng pha: `ở pha chính` nghĩa là tải thực tế thấp hơn danh nghĩa (xem `summary.json`, số đo của kịch bản đó cần đọc kèm ghi chú); `ở warm-up, 0 ở pha chính` nghĩa là pha chính vẫn đủ tải, không ảnh hưởng số đo | Chỉ cần xử lý khi bỏ lượt ở pha chính: tắt ứng dụng nặng (mục 2) rồi chạy lại `--steps b,f`. |
 | (c) báo FI-07 không đạt, thiếu 2/1262 request, mỗi cái ~1,6 s | Máy khựng ~1,5 s giữa pha Redis chậm (đã gặp 1 trong 6 lượt) | Chạy lại `--steps c,f`. Lặp lại nhiều lần thì kiểm tải máy (mục 2). |
 | (c) SCALE-2 có vài `503 PERSISTENCE_UNAVAILABLE` ngay sau LT-03 | Instance 2 cần ~15 s nối lại PostgreSQL sau khi bị cắt; SCALE-2 chờ `/health/ready` tối đa 90 s trước khi chạy | Thường tự khỏi. Ghi chú nói "chưa sẵn sàng" thì chạy lại `--steps c,f`. |
 | (e) PT `skipped` "không tải được dataset" | Không có mạng tới `raw.githubusercontent.com` | Kiểm mạng rồi chạy lại `--steps e,f`. Dataset được cache trong volume `eval-datasets`, lần sau không tải lại. |

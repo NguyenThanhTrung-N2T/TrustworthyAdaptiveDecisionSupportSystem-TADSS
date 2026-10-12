@@ -54,7 +54,7 @@ public static class PresentationServiceCollectionExtensions
             c.SwaggerDoc("v2", new Microsoft.OpenApi.Models.OpenApiInfo
             {
                 Title = "TADSS Decision Runtime API",
-                Version = "2.0.0-draft",
+                Version = "2.0.0",
                 Description = "Decision Runtime của TADSS cho SmashCourt: đánh giá quyết định đặt sân (POST /api/v2/decisions), tra cứu chi tiết quyết định (GET /api/v2/decisions/{decisionId}), hàng chờ duyệt (GET /api/v2/decisions/pending-approvals), Manager duyệt hoặc từ chối (POST /api/v2/decisions/{decisionId}/override) và ghi kết cục thực tế (POST /api/v2/decisions/{decisionId}/outcome). Contract v2: INTEGRATION_SPEC."
             });
 

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 
-`TADSS.Shared.DecisionContractSDK` is a standalone, pure .NET 8 BCL (0 external NuGet dependencies) library providing the **contract v2** of the **TADSS (Trustworthy Adaptive Decision Support System)**: domain model, strategy contract, wire DTOs and the DTO to domain mapping. Version `2.0.0-draft` (baseline pending freeze at milestone M5).
+`TADSS.Shared.DecisionContractSDK` is a standalone, pure .NET 8 BCL (0 external NuGet dependencies) library providing the **contract v2** of the **TADSS (Trustworthy Adaptive Decision Support System)**: domain model, strategy contract, wire DTOs and the DTO to domain mapping. Version `2.0.0` (public API baseline frozen on 11/10/2026 in package 5.7, before the full evaluation run; changes follow `INTEGRATION_SPEC.md` Section 6).
 
 ---
 

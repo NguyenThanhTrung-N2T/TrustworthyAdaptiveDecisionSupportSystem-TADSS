@@ -29,6 +29,19 @@ public class CatalogTraceabilityTests
             .Should().BeEmpty("mọi mã phải có trong bảng danh mục của methodology");
     }
 
+    /// <summary>
+    /// Bộ đọc danh mục phía C# phải nhận cùng tập mã với <c>tools/evidence/coverage_map.py</c>: mã một đoạn (<c>UT-14</c>, <c>DOC-4</c>, <c>CT-04</c>, <c>FE-10</c>, <c>E2E-13</c>)
+    /// lẫn mã hai đoạn tiền tố (<c>BE-UT-01</c>, <c>BE-IT-20</c>).
+    /// </summary>
+    [Fact]
+    [Trait("CatalogId", "UT-14")]
+    public void KnownIds_CatalogHasTwoSegmentPrefixIds_ReadsThemLikeCoverageMap()
+    {
+        var known = CatalogIndex.KnownIds();
+
+        known.Should().Contain(["BE-UT-01", "BE-IT-20", "FE-10", "E2E-13", "UT-14", "DOC-4", "CT-04"]);
+    }
+
     /// <summary>Đặt thư mục xuất: file <c>catalog-index.{AssemblyName}.json</c> có mặt, chứa mọi test của assembly với đúng mã của chúng; không đặt thì không xuất.</summary>
     [Fact]
     [Trait("CatalogId", "UT-14")]

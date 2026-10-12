@@ -1,6 +1,6 @@
-# Shared.DecisionContractSDK Public API Surface Snapshot v2.0.0-draft
+# Shared.DecisionContractSDK Public API Surface Snapshot v2.0.0
 # Assembly: Shared.DecisionContractSDK, Version=2.0.0.0
-# STATUS: DRAFT v2.0.0 BASELINE (chờ đóng băng M5)
+# STATUS: FROZEN v2.0.0 BASELINE (Gate M5, 11/10/2026; thay đổi theo INTEGRATION_SPEC Mục 6)
 --------------------------------------------------
 
 [class] Shared.DecisionContractSDK.Common.ContractValidationException : Exception, ISerializable

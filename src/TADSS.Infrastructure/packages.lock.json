@@ -222,7 +222,7 @@
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[8.0.0, )",
-          "TADSS.Shared.DecisionContractSDK": "[2.0.0-draft, )"
+          "TADSS.Shared.DecisionContractSDK": "[2.0.0, )"
         }
       },
       "TADSS.Shared.DecisionContractSDK": {

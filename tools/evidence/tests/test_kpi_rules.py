@@ -73,6 +73,20 @@ def test_sc3_and_sc4() -> None:
     assert kpi.sc4(ok, None, _chaos()).verdict == kpi.INSUFFICIENT_DATA
 
 
+def test_sc4_value_states_the_failure_reason() -> None:
+    ok = _summary(IT_04=(2, 0), IT_07=(2, 0), SCALE_1=(1, 0))
+    catalog_red = _summary(IT_04=(1, 1), IT_07=(2, 0), SCALE_1=(1, 0))
+
+    red = kpi.sc4(catalog_red, True, _chaos())
+    scale_failed = kpi.sc4(ok, False, _chaos())
+    violated = kpi.sc4(ok, True, _chaos(violations=2))
+
+    assert red.verdict == kpi.FAIL and red.value.startswith("IT-04: 1 ca đỏ") and red.value.endswith("0 vi phạm")
+    assert scale_failed.verdict == kpi.FAIL and "SCALE-2 KHÔNG ĐẠT" in scale_failed.value
+    assert violated.verdict == kpi.FAIL and violated.value == "2 vi phạm"
+    assert kpi.sc4(ok, True, _chaos()).value == "0 vi phạm"
+
+
 def test_sc8_needs_mutation_results() -> None:
     passing = _summary(UT_01=(10, 0))
     mutation = {"MT-01": {"score": 80.0}, "MT-02": {"score": 70.0}, "MT-03": {"score": 75.5}}

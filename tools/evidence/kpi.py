@@ -117,7 +117,10 @@ def sc4(summary: dict[str, dict[str, int]] | None, scale2_passed: bool | None, c
     catalog_ok, problems = _catalog_state(summary, SC4_CATALOG)
     violations = sum(int(row["invariant_violations"]) for row in chaos_rows)
     detail = "; ".join(problems or ["IT-04, IT-07, SCALE-1 đạt"]) + f"; SCALE-2 {'đạt' if scale2_passed else 'KHÔNG ĐẠT'}; vi phạm bất biến trong LT-03: {violations}"
-    return Kpi("SC4", PASS if catalog_ok and scale2_passed and violations == 0 else FAIL, f"{violations} vi phạm", detail, sources)
+    # Giá trị nêu luôn lý do không đạt (ca đỏ, SCALE-2) để dòng tóm tắt không chỉ ghi "0 vi phạm" trong khi KPI FAIL
+    failures = problems + ([] if scale2_passed else ["SCALE-2 KHÔNG ĐẠT"])
+    value = "; ".join([*failures, f"{violations} vi phạm"])
+    return Kpi("SC4", PASS if catalog_ok and scale2_passed and violations == 0 else FAIL, value, detail, sources)
 
 
 def sc8(summary: dict[str, dict[str, int]] | None, mutation: dict[str, dict[str, Any]] | None) -> Kpi:

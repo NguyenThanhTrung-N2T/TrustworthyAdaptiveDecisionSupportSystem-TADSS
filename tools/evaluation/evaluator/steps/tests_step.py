@@ -20,7 +20,8 @@ EXPORT_SCRIPT = "tools/evidence/sql/verify-export.sh"
 # Mount ./docker/grafana/... của compose là đường dẫn trong container (/work) mà daemon Docker (máy chủ) không thấy: trong evaluator, script copy dashboard vào container Grafana
 # thay cho mount (CI và chạy tay vẫn kiểm mount thật; đường dẫn mount được ComposeFixtureAlignmentTests khóa tĩnh).
 OBSERVABILITY_ENV = {"OBS_DASHBOARDS_BY_COPY": "1"}
-PYTEST_SUITES = ("tools/evaluation", "tools/evidence")
+PYTEST_SUITES = ("tools/evaluation", "tools/evidence", "tools/docs")
+DOCS_CHECK_SCRIPT = "tools/docs/check_docs.py"
 # Biến của lượt chạy không được lọt vào pytest (test tự dựng môi trường của chúng)
 _RUN_ENV_PREFIXES = ("EVAL_", "TADSS_")
 
@@ -57,7 +58,7 @@ def _test_command(project: str, trx: str, results: Path) -> list[str]:
 def run(context: RunContext, command: Command = run_command, check_dashboard=grafana.check_dashboard) -> StepResult:
     """
     Trên bản sao `/work` của mã nguồn, theo thứ tự: `verify-expose.sh`, `verify-observability.sh` (OB-2/OB-4 của chế độ vận hành), `verify-export.sh`; restore khóa và build
-    Release `--warnaserror` hai project test, unit + IT (trx + coverlet cobertura, chỉ mục catalog), ghép `catalog-results.csv`; hai bộ pytest của công cụ đánh giá; OB-2 trên Grafana của stack đánh giá.
+    Release `--warnaserror` hai project test, unit + IT (trx + coverlet cobertura, chỉ mục catalog), ghép `catalog-results.csv`; ba bộ pytest của `tools/` (evaluation, evidence, docs) và `check_docs.py` (DOC-1…DOC-3); OB-2 trên Grafana của stack đánh giá.
     `failed` nếu có test/kiểm tra đỏ; `error` nếu không dựng được môi trường hoặc không build được.
     """
     started = utc_now()
@@ -118,9 +119,10 @@ def _docker_checks(env: dict[str, str]) -> list[Check]:
 
 
 def _pytest_checks(env: dict[str, str]) -> list[Check]:
-    """Hai bộ pytest của `tools/`, không mang biến của lượt chạy."""
+    """Các bộ pytest của `tools/` và bộ kiểm tài liệu DOC-1…DOC-3 (chạy trên bản sao `/work`), không mang biến của lượt chạy."""
     pytest_env = {name: value for name, value in env.items() if not name.startswith(_RUN_ENV_PREFIXES)}
-    return [(f"pytest {suite}", ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", suite], pytest_env, f"pytest-{suite.split('/')[-1]}.log") for suite in PYTEST_SUITES]
+    checks = [(f"pytest {suite}", ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", suite], pytest_env, f"pytest-{suite.split('/')[-1]}.log") for suite in PYTEST_SUITES]
+    return [*checks, ("check_docs.py", ["python", DOCS_CHECK_SCRIPT], pytest_env, "check-docs.log")]
 
 
 def _run_checks(checks: list[Check], work: Path, results_dir: Path, command: Command, notes: list[str], artifacts: list[str]) -> bool:

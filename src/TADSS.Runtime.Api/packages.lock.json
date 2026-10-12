@@ -605,7 +605,7 @@
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[8.0.0, )",
-          "TADSS.Shared.DecisionContractSDK": "[2.0.0-draft, )"
+          "TADSS.Shared.DecisionContractSDK": "[2.0.0, )"
         }
       },
       "tadss.infrastructure": {
@@ -618,7 +618,7 @@
           "Polly.Core": "[8.4.2, )",
           "StackExchange.Redis": "[2.8.16, )",
           "TADSS.Application": "[1.0.0, )",
-          "TADSS.Shared.DecisionContractSDK": "[2.0.0-draft, )"
+          "TADSS.Shared.DecisionContractSDK": "[2.0.0, )"
         }
       },
       "TADSS.Shared.DecisionContractSDK": {
@@ -627,13 +627,13 @@
       "tadss.strategies.default": {
         "type": "Project",
         "dependencies": {
-          "TADSS.Shared.DecisionContractSDK": "[2.0.0-draft, )"
+          "TADSS.Shared.DecisionContractSDK": "[2.0.0, )"
         }
       },
       "tadss.strategies.mockalternative": {
         "type": "Project",
         "dependencies": {
-          "TADSS.Shared.DecisionContractSDK": "[2.0.0-draft, )"
+          "TADSS.Shared.DecisionContractSDK": "[2.0.0, )"
         }
       },
       "AspNetCore.HealthChecks.NpgSql": {

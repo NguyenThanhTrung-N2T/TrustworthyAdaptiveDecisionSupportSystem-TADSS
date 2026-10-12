@@ -21,7 +21,7 @@
 | Phân giải strategy O(1) | **Tra cứu strategy theo tên trên dictionary đăng ký qua DI** | Không nạp DLL động lúc chạy; thêm strategy cần đăng ký DI và deploy lại |
 | Hot-swap strategy | **Đổi strategy bằng cấu hình định tuyến** | Quy tắc định tuyến đọc từ cấu hình; strategy phải được đăng ký sẵn |
 | Append-only (cho bảng có UPDATE) | **Append-only** chỉ khi DB chặn `UPDATE/DELETE` bằng trigger | Từ v2: `decision_executions`, `decision_overrides`, `decision_outcomes` đều được trigger bảo vệ |
-| Audit trong transaction boundary của MediatR | **Ghi audit đồng bộ, fail-closed** | Request chỉ trả kết quả sau khi bản ghi audit đã được lưu thành công |
+| Audit trong transaction boundary của MediatR (cơ chế đã gỡ ở Phase 5) | **Ghi audit đồng bộ, fail-closed** | Request chỉ trả kết quả sau khi bản ghi audit đã được lưu thành công |
 | Circuit Breaker đếm 5 lỗi | **Circuit Breaker mở khi tỷ lệ lỗi ≥ ngưỡng trong cửa sổ mẫu** | `FailureRatio = 0.5`, `SamplingDuration = 30s`, tối thiểu 10 request |
 | Retry 3 lần | **Retry 2 lần (tổng 3 lần thử)** | 3 × 120ms + 2 × 30ms = 420ms < 500ms |
 | In-vivo harvest, bất biến toán học | **Trích xuất bản ghi audit từ PostgreSQL thật kèm manifest SHA-256** | |
@@ -86,6 +86,9 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | Dữ liệu minh chứng & Evidence Pack | [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md) | |
 | Định hướng Khóa luận | [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) | |
 | Khảo sát ý tưởng ban đầu | [`RESEARCH_PROBLEM_BACKLOG.md`](../research/RESEARCH_PROBLEM_BACKLOG.md) | Lưu trữ lịch sử |
+| Bảng tham chiếu cấu hình `Tadss:*` | [`CONFIGURATION_REFERENCE.md`](../guides/CONFIGURATION_REFERENCE.md) | DOC-4 kiểm đủ section |
+| Quy trình chạy lượt đánh giá | [`EVALUATION_RUN_GUIDE.md`](../guides/EVALUATION_RUN_GUIDE.md) | |
+| Kiểm kê tài liệu hiện hành / lịch sử | [`README.md`](../../README.md#tài-liệu) | Mục "Tài liệu"; DOC-1 kiểm đủ file |
 
 **Quy tắc cập nhật:** khi một thông số thay đổi (thời gian, tham số pipeline, endpoint, KPI…), chỉ sửa ở file sở hữu; các file khác dẫn link thay vì chép lại con số.
 

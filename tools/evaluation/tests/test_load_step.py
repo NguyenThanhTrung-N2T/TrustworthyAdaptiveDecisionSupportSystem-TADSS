@@ -118,24 +118,57 @@ def test_dropped_iterations_are_reported_for_both_summary_shapes(tmp_path: Path)
     nested.write_text(json.dumps({"metrics": {"dropped_iterations": {"values": {"count": 7}}}}), encoding="utf-8")
     absent.write_text(json.dumps({"metrics": {}}), encoding="utf-8")
 
-    assert load_step.dropped_iterations(flat) == 89
-    assert load_step.dropped_iterations(nested) == 7
-    assert load_step.dropped_iterations(absent) == 0
+    assert load_step.dropped_iterations(flat) == {"total": 89}
+    assert load_step.dropped_iterations(nested) == {"total": 7}
+    assert load_step.dropped_iterations(absent) == {"total": 0}
     assert load_step.dropped_iterations(tmp_path / "missing.json") is None
 
 
-def test_dropped_iterations_appear_in_notes(tmp_path: Path) -> None:
+def test_dropped_iterations_are_split_by_phase_for_both_summary_shapes(tmp_path: Path) -> None:
+    flat, nested = tmp_path / "a.json", tmp_path / "b.json"
+    flat.write_text(json.dumps({"metrics": {"dropped_iterations": {"count": 300}, "dropped_iterations{scenario:warmup}": {"count": 294, "rate": 9.8}, "dropped_iterations{scenario:main}": {"count": 6, "rate": 0.1}}}), encoding="utf-8")
+    nested.write_text(json.dumps({"metrics": {"dropped_iterations{scenario:warmup}": {"values": {"count": 5}}, "dropped_iterations{scenario:main}": {"values": {"count": 0}}}}), encoding="utf-8")
+
+    assert load_step.dropped_iterations(flat) == {"warmup": 294, "main": 6}
+    assert load_step.dropped_iterations(nested) == {"warmup": 5, "main": 0}
+
+
+def _run_with_summary(tmp_path: Path, metrics: dict) -> list[str]:
     fake = FakeK6()
     original = fake.__call__
 
     def with_summary(request, base_env):
         result = original(request, base_env)
-        result.summary_path.write_text(json.dumps({"metrics": {"dropped_iterations": {"count": 3}}}), encoding="utf-8")
+        result.summary_path.write_text(json.dumps({"metrics": metrics}), encoding="utf-8")
         return result
 
-    result = load_step.run(_context(tmp_path), with_summary, _prometheus(), lambda seconds: None)
+    return load_step.run(_context(tmp_path), with_summary, _prometheus(), lambda seconds: None).notes
 
-    assert any("bỏ 3 lượt" in note for note in result.notes)
+
+def test_dropped_iterations_note_for_legacy_summary_with_total_only(tmp_path: Path) -> None:
+    notes = _run_with_summary(tmp_path, {"dropped_iterations": {"count": 3}})
+
+    assert any("bỏ 3 lượt (dropped_iterations; thường ở pha khởi động, xem summary.json)" in note for note in notes)
+
+
+def test_dropped_iterations_note_when_only_warmup_dropped(tmp_path: Path) -> None:
+    notes = _run_with_summary(tmp_path, {"dropped_iterations{scenario:warmup}": {"count": 294}, "dropped_iterations{scenario:main}": {"count": 0}})
+
+    assert any("k6 bỏ 294 lượt ở warm-up, 0 ở pha chính (pha chính đủ tải)" in note for note in notes)
+    assert not any("tải thực tế thấp hơn danh nghĩa" in note for note in notes)
+
+
+def test_dropped_iterations_note_when_main_phase_dropped(tmp_path: Path) -> None:
+    notes = _run_with_summary(tmp_path, {"dropped_iterations{scenario:warmup}": {"count": 10}, "dropped_iterations{scenario:main}": {"count": 184}})
+
+    assert any("k6 bỏ 184 lượt ở pha chính — tải thực tế thấp hơn danh nghĩa (xem summary.json)" in note for note in notes)
+    assert not any("pha chính đủ tải" in note for note in notes)
+
+
+def test_no_dropped_iterations_note_when_nothing_dropped(tmp_path: Path) -> None:
+    notes = _run_with_summary(tmp_path, {"dropped_iterations{scenario:warmup}": {"count": 0}, "dropped_iterations{scenario:main}": {"count": 0}})
+
+    assert not any("k6 bỏ" in note for note in notes)
 
 
 def test_k6_command_and_environment() -> None:

@@ -2,7 +2,7 @@
 
 | | |
 | :--- | :--- |
-| **Trạng thái** | v2.0.0 — **bản nháp**, đóng băng tại Milestone 5 (01/11/2026) |
+| **Trạng thái** | v2.0.0 — **đã đóng băng** (11/10/2026, gói 5.7; Gate M5 chờ lượt đầy đủ); mọi thay đổi theo Mục 6 |
 | **Thay thế** | Contract v1.0.0 (Phase 1–4, chưa có consumer) — đã gỡ khỏi mã và tài liệu; tra lại qua tag git `phase4-baseline` |
 | **Consumer** | `SmashCourt-BE` (Phase 6); adapter Hotel Booking Demand (kiểm chứng độc lập domain) |
 | **Sở hữu** | Tài liệu này là nguồn duy nhất về contract v2 và luồng tích hợp. Bất biến lưu trữ: [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md) |
@@ -102,7 +102,7 @@ sequenceDiagram
 - FE chỉ dùng `bookingId`; `decisionId` của TADSS chỉ BE biết (lưu trên booking/hóa đơn, Mục 4.4).
 - Hàng chờ của Manager đọc từ DB của SmashCourt (trạng thái booking là nguồn sự thật, Mục 4.3), nên có sẵn tên khách, sân, giờ chơi. `GET /api/v2/decisions/pending-approvals` (Mục 3.5) dùng để đối soát và vận hành, không gọi mỗi lần mở hàng chờ.
 - Manager nhập mức cọc dạng tỷ lệ; BE gửi `deposit.rate`, TADSS quy đổi ra số tiền (Mục 3.6).
-- Route ở trên là mẫu; đặc tả đầy đủ API BE ↔ FE (request/response, mã lỗi, sự kiện SignalR) là task T5.22, viết trong repo SmashCourt-BE.
+- Route BE ↔ FE đã chốt (T5.22): `GET /api/bookings/pending-approval`, `POST /api/bookings/{bookingId}/approve`, `POST /api/bookings/{bookingId}/reject` (từ chối đi cùng luồng trên với `action = REJECT`). Đặc tả đầy đủ (request/response, mã lỗi, sự kiện SignalR) nằm trong repo SmashCourt-BE: [`docs/api/DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md).
 
 ### 2.3. Báo kết quả thực tế (outcome)
 
@@ -115,6 +115,7 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 ### 3.1. Quy ước chung
 
 - Base path `/api/v2`. JSON `camelCase`; enum dạng `SCREAMING_SNAKE_CASE`; JSON schema đặt `additionalProperties: false` (lưu tại `docs/contracts/schemas/v2/`: `decision-request`, `decision-result`, `decision-detail`, `pending-approvals`, `override-request`, `override-response`, `outcome-request`, `outcome-response`). Tài liệu OpenAPI [`openapi-v2.yaml`](openapi-v2.yaml) được **sinh từ mã** và có test chống lệch (CT-01); khi hai bên khác nhau, JSON schema viết tay là nguồn chuẩn.
+- **Bộ JSON schema `schemas/v2/` theo endpoint:** cặp `decision-request.schema.json` / `decision-result.schema.json` cho `POST /api/v2/decisions`; `decision-detail.schema.json` cho `GET /api/v2/decisions/{decisionId}`; `pending-approvals.schema.json` cho `GET /api/v2/decisions/pending-approvals`; cặp `override-request.schema.json` / `override-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/override`; cặp `outcome-request.schema.json` / `outcome-response.schema.json` cho `POST /api/v2/decisions/{decisionId}/outcome`. Các schema viết tay này là nguồn chuẩn của contract. `openapi-v2.yaml` được sinh từ Swashbuckle của chính app (không sửa tay); khi API đổi có chủ đích, sinh lại theo hướng dẫn ở đầu test `OpenApiDriftTests`.
 - **Phạm vi đã hiện thực:** năm endpoint — `POST /api/v2/decisions` (3.3), `GET /api/v2/decisions/{decisionId}` (3.4), `GET /api/v2/decisions/pending-approvals` (3.5), `POST /api/v2/decisions/{decisionId}/override` (3.6) và `POST /api/v2/decisions/{decisionId}/outcome` (3.7). Mọi request `/api/*` phải mang `X-Api-Key` hợp lệ (xem 3.2); `/health/live` và `/health/ready` được miễn.
 - **Giới hạn của contract:** `X-Idempotency-Key` 1..128 ký tự; `X-Actor-Id` 1..100 ký tự; `reason` của override 5..500 ký tự và không chỉ gồm khoảng trắng; `page` ≥ 1 (mặc định 1); `pageSize` 1..100 (mặc định 20). Độ dài `X-Actor-Id` và `reason` đếm theo **Unicode code point** (khớp `char_length` của PostgreSQL, ký tự ngoài BMP như emoji tính là một); vi phạm → 400 `VALIDATION_ERROR`.
 - Thời gian dùng ISO 8601 **kèm offset** (`2026-11-20T18:00:00+07:00`). Mọi quy tắc theo khung giờ được tính theo `branchTimeZone` (IANA, ví dụ `Asia/Ho_Chi_Minh`).
@@ -282,7 +283,7 @@ Outcome áp cho mọi quyết định `PRIMARY` bất kể trạng thái (kể c
 | 400 | `VALIDATION_ERROR`, `DOMAIN_INVARIANT_VIOLATION`, `MISSING_HEADER` | Payload/header/tham số sai (kể cả body không giải mã được; `X-Idempotency-Key` dài hơn 128 hoặc `X-Actor-Id` dài hơn 100 ký tự, `page`/`pageSize` ngoài miền, mức cọc của override không hợp lệ → `VALIDATION_ERROR`) |
 | 415 | *(không có `code`)* | `Content-Type` không phải JSON. Do MVC trả mặc định, ngoài bộ mã của contract: body `application/problem+json` chuẩn không có trường `code`; `traceId` vẫn là correlation id |
 | 401 | `UNAUTHORIZED` | Thiếu hoặc sai `X-Api-Key`; response kèm header `WWW-Authenticate: ApiKey header="X-Api-Key"`. Áp cho mọi đường dẫn `/api/*` (kể cả route không tồn tại) |
-| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` (với override/outcome: hoặc đó là bản `SHADOW`). `decisionId` không phải GUID thì route không khớp → 404 mặc định của framework (không có `code`) |
+| 404 | `DECISION_NOT_FOUND` | Không có `decisionId` (với override/outcome: hoặc đó là bản `SHADOW`). `decisionId` không phải GUID (hoặc đường dẫn con lạ dưới `/api/v2/decisions/{decisionId}/`) cũng trả 404 `DECISION_NOT_FOUND` dạng `application/problem+json` (route bắt-tất-cả `UnmatchedDecisionRoutesController`, không có trong OpenAPI) |
 | 409 | `IDEMPOTENCY_KEY_REUSE` | Dùng lại key với payload khác (đánh giá, override) |
 | 409 | `NOT_PENDING_APPROVAL`, `ALREADY_OVERRIDDEN`, `APPROVAL_EXPIRED`, `OUTCOME_ALREADY_RECORDED` | Vi phạm trạng thái của override/outcome (3.6, 3.7) |
 | 503 | `PERSISTENCE_UNAVAILABLE` | Không ghi được audit (fail-closed); response kèm header `Retry-After` (giây) |
@@ -371,8 +372,8 @@ TADSS dùng schema `tadss` trên cùng máy chủ PostgreSQL với SmashCourt. C
 
 ## 6. QUẢN LÝ PHIÊN BẢN
 
-- Contract v2.0.0 là phiên bản duy nhất; đóng băng tại M5 với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK (`baseline_public_api.txt`).
-- **Sau khi đóng băng** (mọi schema đều `additionalProperties: false`, nên thêm cả trường tùy chọn cũng làm client kiểm tra chặt từ chối):
+- Contract v2.0.0 là phiên bản duy nhất; đã đóng băng ngày 11/10/2026 (gói 5.7, trước Gate M5) với: `openapi-v2.yaml`, `schemas/v2/`, public API baseline v2 của SDK (`baseline_public_api.txt`).
+- **Từ khi đóng băng** (mọi schema đều `additionalProperties: false`, nên thêm cả trường tùy chọn cũng làm client kiểm tra chặt từ chối):
   - **Được phép trong `2.x.y`:** cải tiến nội bộ SDK/runtime không đổi wire JSON (hiệu năng, sửa lỗi, XML doc); thêm `reasonCode` mới — consumer phải xử lý `reasonCode` như chuỗi và không lỗi khi gặp mã lạ.
   - **Bắt buộc lên phiên bản lớn mới:** thêm/xóa/đổi tên/đổi kiểu trường, đổi ràng buộc, đổi tập giá trị enum. Phiên bản mới có route riêng (`/api/v3`), thư mục schema riêng (`schemas/v3/`), baseline public API riêng; phiên bản cũ chạy song song trong thời gian chuyển đổi nếu đã có consumer.
 - Contract v1.0.0 (Phase 1–4) không còn trong repo; tra lại qua tag git `phase4-baseline`.

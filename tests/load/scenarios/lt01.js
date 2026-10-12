@@ -1,4 +1,4 @@
-// LT01 (methodology 4.6): hồ sơ tải theo config/modes.json (MODE=quick|full). Chạy bởi evaluator bước (b); xem README.md.
+// LT01 (methodology 4.6): hồ sơ tải theo config/modes.json (MODE=quick|full). Chạy bởi evaluator bước (b); xem docs/guides/EVALUATION_RUN_GUIDE.md, mục "Kịch bản tải k6".
 import { scenarioOptions, iteration, summaryOutput } from '../lib/run.js';
 
 export const options = scenarioOptions('lt01');

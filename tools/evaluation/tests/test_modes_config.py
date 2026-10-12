@@ -33,6 +33,13 @@ def test_modes_config_full() -> None:
     assert (lt05["rate"], lt05["warmup"], lt05["duration"]) == (50, "1m", "60m")
 
 
+def test_lt02_preallocates_enough_vus_to_not_drop_iterations_in_main_phase() -> None:
+    """Lượt r1 dùng tối đa 317 VU và bỏ ~184 lượt ở pha chính vì k6 cấp VU giữa chừng không kịp ⇒ cấp sẵn 400 ở cả hai chế độ."""
+    for mode in ("quick", "full"):
+        assert MODES[mode]["lt02"]["preAllocatedVUs"] == 400
+        assert MODES[mode]["lt02"]["maxVUs"] >= 400
+
+
 def test_every_profile_has_enough_vus_to_avoid_dropping_iterations() -> None:
     for mode in MODES.values():
         for profile in mode.values():

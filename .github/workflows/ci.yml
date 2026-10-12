@@ -37,7 +37,7 @@ jobs:
 
       # 4. Build toàn bộ Solution (Release mode)
       - name: Build Solution
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release --warnaserror
 
       # 5a. Unit test (không cần Docker)
       - name: Run Unit Tests
@@ -160,3 +160,26 @@ jobs:
 
       - name: Build Evaluator Image (not run)
         run: docker build -f docker/evaluator/Dockerfile -t tadss-evaluator:ci .
+
+  # DOC-1…DOC-3 (gói 5.7): bảng kiểm kê tài liệu, thuật ngữ đã gỡ trong tài liệu hiện hành, link nội bộ và anchor; chỉ dùng thư viện chuẩn của Python. DOC-4 là unit test .NET (job build-and-test).
+  docs:
+    name: Docs (DOC-1…DOC-3)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Check Documentation
+        run: python tools/docs/check_docs.py
+
+      - name: Run Docs Tool Tests
+        run: python -m pytest -q tools/docs

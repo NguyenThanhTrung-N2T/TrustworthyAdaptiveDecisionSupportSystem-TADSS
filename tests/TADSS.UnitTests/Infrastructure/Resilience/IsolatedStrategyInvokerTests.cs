@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,6 +18,9 @@ namespace TADSS.UnitTests.Infrastructure.Resilience;
 public class IsolatedStrategyInvokerTests
 {
     private const string AbandonedFaultMarker = "loi-muon-cua-task-bi-bo-roi";
+
+    /// <summary>Lưới an toàn của ca strategy không hợp tác: chỉ hết hạn khi invoker (sai) chờ strategy bị chặn tới khi test mở cổng.</summary>
+    private static readonly TimeSpan InvokerReturnLimit = TimeSpan.FromSeconds(30);
 
     private static StrategyDecision Approved() =>
         StrategyDecision.Approve(0.5m, ReasonCodes.TierDeposit, ["Cọc theo hạng thành viên."]);
@@ -46,7 +48,11 @@ public class IsolatedStrategyInvokerTests
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(0);
     }
 
-    /// <summary>Strategy <c>Thread.Sleep(2000)</c> đồng bộ, token hủy sau 100 ms: lời gọi kết thúc trước khi strategy xong (< 1,8 s) và ghi một lần bỏ rơi.</summary>
+    /// <summary>
+    /// Strategy chặn đồng bộ (bỏ qua token) cho tới khi test mở cổng — tức là không bao giờ tự xong trong lúc lời gọi đang chờ; token hủy sau 100 ms:
+    /// lời gọi vẫn kết thúc bằng hủy (nếu invoker chờ strategy thì hết <see cref="InvokerReturnLimit"/> trước → <see cref="TimeoutException"/>, test đỏ)
+    /// và ghi một lần bỏ rơi. Không đo bằng đồng hồ thật nên không phụ thuộc máy bận.
+    /// </summary>
     [Fact]
     [Trait("CatalogId", "FI-05")]
     public async Task InvokeAsync_SyncBlockingStrategyIgnoringToken_ReturnsWhenTokenCancelled()
@@ -54,26 +60,31 @@ public class IsolatedStrategyInvokerTests
         using var metrics = new TadssMetrics();
         using var recorder = new MetricRecorder(metrics.Meter);
         var invoker = new IsolatedStrategyInvoker(metrics, NullLogger.Instance);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var strategy = new DelegateStrategy(
             (_, _, _) =>
             {
-                Thread.Sleep(2000);
+                release.Task.Wait();
                 return Task.FromResult(Approved());
             },
             strategyName: "BlockingStrategy");
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
-        var stopwatch = Stopwatch.StartNew();
-        var act = () => InvokeAsync(invoker, strategy, cts.Token);
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        stopwatch.Stop();
+        try
+        {
+            var act = () => InvokeAsync(invoker, strategy, cts.Token).WaitAsync(InvokerReturnLimit);
+            await act.Should().ThrowAsync<OperationCanceledException>("lời gọi không được chờ strategy đang chặn đồng bộ");
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
 
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1800, "lời gọi không được chờ strategy chặn đồng bộ 2 s (biên rộng để chịu máy bận: token hủy sau 100 ms)");
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
         recorder.Sum(TadssMetricNames.StrategyAbandoned, ("strategy", "BlockingStrategy")).Should().Be(1);
     }
 
-    /// <summary>Strategy <c>await Task.Delay(2000)</c> không truyền token: như ca chặn đồng bộ, lời gọi trả về khi token hủy.</summary>
+    /// <summary>Strategy <c>await</c> một việc không truyền token và chỉ xong khi test mở cổng: như ca chặn đồng bộ, lời gọi trả về khi token hủy.</summary>
     [Fact]
     [Trait("CatalogId", "FI-05")]
     public async Task InvokeAsync_AsyncStrategyIgnoringToken_ReturnsWhenTokenCancelled()
@@ -81,19 +92,24 @@ public class IsolatedStrategyInvokerTests
         using var metrics = new TadssMetrics();
         using var recorder = new MetricRecorder(metrics.Meter);
         var invoker = new IsolatedStrategyInvoker(metrics, NullLogger.Instance);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var strategy = new DelegateStrategy(async (_, _, _) =>
         {
-            await Task.Delay(2000);
+            await release.Task;
             return Approved();
         });
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
-        var stopwatch = Stopwatch.StartNew();
-        var act = () => InvokeAsync(invoker, strategy, cts.Token);
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        stopwatch.Stop();
+        try
+        {
+            var act = () => InvokeAsync(invoker, strategy, cts.Token).WaitAsync(InvokerReturnLimit);
+            await act.Should().ThrowAsync<OperationCanceledException>("lời gọi không được chờ strategy bỏ qua token");
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
 
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(1800, "không được chờ strategy 2 s; biên rộng để chịu máy bận");
         recorder.Sum(TadssMetricNames.StrategyAbandoned).Should().Be(1);
     }
 

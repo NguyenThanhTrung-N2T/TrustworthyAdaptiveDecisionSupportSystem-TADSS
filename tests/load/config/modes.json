@@ -22,7 +22,7 @@
         200
       ],
       "hold": "30s",
-      "preAllocatedVUs": 100,
+      "preAllocatedVUs": 400,
       "maxVUs": 800
     },
     "lt03": {
@@ -79,7 +79,7 @@
         400
       ],
       "hold": "50s",
-      "preAllocatedVUs": 200,
+      "preAllocatedVUs": 400,
       "maxVUs": 1500
     },
     "lt05": {

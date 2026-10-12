@@ -72,6 +72,8 @@ export function buildOptions(scenarioKey) {
     // Không dừng lượt vì ngưỡng: kết luận đạt/không đạt do evaluator tính từ D2; tắt thu thập tag URL theo từng request để tránh bùng nổ nhãn
     discardResponseBodies: false,
     systemTags: ['status', 'method', 'name', 'scenario'],
+    // Threshold luôn đạt chỉ để summary.json có dropped_iterations theo từng scenario (evaluator ghi chú đúng pha); không dừng lượt
+    thresholds: Object.fromEntries(Object.keys(scenarios).map((name) => [`dropped_iterations{scenario:${name}}`, ['count>=0']])),
     summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
   };
 }

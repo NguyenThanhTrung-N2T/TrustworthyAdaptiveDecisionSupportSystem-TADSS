@@ -24,19 +24,29 @@ namespace TADSS.UnitTests.Infrastructure.Resilience;
 /// UT-07 (phần pipeline): <see cref="StrategyPipeline"/> chạy strategy v2 qua Outer timeout → Fallback → Retry →
 /// Circuit breaker → Inner timeout và biến F2–F4 (timeout, lỗi, circuit mở) thành quyết định fallback an toàn.
 /// Các ca timeout dùng strategy giả chờ vô hạn nhưng tôn trọng token cùng timeout nhỏ nên kết quả không phụ thuộc
-/// tốc độ máy; ca đo thời gian dùng <see cref="FakeTimeProvider"/>.
+/// tốc độ máy; ca không nói về timeout dùng ngân sách rộng (<see cref="GenerousInnerTimeoutMs"/>, <see cref="GenerousOuterTimeoutMs"/>)
+/// để timeout thật không bao giờ thắng kết quả của strategy khi máy bận; ca đo thời gian dùng <see cref="FakeTimeProvider"/>.
 /// </summary>
 public class StrategyPipelineTests
 {
     private const string SensitiveMessage = "chi-tiet-nhay-cam-KHONG-DUOC-LOT-RA";
+
+    /// <summary>Inner timeout mặc định của ca không nói về timeout: strategy giả trả kết quả đồng bộ nên 10 s không bao giờ hết hạn trước.</summary>
+    private const int GenerousInnerTimeoutMs = 10_000;
+
+    /// <summary>Outer timeout mặc định: đủ cho Inner × (MaxRetryAttempts + 1) + retry delay như ràng buộc của validator.</summary>
+    private const int GenerousOuterTimeoutMs = 60_000;
+
+    /// <summary>Inner timeout nhỏ của ca cần strategy chậm thật sự vượt hạn.</summary>
+    private const int ShortInnerTimeoutMs = 30;
 
     /// <summary>Metrics dùng chung cho mọi pipeline của test (không test nào đọc số đo ở đây nên không cần dispose theo từng test).</summary>
     private static readonly TadssMetrics SharedMetrics = new();
 
     private static ResilienceOptions SmallOptions(
         int maxRetryAttempts = 2,
-        int innerTimeoutMs = 30,
-        int outerTimeoutMs = 5_000,
+        int innerTimeoutMs = GenerousInnerTimeoutMs,
+        int outerTimeoutMs = GenerousOuterTimeoutMs,
         int minimumThroughput = 10) => new()
         {
             OuterTimeoutMs = outerTimeoutMs,
@@ -71,7 +81,7 @@ public class StrategyPipelineTests
     {
         var expected = Approved();
         var strategy = new DelegateStrategy((_, _, _) => Task.FromResult(expected));
-        var pipeline = Build(SmallOptions(innerTimeoutMs: 2_000));
+        var pipeline = Build(SmallOptions());
 
         var outcome = await pipeline.ExecuteAsync(strategy, DomainTestData.CreateReservation(), DomainTestData.CreateContext(), CancellationToken.None);
 
@@ -479,7 +489,7 @@ public class StrategyPipelineTests
     public async Task ExecuteAsync_PipelineLogs_IncludeStrategyName()
     {
         var logger = new StateCapturingLogger();
-        var options = SmallOptions(maxRetryAttempts: 1, minimumThroughput: 2);
+        var options = SmallOptions(maxRetryAttempts: 1, innerTimeoutMs: ShortInnerTimeoutMs, minimumThroughput: 2);
         var pipeline = new StrategyPipeline(MsOptions.Create(options), TimeProvider.System, SharedMetrics, logger);
         var failing = new DelegateStrategy((_, _, _) => Throwing(), strategyName: "FailingStrategy");
         var slow = new DelegateStrategy((_, _, token) => WaitForever(token), strategyName: "SlowStrategy");

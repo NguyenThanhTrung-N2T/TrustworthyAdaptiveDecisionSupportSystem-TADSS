@@ -170,7 +170,7 @@ public class HttpPipelineTests : IClassFixture<DecisionsApiFactory>
     {
         var document = _factory.Services.GetRequiredService<ISwaggerProvider>().GetSwagger("v2");
 
-        document.Info.Version.Should().Be("2.0.0-draft");
+        document.Info.Version.Should().Be("2.0.0");
         document.Paths.Keys.Should().BeEquivalentTo(
         [
             "/api/v2/decisions",

@@ -86,7 +86,7 @@ public class OpenApiDriftTests : IClassFixture<DecisionsApiFactory>
             (OutcomePath, OperationType.Post)
         });
         document.Servers.Should().BeNullOrEmpty("tài liệu phải xác định, không chứa URL máy chủ riêng của môi trường sinh");
-        document.Info.Version.Should().Be("2.0.0-draft");
+        document.Info.Version.Should().Be("2.0.0");
         document.Paths.Keys.Should().NotContain(path => path.Contains("v1", StringComparison.OrdinalIgnoreCase));
     }
 

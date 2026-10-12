@@ -54,8 +54,8 @@ def test_step_a_runs_commands_in_order_and_fails_on_red_test(tmp_path: Path) -> 
     # Script verify (build image, dựng/gỡ stack thử) chạy trước dotnet test để máy đã yên khi sang bước (b) đo tải
     assert verbs == [
         ("bash", "tools/expose/verify-expose.sh"), ("bash", "tools/observability/verify-observability.sh"), ("bash", "tools/evidence/sql/verify-export.sh"),
-    ] + [("dotnet", "restore")] * 2 + [("dotnet", "build")] * 2 + [("dotnet", "test")] * 2 + [("python", "-m"), ("python", "-m")]
-    assert [call[-1] for call in commands.calls if call[0] == "python"] == ["tools/evaluation", "tools/evidence"], "hai bộ pytest của công cụ đánh giá"
+    ] + [("dotnet", "restore")] * 2 + [("dotnet", "build")] * 2 + [("dotnet", "test")] * 2 + [("python", "-m")] * 3 + [("python", "tools/docs/check_docs.py")]
+    assert [call[-1] for call in commands.calls if call[0] == "python"] == ["tools/evaluation", "tools/evidence", "tools/docs", "tools/docs/check_docs.py"], "ba bộ pytest rồi bộ kiểm tài liệu"
     assert result.status == "failed", "trx mẫu có một ca đỏ"
     assert any("UT-02" in note and "FI-03" in note for note in result.notes)
     assert (tmp_path / "evidence" / "EV-20261008-EVAL-quick-r1" / "raw" / "tests" / "catalog-results.csv").exists()
@@ -142,4 +142,5 @@ def test_step_a_fails_and_names_log_when_pytest_fails(tmp_path: Path, monkeypatc
 
     assert result.status == "failed"
     assert any(note.startswith("pytest tools/evidence: không đạt") and "pytest-evidence.log" in note for note in result.notes)
+    assert any(note.startswith("check_docs.py: không đạt") and "check-docs.log" in note for note in result.notes)
     assert any(note == "verify-observability.sh: đạt" for note in result.notes) and any(note == "verify-export.sh: đạt" for note in result.notes)

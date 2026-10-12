@@ -33,11 +33,12 @@ def evaluate_scale2(entries: list[dict], key_counts: dict[str, int], instance_in
     not_single = sorted(key for key in by_key if key_counts.get(key, 0) != 1)
     repeats = sum(1 for entry in requests if entry.get("repeat"))
     missing_instances = [name for name in EXPECTED_INSTANCES if instance_increase.get(name, 0.0) <= 0]
+    rounded_increase = {name: round(value) for name, value in instance_increase.items()}  # chỉ để in; quyết định ở trên dùng số thực
     checks = {
         "no_server_errors": {"passed": not server_errors, "detail": f"{len(server_errors)} response 5xx trên {len(requests)} request"},
         "single_primary_per_key": {"passed": not not_single, "detail": f"{len(by_key)} khóa có response 200; {len(not_single)} khóa không có đúng một bản PRIMARY"},
         "same_decision_id_per_key": {"passed": not inconsistent, "detail": f"{len(inconsistent)} khóa có response khác decisionId"},
-        "both_instances_in_prometheus": {"passed": not missing_instances, "detail": f"tadss_decisions_total tăng theo instance: {instance_increase}; thiếu: {missing_instances}"},
+        "both_instances_in_prometheus": {"passed": not missing_instances, "detail": f"tadss_decisions_total tăng theo instance: {rounded_increase}; thiếu: {missing_instances}"},
         "repeats_exercised": {"passed": repeats > 0, "detail": f"{repeats} request lặp khóa"},
     }
     return {"passed": all(check["passed"] for check in checks.values()), "checks": checks}

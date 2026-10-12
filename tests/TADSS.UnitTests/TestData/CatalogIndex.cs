@@ -18,9 +18,10 @@ public static class CatalogIndex
     /// <summary>Tên trait chứa mã danh mục.</summary>
     public const string TraitName = "CatalogId";
 
-    private static readonly Regex IdCell = new(@"^\|\s*([A-Z0-9]{2,5}-\d{1,2})\s*\|", RegexOptions.Compiled | RegexOptions.Multiline);
+    // Cùng hình dạng với _CODE_ROW trong tools/evidence/coverage_map.py: một hoặc hai đoạn tiền tố (UT-01, E2E-13, BE-UT-01), hậu tố chữ thường tuỳ chọn.
+    private static readonly Regex IdCell = new(@"^\|\s*([A-Z][A-Z0-9]*(?:-[A-Z]{2})?-\d{1,2}[a-z]?)\s*\|", RegexOptions.Compiled | RegexOptions.Multiline);
 
-    /// <summary>Mọi mã trong bảng danh mục của methodology (hàng bảng bắt đầu bằng <c>| XX-nn |</c>).</summary>
+    /// <summary>Mọi mã trong bảng danh mục của methodology (hàng bảng bắt đầu bằng <c>| XX-nn |</c> hoặc <c>| BE-UT-nn |</c>).</summary>
     public static IReadOnlySet<string> KnownIds()
     {
         var path = RepositoryPaths.Resolve("docs", "research", "EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md");

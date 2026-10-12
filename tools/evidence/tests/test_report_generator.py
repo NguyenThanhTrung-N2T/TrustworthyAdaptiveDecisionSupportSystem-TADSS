@@ -146,12 +146,36 @@ def test_catalog_codes_read_from_methodology() -> None:
 
     codes = coverage_map.catalog_codes(methodology)
 
-    for expected in ("UT-01", "IT-05", "CT-03", "MT-02", "FI-08", "LT-03", "SCALE-2", "OB-3"):
+    for expected in ("UT-01", "IT-05", "CT-03", "MT-02", "FI-08", "LT-03", "SCALE-2", "OB-3", "BE-UT-01", "BE-IT-20", "FE-10", "E2E-13"):
         assert expected in codes
     assert len(codes) == len(set(codes))
+
+
+def test_catalog_codes_read_two_part_prefix(tmp_path: Path) -> None:
+    methodology = tmp_path / "m.md"
+    methodology.write_text("| ID | X |\n| :--- | :--- |\n| BE-UT-01 | a |\n| BE-IT-20 | b |\n| FE-03 | c |\n| E2E-13 | d |\n| UT-14 | e |\n| SCALE-2 | f |\n| BE-1 | g |\n", encoding="utf-8")
+
+    assert coverage_map.catalog_codes(methodology) == ["BE-UT-01", "BE-IT-20", "FE-03", "E2E-13", "UT-14", "SCALE-2", "BE-1"]
+
+
+def test_smashcourt_codes_are_out_of_scope_of_tadss_run() -> None:
+    codes = ["BE-UT-01", "BE-IT-05", "FE-01", "FE-10", "E2E-13", "CT-04", "CT-03"]
+
+    untested = coverage_map.coverage(codes, {}, set())["untested"]
+
+    for code in codes[:-1]:
+        assert "SmashCourt-BE/FE" in untested[code] and "chưa có test trong lượt chạy này" not in untested[code]
+    assert "SmashCourt" not in untested["CT-03"]
 
 
 def test_catalog_coverage_failed_by_steps() -> None:
     result = coverage_map.coverage(["RP-01", "RP-02", "PT-01"], {}, {"RP-02"}, failed_by_steps={"RP-01"})
 
     assert result["passed"] == ["RP-02"] and result["failed"] == ["RP-01"] and set(result["untested"]) == {"PT-01"}
+
+
+def test_doc_codes_are_not_reported_out_of_scope() -> None:
+    result = coverage_map.coverage(["DOC-1", "DOC-4"], {"DOC-4": {"passed": 1, "failed": 0, "skipped": 0}}, set())
+
+    assert result["passed"] == ["DOC-4"] and "gói 5.7" not in result["untested"]["DOC-1"]
+    assert coverage_map.coverage(["DOC-1"], {}, {"DOC-1"})["passed"] == ["DOC-1"]

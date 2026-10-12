@@ -16,7 +16,7 @@ from evaluator.clients import prometheus
 from evaluator.clients.postgres import connect_fetch
 from evaluator.results import ERROR, FAILED, PASSED, StepResult, utc_now
 from evaluator.run_context import RunContext
-from evaluator.steps import dataset_step
+from evaluator.steps import dataset_step, tests_step
 from evidence import coverage_map, d1_export, dataset_analysis, evidence_pack, hotel_adapter, kpi, replay
 from evidence.anonymize import Anonymizer
 from evidence.report import generator
@@ -28,6 +28,10 @@ SC1_SCENARIO = "lt01"
 DASHBOARD_ENDPOINT = 'endpoint="POST api/v2/decisions"'
 # Mã danh mục được chính evaluator kiểm (không đi qua trx); điều kiện: bước nào đạt
 STEP_VERIFIED = {"b": ("LT-01", "LT-02"), "c": ("LT-03", "SCALE-2", "OB-3"), "d": ("CT-03",)}
+# DOC-1…DOC-3 do check_docs.py (bước a) kiểm; ghi chú một dòng của tests_step: "check_docs.py: đạt" / "check_docs.py: không đạt (mã …, xem check-docs.log)"
+DOCS_CHECK_CODES = ("DOC-1", "DOC-2", "DOC-3")
+DOCS_CHECK_PASSED = "check_docs.py: đạt"
+DOCS_CHECK_FAILED = "check_docs.py: không đạt"
 _COMMENT = re.compile(r"\s+#.*$")
 CodeCheckFunction = Callable[[Path], code_check.CodeCheck]
 
@@ -48,7 +52,18 @@ def verified_codes(context: RunContext, mutation: dict[str, Any] | None, chaos_r
         codes.add("LT-05")
     codes.update(row["fi_id"] for row in chaos_rows if row["passed"] == "True")
     codes.update(code for code, result in (mutation or {}).items() if result.get("passed"))
+    if _docs_check_noted(context, DOCS_CHECK_PASSED):
+        codes.update(DOCS_CHECK_CODES)
     return codes
+
+
+def failed_codes(context: RunContext) -> set[str]:
+    """Mã danh mục mà evaluator tự kiểm và KHÔNG đạt (thuộc `failed` của độ phủ): DOC-1…DOC-3 khi `check_docs.py` của bước (a) không đạt."""
+    return set(DOCS_CHECK_CODES) if _docs_check_noted(context, DOCS_CHECK_FAILED) else set()
+
+
+def _docs_check_noted(context: RunContext, note: str) -> bool:
+    return any(line.startswith(note) for outcome in context.outcomes if outcome.name == tests_step.STEP_NAME for line in outcome.notes)
 
 
 def sc1_runs(context: RunContext, run_dir: Path, query: Callable[..., list[dict]] = prometheus.query) -> list[dict[str, Any]]:
@@ -241,7 +256,7 @@ def run(
     methodology = context.repo_dir / "docs" / "research" / "EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md"
     codes = coverage_map.catalog_codes(methodology) if methodology.exists() else []
     dataset_passed, dataset_failed = dataset_analysis.dataset_coverage(run_dir)
-    coverage = coverage_map.coverage(codes, summary or {}, verified_codes(context, mutation, chaos_rows) | dataset_passed, dataset_failed)
+    coverage = coverage_map.coverage(codes, summary or {}, verified_codes(context, mutation, chaos_rows) | dataset_passed, dataset_failed | failed_codes(context))
     machine_info = machine.collect(machine.IMAGES)
     base = {
         "runId": context.run_id, "createdAtUtc": context.started_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "environment": ENVIRONMENT, "mode": context.mode, "dirty": git.dirty,
