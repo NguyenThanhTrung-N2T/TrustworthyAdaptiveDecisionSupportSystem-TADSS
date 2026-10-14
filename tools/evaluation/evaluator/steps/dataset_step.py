@@ -23,6 +23,8 @@ Trạng thái bước: `failed` nếu có phần `failed` hoặc `error`; `skipp
 - `summary.json`: `part`, `status`, `note`, `target`, `workers`, `mode`, `now`, `prepared`, `sent`, `not_sent`, `status_counts`, `decision_status_counts`, `attempts_total`, `retries`,
   `contract_error_requests`, `contract_errors_by_kind`, `contract_error_samples`, `latency_ms` (p50/p95/max), `duration_seconds`, `requests_per_second` (số đo thật, O-24 của 5.5), `phase_seconds` (thời gian từng pha, xem `Phases`), cộng trường riêng
   của từng phần (RP: `source_rows`, `rejected`, `window_bias_count`; PT: `sample_size`, `selected`, `total_rows`, `valid_count`, `rejected`).
+- PT thêm `shadow_reconciliation` (PT-04, gói 5.7b): sau khi gửi xong, xả hàng đợi shadow của instance PT và đối soát tổng hợp (DB `decision_executions` + counter Prometheus, xem `shadow_drain`);
+  nhãn RECONCILED/UNKNOWN/FAILED. Thiếu `EVAL_PT_PG_DSN` hoặc không có request nào được gửi -> `{"label": "UNKNOWN", "reason": ...}`. Pha `shadow_drain` được thêm vào `phase_seconds` khi đã chạy.
 """
 from __future__ import annotations
 
@@ -36,7 +38,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, TypeVar
 
-from evaluator.clients import download
+from evaluator import shadow_drain
+from evaluator.clients import download, postgres, prometheus
 from evaluator.clients.http import http_get
 from evaluator.results import ERROR, FAILED, PASSED, SKIPPED, StepResult, utc_now
 from evaluator.run_context import RunContext
@@ -68,6 +71,8 @@ class Services:
     monotonic: Callable[[], float] = time.monotonic
     anonymizer_factory: Callable[[], Anonymizer] = Anonymizer
     ready_timeout: float = READY_TIMEOUT_SECONDS
+    pt_fetch_factory: Callable[[str], Callable[[str, tuple], list[tuple]]] = postgres.connect_fetch
+    prom_query: Callable[[str, str], list[dict]] = lambda base, expr: prometheus.query(base, expr)
 
 
 @dataclass
@@ -109,7 +114,7 @@ class Phases:
     """
     Cộng dồn thời gian (giây, đồng hồ monotonic) theo pha của một phần để biết bước (e) chậm ở đâu: `load` (đọc CSV), `fetch` (tải/kiểm băm dataset), `select` (lọc + lấy mẫu),
     `wait_ready` (chờ `/health/ready`), `build` (dựng + kiểm schema request, chạy lười xen kẽ lúc gửi), `response_check` (kiểm contract response), `send` (toàn bộ vòng gửi, ĐÃ GỒM
-    `build` và `response_check`).
+    `build` và `response_check`), `shadow_drain` (chỉ PT, khi có `EVAL_PT_PG_DSN`: xả hàng đợi shadow và đối soát, sau vòng gửi).
     """
 
     def __init__(self, monotonic: Callable[[], float]) -> None:
@@ -211,9 +216,69 @@ def _run_portability(context: RunContext, services: Services, anonymizer: Anonym
     if not phases.timed("wait_ready", lambda: _wait_ready(services, target)):
         return _finish(out_dir, PART_PORTABILITY, ERROR, f"{target} chưa sẵn sàng sau {services.ready_timeout:.0f} s (/health/ready)", target, context, {**extra, "phase_seconds": phases.to_dict()})
 
-    now = services.clock()
+    probe = _shadow_probe(context, services)
+    before = probe[0]() if probe else None
+    now = send_started = services.clock()  # MỘT lần đọc đồng hồ cho cả giờ gửi (Q-04) lẫn mốc lọc thô của đối soát shadow
     requests = _lazy(selection.rows, lambda chunk: hotel_adapter.build_requests(chunk, anonymizer, context.run_id, now))
-    return _send_part(context, services, PART_PORTABILITY, out_dir, requests, target, now, extra, phases)
+    outcome = _send_part(context, services, PART_PORTABILITY, out_dir, requests, target, now, extra, phases)
+    _merge_summary(out_dir, "shadow_reconciliation", _reconcile(out_dir, services, probe, before, send_started, phases, outcome.status))
+    if "shadow_drain" in phases.seconds:  # pha xả chạy sau khi summary đã ghi: cập nhật lại thời gian các pha
+        _merge_summary(out_dir, "phase_seconds", phases.to_dict())
+    return outcome
+
+
+def _shadow_probe(context: RunContext, services: Services) -> tuple[Callable[[], shadow_drain.Counters], Callable[[str, tuple], list[tuple]]] | None:
+    """(đọc counter, truy vấn DB PT) hoặc None khi stack không có DSN của database PT (chạy ngoài stack đánh giá, hoặc test)."""
+    dsn = context.env.get("EVAL_PT_PG_DSN")
+    if not dsn:
+        return None
+    base = context.endpoints.prometheus
+
+    def read() -> shadow_drain.Counters:
+        try:
+            return shadow_drain.read_counters(lambda expr: services.prom_query(base, expr))
+        except (prometheus.PrometheusError, KeyError, IndexError, TypeError, ValueError):  # lỗi mạng/HTTP hoặc JSON sai hình dạng: counter coi như không đọc được
+            return shadow_drain.Counters(None, None, None, error=True)
+
+    return read, services.pt_fetch_factory(dsn)
+
+
+def _reconcile(out_dir: Path, services: Services, probe: tuple[Callable[[], shadow_drain.Counters], Callable[[str, tuple], list[tuple]]] | None,
+               before: shadow_drain.Counters | None, send_started: datetime, phases: Phases, status: str) -> dict[str, Any]:
+    """PT-04: xả hàng đợi shadow và đối soát tổng hợp; tập correlation_id của lượt lấy từ requests.jsonl vừa ghi."""
+    if probe is None or before is None:
+        return {"label": shadow_drain.UNKNOWN, "reason": "EVAL_PT_PG_DSN chưa đặt: không đối soát được shadow"}
+    if status == ERROR:
+        return {"label": shadow_drain.UNKNOWN, "reason": "instance PT không nhận kết nối: không có request nào để đối soát"}
+    read, fetch = probe
+    since = send_started - shadow_drain.PREFILTER_MARGIN
+    try:
+        correlations = [row["correlation_id"] for row in _read_rows(out_dir / "requests.jsonl") if row.get("correlation_id")]
+        if not correlations:
+            return {"label": shadow_drain.UNKNOWN, "reason": "không có request PT nào được gửi"}
+
+        def roles() -> dict[str, int]:
+            return {str(role): int(count) for role, count in fetch(shadow_drain.count_roles_sql(), (since, correlations))}
+
+        return phases.timed("shadow_drain", lambda: shadow_drain.drain(roles, read, before, monotonic=services.monotonic, sleep=services.sleep))
+    except Exception as error:  # noqa: BLE001
+        # Xả shadow là tùy chọn và không được làm mất Evidence Pack: lỗi ở đây mà nổi lên sẽ thành `error` của bước (e) và bước (f) bị bỏ qua.
+        # `psycopg` nạp lười nên không có lớp lỗi chung để bắt gọn hơn; chỉ ghi TÊN lỗi (không ghi nội dung, tránh lộ chuỗi kết nối).
+        return {"label": shadow_drain.UNKNOWN, "reason": f"db_error: {type(error).__name__}"}
+
+
+def _read_rows(path: Path) -> list[dict[str, Any]]:
+    """Đọc JSONL: mỗi dòng một đối tượng, bỏ dòng rỗng."""
+    with path.open(encoding="utf-8") as file:
+        return [json.loads(line) for line in file if line.strip()]
+
+
+def _merge_summary(out_dir: Path, key: str, value: Any) -> None:
+    """Ghi thêm một khóa vào `summary.json` đã có của phần."""
+    path = out_dir / "summary.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data[key] = value
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8")
 
 
 def _source_info(dataset: Path, selection: hotel_adapter.Selection) -> dict[str, Any]:

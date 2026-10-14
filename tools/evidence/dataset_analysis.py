@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable
 
-from evidence import hotel_adapter, replay
+from evidence import hotel_adapter, replay, shadow_pairing
 
 APPROVED = "APPROVED"
 NEED_APPROVAL = replay.NEED_APPROVAL
@@ -229,6 +229,24 @@ def build_d5(run_dir: Path, d1_index: dict[str, dict[str, Any]]) -> list[dict[st
     return None if paired is None else hotel_adapter.d5_rows_from_outcomes(paired[0], paired[1], d1_index)
 
 
+def run_correlations(run_dir: Path, part: str) -> dict[str, str]:
+    """khóa idempotency → correlation_id từ `raw/{part}/requests.jsonl` của lượt (chỉ dòng có correlation_id)."""
+    return {row["key"]: row["correlation_id"] for row in read_jsonl(run_dir / "raw" / part / "requests.jsonl") if row.get("correlation_id")}
+
+
+def build_d5_with_shadow(run_dir: Path, d1_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], shadow_pairing.Pairing] | None:
+    """D5 kèm 5 cột shadow (PT-04): ghép PRIMARY/SHADOW của D1 PT theo correlation_id, phạm vi lượt = correlation_id trong requests.jsonl. None khi PT không chuẩn bị dòng nào."""
+    paired = _paired(run_dir, "portability")
+    if paired is None:
+        return None
+    prepared, outcomes = paired
+    rows = hotel_adapter.d5_rows_from_outcomes(prepared, outcomes, d1_index(d1_rows))
+    keys = run_correlations(run_dir, "portability")
+    pairing = shadow_pairing.pair(d1_rows, set(keys.values()))
+    shadow_pairing.attach(rows, [keys.get(entry["idempotency_key"]) for entry in prepared], pairing)
+    return rows, pairing
+
+
 def write_csv(path: Path, columns: Iterable[str], rows: Iterable[dict[str, Any]]) -> int:
     """Ghi CSV UTF-8 với đúng các cột (thứ tự cố định); trả số dòng dữ liệu. Giá trị luận lý ghi `True`/`False`."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -243,7 +261,7 @@ def write_csv(path: Path, columns: Iterable[str], rows: Iterable[dict[str, Any]]
 
 
 def d1_index(d1_rows: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Tra cứu D1 theo `decision_id` (chỉ bản `PRIMARY`; bản SHADOW dùng chung decision_id)."""
+    """Tra cứu D1 theo decision_id, chỉ bản PRIMARY. Bản SHADOW có decision_id riêng; ghép với PRIMARY qua shadow_pairing (correlation_id)."""
     return {row["decision_id"]: row for row in d1_rows if row.get("role", "PRIMARY") == "PRIMARY"}
 
 
@@ -260,8 +278,10 @@ def _read_json(path: Path) -> Any:
 
 
 def dataset_coverage(run_dir: Path) -> tuple[set[str], set[str]]:
-    """(mã đạt, mã đỏ) của RP-01, RP-02, PT-01, PT-02 từ file của pack: RP-01/PT-01 đạt khi phần đó đã gửi request và 0 lỗi contract (đỏ khi có lỗi contract;
-    PT-01 cũng đỏ khi kiểm mã SC7 không đạt); phần bị bỏ, lỗi hạ tầng hoặc chưa chạy thì không vào đâu. RP-02/PT-02 đạt khi file phân tích tồn tại (phân tích đã hoàn tất)."""
+    """(mã đạt, mã đỏ) của RP-01, RP-02, PT-01…PT-04 từ file của pack: RP-01/PT-01 đạt khi phần đó đã gửi request và 0 lỗi contract (đỏ khi có lỗi contract;
+    PT-01 cũng đỏ khi kiểm mã SC7 không đạt); phần bị bỏ, lỗi hạ tầng hoặc chưa chạy thì không vào đâu. RP-02/PT-02 đạt khi file phân tích tồn tại (phân tích đã hoàn tất).
+    PT-03 đạt khi `raw/d5/policy_economics.json` tồn tại. PT-04 đạt khi nhãn đối soát shadow là RECONCILED và không có vi phạm toàn vẹn; đỏ khi nhãn FAILED hoặc có vi phạm;
+    còn lại (UNKNOWN, thiếu nhãn) không vào đâu."""
     passed: set[str] = set()
     failed: set[str] = set()
     code_status = (_read_json(run_dir / "raw" / "analysis" / "sc7_code_check.json") or {}).get("status")
@@ -272,6 +292,15 @@ def dataset_coverage(run_dir: Path) -> tuple[set[str], set[str]]:
             (failed if errors or (part == "portability" and code_status == "FAIL") else passed).add(code)
         if (run_dir / "raw" / "analysis" / analysis_file).exists():
             passed.add(analysis_code)
+    economics = _read_json(run_dir / "raw" / "d5" / "policy_economics.json")
+    if economics is not None:
+        passed.add("PT-03")
+        shadow = economics.get("shadow") or {}
+        label = (shadow.get("reconciliation") or {}).get("label")
+        if label == "FAILED" or shadow.get("violations"):
+            failed.add("PT-04")
+        elif label == "RECONCILED":
+            passed.add("PT-04")
     return passed, failed
 
 

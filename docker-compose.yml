@@ -184,6 +184,11 @@ services:
       # Tham số miền khách sạn chốt một lần ở spike S-2 (spec/PHASE5_REPORT_5.6.md), từ phân bố dữ liệu và không chỉnh theo kết quả:
       Tadss__Validation__MaxItemMinutes: "100800"   # 70 ngày: lưu trú dài nhất của dataset là 69 đêm (99.240 phút); mặc định 720 từ chối ngay cả 1 đêm (1.320 phút)
       Tadss__Strategies__Default__HighValueThreshold: "750"   # EUR: p90 giá trị đơn (adr x số đêm) = 729, làm tròn bội số 50, khoảng 9,5 % đơn vào NEED_APPROVAL; mặc định 2.000.000 tính bằng VND
+      Tadss__Shadow__Enabled: "true"   # PT-04 (gói 5.7b): chạy bóng MockAlternative cạnh Default; chỉ instance PT, không nhận tải của bước (b)
+      Tadss__Shadow__Strategy: MockAlternativeDecisionStrategy
+      Tadss__Shadow__SampleRate: "1"
+      Tadss__Shadow__QueueCapacity: "10000"   # tối đa của validator; không phải giới hạn tổng request (worker tiêu thụ liên tục)
+      Tadss__Strategies__MockAlternative__HighValueThreshold: "750"   # EUR, cùng lý do với Default (p90 giá trị đơn)
     depends_on:
       eval-postgres:
         condition: service_healthy

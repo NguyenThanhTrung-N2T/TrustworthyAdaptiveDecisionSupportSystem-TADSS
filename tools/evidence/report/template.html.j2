@@ -125,7 +125,7 @@
 {% if coverage_rates %}<p>Coverage gộp (unit + integration): dòng {{ coverage_rates.line }} %, nhánh {{ coverage_rates.branch }} %. HTML đầy đủ ở <code>raw/coverage/index.html</code>.</p>
 {% else %}<p class="muted">Không có dữ liệu coverage: cần chạy cùng bước a (EVAL_STEPS=a,d).</p>{% endif %}
 
-<h2>9. Dữ liệu thực tế (RP-01, RP-02, PT-01, PT-02)</h2>
+<h2>9. Dữ liệu thực tế (RP-01, RP-02, PT-01…PT-04)</h2>
 {% set rp = datasets.rp %}
 <h3>RP-01 — Replay booking SmashCourt qua TADSS</h3>
 {% if rp.available %}
@@ -193,6 +193,99 @@
 <p><small>Biểu đồ: tỷ lệ <code>is_canceled</code> theo nhóm mức cọc TADSS. <code>deposit_type</code> của khách sạn là chính sách của khách sạn, không phải đầu vào của TADSS; hai bên chỉ được đặt cạnh nhau để mô tả.</small></p>
 {% else %}
 <p class="muted">Không có dữ liệu: {{ pt.analysis_reason }}.</p>
+{% endif %}
+
+{% set eco = datasets.economics %}
+<h3>PT-03 — So sánh kinh tế mô phỏng các chính sách cọc</h3>
+{% if eco.available %}
+<p>{{ eco.note }}</p>
+<p>{{ eco.s_sc_limit }} Giả định: {{ eco.assumptions }}. Chính sách hủy S-SC: {{ eco.policy_source }}.</p>
+{% if not eco.s_sc_available %}<p class="muted">Không có dữ liệu: {{ eco.s_sc_reason }}.</p>{% endif %}
+<p>{{ eco.counts.d5_rows }} dòng D5; {{ eco.counts.valid }} dòng hợp lệ, {{ eco.counts.compared }} dòng so sánh (PAIRED), {{ eco.counts.non_paired }} dòng ngoài PAIRED; dòng bị loại theo lý do: {{ eco.excluded }};
+  sự kiện giữ cọc (Canceled / No-Show): {{ (eco.counts.events or {}).get("Canceled", 0) }} / {{ (eco.counts.events or {}).get("No-Show", 0) }}; Check-Out: {{ eco.counts.check_out }}; dòng lệch nhãn <code>is_canceled</code> và <code>reservation_status</code>: {{ eco.counts.label_mismatch }}.</p>
+<table>
+  <tr><th>is_canceled \ reservation_status</th>{% for column in eco.crosstab.columns %}<th>{{ column }}</th>{% endfor %}</tr>
+  {% for row in eco.crosstab.rows %}<tr><td>{{ row.label }}</td>{% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<p><small>Sự kiện giữ cọc là <code>reservation_status</code> ∈ {Canceled, No-Show}; nhãn <code>is_canceled</code> chỉ dùng cho AUC và Δr.</small></p>
+{% if eco.tiers %}
+<table>
+  <tr><th>Mốc hoàn tiền S-SC của đơn sự kiện</th><th>Số đơn</th><th>Giá trị đơn</th><th>Tỷ trọng trên E</th></tr>
+  {% for row in eco.tiers %}<tr><td>{{ row.bucket }}</td><td>{{ row.count }}</td><td>{{ row.value }}</td><td>{{ row.share }}</td></tr>{% endfor %}
+</table>
+<p><small>Mô tả phân bố, không xếp hạng. UNRESOLVED_a_b: hai cận của ngày hủy rơi vào hai mốc khác nhau (a ở cận ít giờ, b ở cận nhiều giờ); PAST_START: đã qua giờ bắt đầu.</small></p>
+{% endif %}
+
+<table>
+  <tr><th rowspan="2">Chính sách</th>{% for variant in eco.table[0].variants %}<th colspan="3">{{ variant.variant }}: tỷ lệ cọc giữ lại S-SC (low…high)</th>{% endfor %}<th rowspan="2">Nghĩa vụ ứng trước (proxy) [CI 95 %]</th><th rowspan="2">AUC [CI 95 %]</th><th rowspan="2">Δr</th></tr>
+  <tr>{% for variant in eco.table[0].variants %}<th>min…max</th><th>CI 95 % cận low</th><th>CI 95 % cận high</th>{% endfor %}</tr>
+  {% for row in eco.table %}
+  <tr><td><code>{{ row.policy }}</code>{% if row.label %}<br><small>{{ row.label }}</small>{% endif %}</td>
+    {% for cell in row.variants %}<td>{{ cell.range }}<br><small>{{ cell.detail }}</small></td><td>{{ cell.ci_low }}</td><td>{{ cell.ci_high }}</td>{% endfor %}
+    <td>{{ row.burden }}<br><small>{{ row.burden_detail }}</small><br>CI 95 % (NEED_APPROVAL = 1): {{ row.burden_ci }}</td><td>{{ row.auc }}</td><td>{{ row.delta_r }}</td></tr>
+  {% endfor %}
+</table>
+<p><small>Hai biến thể hoàn tiền ngang hàng, chưa chốt (Q-6): <code>REFUND_OF_PAID</code> giữ lại 1 − pct phần cọc đã thu; <code>REFUND_OF_TOTAL_CAPPED</code> hoàn min(r·P, pct·P) nên giữ lại max(0, r − pct)/r. S-SC là khoảng giữa hai cận ngày hủy (low: hủy 00:00, hoàn nhiều; high: hủy 23:59, hoàn ít), không phải một con số.
+  Hai chính sách TADSS báo thành khoảng giữa hai cận: ô ghi min…max trên hai cận ngày hủy và hai quy ước NEED_APPROVAL (1 = tính là cọc 100 %, 0 = tính là không cọc), kèm giá trị riêng từng quy ước; mốc tham chiếu không có NEED_APPROVAL. CI 95 % chỉ có cho NEED_APPROVAL = 1 (bootstrap chạy ở quy ước này), không có CI cho NEED_APPROVAL = 0. Bootstrap ghép cặp: {{ eco.bootstrap }}.</small></p>
+
+<table>
+  <tr><th>Kịch bản</th><th>Biến thể</th><th>Cận</th><th>TADSS_DEFAULT (NEED_APPROVAL = 1)</th><th>TADSS_DEFAULT (NEED_APPROVAL = 0)</th><th>TADSS_SHADOW_MOCKALT (NEED_APPROVAL = 1)</th><th>TADSS_SHADOW_MOCKALT (NEED_APPROVAL = 0)</th><th>DEFAULT ? MOCKALT (NEED_APPROVAL = 1)</th><th>DEFAULT ? MOCKALT (NEED_APPROVAL = 0)</th><th>CI 95 % của hiệu (MOCKALT − DEFAULT), chỉ NEED_APPROVAL = 1</th><th>CI so với 0</th></tr>
+  {% for row in eco.sensitivity %}<tr><td>{{ row.scenario }}</td><td>{{ row.variant }}</td><td>{{ row.bound }}</td><td>{{ row.default }}</td><td>{{ row.default0 }}</td><td>{{ row.mock }}</td><td>{{ row.mock0 }}</td><td>{{ row.sign }}</td><td>{{ row.sign0 }}</td><td>{{ row.diff_ci }}</td><td>{{ row.zero }}</td></tr>{% endfor %}
+</table>
+<p><small>Kết luận về thứ hạng và độ ổn định của dấu (câu xếp hạng dưới đây) xét cả hai quy ước NEED_APPROVAL trên ước lượng điểm; riêng CI 95 % của hiệu chỉ có cho NEED_APPROVAL = 1.</small></p>
+<p><strong>Xếp hạng:</strong> {{ eco.ranking.statement }}</p>
+
+<h4>NEED_APPROVAL (số đơn chờ người duyệt, không quy ra cọc)</h4>
+<table>
+  <tr><th>Chính sách</th><th>Số đơn</th><th>Tỷ lệ trên tập so sánh</th></tr>
+  {% for row in eco.need_approval %}<tr><td>{{ row.policy }}</td><td>{{ row.count }}</td><td>{{ row.rate }}</td></tr>{% endfor %}
+</table>
+
+<h4>Rủi ro triển khai nếu giữ nguyên mã hoàn tiền hiện tại (B-1) — không dùng để xếp hạng</h4>
+{% if eco.as_is_be %}
+<table>
+  <tr><th>Chính sách</th><th>Cận</th><th>Số đơn hoàn vượt cọc đã thu</th><th>Tổng phần hoàn vượt (đơn vị tiền của dataset)</th><th>Theo mức hoàn</th></tr>
+  {% for row in eco.as_is_be %}<tr><td>{{ row.policy }}</td><td>{{ row.bound }}</td><td>{{ row.count }}</td><td>{{ row.value }}</td><td>{{ row.by_pct }}</td></tr>{% endfor %}
+</table>
+<p><small>Chỉ tính với NEED_APPROVAL = 1 (đơn chờ duyệt coi như cọc 100 % nên không bao giờ hoàn vượt), vì vậy rủi ro trên các đơn NEED_APPROVAL bị ước lượng thấp.</small></p>
+{% else %}
+<p class="muted">Không có dữ liệu: cần chính sách hủy S-SC.</p>
+{% endif %}
+
+{% if eco.chart %}{{ eco.chart | safe }}
+<p><small>Biểu đồ: mỗi chính sách hai điểm (PAID = <code>REFUND_OF_PAID</code>, CAPPED = <code>REFUND_OF_TOTAL_CAPPED</code>), tại NEED_APPROVAL = 1; chấm là cận low của S-SC, đoạn đứng nối tới cận high (hai biến thể lệch nhau vài điểm ảnh theo chiều ngang để không chồng lên nhau, trục x vẫn là nghĩa vụ ứng trước của chính sách); chấm sát mép trục được dời vào trong vài điểm ảnh; giá trị ở NEED_APPROVAL = 0 xem bảng chính; màu theo chính sách, hình tròn / thoi theo biến thể, mọi điểm có nhãn chữ.</small></p>
+{% else %}<p class="muted">Không có dữ liệu cho biểu đồ: cần chính sách hủy S-SC và nghĩa vụ ứng trước.</p>{% endif %}
+
+<h3>PT-04 — Shadow mode: đối soát và ghép cặp</h3>
+{% set rec = eco.reconciliation %}
+{% if rec %}
+<p>Nhãn đối soát: <strong>{{ rec.label }}</strong>{% if rec.reason %} (lý do: {{ rec.reason }}){% endif %}. {{ rec.statement }}</p>
+<table>
+  <tr><th>PRIMARY</th><th>SHADOW</th><th>Delta counter</th><th>Phần dư (residual)</th></tr>
+  <tr><td>{{ rec.primary }}</td><td>{{ rec.shadow }}</td><td>{{ rec.delta_text }}</td><td>{{ rec.residual if rec.residual is not none else "-" }}</td></tr>
+</table>
+{% else %}
+<p class="muted">Không có dữ liệu: {{ eco.reconciliation_reason }}.</p>
+{% endif %}
+<table>
+  <tr><th>Trạng thái ghép cặp theo correlation_id</th>{% for state in eco.pairing_states %}<th>{{ state }}</th>{% endfor %}</tr>
+  <tr><td>Số request</td>{% for state in eco.pairing_states %}<td>{{ (eco.pairing or {}).get(state, "-") }}</td>{% endfor %}</tr>
+</table>
+<p>Vi phạm toàn vẹn: {% if eco.violations %}{% for kind, count in eco.violations.items() %}{{ kind }}: {{ count }}{{ ", " if not loop.last }}{% endfor %}{% else %}không{% endif %}.
+  Chỉ dòng PAIRED được dùng để so hai strategy; fallback (cọc 100 %) không phải quyết định của strategy.</p>
+{% if eco.bias.reported %}
+<table>
+  <tr><th>Nhóm</th><th>Số dòng</th><th>Tỷ lệ hủy</th><th>Giá trị đơn TB</th><th>Tỷ lệ đến cuối tuần</th><th>Vị trí TB trong D5</th></tr>
+  {% for group in eco.bias.groups %}<tr><td>{{ group.name }}</td><td>{{ group.rows }}</td><td>{{ group.cancel_rate }}</td><td>{{ group.mean_price }}</td><td>{{ group.weekend_share }}</td><td>{{ group.mean_position_share }}</td></tr>{% endfor %}
+</table>
+<p>Phần ngoài PAIRED: {{ eco.bias.share_text }} số dòng hợp lệ; cờ <code>{{ eco.bias.flag_name }}</code> bật khi phần này vượt {{ eco.bias.threshold_text }} (tức PAIRED dưới {{ 100 - (eco.bias.threshold * 100) | round | int }} %), hiện {{ "bật" if eco.bias.flag else "tắt" }}. {{ eco.bias.threshold_note }}.</p>
+{% else %}
+<p>Mọi dòng hợp lệ đều PAIRED nên không có nhóm ngoài PAIRED để so sánh thiên lệch ghép cặp.</p>
+{% endif %}
+{% else %}
+<p class="muted">Không có dữ liệu: {{ eco.reason }}.</p>
+<h3>PT-04 — Shadow mode: đối soát và ghép cặp</h3>
+<p class="muted">Không có dữ liệu: {{ eco.reason }}.</p>
 {% endif %}
 
 <h2>10. Toàn vẹn Evidence Pack (EV-1…EV-5)</h2>

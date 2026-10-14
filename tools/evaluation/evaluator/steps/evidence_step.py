@@ -17,7 +17,7 @@ from evaluator.clients.postgres import connect_fetch
 from evaluator.results import ERROR, FAILED, PASSED, StepResult, utc_now
 from evaluator.run_context import RunContext
 from evaluator.steps import dataset_step, tests_step
-from evidence import coverage_map, d1_export, dataset_analysis, evidence_pack, hotel_adapter, kpi, replay
+from evidence import cancel_policy, coverage_map, d1_export, dataset_analysis, evidence_pack, hotel_adapter, kpi, policy_economics, replay, shadow_pairing
 from evidence.anonymize import Anonymizer
 from evidence.report import generator
 
@@ -136,11 +136,10 @@ def _write_json(path: Path, value: Any) -> None:
 
 def write_datasets(context: RunContext, run_dir: Path) -> list[str]:
     """D4 (RP-01) và D5 (PT-01) từ `raw/{replay,portability}/{prepared,requests}.jsonl` của bước (e), ghép `strategy_status` từ D1 theo `decision_id`, rồi phân tích RP-02/PT-02
-    ra `raw/analysis/*.json`. Phần nào bước (e) không chuẩn bị dữ liệu (bị bỏ) thì không có file. Trả các ghi chú một dòng."""
+    ra `raw/analysis/*.json` và kinh tế cọc/đối soát shadow PT-03/PT-04 ra `raw/d5/policy_economics.json` (lỗi phần này chỉ thành ghi chú). Phần nào bước (e) không chuẩn bị dữ liệu (bị bỏ) thì không có file. Trả các ghi chú một dòng."""
     notes: list[str] = []
     main_d1, pt_d1 = run_dir / "raw" / "d1" / "decision_audit.csv", run_dir / "raw" / "d1" / "decision_audit_portability.csv"
     main_index = dataset_analysis.d1_index(evidence_pack.read_csv(main_d1) if main_d1.exists() else [])
-    pt_index = dataset_analysis.d1_index(evidence_pack.read_csv(pt_d1) if pt_d1.exists() else [])
 
     d4 = dataset_analysis.build_d4(run_dir, main_index)
     if d4 is not None:
@@ -151,12 +150,34 @@ def write_datasets(context: RunContext, run_dir: Path) -> list[str]:
             notes.append(f"D4: {count} dòng; phân tích RP-02 đã ghi")
         else:
             notes.append(f"D4: {count} dòng; KHÔNG phân tích được RP-02 vì thiếu {dataset_analysis.APPSETTINGS_RELATIVE.as_posix()} (lịch cao điểm)")
-    d5 = dataset_analysis.build_d5(run_dir, pt_index)
-    if d5 is not None:
+    pt_rows = evidence_pack.read_csv(pt_d1) if pt_d1.exists() else []
+    built = dataset_analysis.build_d5_with_shadow(run_dir, pt_rows)
+    if built is not None:
+        d5, pairing = built
         count = dataset_analysis.write_csv(run_dir / "raw" / "d5" / "portability_hotel.csv", hotel_adapter.D5_COLUMNS, d5)
         _write_json(run_dir / "raw" / "analysis" / "pt_summary.json", dataset_analysis.pt_summary(d5))
         notes.append(f"D5: {count} dòng; phân tích PT-02 đã ghi")
+        policy, policy_note = _load_cancel_policy(context)
+        reconciliation = (generator.read_json(run_dir / "raw" / "portability" / "summary.json") or {}).get("shadow_reconciliation")
+        try:  # tính toán phụ (PT-03/PT-04) không được làm mất Evidence Pack: D5 và pt_summary.json đã ghi ở trên (cùng mẫu với dataset_step._reconcile)
+            economics = policy_economics.summarize(d5, policy, reconciliation=reconciliation, pairing_counts=shadow_pairing.state_counts(pairing), violations=pairing.violations)
+            economics["shadow"]["outside_run"] = pairing.outside_run
+            economics["shadow"]["samples"] = pairing.samples
+            _write_json(run_dir / "raw" / "d5" / "policy_economics.json", economics)
+        except Exception as error:  # noqa: BLE001 - lỗi bất kỳ của phần phụ chỉ ghi chú, không đổi trạng thái bước
+            notes.append(f"PT-03/PT-04: không dựng được policy_economics.json ({type(error).__name__})")
+        else:
+            notes.append(f"PT-03/PT-04: {economics['counts']['compared']} đơn so sánh, đối soát shadow {(reconciliation or {}).get('label', 'UNKNOWN')}" + (f"; {policy_note}" if policy_note else ""))
     return notes
+
+
+def _load_cancel_policy(context: RunContext) -> tuple[cancel_policy.CancelPolicy | None, str | None]:
+    """Ảnh chụp chính sách hủy của SmashCourt (repo mount chỉ đọc). Thiếu/lỗi → (None, ghi chú) để pack vẫn ghi `policy_economics.json` với S-SC INSUFFICIENT_DATA."""
+    path = context.repo_dir / cancel_policy.SNAPSHOT_RELATIVE
+    try:
+        return cancel_policy.load(path), None
+    except cancel_policy.CancelPolicyError as error:
+        return None, f"S-SC INSUFFICIENT_DATA: {error}"
 
 
 def write_config(context: RunContext, run_dir: Path) -> None:
@@ -167,6 +188,9 @@ def write_config(context: RunContext, run_dir: Path) -> None:
     for source, target in ((repo / "tests" / "load" / "config" / "modes.json", "k6-modes.json"), (repo / "docker" / "toxiproxy" / "toxiproxy.json", "toxiproxy.json")):
         if source.exists():
             shutil.copy2(source, config / target)
+    snapshot = repo / cancel_policy.SNAPSHOT_RELATIVE
+    if snapshot.exists():
+        shutil.copy2(snapshot, config / snapshot.name)
     schedule = {mode: [phase.__dict__ for phase in phases] for mode, phases in SCHEDULES.items()}
     (config / "chaos-schedule.json").write_text(json.dumps(schedule, ensure_ascii=False, indent=2), encoding="utf-8")
     compose = repo / "docker-compose.yml"

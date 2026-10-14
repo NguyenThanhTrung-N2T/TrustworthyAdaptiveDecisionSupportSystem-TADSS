@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from evidence import kpi
 from evidence.report.charts import Band, Series, bar_chart, line_chart
+from evidence.report.economics import economics_section
 
 TEMPLATE_DIR = Path(__file__).resolve().parent
 TIMELINE_BUCKET_SECONDS = 5
@@ -263,7 +264,7 @@ def pt_section(run_dir: Path) -> dict[str, Any]:
 
 
 def dataset_sections(run_dir: Path) -> dict[str, Any]:
-    return {"rp": rp_section(run_dir), "pt": pt_section(run_dir)}
+    return {"rp": rp_section(run_dir), "pt": pt_section(run_dir), "economics": economics_section(run_dir)}
 
 
 def build_data(run_dir: Path, manifest: dict[str, Any], checks: list[dict[str, Any]], kpis: list[dict[str, Any]], coverage: dict[str, Any], groups: list[dict[str, Any]]) -> dict[str, Any]:

@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **Vai trò** | Bản tổng hợp để SV1 review toàn bộ Phase 5, trình bày với hội đồng và SV2, tra lệnh chạy nhanh. Tài liệu chỉ **tóm tắt và dẫn link**; mọi thông số chi tiết nằm ở tài liệu sở hữu (quy tắc "tài liệu sở hữu thắng", [README mục Tài liệu](../README.md#tài-liệu)) |
 | **Phạm vi** | Phase 5 (W05–W08, 05/10 – 01/11/2026 theo kế hoạch v2.1; bắt đầu thực tế 02/10), repo `TADSS-Runtime`, phần việc của SV1 |
-| **Số liệu tính đến** | 13/10/2026 (phần mã và tài liệu gói 5.7 đã xong; lượt đánh giá đầy đủ chính thức chưa chạy) |
+| **Số liệu tính đến** | 15/10/2026 (phần mã và tài liệu gói 5.7 và gói phụ 5.7b đã xong; lượt bản nhanh sau 5.7b và lượt đánh giá đầy đủ chính thức chưa chạy) |
 | **Nguồn chính** | [`PHASE5_DESIGN_SPEC.md`](../spec/PHASE5_DESIGN_SPEC.md) (quyết định D-xx, P-xx, R-xx), các plan và báo cáo gói trong `spec/`, [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md), [`BACKLOG_SPRINTS.md`](planning/BACKLOG_SPRINTS.md) |
 
 Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng; sửa file này theo.
@@ -24,6 +24,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 - Bảo mật để expose qua ngrok (API key băm SHA-256, rate limit, giới hạn body, security headers, container non-root, quét lỗ hổng).
 - Runtime thích ứng: định tuyến strategy theo request, shadow mode, pipeline và breaker riêng từng strategy, breaker Redis.
 - Observability (OpenTelemetry + Grafana) và **chế độ đánh giá một lệnh** `docker compose up -d --build`: evaluator chạy sáu bước a…f rồi sinh Evidence Pack.
+- Gói phụ 5.7b (15/10/2026): bước (e) chạy shadow mode trên instance PT và mô phỏng kinh tế các chính sách cọc theo chính sách hủy thật của SmashCourt (PT-03, PT-04) — chỉ số mô phỏng theo kịch bản, không phải kết quả tài chính; chưa có số liệu vì lượt bản nhanh sau 5.7b chưa chạy.
 - Toàn bộ integration test chạy trên PostgreSQL 16, Redis 7, Toxiproxy thật (Testcontainers).
 
 **Số liệu mới nhất:**
@@ -32,7 +33,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | :--- | :--- | :--- |
 | Unit test | 1874 đạt | [README](../README.md) (12/10/2026) |
 | Integration test | 240, số của lần chạy trước 12/10/2026; chưa chạy lại sau các thay đổi của gói 5.7 vì Docker tắt | README, [`PHASE5_REPORT_5.6.md`](../spec/PHASE5_REPORT_5.6.md) |
-| Pytest | `tools/evaluation` 237 đạt + 3 bỏ qua (240 khi có Docker/k6); `tools/evidence` 230; `tools/docs` 34 | [Guide mục 9](guides/EVALUATION_RUN_GUIDE.md) |
+| Pytest | `tools/evaluation` 257 đạt + 3 bỏ qua (260 khi có Docker/k6); `tools/evidence` 354; `tools/docs` 34 (15/10/2026, sau gói 5.7b) | [Guide mục 9](guides/EVALUATION_RUN_GUIDE.md) |
 | Lượt bản nhanh | `EV-20261011-EVAL-quick-r1`: mã thoát 0, đạt mọi tiêu chí áp dụng được, ~28 phút | Báo cáo 5.6 Mục 3 |
 | Mutation (bước d bản đầy đủ, `EV-20261008-EVAL-full-r4`) | MT-01 84,73 %, MT-02 98,32 %, MT-03 74,43 % (ngưỡng 70 %) | [`PHASE5_REPORT_5.5.md`](../spec/PHASE5_REPORT_5.5.md) 3k |
 | Schemathesis CT-03 bản đầy đủ | 6905 ca, 0 lỗi | Báo cáo 5.5 3k |
@@ -40,14 +41,14 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 
 **Trạng thái Gate M5 — "TADSS Complete & Test-Ready"** (tiêu chí ở [MASTER_EXECUTION_PLAN, Phase 5](planning/MASTER_EXECUTION_PLAN.md)):
 
-| Tiêu chí | Trạng thái 13/10/2026 |
+| Tiêu chí | Trạng thái 15/10/2026 |
 | :--- | :--- |
 | Toàn bộ test case TADSS (UT, IT, CT, FI, LT mức TADSS, MT) đạt trên hạ tầng thật; không còn EF InMemory (đã gỡ ở gói 5.1–5.2) | ⏳ Unit và pytest xanh; integration 240 là số của lần chạy trước 12/10, chưa chạy lại sau các thay đổi của gói 5.7 vì Docker tắt; LT-05 và LT-01 × 3 chỉ có ở bản đầy đủ, chưa chạy trọn vẹn |
 | Contract v2 đóng băng | ✅ 11/10/2026 (`2.0.0`, M-07) |
 | Dashboard, Toxiproxy, k6, Schemathesis, Stryker, bộ sinh báo cáo chạy bằng một lệnh và **đã có lượt đầy đủ** | ⏳ Một lệnh đã có; lượt đầy đủ chờ người dùng (U-3 xuất CSV, U-4 chạy) |
 | Danh mục kiểm thử toàn hệ thống (BE, FE, E2E) viết xong; API BE ↔ FE đã chốt | ⏳ Đã viết (BE-UT-01…07, BE-IT-01…20, FE-01…10, E2E-01…13; T5.22, T5.27); chờ SV2 review (T5.24, T5.29) |
 
-Sau lượt đầy đủ còn Task 10 của plan 5.7: phân tích lượt, chốt Evidence Pack vào `docs/research/evidence-packs/{run_id}/` (M-10), viết báo cáo Gate M5.
+Sau lượt đầy đủ còn Task 10 của plan 5.7: phân tích lượt, chốt Evidence Pack vào `docs/research/evidence-packs/{run_id}/` (M-10), viết báo cáo Gate M5. Gói phụ 5.7b (mục 2.11) làm **trước** lượt đầy đủ để pack chính thức có luôn PT-03/PT-04; lượt bản nhanh kiểm chứng cơ chế (ghép cặp shadow, tên metric Prometheus, thời gian bước (e)) rồi mới quyết định chạy lượt đầy đủ.
 
 ---
 
@@ -123,6 +124,17 @@ Thứ tự phụ thuộc 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 → 5.7 (sp
 - **Còn chờ:** lượt đầy đủ (U-3, U-4), M-10 (lưu Evidence Pack), báo cáo Gate M5.
 - **Minh chứng:** [plan 5.7](../spec/PHASE5_PLAN_5.7_M5_FREEZE.md).
 
+### 2.11. Gói phụ 5.7b — Kinh tế mô phỏng chính sách cọc và shadow trong đánh giá
+
+- **Làm gì (đã xong phần mã và tài liệu, 15/10/2026):**
+  - **PT-04:** `eval-tadss-portability` chạy shadow `MockAlternative` cạnh `Default` (chỉ đổi cấu hình compose, không sửa `src/`); evaluator chụp counter Prometheus trước khi gửi, xả hàng đợi shadow sau khi gửi, đối soát tổng hợp (DB + hiệu counter) ra nhãn `RECONCILED`/`UNKNOWN`/`FAILED`, rồi ghép cặp `PRIMARY`/`SHADOW` theo `correlation_id` (bốn trạng thái `PAIRED`, `PRIMARY_FALLBACK`, `SHADOW_FALLBACK`, `UNPAIRED`; chỉ `PAIRED` được dùng để so hai strategy).
+  - **PT-03:** mô phỏng trên Hotel Booking Demand theo chính sách hủy thật của SmashCourt (ảnh chụp `tools/evidence/config/smashcourt_cancel_policies.json`: 24 giờ hoàn 100 %, 2 giờ hoàn 50 %, 0 giờ hoàn 0 %). Sự kiện giữ cọc lấy từ `reservation_status` (không phải `is_canceled`); hai biến thể hoàn tiền báo ngang hàng vì gốc tính hoàn tiền khi chỉ trả cọc chưa chốt (Q-6); ngày hủy chỉ có ngày nên báo hai cận; `NEED_APPROVAL` báo cả quy ước 100 % lẫn 0 %; rủi ro hoàn vượt số cọc nếu giữ nguyên mã BE (B-1) đo riêng, không vào xếp hạng; bootstrap ghép cặp (hiệu tính trong từng mẫu); câu xếp hạng không nêu chính sách thắng khi kết luận phụ thuộc giả định hoặc khoảng tin cậy chứa 0.
+  - Báo cáo `report.html` có mục PT-03/PT-04 và biểu đồ đánh đổi; D5 thêm 7 cột; `raw/d5/policy_economics.json` ghi mọi con số kèm giả định.
+- **Vì sao:** Đồ án 2 chứng minh runtime bền, kiểm toán được, tích hợp được, nhưng chưa có số liệu cho câu hỏi chính sách cọc nào cân bằng tốt hơn; shadow mode có từ gói 5.4 nhưng chưa được trình diễn trong lượt đánh giá. Đây là **minh họa phương pháp đo trên dữ liệu proxy**, không phải tuyên bố strategy hiện tại là mô hình dự báo rủi ro tốt (việc của khóa luận).
+- **Kết quả:** chưa có số liệu thật; cổng quyết định ở lượt bản nhanh: tỷ lệ `PAIRED` ≥ 99 % (ngưỡng vận hành, không phải ngưỡng thống kê), nhãn `RECONCILED`, SC1…SC8 không đổi kết luận.
+- **Giới hạn đã nêu:** giờ đến 14:00 `Europe/Lisbon` là giả định; chính sách hủy giữ ổn định trong Đồ án 2 và khóa luận; `AS_IS_BE` chỉ tính với `NEED_APPROVAL = 1`; tên metric Prometheus của shadow chỉ xác nhận trên lượt bản nhanh (tên sai thì nhãn `UNKNOWN`, không mất pack).
+- **Minh chứng:** [plan 5.7b](../spec/PHASE5_PLAN_5.7b_TASKS.md), [methodology §4.10](research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md), [DATASET_SCHEMA D5](research/DATASET_SCHEMA_SPECIFICATION.md).
+
 ---
 
 ## 3. Kiến trúc
@@ -179,7 +191,7 @@ Sơ đồ tuần tự đầy đủ (gồm nhánh lỗi, shadow, override): SAS M
 
 - Cache chỉ lưu `StrategyDecision` (không lưu response). Khi có Redis, đọc Redis trước; `IMemoryCache` chỉ là đường dự phòng, được đọc khi Redis miss hoặc bị bỏ qua và `EnableFallbackToMemory` bật (không có Redis thì chỉ dùng bộ nhớ) (`StrategyDecisionCache.GetAsync`). Khóa có `optionsFingerprint` để đổi tham số strategy không đọc nhầm kết quả cũ; breaker Redis mở thì bỏ qua Redis ngay.
 - Định tuyến `Tadss:Routing`: rule đầu tiên khớp theo `PeakHour`, `BranchIds`, `Channels`, `Tiers`, `IsGuest`; nạp lại nóng, bản sai thì giữ bảng cũ.
-- Shadow `Tadss:Shadow`: sau khi bản `PRIMARY` đã lưu, worker nền chạy strategy ứng viên và ghi bản `SHADOW`; không đổi response, không vào hàng chờ (INV-8).
+- Shadow `Tadss:Shadow`: sau khi bản `PRIMARY` đã lưu, worker nền chạy strategy ứng viên và ghi bản `SHADOW`; không đổi response, không vào hàng chờ (INV-8). Bản `SHADOW` có `decision_id` riêng, ghép với `PRIMARY` qua `correlation_id`; trong lượt đánh giá, shadow chỉ bật ở instance PT (PT-04, gói 5.7b).
 - Giới hạn khi scale ngang (SCALE-3): breaker, rate limit, cache dự phòng trong bộ nhớ, hàng đợi shadow là trạng thái theo từng instance; PostgreSQL và Redis dùng chung (SAS Mục 3).
 
 ### 3.6. Bảo mật
@@ -272,6 +284,7 @@ Nguồn sở hữu: [EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY](research/EXP
 | DOC-1…4 | Kiểm kê tài liệu, thuật ngữ đã gỡ, link nội bộ + anchor, bảng cấu hình khớp Options | `check_docs.py`, unit test | 5 |
 | RP-01…02 | Replay booking SmashCourt, so sánh với cọc 100 % tĩnh (mô tả) | E-EVAL bước (e) | 5 (chờ CSV) |
 | PT-01…02 | Hotel Booking Demand ≥ 10.000 đơn qua contract v2, không sửa mã | E-EVAL bước (e) | 5 |
+| PT-03…04 | Mô phỏng kinh tế chính sách cọc theo chính sách hủy SmashCourt; shadow `MockAlternative` cạnh `Default` kèm đối soát và ghép cặp (kết quả mô tả, không phải KPI đạt/trượt) | E-EVAL bước (e), (f) | 5 (5.7b) |
 | BE-UT-01…07, BE-IT-01…20 | SmashCourt-BE: ánh xạ, `TadssClient`, luồng cọc, endpoint duyệt, job, SignalR | E-TC (BE) | 6 |
 | FE-01…10 | `tsc`/lint/build, luồng giao diện trên mock MSW | FE | 6 |
 | E2E-01…13 | Playwright qua FE → BE → TADSS ([đặc tả từng bước](research/E2E_TEST_SPECIFICATION.md)) | E-STAGING | 7–8 |
@@ -299,7 +312,7 @@ Số liệu bản nhanh chỉ để diễn tập; số liệu chính thức lấ
 | (b) | k6 LT-01, LT-02 (bản đầy đủ thêm LT-05 soak và LT-01 × 3) | 404 s |
 | (c) | Sự cố dưới tải LT-03 (FI-02/03/07/08 qua decorator và Toxiproxy) + SCALE-2 + snapshot dashboard | 510 s |
 | (d) | Schemathesis CT-03, coverage gộp; Stryker MT-01…03 chỉ ở bản đầy đủ | 53 s |
-| (e) | Dữ liệu thực tế: RP (cần CSV, không có thì `skipped`), PT | 101 s |
+| (e) | Dữ liệu thực tế: RP (cần CSV, không có thì `skipped`), PT (từ 5.7b kèm shadow và xả hàng đợi; bước (f) dựng PT-03/PT-04, bootstrap ước ~5 phút ở bản đầy đủ) | 101 s (trước 5.7b; chưa đo lại) |
 | (f) | Evidence Pack: D1, SC1…SC8, EV-1…EV-5, `report.html`, `manifest.json` | 83 s |
 | **Tổng** | | **1698 s (~28 phút)** |
 
@@ -310,7 +323,7 @@ Bản đầy đủ: **ước tính ≈ 2,8 giờ** cộng khoảng 8–18 phút 
 - Thư mục `evidence/<run_id>/` (`run_id` = `EV-{yyyyMMdd}-EVAL-{quick|full}-r{n}`; thư mục làm việc, không commit): `report.html` tự chứa, `manifest.json` (SHA-256 từng file, commit, cấu hình, máy, KPI), `raw/` (trx theo `CatalogId`, k6, `chaos_log`, metric, D1, D2, D4, D5), `grafana/dashboard-snapshot.json` (không lưu ảnh), `config/`.
 - Kiểm toàn vẹn EV-1…EV-5: SHA-256 khớp manifest; `decision_id` của D2 có trong D1; số response thành công = số bản `PRIMARY`; không có dữ liệu cá nhân; manifest đủ commit, cấu hình, thông số máy.
 - Dựng lại `report.html` từ một pack có sẵn (không gửi lại request), theo [guide mục 7](guides/EVALUATION_RUN_GUIDE.md): `docker compose run --rm --no-deps --entrypoint python evaluator -m evidence.report /evidence/<run_id>`, hoặc ngoài Docker `cd tools && python -m evidence.report ../evidence/<run_id>` (module nằm trong `tools/`, chạy từ gốc repo không được).
-- Pack chính thức của lượt đầy đủ sẽ chốt vào `docs/research/evidence-packs/{run_id}/` (M-10; file > 20 MB đính kèm GitHub Release).
+- Pack chính thức của lượt đầy đủ sẽ chốt vào `docs/research/evidence-packs/{run_id}/` (M-10; file > 20 MB đính kèm GitHub Release). Từ 5.7b: D5, `pt_summary.json`, `policy_economics.json` và mục PT của `report.html` **chỉ vào pack chính thức sau khi xác minh giấy phép và điều kiện phân phối của đúng nguồn dataset đang ghim** (quyết định từng artifact); trước đó chúng chỉ sinh trong `evidence/<run_id>/` (gitignore).
 - Định nghĩa: [DATASET_SCHEMA_SPECIFICATION](research/DATASET_SCHEMA_SPECIFICATION.md) Mục 2, 5.
 
 ---
@@ -426,7 +439,10 @@ Kỳ vọng: đúng 4 ID migration (3 của v1 giữ để lịch sử khớp Ne
 
 | Việc | Chủ | Trạng thái | Ghi chú |
 | :--- | :--- | :--- | :--- |
-| U-2: xác nhận giấy phép Hotel Booking Demand (CC BY 4.0) | Người dùng (SV1) | ⏳ | Chưa xác nhận thì D5 không vào pack (M-10) |
+| U-2: xác nhận giấy phép Hotel Booking Demand (CC BY 4.0) | Người dùng (SV1) | ⏳ | Chưa xác nhận thì D5, `pt_summary.json`, `policy_economics.json` và mục PT của báo cáo không vào pack chính thức (M-10 đã thu hẹp ở 5.7b); không chặn việc chạy |
+| 5.7b: chạy lượt bản nhanh, gửi `logs --tail 60 evaluator` + `ps -a`; kiểm tỷ lệ `PAIRED`, nhãn đối soát, tên metric Prometheus của shadow, thời gian bước (e), SC1…SC8 | Người dùng chạy, SV1 phân tích | ⏳ trước lượt đầy đủ | `PAIRED` < 99 % hoặc nhãn khác `RECONCILED` thì dừng bàn trước khi chạy đầy đủ |
+| Q-6: gốc tính tiền hoàn khi khách chỉ trả cọc (hiện BE tính trên `FinalTotal`, B-1) | SV1 | ⏳ Phase 6–7 | Chốt khi tích hợp TADSS, ghi vào `DEPOSIT_APPROVAL_API.md`; 5.7b chỉ đo rủi ro, không sửa BE |
+| B-2: nghi lệch +7 giờ trong `CalculateRefundPercentAsync` của BE | SV1 | ⏳ trace sau | Người dùng báo vận hành đang đúng; chưa sửa, mô phỏng tính đúng múi giờ |
 | U-3: xuất CSV SmashCourt vào `data/private/` | Người dùng (SV1) | ⏳ | Bắt buộc trước lượt đầy đủ (R-04) |
 | U-4: commit, chạy lượt đầy đủ, gửi `logs --tail 60 evaluator` + `ps -a` | Người dùng (SV1) | ⏳ | T5.21 |
 | Task 10 plan 5.7: phân tích lượt đầy đủ, chốt Evidence Pack (M-10), báo cáo Gate M5 | SV1 | ⏳ sau U-4 | Có tiêu chí không đạt thì sửa gốc rồi chạy lại cả lượt đầy đủ |
