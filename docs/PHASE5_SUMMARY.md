@@ -33,7 +33,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | :--- | :--- | :--- |
 | Unit test | 1874 đạt | [README](../README.md) (12/10/2026) |
 | Integration test | 240, số của lần chạy trước 12/10/2026; chưa chạy lại sau các thay đổi của gói 5.7 vì Docker tắt | README, [`PHASE5_REPORT_5.6.md`](../spec/PHASE5_REPORT_5.6.md) |
-| Pytest | `tools/evaluation` 257 đạt + 3 bỏ qua (260 khi có Docker/k6); `tools/evidence` 354; `tools/docs` 34 (15/10/2026, sau gói 5.7b) | [Guide mục 9](guides/EVALUATION_RUN_GUIDE.md) |
+| Pytest | `tools/evaluation` 257 đạt + 3 bỏ qua (260 khi có Docker/k6); `tools/evidence` 355; `tools/docs` 34 (15/10/2026, sau gói 5.7b) | [Guide mục 9](guides/EVALUATION_RUN_GUIDE.md) |
 | Lượt bản nhanh | `EV-20261011-EVAL-quick-r1`: mã thoát 0, đạt mọi tiêu chí áp dụng được, ~28 phút | Báo cáo 5.6 Mục 3 |
 | Mutation (bước d bản đầy đủ, `EV-20261008-EVAL-full-r4`) | MT-01 84,73 %, MT-02 98,32 %, MT-03 74,43 % (ngưỡng 70 %) | [`PHASE5_REPORT_5.5.md`](../spec/PHASE5_REPORT_5.5.md) 3k |
 | Schemathesis CT-03 bản đầy đủ | 6905 ca, 0 lỗi | Báo cáo 5.5 3k |

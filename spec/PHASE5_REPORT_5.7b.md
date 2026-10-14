@@ -20,7 +20,7 @@ Không đổi `src/`, contract 2.0.0, migration, SmashCourt-BE.
 
 ## 2. Kiểm tra cục bộ (15/10/2026, từng bộ riêng)
 
-- `pytest tools/evidence`: 354 đạt. `pytest tools/evaluation`: 257 đạt + 3 bỏ qua (có sẵn). `pytest tools/docs`: 34 đạt.
+- `pytest tools/evidence`: 355 đạt. `pytest tools/evaluation`: 257 đạt + 3 bỏ qua (có sẵn). `pytest tools/docs`: 34 đạt.
 - `check_docs.py`: DOC-1, DOC-2, DOC-3 đạt. `docker compose config -q`: im lặng. Catalog traceability (C#, 3 test): đạt khi thêm PT-03/PT-04. `git status src docs/contracts`: không đổi.
 - Thời gian bootstrap đo: 26,5 s cho 10.000 dòng × 1.000 vòng (ngoại suy ~5 phút ở bản đầy đủ).
 - Mỗi task qua review spec + chất lượng; các vòng sửa: Task 2 (1), 5 (2), 6 (1), 8 (2), cộng một đợt sửa cuối sau review toàn bộ; review cuối của đợt sửa: không còn mục mở.
