@@ -1,0 +1,10 @@
+{
+  "source": "SmashCourt-BE, bảng cancel_policies (GET /api/cancel-policies); người dùng gửi 14/10/2026",
+  "retrieved_on": "2026-10-14",
+  "last_updated_in_source": "2026-03-27",
+  "policies": [
+    {"hours_before": 24, "refund_percent": "100.00", "description": "Hủy trước 24 giờ hoàn 100%"},
+    {"hours_before": 2, "refund_percent": "50.00", "description": "Hủy trước 2 giờ hoàn 50%"},
+    {"hours_before": 0, "refund_percent": "0.00", "description": "Hủy trong vòng 2 giờ không hoàn tiền"}
+  ]
+}

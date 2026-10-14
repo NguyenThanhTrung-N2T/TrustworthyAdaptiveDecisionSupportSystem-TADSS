@@ -357,3 +357,39 @@ def test_hotel_build_requests_skips_filtered_rows() -> None:
     requests = hotel_adapter.build_requests(load(), Anonymizer(b"k"), "run-1", NOW)
 
     assert len(requests) == 24, "build_requests bỏ qua dòng reject_reason khác None, giống replay"
+
+
+def test_load_rows_reads_reservation_status_and_date() -> None:
+    rows = load()
+
+    assert {row.reservation_status for row in rows} <= set(hotel_adapter.RESERVATION_STATUSES)
+    assert rows[0].reservation_status == "Check-Out" and rows[0].reservation_status_date.isoformat() == "2017-01-01"
+
+
+@pytest.mark.parametrize(("column", "value"), [("reservation_status", "Lost"), ("reservation_status_date", "2017-13-01")])
+def test_load_rows_rejects_invalid_reservation_status_cells(tmp_path: Path, column: str, value: str) -> None:
+    path = write_dataset(tmp_path / "bad.csv", [{column: value}])
+
+    with pytest.raises(hotel_adapter.HotelDataError, match=column):
+        hotel_adapter.load_rows(path)
+
+
+def test_meta_and_d5_carry_reservation_status_and_empty_shadow_columns() -> None:
+    rows = load()[:1]
+    prepared = hotel_adapter.build_requests(rows, Anonymizer(b"k" * 32), "run", NOW)
+    meta = prepared[0]["meta"]
+
+    assert meta["reservation_status"] == "Check-Out" and meta["reservation_status_date"] == "2017-01-01"
+    d5 = hotel_adapter.d5_rows_from_outcomes([{"idempotency_key": prepared[0]["idempotency_key"], "meta": meta}], {}, {})
+    assert d5[0]["reservation_status"] == "Check-Out" and d5[0]["reservation_status_date"] == "2017-01-01"
+    assert all(d5[0][column] == "" for column in ("shadow_pair_state", "primary_fallback", "shadow_status", "shadow_deposit_rate", "shadow_deposit_amount"))
+    assert list(d5[0]) == list(hotel_adapter.D5_COLUMNS)
+
+
+def test_d5_row_tolerates_prepared_meta_without_reservation_status() -> None:
+    prepared = hotel_adapter.build_requests(load()[:1], Anonymizer(b"k" * 32), "run", NOW)
+    meta = {key: value for key, value in prepared[0]["meta"].items() if key not in hotel_adapter.STATUS_COLUMNS}
+
+    d5 = hotel_adapter.d5_rows_from_outcomes([{"idempotency_key": prepared[0]["idempotency_key"], "meta": meta}], {}, {})
+
+    assert d5[0]["reservation_status"] == "" and d5[0]["reservation_status_date"] == ""

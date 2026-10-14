@@ -225,6 +225,84 @@ def test_evidence_step_requires_pt_dsn_when_portability_ran(tmp_path: Path, monk
     assert result.status == ERROR and any("EVAL_PT_PG_DSN" in note for note in result.notes)
 
 
+def _write_shadow_pair(context) -> None:
+    """D1 của PT có một cặp PRIMARY/SHADOW cùng correlation_id `pc-0` (khớp requests.jsonl) và nhãn đối soát RECONCILED trong summary.json."""
+    from evidence import d1_export
+    from evidence.anonymize import Anonymizer
+
+    shadow = list(_status_row("pd-shadow-0", "pc-0", "APPROVED"))
+    shadow[3] = "SHADOW"
+    rows = d1_export.to_d1_rows([_status_row("pd-0", "pc-0", "APPROVED"), tuple(shadow)], Anonymizer(b"khoa-test"))
+    path = context.evidence_dir / "raw" / "d1" / "decision_audit_portability.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=d1_export.D1_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    summary = context.evidence_dir / "raw" / "portability" / "summary.json"
+    document = json.loads(summary.read_text(encoding="utf-8"))
+    document["shadow_reconciliation"] = {"label": "RECONCILED"}
+    summary.write_text(json.dumps(document), encoding="utf-8")
+
+
+def test_write_datasets_writes_policy_economics_with_shadow_pairing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    context, *_ = _setup_datasets(tmp_path, monkeypatch)
+    _write_shadow_pair(context)
+    run_dir = context.evidence_dir
+
+    notes = step.write_datasets(context, run_dir)
+
+    economics = json.loads((run_dir / "raw" / "d5" / "policy_economics.json").read_text(encoding="utf-8"))
+    assert len(economics["cancel_policy"]["sha256"]) == 64
+    assert economics["shadow"]["pairing"]["PAIRED"] == 1
+    assert economics["shadow"]["reconciliation"] == {"label": "RECONCILED"}
+    assert "outside_run" in economics["shadow"] and "samples" in economics["shadow"]
+    d5 = list(csv.DictReader((run_dir / "raw" / "d5" / "portability_hotel.csv").open(encoding="utf-8")))
+    assert d5[0]["shadow_pair_state"] == "PAIRED"
+    assert any(note.startswith("PT-03/PT-04:") and "RECONCILED" in note for note in notes)
+
+
+def test_write_datasets_keeps_the_pack_when_the_cancel_policy_snapshot_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    context, *_ = _setup_datasets(tmp_path, monkeypatch)
+    _write_shadow_pair(context)
+    context.repo_dir = tmp_path / "repo-without-snapshot"
+    run_dir = context.evidence_dir
+
+    notes = step.write_datasets(context, run_dir)
+
+    economics = json.loads((run_dir / "raw" / "d5" / "policy_economics.json").read_text(encoding="utf-8"))
+    assert economics["cancel_policy"]["status"] == "INSUFFICIENT_DATA"
+    assert any("S-SC INSUFFICIENT_DATA" in note for note in notes)
+
+
+def test_write_datasets_keeps_d5_and_notes_the_gap_when_policy_economics_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    context, *_ = _setup_datasets(tmp_path, monkeypatch)
+    _write_shadow_pair(context)
+    run_dir = context.evidence_dir
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("loi gia lap")
+
+    monkeypatch.setattr(step.policy_economics, "summarize", boom)
+
+    notes = step.write_datasets(context, run_dir)  # không được ném: tính toán phụ không làm mất Evidence Pack
+
+    assert (run_dir / "raw" / "d5" / "portability_hotel.csv").is_file()
+    assert (run_dir / "raw" / "analysis" / "pt_summary.json").is_file()
+    assert not (run_dir / "raw" / "d5" / "policy_economics.json").exists()
+    assert any(note.startswith("D5:") for note in notes)
+    assert "PT-03/PT-04: không dựng được policy_economics.json (RuntimeError)" in notes
+
+
+def test_write_config_copies_the_cancel_policy_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    context, *_ = _setup_datasets(tmp_path, monkeypatch)
+
+    step.write_config(context, context.evidence_dir)
+
+    copied = context.evidence_dir / "config" / "smashcourt_cancel_policies.json"
+    assert copied.read_bytes() == (REPO / "tools" / "evidence" / "config" / "smashcourt_cancel_policies.json").read_bytes()
+
+
 def test_read_original_uuids_only_from_the_private_csv(tmp_path: Path) -> None:
     private = tmp_path / "private"
     private.mkdir()

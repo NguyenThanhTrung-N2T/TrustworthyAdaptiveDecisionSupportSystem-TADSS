@@ -457,3 +457,117 @@ def test_dataset_step_not_ready_summary_still_records_wait_phase(tmp_path: Path)
     env.run()
 
     assert "wait_ready" in env.summary("replay")["phase_seconds"] and "wait_ready" in env.summary("portability")["phase_seconds"]
+
+
+def test_dataset_step_portability_without_pt_dsn_records_unknown_shadow_reconciliation(tmp_path: Path) -> None:
+    env = Env(tmp_path)
+
+    env.run()
+
+    reconciliation = env.summary("portability")["shadow_reconciliation"]
+    assert reconciliation["label"] == "UNKNOWN" and "EVAL_PT_PG_DSN" in reconciliation["reason"]
+    assert "shadow_drain" not in env.summary("portability")["phase_seconds"]
+
+
+def test_dataset_step_portability_drains_shadow_and_reconciles_with_dsn(tmp_path: Path) -> None:
+    env = Env(tmp_path)
+    env.context.env["EVAL_PT_PG_DSN"] = "postgresql://thu-nghiem"
+    fetch_calls: list[tuple[str, tuple]] = []
+    seen = {"requests": 0}
+
+    def fetch_factory(dsn: str):
+        assert dsn == "postgresql://thu-nghiem"
+
+        def fetch(sql: str, params: tuple) -> list[tuple]:
+            fetch_calls.append((sql, params))
+            seen["requests"] = len(params[1])
+            return [("PRIMARY", seen["requests"]), ("SHADOW", seen["requests"])]
+
+        return fetch
+
+    def prom_query(base: str, expr: str) -> list[dict]:
+        assert base == env.context.endpoints.prometheus
+        # Ảnh chụp nền chạy TRƯỚC khi gửi nên trước mọi truy vấn DB (seen["requests"] còn 0); sau khi đã truy vấn DB thì counter bằng số request.
+        if "recorded" not in expr:
+            return []
+        return [{"value": [0, str(seen["requests"])]}]
+
+    env.services.pt_fetch_factory = fetch_factory
+    env.services.prom_query = prom_query
+
+    env.run()
+
+    summary = env.summary("portability")
+    reconciliation = summary["shadow_reconciliation"]
+    correlations = [row["correlation_id"] for row in env.lines("portability", "requests.jsonl")]
+    assert reconciliation["label"] == "RECONCILED", reconciliation
+    assert reconciliation["primary"] == reconciliation["shadow"] == len(correlations) > 0
+    assert fetch_calls and all(params[1] == correlations for _, params in fetch_calls)
+    assert "shadow_drain" in summary["phase_seconds"]
+    assert summary["status"] == PASSED and "shadow_reconciliation" not in env.summary("replay")
+
+
+def test_dataset_step_portability_baseline_prometheus_error_is_unknown_not_reconciled(tmp_path: Path) -> None:
+    """Prometheus lỗi lúc chụp nền (khác series vắng) thì không được suy ra RECONCILED từ counter sau khi gửi."""
+    env = Env(tmp_path)
+    env.context.env["EVAL_PT_PG_DSN"] = "postgresql://thu-nghiem"
+    state = {"queries": 0, "ticks": 0.0}
+
+    def fetch_factory(dsn: str):
+        return lambda sql, params: [("PRIMARY", len(params[1])), ("SHADOW", len(params[1]))]
+
+    def prom_query(base: str, expr: str) -> list[dict]:
+        state["queries"] += 1
+        if state["queries"] == 1:  # truy vấn đầu tiên của ảnh chụp nền
+            raise step.prometheus.PrometheusError("mất kết nối")
+        return [{"value": [0, "3"]}] if "recorded" in expr else []
+
+    def monotonic() -> float:  # đồng hồ giả để vòng thăm dò đứng yên hết STALL_SECONDS ngay
+        state["ticks"] += 10.0
+        return state["ticks"]
+
+    env.services.pt_fetch_factory = fetch_factory
+    env.services.prom_query = prom_query
+    env.services.monotonic = monotonic
+
+    env.run()
+
+    reconciliation = env.summary("portability")["shadow_reconciliation"]
+    assert reconciliation["label"] == "UNKNOWN" and reconciliation["reason"] == "baseline_unavailable", reconciliation
+    assert reconciliation["before"]["error"] is True
+
+
+def test_dataset_step_portability_drain_db_error_does_not_destroy_the_step(tmp_path: Path) -> None:
+    """Xả shadow là tùy chọn: lỗi DB/IO không được biến bước (e) thành ERROR (sẽ làm bước (f) bị bỏ qua, mất Evidence Pack)."""
+    env = Env(tmp_path)
+    env.context.env["EVAL_PT_PG_DSN"] = "postgresql://nguoi:mat-khau-bi-mat@db/pt"
+
+    def fetch_factory(dsn: str):
+        def fetch(sql: str, params: tuple) -> list[tuple]:
+            raise RuntimeError(f"không kết nối được {dsn}")
+
+        return fetch
+
+    env.services.pt_fetch_factory = fetch_factory
+    env.services.prom_query = lambda base, expr: []
+
+    result = env.run()
+
+    summary = env.summary("portability")
+    assert result.status == PASSED and summary["status"] == PASSED
+    assert summary["shadow_reconciliation"]["label"] == "UNKNOWN" and summary["shadow_reconciliation"]["reason"] == "db_error: RuntimeError"
+    assert "mat-khau-bi-mat" not in json.dumps(summary)
+
+
+def test_dataset_step_portability_error_part_skips_shadow_drain(tmp_path: Path) -> None:
+    env = Env(tmp_path, send=FakeSend(unreachable=True))
+    env.context.env["EVAL_PT_PG_DSN"] = "postgresql://thu-nghiem"
+    fetch_calls: list[tuple] = []
+    env.services.pt_fetch_factory = lambda dsn: (lambda sql, params: fetch_calls.append((sql, params)) or [])
+    env.services.prom_query = lambda base, expr: []
+
+    env.run()
+
+    summary = env.summary("portability")
+    assert summary["status"] == ERROR and summary["shadow_reconciliation"]["label"] == "UNKNOWN"
+    assert not fetch_calls and "shadow_drain" not in summary["phase_seconds"]

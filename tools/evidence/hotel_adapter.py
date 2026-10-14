@@ -11,7 +11,7 @@ là cấu hình vận hành của instance `eval-tadss-portability` (biến môi
 `isGuest = (is_repeated_guest = 0)`. Dataset không có định danh khách, nên khách quay lại có `customerId` dựng từ số dòng nguồn. `history` lấy từ `previous_*` cho MỌI dòng
 (spec thiết kế 4.6, INTEGRATION_SPEC §4.2 cho phép kèm `history` cả với khách vãng lai): `completedCount = previous_bookings_not_canceled`,
 `cancelledCount = previous_cancellations`, các số đếm khác 0; khách `is_repeated_guest = 0` mà `previous_*` > 0 vẫn mang lịch sử đó.
-Cột nhãn (`is_canceled`, `reservation_status*`) chỉ vào `meta` để D5 phân tích PT-02, KHÔNG vào body request; `country`, `agent`, `company` không dùng.
+Cột nhãn (`is_canceled`, `reservation_status`, `reservation_status_date`) chỉ vào `meta` để phân tích PT-02/PT-03, KHÔNG vào body request; `country`, `agent`, `company` không dùng.
 
 Quy tắc lọc theo thứ tự (dòng bị loại ở quy tắc đầu tiên khớp, nên các lý do rời nhau): `zero_nights`, `negative_adr`, `invalid_arrival_date`
 (năm/tháng/ngày không dựng được ngày, hoặc ngày đặt danh nghĩa tràn phạm vi), `stay_too_long` (thời lượng theo thời điểm tuyệt đối vượt `max_item_minutes`).
@@ -69,11 +69,14 @@ INT_COLUMNS = (
     "is_canceled", "lead_time", "stays_in_weekend_nights", "stays_in_week_nights", "is_repeated_guest", "previous_cancellations", "previous_bookings_not_canceled",
 )
 TEXT_COLUMNS = ("hotel", "reserved_room_type", "deposit_type", "market_segment", "distribution_channel", "customer_type")
-REQUIRED_COLUMNS = (*INT_COLUMNS, *TEXT_COLUMNS, "arrival_date_year", "arrival_date_month", "arrival_date_day_of_month", "adr")
+RESERVATION_STATUSES = ("Check-Out", "Canceled", "No-Show")
+STATUS_COLUMNS = ("reservation_status", "reservation_status_date")
+REQUIRED_COLUMNS = (*INT_COLUMNS, *TEXT_COLUMNS, *STATUS_COLUMNS, "arrival_date_year", "arrival_date_month", "arrival_date_day_of_month", "adr")
 D5_COLUMNS = (
     "source_row", "hotel", "arrival_local", "nights", "room_type", "total_price", "is_repeated_guest", "previous_cancellations", "previous_bookings_not_canceled",
     "status", "deposit_rate", "deposit_amount", "reason_code", "is_canceled",
     "decision_id", "strategy_status", "contract_errors", "shift_days", "lead_time_minutes", "deposit_type", "market_segment", "attempts",
+    "reservation_status", "reservation_status_date", "shadow_pair_state", "primary_fallback", "shadow_status", "shadow_deposit_rate", "shadow_deposit_amount",
 )
 
 _ZONE = ZoneInfo(BRANCH_TIME_ZONE)
@@ -111,6 +114,8 @@ class HotelRow:
     market_segment: str
     distribution_channel: str
     customer_type: str
+    reservation_status: str  # nhãn kết thúc, chỉ dùng phân tích, không vào request
+    reservation_status_date: date  # ngày đạt trạng thái kết thúc, chỉ dùng phân tích, không vào request
 
     @property
     def nights(self) -> int:
@@ -196,7 +201,7 @@ def build_requests(rows: Iterable[HotelRow], anonymizer: Anonymizer, run_id: str
     """Dựng request v2 cho mọi dòng gửi được (dòng có `reject_reason` bị bỏ qua, như replay); giữ thứ tự đầu vào. Mỗi phần tử: `{idempotency_key, body, meta}`.
 
     `meta` mang dữ liệu cho D5 và phân tích: `source_row`, `hotel`, `arrival_local` (14:00 ngày đến GỐC, naive), `nights`, `room_type`, `total_price`,
-    `is_repeated_guest`, `previous_cancellations`, `previous_bookings_not_canceled`, `is_canceled` (nhãn gốc), `deposit_type`, `market_segment`, `shift_days`, `lead_time_minutes` và `duration_min`
+    `is_repeated_guest`, `previous_cancellations`, `previous_bookings_not_canceled`, `is_canceled` (nhãn gốc), `deposit_type`, `market_segment`, `reservation_status`, `reservation_status_date` (ISO), `shift_days`, `lead_time_minutes` và `duration_min`
     (cả hai tính trên mốc GỐC, theo thời điểm tuyệt đối) và `request_errors` (lỗi theo schema; rỗng nếu hợp lệ). Khóa idempotency `portability:{run_id}:{source_row}`."""
     return [_build_request(row, anonymizer, run_id, now) for row in rows if reject_reason(row, max_item_minutes) is None]
 
@@ -227,6 +232,9 @@ def _d5_row(meta: dict[str, Any], outcome: dict[str, Any]) -> dict[str, Any]:
         "decision_id": outcome["decision_id"], "strategy_status": outcome["strategy_status"], "contract_errors": outcome["contract_errors"],
         "shift_days": meta["shift_days"], "lead_time_minutes": meta["lead_time_minutes"],
         "deposit_type": meta["deposit_type"], "market_segment": meta["market_segment"], "attempts": outcome["attempts"],
+        # prepared cũ chưa có hai cột trạng thái nên dùng .get; năm cột shadow để rỗng, bước sau điền
+        "reservation_status": meta.get("reservation_status", ""), "reservation_status_date": meta.get("reservation_status_date", ""),
+        "shadow_pair_state": "", "primary_fallback": "", "shadow_status": "", "shadow_deposit_rate": "", "shadow_deposit_amount": "",
     }
 
 
@@ -290,6 +298,7 @@ def _build_request(row: HotelRow, anonymizer: Anonymizer, run_id: str, now: date
         "total_price": price, "is_repeated_guest": row.is_repeated_guest, "previous_cancellations": row.previous_cancellations,
         "previous_bookings_not_canceled": row.previous_bookings_not_canceled, "is_canceled": row.is_canceled,
         "deposit_type": row.deposit_type, "market_segment": row.market_segment,
+        "reservation_status": row.reservation_status, "reservation_status_date": row.reservation_status_date.isoformat(),
         "shift_days": weeks * 7, "lead_time_minutes": _minutes_between(requested, start), "duration_min": _minutes_between(start, end),
         "request_errors": contract_check.request_errors(body),
     }
@@ -308,7 +317,15 @@ def _parse_row(record: dict[str, str], line: int, problems: list[str]) -> HotelR
             problems.append(f"cột {column} bắt buộc")
     if numbers["is_repeated_guest"] not in (None, 0, 1):
         problems.append("cột is_repeated_guest phải là 0 hoặc 1")
-    if problems or adr is None or any(value is None for value in numbers.values()):
+    status = cell("reservation_status")
+    if status not in RESERVATION_STATUSES:
+        problems.append(f"cột reservation_status phải là {', '.join(RESERVATION_STATUSES)}, nhận '{status}'")
+    try:
+        status_date: date | None = date.fromisoformat(cell("reservation_status_date"))
+    except ValueError:
+        problems.append("cột reservation_status_date phải là ngày YYYY-MM-DD")
+        status_date = None
+    if problems or adr is None or status_date is None or any(value is None for value in numbers.values()):
         return None
     return HotelRow(
         source_row=line, hotel=texts["hotel"], is_canceled=numbers["is_canceled"] or 0, lead_time=numbers["lead_time"] or 0,
@@ -317,6 +334,7 @@ def _parse_row(record: dict[str, str], line: int, problems: list[str]) -> HotelR
         is_repeated_guest=numbers["is_repeated_guest"] or 0, previous_cancellations=numbers["previous_cancellations"] or 0,
         previous_bookings_not_canceled=numbers["previous_bookings_not_canceled"] or 0, room_type=texts["reserved_room_type"], deposit_type=texts["deposit_type"],
         market_segment=texts["market_segment"], distribution_channel=texts["distribution_channel"], customer_type=texts["customer_type"],
+        reservation_status=status, reservation_status_date=status_date,
     )
 
 

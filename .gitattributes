@@ -1,2 +1,5 @@
 # Script shell chạy trong container Linux (evaluator, CI): luôn LF trong cây làm việc, kể cả trên Windows có core.autocrlf=true; CRLF làm bash lỗi `$'\r': command not found`
 *.sh text eol=lf
+
+# Ảnh chụp chính sách hủy SmashCourt: SHA-256 tính trên byte của file (ghi vào manifest), nên cố định LF để tái lập giữa Windows và Linux
+/tools/evidence/config/*.json text eol=lf

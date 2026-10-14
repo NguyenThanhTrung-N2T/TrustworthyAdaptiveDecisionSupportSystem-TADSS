@@ -93,6 +93,21 @@ Xem theo thứ tự: mục **1 Kết luận KPI** (SC1…SC8) > mục **2 Các b
 
 Ở bản nhanh, các trạng thái sau là **bình thường**: SC5/SC6 `NOT_APPLICABLE` (đo trên E-STAGING ở Phase 7–8, không thuộc evaluator); SC8 `INSUFFICIENT_DATA` (bản nhanh bỏ Stryker); SC7 `INSUFFICIENT_DATA` khi chưa commit `tools/evidence/hotel_adapter.py`. Ý nghĩa từng tiêu chí: [methodology](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md).
 
+**Mục PT-03/PT-04 (dữ liệu khách sạn, gói 5.7b).** Đọc theo thứ tự này; mọi con số ở đây là **chỉ số mô phỏng theo kịch bản, không phải kết quả tài chính**:
+
+1. **Nhãn đối soát shadow** (`RECONCILED` / `UNKNOWN` / `FAILED`). `RECONCILED` là đạt; `UNKNOWN` là chưa kiểm được (thiếu Prometheus, counter reset, quá thời gian chờ: xem trường `reason`, thường chạy lại `--steps e,f` là đủ); `FAILED` là đỏ, báo lại. Đây là đối soát **tổng hợp** (DB + counter), không phải bằng chứng cho từng request; bằng chứng theo request là số ghép cặp ở bước 2.
+2. **Ghép cặp** (`PAIRED`, `PRIMARY_FALLBACK`, `SHADOW_FALLBACK`, `UNPAIRED`) và `violations` (phải rỗng). Tỷ lệ `PAIRED` ≥ 99 % là ngưỡng vận hành để chạy bản đầy đủ, không phải ngưỡng thống kê. Chỉ các đơn `PAIRED` (`counts.compared`) được dùng để so sánh hai strategy; số đơn bị loại được đếm riêng, không thành 0.
+3. **Hai biến thể hoàn tiền** (`REFUND_OF_PAID`, `REFUND_OF_TOTAL_CAPPED`) luôn đi cạnh nhau vì gốc tính hoàn tiền chưa chốt (Q-6); không biến thể nào là kết quả "chính". Rủi ro hoàn vượt của mã BE hiện tại (`AS_IS_BE`) là mục riêng, không dùng để xếp hạng.
+4. **Hai cận của `S-SC`**: dataset chỉ có ngày hủy nên mỗi số được báo ở cận `low` (hủy lúc 00:00, hoàn nhiều) và `high` (hủy lúc 23:59, hoàn ít); thực tế nằm giữa hai cận. `NEED_APPROVAL` tính r = 1 làm số chính và r = 0 làm cận dưới. Câu kết luận xếp hạng (`ranking.statement`) chỉ nêu chính sách tốt hơn khi đúng ở mọi cận, biến thể, kịch bản và CI không chứa 0; còn lại là "không phân biệt được" hoặc "phụ thuộc giả định".
+
+Xem nhanh (thay `<run_id>`):
+
+```bash
+python -c "import json; d=json.load(open('evidence/<run_id>/raw/d5/policy_economics.json',encoding='utf-8')); print((d['shadow']['reconciliation'] or {}).get('label', '-'), d['shadow']['pairing'], d['counts']['compared'])"
+```
+
+Cột D5 và quy tắc giấy phép (artifact nào được vào Evidence Pack chính thức): [DATASET_SCHEMA](../research/DATASET_SCHEMA_SPECIFICATION.md) Mục 2–3; phương pháp: [methodology](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.10.
+
 Grafana của stack đánh giá ở `http://127.0.0.1:3002` (dashboard TADSS Runtime) để xem lại, tới khi bạn `docker compose down` hoặc dọn (mục 11).
 
 ## 5. Mỗi bước làm gì
@@ -260,7 +275,7 @@ python -m pytest -q tools/docs
 
 Chạy từng bộ riêng (không gộp một lệnh pytest). Bộ `tools/docs` và `check_docs.py` chỉ dùng thư viện chuẩn của Python (cần `pytest` đã cài ở bước `pip` trên).
 
-Thấy gì là đúng: `240 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `237 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `230 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
+Thấy gì là đúng: `260 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `257 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
 
 ## 10. Sự cố thường gặp
 

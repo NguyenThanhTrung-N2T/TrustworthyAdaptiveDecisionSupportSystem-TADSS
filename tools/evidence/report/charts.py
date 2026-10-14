@@ -1,4 +1,4 @@
-"""Biểu đồ SVG nội tuyến cho báo cáo (không phụ thuộc thư viện hay tài nguyên ngoài): đường theo thời gian với vùng tô màu cho pha sự cố."""
+"""Biểu đồ SVG nội tuyến cho báo cáo (không phụ thuộc thư viện hay tài nguyên ngoài): đường theo thời gian với vùng tô màu cho pha sự cố, cột nhóm và phân tán hai trục 0…1."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -127,3 +127,57 @@ def bar_chart(categories: list[str], series: list[Series], y_label: str, y_max: 
     legend = "".join(f'<span class="legend"><i style="background:{PALETTE[index % len(PALETTE)]}"></i>{escape(item.name)}</span>' for index, item in enumerate(series))
     parts.append("</svg>")
     return "".join(parts) + f'<div class="legends">{legend}</div>'
+
+
+def scatter_chart(points: list[tuple[str, float, float]], x_label: str, y_label: str, spans: dict[str, tuple[float, float]] | None = None) -> str:
+    """Biểu đồ phân tán trên [0,1]×[0,1]: mỗi điểm một chấm và nhãn chữ cạnh chấm (không dựa vào màu để phân biệt).
+    Nhãn dạng `NHÓM · BIẾN THỂ`: màu theo NHÓM (thứ tự xuất hiện đầu tiên), hình theo BIẾN THỂ (tròn / thoi); nhãn tự né nhau khi điểm trùng hoặc gần nhau.
+    `spans[nhãn] = (y1, y2)` vẽ thêm đoạn thẳng đứng giữa hai giá trị y tại cột của điểm (khoảng giữa hai cận, hai đầu có gạch ngang); hai biến thể của cùng nhóm lệch nhau vài điểm ảnh để đoạn không chồng lên nhau; điểm sát mép trục được dời vào trong tối đa 9 điểm ảnh để chấm không đè lên nhãn trục.
+    Không có điểm nào ⇒ chuỗi rỗng."""
+    if not points:
+        return ""
+    plot_w, plot_h = WIDTH - MARGIN_LEFT - MARGIN_RIGHT, HEIGHT - MARGIN_TOP - MARGIN_BOTTOM
+
+    def px(value: float) -> float:
+        return MARGIN_LEFT + min(max(value, 0.0), 1.0) * plot_w
+
+    def py(value: float) -> float:
+        return MARGIN_TOP + (1 - min(max(value, 0.0), 1.0)) * plot_h
+
+    parts = [f'<svg viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-label="{escape(y_label)} theo {escape(x_label)}" class="chart">']
+    for tick in (0, 0.25, 0.5, 0.75, 1):
+        parts.append(f'<line x1="{MARGIN_LEFT}" y1="{py(tick):.1f}" x2="{WIDTH - MARGIN_RIGHT}" y2="{py(tick):.1f}" stroke="#d0d7de" stroke-width="0.6"/>')
+        parts.append(f'<text x="{MARGIN_LEFT - 6}" y="{py(tick) + 3:.1f}" font-size="10" text-anchor="end" fill="#57606a">{tick:g}</text>')
+        parts.append(f'<text x="{px(tick):.1f}" y="{HEIGHT - MARGIN_BOTTOM + 14}" font-size="10" text-anchor="middle" fill="#57606a">{tick:g}</text>')
+    parts.append(f'<text x="{MARGIN_LEFT + plot_w / 2:.0f}" y="{HEIGHT - 4}" font-size="11" text-anchor="middle" fill="#24292f">{escape(x_label)}</text>')
+    parts.append(f'<text x="12" y="{MARGIN_TOP + plot_h / 2:.0f}" font-size="11" text-anchor="middle" fill="#24292f" transform="rotate(-90 12 {MARGIN_TOP + plot_h / 2:.0f})">{escape(y_label)}</text>')
+    groups: dict[str, int] = {}
+    variants: dict[str, int] = {}
+    for label, _, _ in points:
+        group, _, variant = label.partition(" · ")
+        groups.setdefault(group, len(groups))
+        variants.setdefault(variant, len(variants))
+    placed: list[tuple[float, float, float, float]] = []
+    for label, x, y in points:
+        group, _, variant = label.partition(" · ")
+        color, cx, cy = PALETTE[groups[group] % len(PALETTE)], min(max(px(x), MARGIN_LEFT + 9), WIDTH - MARGIN_RIGHT - 9) + (variants[variant] - (len(variants) - 1) / 2) * 6, py(y)
+        span = (spans or {}).get(label)
+        if span is not None and span[0] != span[1]:
+            top_y, bottom_y = py(max(span)), py(min(span))
+            parts.append(f'<line x1="{cx:.1f}" y1="{top_y:.1f}" x2="{cx:.1f}" y2="{bottom_y:.1f}" stroke="{color}" stroke-width="2"/>')
+            parts.extend(f'<line x1="{cx - 4:.1f}" y1="{end:.1f}" x2="{cx + 4:.1f}" y2="{end:.1f}" stroke="{color}" stroke-width="2"/>' for end in (top_y, bottom_y))
+        if variants[variant] % 2 == 0:
+            parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{color}" stroke="#fff" stroke-width="2"/>')
+        else:
+            diamond = f"{cx:.1f},{cy - 6.5:.1f} {cx + 6.5:.1f},{cy:.1f} {cx:.1f},{cy + 6.5:.1f} {cx - 6.5:.1f},{cy:.1f}"
+            parts.append(f'<polygon points="{diamond}" fill="{color}" stroke="#fff" stroke-width="2"/>')
+        # nhãn nằm bên phải chấm (lật sang trái khi sát mép), thử lần lượt các độ lệch dọc cho đến khi không chồng nhãn đã đặt
+        width = len(label) * 5.6
+        flip = cx + 9 + width > WIDTH - MARGIN_RIGHT
+        left = cx - 9 - width if flip else cx + 9
+        offsets = [dy for dy in (-7, 11, -19, 23, -31, 35, -43, 47) if MARGIN_TOP <= cy + dy - 9 and cy + dy + 3 <= HEIGHT - MARGIN_BOTTOM] or [-7]  # nhãn nằm trong vùng vẽ
+        top = next((cy + dy - 9 for dy in offsets if not any(left < r + 2 and left + width + 2 > l and cy + dy - 9 < b and cy + dy + 3 > t for l, t, r, b in placed)), cy + offsets[0] - 9)
+        placed.append((left, top, left + width, top + 12))
+        parts.append(f'<text x="{cx - 9 if flip else cx + 9:.1f}" y="{top + 9:.1f}" font-size="10" fill="#24292f" text-anchor="{"end" if flip else "start"}" class="point-label">{escape(label)}</text>')
+    parts.append("</svg>")
+    return "".join(parts)

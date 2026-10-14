@@ -194,6 +194,35 @@ def test_build_d5_from_step_e_files(tmp_path: Path) -> None:
     assert rows[0]["attempts"] == 2 and rows[0]["deposit_type"] == "Non Refund" and rows[0]["status"] == "APPROVED"
 
 
+def test_build_d5_with_shadow_pairs_by_correlation(tmp_path: Path) -> None:
+    directory = tmp_path / "raw" / "portability"
+    meta = {
+        "source_row": 5, "hotel": "City Hotel", "arrival_local": "2016-06-14T14:00:00", "nights": 2, "room_type": "A", "total_price": "170", "is_repeated_guest": 0,
+        "previous_cancellations": 0, "previous_bookings_not_canceled": 0, "is_canceled": 1, "deposit_type": "Non Refund", "market_segment": "Direct", "shift_days": 7,
+        "lead_time_minutes": 100, "duration_min": 100, "request_errors": [],
+    }
+    _write_jsonl(directory / "prepared.jsonl", [{"idempotency_key": "portability:r:5", "meta": meta}])
+    _write_jsonl(directory / "requests.jsonl", [{"key": "portability:r:5", "correlation_id": "a", "status": 200, "attempts": 1, "decision_id": "p-5",
+                                                   "outcome": {"status": "APPROVED", "reason_code": "TIER", "deposit_rate": "0.3", "deposit_amount": "51"}, "contract_errors": []}])
+    d1_rows = [
+        {"role": "PRIMARY", "decision_id": "p-5", "correlation_id": "a", "reservation_hash": "r", "request_hash": "h", "created_at_utc": "t",
+         "fallback_used": "False", "strategy_status": "APPROVED", "status": "APPROVED", "deposit_rate": "0.3", "deposit_amount": "51"},
+        {"role": "SHADOW", "decision_id": "s-5", "correlation_id": "a", "reservation_hash": "r", "request_hash": "h", "created_at_utc": "t",
+         "fallback_used": "False", "status": "APPROVED", "deposit_rate": "0.5", "deposit_amount": "85"},
+    ]
+
+    result = analysis.build_d5_with_shadow(tmp_path, d1_rows)
+
+    assert result is not None
+    rows, pairing = result
+    assert rows[0]["shadow_pair_state"] == "PAIRED" and rows[0]["shadow_deposit_rate"] == "0.5"
+    assert pairing.states == {"a": "PAIRED"}
+
+
+def test_build_d5_with_shadow_returns_none_without_prepared_file(tmp_path: Path) -> None:
+    assert analysis.build_d5_with_shadow(tmp_path, []) is None
+
+
 def test_write_csv_round_trips_booleans_and_header(tmp_path: Path) -> None:
     rows = read("d4_sample.csv")
     path = tmp_path / "raw" / "d4" / "replay_smashcourt.csv"
@@ -239,6 +268,33 @@ def test_dataset_coverage_ignores_skipped_and_unreachable_parts(tmp_path: Path) 
     _write_summary(tmp_path, "portability", status="error", prepared=5, sent=2, contract_error_requests=0)
 
     assert analysis.dataset_coverage(tmp_path) == (set(), set())
+
+
+def _write_economics(run_dir: Path, shadow: dict) -> None:
+    directory = run_dir / "raw" / "d5"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "policy_economics.json").write_text(json.dumps({"shadow": shadow}), encoding="utf-8")
+
+
+def test_dataset_coverage_pt03_and_pt04_follow_policy_economics(tmp_path: Path) -> None:
+    assert analysis.dataset_coverage(tmp_path) == (set(), set())
+
+    _write_economics(tmp_path, {"reconciliation": {"label": "RECONCILED"}, "violations": {}})
+    assert analysis.dataset_coverage(tmp_path) == ({"PT-03", "PT-04"}, set())
+
+    _write_economics(tmp_path, {"reconciliation": {"label": "FAILED"}, "violations": {}})
+    assert analysis.dataset_coverage(tmp_path) == ({"PT-03"}, {"PT-04"})
+
+    _write_economics(tmp_path, {"reconciliation": {"label": "RECONCILED"}, "violations": {"ORPHAN_SHADOW": 1}})
+    assert analysis.dataset_coverage(tmp_path) == ({"PT-03"}, {"PT-04"})
+
+
+def test_dataset_coverage_pt04_is_unchecked_when_reconciliation_is_unknown(tmp_path: Path) -> None:
+    _write_economics(tmp_path, {"reconciliation": {"label": "UNKNOWN"}, "violations": {}})
+    assert analysis.dataset_coverage(tmp_path) == ({"PT-03"}, set())
+
+    _write_economics(tmp_path, {"reconciliation": None, "violations": {}})
+    assert analysis.dataset_coverage(tmp_path) == ({"PT-03"}, set())
 
 
 def test_dataset_info_collects_counts_source_and_code_check(tmp_path: Path) -> None:
