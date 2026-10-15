@@ -23,12 +23,13 @@ def _subcommand(command: list[str]) -> list[str]:
 
 
 class FakeGit:
-    """Lịch sử git giả: `log` là đầu ra `git log` (mỗi dòng một sha), `tree[sha]` là danh sách file mỗi commit, `merge_tree[sha]` chỉ hiện khi `diff-tree` có `-m` (commit merge),
-    status theo từng nhóm đường dẫn (kèm mã thoát)."""
+    """Lịch sử git giả: `log` là đầu ra `git log` (mỗi dòng một sha), `tree[sha]` là danh sách file mỗi commit; với commit merge, `merge_tree[sha]` là file khác
+    so với TỪNG parent (chỉ hiện khi `diff-tree` có `-m`, gồm cả mọi file nhánh được merge mang vào) còn `combined_tree[sha]` là file khác so với MỌI parent (chỉ hiện
+    khi có `--cc`: thay đổi do chính commit merge tạo ra, như sửa lúc giải xung đột); status theo từng nhóm đường dẫn (kèm mã thoát)."""
 
-    def __init__(self, log: str, tree: dict[str, str], merge_tree: dict[str, str], runtime_status: str, adapter_status: str, head: int, runtime_status_code: int, adapter_status_code: int) -> None:
+    def __init__(self, log: str, tree: dict[str, str], merge_tree: dict[str, str], combined_tree: dict[str, str], runtime_status: str, adapter_status: str, head: int, runtime_status_code: int, adapter_status_code: int) -> None:
         self.calls: list[list[str]] = []
-        self._log, self._tree, self._merge_tree = log, tree, merge_tree
+        self._log, self._tree, self._merge_tree, self._combined_tree = log, tree, merge_tree, combined_tree
         self._runtime_status, self._adapter_status = runtime_status, adapter_status
         self._head, self._runtime_code, self._adapter_code = head, runtime_status_code, adapter_status_code
 
@@ -44,15 +45,16 @@ class FakeGit:
             return 0, self._log
         if args[0] == "diff-tree":
             sha = args[-1]
-            return 0, self._tree.get(sha, "") + (self._merge_tree.get(sha, "") if "-m" in args else "")
+            merge_files = self._merge_tree.get(sha, "") if "-m" in args else self._combined_tree.get(sha, "") if "--cc" in args else ""
+            return 0, self._tree.get(sha, "") + merge_files
         raise AssertionError(f"lệnh git ngoài dự kiến: {command}")
 
 
 def fake_git(
     log: str = "", tree: dict[str, str] | None = None, runtime_status: str = "", adapter_status: str = "", head: int = 0,
-    merge_tree: dict[str, str] | None = None, runtime_status_code: int = 0, adapter_status_code: int = 0,
+    merge_tree: dict[str, str] | None = None, runtime_status_code: int = 0, adapter_status_code: int = 0, combined_tree: dict[str, str] | None = None,
 ) -> FakeGit:
-    return FakeGit(log, tree or {}, merge_tree or {}, runtime_status, adapter_status, head, runtime_status_code, adapter_status_code)
+    return FakeGit(log, tree or {}, merge_tree or {}, combined_tree or {}, runtime_status, adapter_status, head, runtime_status_code, adapter_status_code)
 
 
 def test_code_check_passes_when_no_commit_touches_runtime_or_sdk() -> None:
@@ -154,10 +156,26 @@ def test_code_check_path_prefix_is_directory_bounded() -> None:
     assert module.check_adapter_isolation(REPO, run).status == "PASS", "thư mục anh em có tên bắt đầu giống nhau không phải runtime/SDK"
 
 
-def test_code_check_sees_files_changed_by_a_merge_commit() -> None:
-    run = fake_git(log="aaaaaaa1111\n", tree={"aaaaaaa1111": ""}, merge_tree={"aaaaaaa1111": f"{ADAPTER}\nsrc/TADSS.Runtime.Api/Program.cs\n"})
+def test_code_check_sees_files_changed_by_a_merge_commit_itself() -> None:
+    run = fake_git(
+        log="aaaaaaa1111\n", tree={"aaaaaaa1111": ""},
+        merge_tree={"aaaaaaa1111": f"{ADAPTER}\nsrc/TADSS.Runtime.Api/Program.cs\n"}, combined_tree={"aaaaaaa1111": f"{ADAPTER}\nsrc/TADSS.Runtime.Api/Program.cs\n"},
+    )
 
     result = module.check_adapter_isolation(REPO, run)
 
     assert result.status == "FAIL" and "src/TADSS.Runtime.Api/Program.cs" in result.reason
-    assert any("-m" in command for command in run.calls if _subcommand(command)[0] == "diff-tree")
+
+
+def test_code_check_ignores_files_a_plain_pull_request_merge_brings_in() -> None:
+    # Merge PR không sửa gì thêm: so với parent thứ nhất thì mang vào cả adapter lẫn src/ của nhánh (các commit gốc vẫn được xét riêng),
+    # nhưng tự nó không thay đổi file nào so với mọi parent (EV-20261015-EVAL-quick-r1: merge PR #15, #16 bị báo FAIL oan)
+    run = fake_git(
+        log="mmmmmmm0000\naaaaaaa1111\n", tree={"mmmmmmm0000": "", "aaaaaaa1111": f"{ADAPTER}\n"},
+        merge_tree={"mmmmmmm0000": f"{ADAPTER}\nsrc/TADSS.Runtime.Api/Program.cs\nsrc/Shared.DecisionContractSDK/A.cs\n"},
+    )
+
+    result = module.check_adapter_isolation(REPO, run)
+
+    assert result.status == "PASS" and result.commits == ["mmmmmmm", "aaaaaaa"]
+    assert all("--cc" in command for command in run.calls if _subcommand(command)[0] == "diff-tree")

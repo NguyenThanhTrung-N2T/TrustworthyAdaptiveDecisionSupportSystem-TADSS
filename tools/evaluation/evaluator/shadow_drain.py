@@ -6,7 +6,7 @@ Series vắng: trước khi gửi coi là 0; sau khi xả, `failed`/`dropped` v�
 Phạm vi lượt theo tập correlation_id của lượt (truy vấn của bước gọi). Phương trình khớp chỉ là đối soát TỔNG HỢP, không phải bằng chứng từng request đã được xử lý;
 bằng chứng theo request là trạng thái ghép cặp ở bước (f).
 
-Tên metric Prometheus trong các hằng `*_QUERY` là tạm thời: xác nhận lại trên một lượt quick thật rồi mới chốt (cô lập ở đây để chỉ sửa một chỗ).
+Tên metric Prometheus và nhãn `instance` trong các hằng `*_QUERY` đã xác nhận trên lượt quick thật `EV-20261015-EVAL-quick-r2` (cô lập ở đây để chỉ sửa một chỗ).
 """
 from __future__ import annotations
 

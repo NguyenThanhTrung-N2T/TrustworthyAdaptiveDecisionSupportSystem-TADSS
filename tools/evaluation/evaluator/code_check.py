@@ -66,8 +66,9 @@ def check_adapter_isolation(repo: Path, run: GitRunner | None = None, adapter: s
 
     violations = []
     for commit in full:
-        # -m: commit merge cũng liệt kê file thay đổi so với từng parent (không có -m, diff-tree bỏ qua merge)
-        code, names = runner(["git", "diff-tree", "-m", "--root", "--no-commit-id", "--name-only", "-r", commit], repo)
+        # --cc: commit merge chỉ liệt kê file khác so với MỌI parent, tức thay đổi do chính merge tạo ra (sửa lúc giải xung đột). Không dùng -m: so với từng parent
+        # thì merge PR nào cũng "chạm" mọi file của nhánh được merge, dù các commit gốc của nhánh (vẫn được xét riêng ở đây) không vi phạm. Commit thường: như diff-tree thường.
+        code, names = runner(["git", "diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", commit], repo)
         if code != 0:
             return CodeCheck(INSUFFICIENT_DATA, f"git diff-tree commit {commit[:SHORT_HASH]} lỗi (mã thoát {code}) nên chưa biết commit chạm file nào", commits)
         touched = [name.strip() for name in names.splitlines() if _inside(name.strip(), runtime_paths)]

@@ -56,7 +56,7 @@ Phiên bản package khai báo tập trung trong `Directory.Packages.props`.
 ```bash
 dotnet restore TADSS.slnx
 dotnet build TADSS.slnx -c Release --warnaserror        # bắt buộc 0 warning
-dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1874 unit + 240 integration (240: số của lần chạy trước; chưa chạy lại 12/10/2026 vì Docker tắt); integration cần Docker Desktop đang chạy
+dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1874 unit + 240 integration (240 đạt ở bước (a) của `quick-r2`, 15/10/2026); integration cần Docker Desktop đang chạy
 python tools/docs/check_docs.py                         # DOC-1…3 (kiểm kê, thuật ngữ đã gỡ, link nội bộ); DOC-4 là unit test .NET
 python -m pytest -q tools/evaluation                    # chạy riêng từng bộ: tools/evaluation, tools/evidence, tools/docs
 dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296/swagger (mọi /api/* cần X-Api-Key, xem mục Bảo mật)

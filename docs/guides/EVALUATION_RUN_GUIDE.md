@@ -46,17 +46,17 @@ docker compose logs -f evaluator
 
 Không muốn bật app/ngrok mà chỉ chạy đánh giá: `bash tools/evaluation/run.sh` (chỉ khởi động stack đánh giá; in `>> Mã thoát` và `>> Báo cáo` khi xong).
 
-**Thời lượng đo thật** (máy của tác giả, bản nhanh, lượt `EV-20261011-EVAL-quick-r1` chạy bằng `docker compose up -d --build`, đạt mọi tiêu chí):
+**Thời lượng đo thật** (máy của tác giả, bản nhanh, lượt `EV-20261015-EVAL-quick-r2` chạy bằng `docker compose up -d --build`, đạt mọi tiêu chí):
 
 | Bước | Việc | Thời lượng |
 | :--- | :--- | :--- |
-| (a) | 3 script verify + test gộp + pytest + OB-2 | ~9 phút (547 s) |
-| (b) | Tải k6 LT-01, LT-02 | ~7 phút (404 s) |
-| (c) | Sự cố dưới tải LT-03 + SCALE-2 | ~8,5 phút (510 s) |
-| (d) | Schemathesis + coverage | ~1 phút (53 s) |
-| (e) | Dữ liệu thực tế (PT 10.000 request; RP bỏ qua khi chưa có CSV) | ~1,5-2 phút (101 s; máy rảnh có thể ~40 s) |
-| (f) | Evidence Pack + báo cáo | ~1,5 phút (83 s) |
-| **Tổng** | | **~28 phút** (1.698 s; chưa tính lần đầu dựng image) |
+| (a) | 3 script verify + test gộp + pytest + OB-2 | ~11,5 phút (693 s) |
+| (b) | Tải k6 LT-01, LT-02 | ~7 phút (400 s) |
+| (c) | Sự cố dưới tải LT-03 + SCALE-2 | ~8,5 phút (511 s) |
+| (d) | Schemathesis + coverage | ~1 phút (48 s) |
+| (e) | Dữ liệu thực tế (PT 10.000 request; RP bỏ qua khi chưa có CSV) | ~1,5 phút (92 s, gồm shadow và xả hàng đợi từ 5.7b) |
+| (f) | Evidence Pack + báo cáo | ~1 phút (61 s) |
+| **Tổng** | | **~30 phút** (1.805 s; chưa tính lần đầu dựng image) |
 
 **Nhận biết bị treo.** Mở cửa sổ Git Bash thứ hai và chạy:
 
@@ -257,7 +257,7 @@ Kiểm riêng câu truy vấn trên database dùng một lần (không cần k�
 | :--- | :--- | :--- | :--- |
 | Build | `dotnet build TADSS.slnx -c Release -nologo -v q --warnaserror` | `0 Warning(s)`, `0 Error(s)` | ~15 s (lần đầu lâu hơn) |
 | Unit test | `dotnet test tests/TADSS.UnitTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 1874` | ~15 s |
-| Integration test (cần Docker) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 240` (số của lần chạy trước; chưa chạy lại 12/10/2026 vì Docker tắt) | ~2 phút |
+| Integration test (cần Docker) | `dotnet test tests/TADSS.IntegrationTests -c Release --no-build -nologo` | `Passed! - Failed: 0, Passed: 240` (đạt ở bước (a) của `quick-r2`, 15/10/2026) | ~2 phút |
 | Kiểm expose | `bash tools/expose/verify-expose.sh` | Bảng NG-1…SEC-6 toàn `PASS`, cuối `TẤT CẢ ĐẠT.` | ~1 phút (lần đầu tải image) |
 | Kiểm observability | `bash tools/observability/verify-observability.sh` | OB-2, OB-4 `PASS`, cuối `TẤT CẢ ĐẠT.` | ~2 phút (lần đầu tải otel-lgtm 3,7 GB) |
 | Kiểm truy vấn xuất | `bash tools/evidence/sql/verify-export.sh` | `ĐẠT: verify-export` | ~15 s |
@@ -275,7 +275,7 @@ python -m pytest -q tools/docs
 
 Chạy từng bộ riêng (không gộp một lệnh pytest). Bộ `tools/docs` và `check_docs.py` chỉ dùng thư viện chuẩn của Python (cần `pytest` đã cài ở bước `pip` trên).
 
-Thấy gì là đúng: `260 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `257 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
+Thấy gì là đúng: `261 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `258 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
 
 ## 10. Sự cố thường gặp
 
