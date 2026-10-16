@@ -28,8 +28,16 @@ internal sealed class IsolatedStrategyInvoker(TadssMetrics metrics, ILogger logg
         DecisionContext context,
         CancellationToken cancellationToken)
     {
-        // CancellationToken.None cho Task.Run: hủy do WaitAsync xử lý, không để task chưa kịp chạy bị hủy mà không ai quan sát
-        var task = Task.Run(() => strategy.EvaluateAsync(reservation, context, cancellationToken), CancellationToken.None);
+        // Phần đồng bộ của strategy chạy trên luồng riêng (LongRunning), không trên thread pool: strategy chặn luồng (không hợp tác) mà dùng luồng của pool
+        // thì trên máy ít CPU (pool sẵn có ~ số CPU) vài lượt bị bỏ rơi là đủ làm cạn pool, timer timeout và fallback phải chờ pool thêm luồng
+        // (~0,5 s/luồng) nên request vượt Outer timeout thành 504 thay vì fallback (FI-05 trượt khi DOTNET_PROCESSOR_COUNT=2).
+        // CancellationToken.None: hủy do WaitAsync xử lý, không để task chưa kịp chạy bị hủy mà không ai quan sát
+        var task = Task.Factory.StartNew(
+                () => strategy.EvaluateAsync(reservation, context, cancellationToken),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default)
+            .Unwrap();
         try
         {
             return await task.WaitAsync(cancellationToken).ConfigureAwait(false);
