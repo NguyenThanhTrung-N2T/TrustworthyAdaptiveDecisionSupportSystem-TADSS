@@ -21,9 +21,9 @@
 --   created_at                                               ISO 8601 UTC, micro giây (-> requestedAt)
 --   items                                                    JSON một dòng: các sân của booking, mỗi phần tử {court_id, court_type_id, date, start_time, end_time, price};
 --                                                            price = tổng booking_price_items.unit_price của sân đó.
---                                                            Booking CANCELLED | CANCELLED_PENDING_REFUND | CANCELLED_REFUNDED: xuất TẤT CẢ sân bất kể
---                                                            is_active, vì BE tắt is_active của mọi sân khi hủy nên replay cần request như lúc tạo đơn.
---                                                            Các trạng thái khác: chỉ sân ĐANG HOẠT ĐỘNG (booking_courts.is_active)
+--                                                            Booking không còn sân nào hoạt động (đã kết thúc: BE tắt is_active của MỌI sân khi hủy,
+--                                                            NO_SHOW, COMPLETED, PENDING_PAYMENT) hoặc đã hủy: xuất TẤT CẢ sân, vì replay cần request
+--                                                            như lúc tạo đơn. Booking còn sân hoạt động: chỉ sân ĐANG HOẠT ĐỘNG (sân giải phóng sớm bị bỏ)
 --   final_total                                              invoices.final_total (rỗng nếu không có hóa đơn)
 --   tier_rank                                                thứ hạng của hạng HIỆN TẠI theo loyalty_tiers.min_points tăng dần (1…n); rỗng nếu chưa có hạng
 --   member_since                                             users.created_at, ISO 8601 UTC (rỗng nếu vãng lai)
@@ -129,7 +129,9 @@ SELECT b.id AS booking_id,
            FROM booking_courts bc
            JOIN courts c ON c.id = bc.court_id
            WHERE bc.booking_id = b.id
-             AND (bc.is_active OR b.status IN ('CANCELLED', 'CANCELLED_PENDING_REFUND', 'CANCELLED_REFUNDED'))
+             AND (bc.is_active
+                  OR b.status IN ('CANCELLED', 'CANCELLED_PENDING_REFUND', 'CANCELLED_REFUNDED')
+                  OR NOT EXISTS (SELECT 1 FROM booking_courts active WHERE active.booking_id = b.id AND active.is_active))
        ), '[]'::jsonb)::text AS items,
        inv.final_total,
        CASE

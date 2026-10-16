@@ -6,7 +6,8 @@ Series vắng: trước khi gửi coi là 0; sau khi xả, `failed`/`dropped` v�
 Phạm vi lượt theo tập correlation_id của lượt (truy vấn của bước gọi). Phương trình khớp chỉ là đối soát TỔNG HỢP, không phải bằng chứng từng request đã được xử lý;
 bằng chứng theo request là trạng thái ghép cặp ở bước (f).
 
-Tên metric Prometheus và nhãn `instance` trong các hằng `*_QUERY` đã xác nhận trên lượt quick thật `EV-20261015-EVAL-quick-r2` (cô lập ở đây để chỉ sửa một chỗ).
+Tên metric Prometheus và nhãn `instance` trong các hằng `*_QUERY` đã xác nhận trên lượt quick thật `EV-20261015-EVAL-quick-r2`; truy vấn chỉ lấy series còn
+được xuất (`LIVE_SERIES_WINDOW`) để instance vừa bị tạo lại không mang số của tiến trình cũ vào ảnh chụp (cô lập ở đây để chỉ sửa một chỗ).
 """
 from __future__ import annotations
 
@@ -21,9 +22,12 @@ STALL_SECONDS = 30.0
 MAX_SECONDS = 600.0
 PREFILTER_MARGIN = timedelta(minutes=5)
 PT_INSTANCE = "tadss-pt"
-RECORDED_QUERY = f'sum(tadss_shadow_executions_total{{outcome="recorded",instance="{PT_INSTANCE}"}})'
-FAILED_QUERY = f'sum(tadss_shadow_executions_total{{outcome="failed",instance="{PT_INSTANCE}"}})'
-DROPPED_QUERY = f'sum(tadss_shadow_dropped_total{{instance="{PT_INSTANCE}"}})'
+# Chỉ tính series còn được xuất trong cửa sổ ngắn (3 × chu kỳ xuất metric 5 s của instance PT): truy vấn tức thời trần vẫn trả mẫu cuối của tiến trình
+# đã dừng trong 5 phút (lookback của Prometheus), nên instance vừa bị tạo lại trước lượt sẽ cho ảnh chụp "trước" là số của tiến trình cũ
+LIVE_SERIES_WINDOW = "15s"
+RECORDED_QUERY = f'sum(last_over_time(tadss_shadow_executions_total{{outcome="recorded",instance="{PT_INSTANCE}"}}[{LIVE_SERIES_WINDOW}]))'
+FAILED_QUERY = f'sum(last_over_time(tadss_shadow_executions_total{{outcome="failed",instance="{PT_INSTANCE}"}}[{LIVE_SERIES_WINDOW}]))'
+DROPPED_QUERY = f'sum(last_over_time(tadss_shadow_dropped_total{{instance="{PT_INSTANCE}"}}[{LIVE_SERIES_WINDOW}]))'
 
 
 def count_roles_sql() -> str:

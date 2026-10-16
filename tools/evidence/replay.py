@@ -4,11 +4,11 @@ Luồng: `load_bookings` (kiểm kiểu từng ô, lỗi kèm số dòng) -> `bu
 kiểm request theo schema) -> bước gửi -> `d4_rows` (dạng dài: mỗi booking hai dòng `STATIC_100` và `TADSS_V2`).
 
 Ánh xạ request theo INTEGRATION_SPEC §4.2: `branchTimeZone = Asia/Ho_Chi_Minh`, `currency = VND`, `channel = source`, `totalPrice = final_total`,
-mỗi sân hoạt động là một item, `tier` từ thứ hạng `min_points` (rank > 5 gộp `DIAMOND`, chưa có hạng là `STANDARD`), khách vãng lai không có `customerId`.
+mỗi sân trong cột `items` của CSV là một item (sân nào được xuất do export_smashcourt_bookings.sql quyết định), `tier` từ thứ hạng `min_points` (rank > 5 gộp `DIAMOND`, chưa có hạng là `STANDARD`), khách vãng lai không có `customerId`.
 `demand` bỏ trống (Q-12), `metadata` chỉ ghi nguồn `replay`. Mọi UUID trong request dựng từ mã băm HMAC của định danh gốc (16 byte đầu, đặt bit version/variant),
 nên cùng định danh trong một lượt cho cùng UUID và không UUID gốc nào rời khỏi tiến trình.
 
-Booking không có hóa đơn hoặc không còn sân hoạt động bị `reject_reason` loại trước khi gửi và được đếm theo lý do (`count_rejections`). Booking
+Booking không có hóa đơn hoặc có `items` rỗng bị `reject_reason` loại trước khi gửi và được đếm theo lý do (`count_rejections`). Booking
 có request không qua schema thì VẪN được giữ, `meta["request_errors"]` ghi lỗi để bước gửi tính là lỗi contract (Q-09), không bị loại âm thầm.
 """
 from __future__ import annotations

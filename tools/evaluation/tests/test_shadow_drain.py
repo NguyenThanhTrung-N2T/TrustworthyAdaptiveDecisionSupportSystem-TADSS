@@ -1,4 +1,6 @@
 """Xả hàng đợi shadow và đối soát tổng hợp PT-04 (spec 4.2): delta counter theo lượt, phát hiện reset, nhãn RECONCILED/UNKNOWN/FAILED, hết hạn có residual."""
+import pytest
+
 from evaluator import shadow_drain as sd
 
 
@@ -92,3 +94,11 @@ def test_counter_lag_with_stable_db_count_is_progress_not_stall() -> None:
     sequence = [(roles, sd.Counters(value, 0, 0)) for value in [1] * 10 + [2] * 10 + [3] * 10 + [4]]
     result = run(sequence, sd.Counters(0, 0, 0))
     assert result["label"] == sd.RECONCILED and result["seconds"] > sd.STALL_SECONDS
+
+
+@pytest.mark.parametrize("query", [sd.RECORDED_QUERY, sd.FAILED_QUERY, sd.DROPPED_QUERY])
+def test_counter_queries_only_see_series_still_exported(query: str) -> None:
+    # Instance PT bị tạo lại ngay trước lượt (run.sh --steps e,f): truy vấn tức thời vẫn thấy mẫu cuối của tiến trình CŨ (lookback 5 phút của Prometheus)
+    # làm ảnh chụp "trước" = số cũ, hiệu = 0 → FAILED oan (EV-20261016-EVAL-quick-r3/r4). Chỉ lấy series có mẫu trong cửa sổ ngắn = 3 chu kỳ xuất metric.
+    assert query.startswith("sum(last_over_time(") and f"[{sd.LIVE_SERIES_WINDOW}])" in query
+    assert sd.LIVE_SERIES_WINDOW == "15s", "3 × Tadss__Telemetry__MetricExportIntervalMs (5 s) của instance PT trong docker-compose.yml"

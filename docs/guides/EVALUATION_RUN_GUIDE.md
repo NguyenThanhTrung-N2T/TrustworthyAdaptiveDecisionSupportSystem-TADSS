@@ -275,7 +275,7 @@ python -m pytest -q tools/docs
 
 Chạy từng bộ riêng (không gộp một lệnh pytest). Bộ `tools/docs` và `check_docs.py` chỉ dùng thư viện chuẩn của Python (cần `pytest` đã cài ở bước `pip` trên).
 
-Thấy gì là đúng: `266 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `263 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
+Thấy gì là đúng: `269 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `266 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
 
 ## 10. Sự cố thường gặp
 
