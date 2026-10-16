@@ -42,8 +42,8 @@ SOURCE_URL = "https://raw.githubusercontent.com/rfordatascience/tidytuesday/d75a
 SOURCE_SHA256 = "7c2ae42a7353905ea136e5c2287f17c92c5435826598bfbb8491c6f0c7b1fc06"
 EXPECTED_ROW_COUNT = 119390  # số dòng dữ liệu, không tính tiêu đề
 EXPECTED_COLUMN_COUNT = 32
-LICENSE_LABEL = "CC BY 4.0 theo bài báo gốc; người dùng chưa xác nhận phân phối lại, nên KHÔNG commit dữ liệu gốc và Evidence Pack chỉ chứa D5 (cột đã chọn)"
-CITATION = "Antonio, N., de Almeida, A., Nunes, L. (2019). Hotel booking demand datasets. Data in Brief, 22, 41-49. DOI 10.1016/j.dib.2018.11.126 (bản TidyTuesday 2020-02-11)"
+LICENSE_LABEL = "CC BY 4.0 (bài báo gốc, truy cập mở; người dùng xác nhận 17/10/2026): được dùng và phân phối lại kèm ghi nguồn; không commit file gốc, Evidence Pack chỉ chứa D5 (cột đã chọn) và số liệu tổng hợp"
+CITATION = "Antonio, N., de Almeida, A., Nunes, L. (2019). Hotel booking demand datasets. Data in Brief, 22, 41-49. DOI 10.1016/j.dib.2018.11.126. Giấy phép CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Dùng bản TidyTuesday 2020-02-11 (hai khách sạn gộp một file); TADSS chỉ chọn cột và dựng request, không sửa giá trị"
 
 # --- Tham số miền của instance eval-tadss-portability (Task 1, S-2); chọn một lần từ phân bố dữ liệu, không chỉnh theo kết quả ---
 MAX_ITEM_MINUTES = 100800  # Tadss:Validation:MaxItemMinutes: 70 ngày, phủ lưu trú dài nhất của dataset (69 đêm = 99.240 phút)
