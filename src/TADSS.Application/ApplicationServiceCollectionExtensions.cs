@@ -46,6 +46,11 @@ public static class ApplicationServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<CalendarOptions>, CalendarOptionsValidator>();
 
+        services.AddOptions<WarmupOptions>()
+            .Bind(configuration.GetSection(WarmupOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<WarmupOptions>, WarmupOptionsValidator>();
+
         // Lịch cao điểm dùng chung cho router và mọi strategy (nguồn duy nhất của "giờ cao điểm")
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<CalendarOptions>>().Value.ToCalendar());
 
@@ -77,6 +82,9 @@ public static class ApplicationServiceCollectionExtensions
 
         // Đánh giá strategy (cache + pipeline): chỉ phụ thuộc pipeline, cache, đồng hồ và logger (đều singleton)
         services.AddSingleton<StrategyEvaluator>();
+
+        // Làm nóng đường xử lý lúc khởi động (StartupTasks): singleton, tự mở scope cho kho audit scoped; không ghi audit/cache
+        services.AddSingleton<DecisionPathWarmup>();
 
         // Điều phối đánh giá quyết định: scoped vì phụ thuộc kho audit scoped (strategy/evaluator vẫn singleton)
         services.AddScoped<IDecisionService, DecisionService>();

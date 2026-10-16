@@ -226,3 +226,43 @@ def test_write_profile_is_complete_and_atomic(tmp_path: Path) -> None:
     assert document == {"Tadss": {"Testing": {"FaultInjection": {"Profile": "None", "DelayMs": 2000}}}}
     assert list(path.parent.iterdir()) == [path], "không để file tạm"
     assert schedule_for("quick")[1].role == FAULT and FallbackStats(1, 2, 0).count == 1
+
+
+def _order_context(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / "tests" / "load" / "config").mkdir(parents=True)
+    env = {"EVAL_REPO": str(repo), "EVAL_EVIDENCE": str(tmp_path / "ev"), "EVAL_MODE": "quick", "EVAL_STEPS": "c", "EVAL_API_KEY": "k"}
+    return build_context(env, NOW)
+
+
+def test_run_measures_scale2_before_incident_faults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # SCALE-2 đo tính nhất quán giữa hai replica, không đo hồi phục: chạy trước LT-03 để instance 2 (dùng chung Toxiproxy) chưa dính sự cố
+    # nhắm vào instance 1 (EV-20261015-EVAL-full-r3: một 504 ở SCALE-2 ngay sau FI-08/FI-07)
+    from evaluator.steps import scale_step
+
+    order: list[str] = []
+    monkeypatch.setattr(scale_step, "run_scale2", lambda *args: order.append("scale2") or True)
+    monkeypatch.setattr(step, "run_incident", lambda *args: order.append("lt03") or True)
+
+    result = step.run(_order_context(tmp_path), services=object())
+
+    assert order == ["scale2", "lt03"]
+    assert result.status == "passed"
+
+
+@pytest.mark.parametrize(("scale", "incident", "expected", "ran"), [
+    (None, True, "error", ["scale2"]),
+    (True, None, "error", ["scale2", "lt03"]),
+    (False, True, "failed", ["scale2", "lt03"]),
+    (True, False, "failed", ["scale2", "lt03"]),
+])
+def test_run_status_combines_scale2_and_incident(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scale, incident, expected: str, ran: list[str]) -> None:
+    from evaluator.steps import scale_step
+
+    order: list[str] = []
+    monkeypatch.setattr(scale_step, "run_scale2", lambda *args: order.append("scale2") or scale)
+    monkeypatch.setattr(step, "run_incident", lambda *args: order.append("lt03") or incident)
+
+    result = step.run(_order_context(tmp_path), services=object())
+
+    assert (result.status, order) == (expected, ran), "lỗi hạ tầng ở SCALE-2 thì dừng bước như trước, không chạy lịch sự cố trên stack chưa rõ trạng thái"

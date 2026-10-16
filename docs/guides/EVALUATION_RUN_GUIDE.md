@@ -52,7 +52,7 @@ Không muốn bật app/ngrok mà chỉ chạy đánh giá: `bash tools/evaluati
 | :--- | :--- | :--- |
 | (a) | 3 script verify + test gộp + pytest + OB-2 | ~11,5 phút (693 s) |
 | (b) | Tải k6 LT-01, LT-02 | ~7 phút (400 s) |
-| (c) | Sự cố dưới tải LT-03 + SCALE-2 | ~8,5 phút (511 s) |
+| (c) | SCALE-2 + sự cố dưới tải LT-03 | ~8,5 phút (511 s) |
 | (d) | Schemathesis + coverage | ~1 phút (48 s) |
 | (e) | Dữ liệu thực tế (PT 10.000 request; RP bỏ qua khi chưa có CSV) | ~1,5 phút (92 s, gồm shadow và xả hàng đợi từ 5.7b) |
 | (f) | Evidence Pack + báo cáo | ~1 phút (61 s) |
@@ -118,7 +118,7 @@ Evaluator chạy tuần tự sáu bước; mỗi bước ghi dữ liệu thô v�
 | :--- | :--- | :--- | :--- |
 | (a) test | Build Release `--warnaserror`, chạy unit + integration test (unit chạy tuần tự), `verify-expose.sh`, `verify-observability.sh`, `verify-export.sh`, `python tools/docs/check_docs.py` (DOC-1…3), ba bộ pytest của `tools/` (`evaluation`, `evidence`, `docs`), kiểm dashboard Grafana. Mọi kiểm tra ở mục 9 đều nằm ở đây. | UT, IT, NG, SEC, OB-2, OB-4, DOC-1…DOC-4... | `tests/` (trx, `catalog-results.csv`, coverage, log từng kiểm tra: `verify-*.log`, `pytest-*.log`, `check-docs.log`) |
 | (b) tải | k6 LT-01 và LT-02 trên instance 1 (LT-05 chỉ ở bản đầy đủ). | LT-01, LT-02 (kịch bản và giao diện: mục con "Kịch bản tải k6" bên dưới) | `load/<kịch bản>/`, `load/windows.json` |
-| (c) sự cố | k6 50 RPS trong khi tiêm lỗi theo lịch (strategy chậm/lỗi, cắt PostgreSQL, Redis chậm), rồi SCALE-2 qua nginx với hai instance. | LT-03, FI-02/03/07/08, SCALE-2, OB-3 | `load/lt03/`, `chaos/chaos_log.csv`, `metrics/`, `scale/scale2-checks.json`, `grafana/dashboard-snapshot.json` |
+| (c) sự cố | SCALE-2 qua nginx với hai instance, rồi k6 50 RPS trong khi tiêm lỗi theo lịch (strategy chậm/lỗi, cắt PostgreSQL, Redis chậm). SCALE-2 chạy trước vì instance 2 dùng chung Toxiproxy nên cũng dính sự cố của LT-03. | LT-03, FI-02/03/07/08, SCALE-2, OB-3 | `load/lt03/`, `chaos/chaos_log.csv`, `metrics/`, `scale/scale2-checks.json`, `grafana/dashboard-snapshot.json` |
 | (d) hợp đồng | Schemathesis trên `openapi-v2.yaml` (25 ví dụ; 500 ở bản đầy đủ), gộp coverage; Stryker chỉ ở bản đầy đủ. | CT-03, MT-01…03 | `contract/`, `coverage/`, `mutation/` |
 | (e) dữ liệu thực tế | **RP**: gửi booking SmashCourt (CSV của bạn, mục 8) qua `eval-proxy`. **PT**: tải dataset khách sạn (ghim SHA-256), gửi 10.000 dòng (đầy đủ: ~118 nghìn) tới instance `eval-tadss-portability`. Kiểm từng response theo schema v2. | RP-01/02, PT-01/02 | `replay/`, `portability/` (`requests.jsonl`, `summary.json`, `source.json`) |
 | (f) Evidence Pack | Xuất audit D1 từ PostgreSQL, dựng D2/D4/D5, tính SC1…SC8, kiểm EV-1…EV-5, sinh `report.html` và `manifest.json`. | SC, EV | `d1/`, `d2/`, `d4/`, `d5/`, `analysis/`, ngoài `raw/`: `report.html`, `manifest.json`, `steps.json` |
@@ -275,7 +275,7 @@ python -m pytest -q tools/docs
 
 Chạy từng bộ riêng (không gộp một lệnh pytest). Bộ `tools/docs` và `check_docs.py` chỉ dùng thư viện chuẩn của Python (cần `pytest` đã cài ở bước `pip` trên).
 
-Thấy gì là đúng: `261 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `258 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
+Thấy gì là đúng: `266 passed` cho `tools/evaluation` (khoảng 25 s; khi Docker tắt thì `263 passed, 3 skipped` vì 3 test sinh payload cần k6 qua Docker), `355 passed` cho `tools/evidence` (khoảng 5 s) và `34 passed` cho `tools/docs` (dưới 1 s). Lần sau chỉ cần `source .venv/Scripts/activate` rồi chạy pytest. Ba script `verify-*` tự dọn container của chúng khi thoát.
 
 ## 10. Sự cố thường gặp
 

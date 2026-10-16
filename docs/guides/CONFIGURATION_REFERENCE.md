@@ -79,6 +79,17 @@ Lớp `ShadowOptions`, project `TADSS.Application`. Chạy thêm một strategy 
 | `Tadss:Shadow:SampleRate` | `double` | `1.0` | Tỷ lệ request được chạy shadow, trong [0, 1]: 1 luôn chạy, 0 không chạy. |
 | `Tadss:Shadow:QueueCapacity` | `int` | `256` | Sức chứa hàng đợi việc shadow, 1..10000. Đầy thì việc mới bị bỏ và tăng `tadss.shadow.dropped{reason="queue_full"}`. |
 
+### Tadss:Warmup
+
+Lớp `WarmupOptions`, project `TADSS.Application`. Làm nóng đường xử lý quyết định một lần lúc khởi động, sau migration và trước khi nhận request (`StartupTasks`): mở sẵn kết nối PostgreSQL bằng truy vấn idempotency chỉ đọc, đọc cache, chạy mọi strategy đã đăng ký qua pipeline và dựng bản ghi như request thật. **Không** ghi audit, không ghi cache, không gửi shadow, không đếm quyết định; chỉ `tadss.pipeline.duration` nhận vài mẫu lúc khởi động. Lỗi của một bước hay hết ngân sách chỉ ghi Warning, instance vẫn khởi động. Không có bước này, instance lạnh nhận tải dồn có thể chậm 5–56 s ở những request đầu (đo ở lượt `EV-20261015-EVAL-full-r3` và thí nghiệm 16/10/2026).
+
+| Khóa | Kiểu | Mặc định | Ý nghĩa / ràng buộc |
+| :--- | :--- | :--- | :--- |
+| `Tadss:Warmup:Enabled` | `bool` | `true` | Bật làm nóng. |
+| `Tadss:Warmup:DatabaseConnections` | `int` | `10` | Số kết nối PostgreSQL mở sẵn (mỗi kết nối một truy vấn chỉ đọc chạy song song), 0..100; 0 thì bỏ bước này. Kết nối rảnh quá thời gian sống của pool Npgsql vẫn bị đóng như bình thường. |
+| `Tadss:Warmup:Iterations` | `int` | `5` | Số vòng chạy thử đường xử lý, mỗi vòng chạy mọi strategy đã đăng ký một lần, 1..100. |
+| `Tadss:Warmup:TimeoutMs` | `int` | `15000` | Ngân sách thời gian cho cả lượt làm nóng (mili giây), 100..120000. Hết ngân sách thì dừng làm nóng và khởi động tiếp. |
+
 ### Tadss:ErrorHandling
 
 Lớp `ErrorHandlingOptions`, project `TADSS.Runtime.Api`.

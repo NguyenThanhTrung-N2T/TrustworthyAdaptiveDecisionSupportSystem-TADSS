@@ -99,7 +99,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | UT-08 | Map exception → HTTP/`code` | Lỗi server không thành 4xx | P5 |
 | UT-09 | Kiểm thử kiến trúc: dependency purity, public API baseline v2 | Đạt | P2, P5 |
 | UT-10 | Quy tắc approval window | Đổi `NEED_APPROVAL` → `APPROVED` 100% đúng điều kiện | P5 |
-| UT-11 | Điều phối `DecisionService` bằng test double (thứ tự idempotency → cache → pipeline → approval window → audit; fail-closed; lỗi cache chỉ là miss) | Đúng thứ tự gọi; lỗi ghi audit lan ra và không có response; idempotency trả lại bản cũ hoặc 409; không gọi strategy khi request sai | P5 |
+| UT-11 | Điều phối `DecisionService` bằng test double (thứ tự idempotency → cache → pipeline → approval window → audit; fail-closed; lỗi cache chỉ là miss); làm nóng lúc khởi động (`DecisionPathWarmup`) | Đúng thứ tự gọi; lỗi ghi audit lan ra và không có response; idempotency trả lại bản cũ hoặc 409; không gọi strategy khi request sai; làm nóng chạy mọi strategy nhưng không ghi audit/cache, lỗi hay hết ngân sách không chặn khởi động | P5 |
 | UT-12 | `DepositCalculator` (làm tròn theo tiền tệ, biên 0 và 1) | `amount = round(totalPrice × rate)` đúng đơn vị nhỏ nhất của từng tiền tệ, gồm biên rate 0 và 1 | P5 |
 | UT-13 | Cache v2: key (tên, phiên bản strategy, `optionsFingerprint`, `request_hash`), chính sách theo strategy, chỉ lưu `StrategyDecision`, lỗi cache bị cô lập (breaker Redis bằng test double thuộc gói 5.4) | Key đổi khi đổi tham số strategy hoặc lịch cao điểm; lỗi/payload hỏng chỉ là miss; `request_hash` và fingerprint tất định (INV-3) | P5 |
 | UT-14 | Kiến trúc và quy ước (gói 5.2d, Clean Architecture nhiều project): đồ thị tham chiếu SDK ← Application ← Infrastructure ← Runtime.Api đúng quy tắc; Application không tham chiếu assembly hạ tầng; controller/middleware không dùng kiểu Infrastructure (kể cả qua `global using`/`<Using>`); Application và Infrastructure không có `FrameworkReference`/Web SDK; namespace khớp project + thư mục; không còn kiểu/namespace "V2"; mỗi kiểu public một file; `Options` chỉ ở `Options/`, exception nghiệp vụ chỉ ở `Exceptions/`; port chỉ khai báo ở `Application/Abstractions`, EF Core chỉ trong `Persistence/`; bất biến tỷ lệ cọc 4 chữ số thập phân; mọi options có `SectionName` (tìm bằng reflection) có validator đăng ký cùng `ValidateOnStart` (không có ngoại lệ, kể cả `DatabaseOptions`); thứ tự middleware, gồm các middleware bảo mật (xác thực API key, giới hạn kích thước, rate limiter, security headers), qua hành vi quan sát được; trần 250 dòng mỗi file nguồn (trừ `Migrations/`) | Vi phạm quy ước làm test đỏ; thêm kiểu sai chỗ bị phát hiện ngay | P5 |
@@ -109,7 +109,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 
 | ID | Kịch bản | Tiêu chí đạt |
 | :--- | :--- | :--- |
-| IT-01 | Đánh giá hợp lệ | 200; đúng 1 bản ghi `decision_executions` có snapshot request; response hợp lệ theo schema |
+| IT-01 | Đánh giá hợp lệ; khởi động có làm nóng | 200; đúng 1 bản ghi `decision_executions` có snapshot request; response hợp lệ theo schema; làm nóng mở đủ kết nối và để lại 0 bản ghi |
 | IT-02 | Gửi lại cùng key + cùng payload | Trả kết quả cũ; vẫn 1 bản ghi; strategy không chạy lại |
 | IT-03 | Cùng key + payload khác | 409 `IDEMPOTENCY_KEY_REUSE` |
 | IT-04 | 50 request song song cùng key | Đúng 1 bản ghi; 50 response giống nhau (đi qua nhánh xử lý lỗi `23505`) |

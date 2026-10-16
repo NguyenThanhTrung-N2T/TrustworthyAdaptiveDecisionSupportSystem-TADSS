@@ -1,4 +1,4 @@
-"""Bước (c): sự cố dưới tải LT-03 (k6 50 RPS trên instance 1 + lỗi theo lịch cố định), chaos_log, annotation Grafana, snapshot JSON dashboard (OB-3), rồi SCALE-2."""
+"""Bước (c): SCALE-2, rồi sự cố dưới tải LT-03 (k6 50 RPS trên instance 1 + lỗi theo lịch cố định), chaos_log, annotation Grafana, snapshot JSON dashboard (OB-3)."""
 from __future__ import annotations
 
 import json
@@ -331,17 +331,21 @@ def run_incident(context: RunContext, services: Services, notes: list[str], arti
 
 
 def run(context: RunContext, services: Services | None = None) -> StepResult:
-    """Bước (c): LT-03 rồi SCALE-2 (SCALE-2 chỉ chạy khi LT-03 không gặp lỗi hạ tầng, và sau khi stack đã dọn sạch)."""
+    """Bước (c): SCALE-2 rồi LT-03 (LT-03 chỉ chạy khi SCALE-2 không gặp lỗi hạ tầng).
+
+    SCALE-2 đo tính nhất quán giữa hai replica, không đo hồi phục, nên chạy TRƯỚC lịch sự cố: instance 2 dùng chung Toxiproxy với instance 1
+    nên sự cố của LT-03 (FI-07, FI-08) cũng đánh vào nó dù nó không nhận tải; chạy sau đó thì SCALE-2 rơi vào lúc instance 2 vừa hồi phục.
+    """
     from evaluator.steps import scale_step  # noqa: PLC0415 - tránh vòng import: scale_step dùng lại Services
 
     started = utc_now()
     notes: list[str] = []
     artifacts: list[str] = []
     services = services or default_services(context)
-    incident = run_incident(context, services, notes, artifacts)
-    if incident is None:
-        return StepResult(STEP_NAME, ERROR, started, utc_now(), artifacts, notes)
     scale = scale_step.run_scale2(context, services, notes, artifacts)
     if scale is None:
+        return StepResult(STEP_NAME, ERROR, started, utc_now(), artifacts, notes)
+    incident = run_incident(context, services, notes, artifacts)
+    if incident is None:
         return StepResult(STEP_NAME, ERROR, started, utc_now(), artifacts, notes)
     return StepResult(STEP_NAME, PASSED if incident and scale else FAILED, started, utc_now(), artifacts, notes)

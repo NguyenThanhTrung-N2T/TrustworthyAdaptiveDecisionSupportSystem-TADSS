@@ -41,6 +41,12 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     internal IReadOnlyList<TestApiKeys.Client> ApiKeys { get; init; } = TestApiKeys.DefaultClients;
 
+    /// <summary>
+    /// Bật làm nóng lúc khởi động (<c>Tadss:Warmup</c>). Mặc định tắt: làm nóng chạy mọi strategy và truy vấn store, nên test đếm số lần gọi strategy
+    /// hay số truy vấn sẽ không còn tất định; chỉ test của chính bước làm nóng bật nó.
+    /// </summary>
+    public bool Warmup { get; init; }
+
     /// <summary>Mọi client (kể cả của factory dẫn xuất từ <c>WithWebHostBuilder</c>) mặc định gửi API key mặc định nên test cũ không phải sửa từng chỗ.</summary>
     protected override void ConfigureClient(HttpClient client)
     {
@@ -57,6 +63,7 @@ public class TadssWebApplicationFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection([new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", _connectionString)]);
             configuration.AddInMemoryCollection(TestApiKeys.ToConfiguration(ApiKeys));
+            configuration.AddInMemoryCollection([new KeyValuePair<string, string?>("Tadss:Warmup:Enabled", Warmup ? "true" : "false")]);
         });
         builder.ConfigureServices(services =>
         {

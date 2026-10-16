@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TADSS.Application.Decisions;
 using TADSS.Application.Options;
 using TADSS.Application.Routing;
 using TADSS.Application.Shadow;
@@ -19,7 +20,7 @@ public static class StartupTasks
     private const string LegacyActiveStrategyKey = "Tadss:Strategy:ActiveStrategyName";
 
     /// <summary>
-    /// Kiểm tra sớm registry, router strategy và shadow, cảnh báo khóa cấu hình cũ và (khi bật) tự áp migration.
+    /// Kiểm tra sớm registry, router strategy và shadow, cảnh báo khóa cấu hình cũ, (khi bật) tự áp migration rồi làm nóng đường xử lý quyết định.
     /// </summary>
     public static async Task RunAsync(WebApplication app)
     {
@@ -63,5 +64,9 @@ public static class StartupTasks
             using var migrationScope = app.Services.CreateScope();
             await migrationScope.ServiceProvider.GetRequiredService<TadssDbContext>().Database.MigrateAsync();
         }
+
+        // Làm nóng sau migration và trước khi nhận request: instance lạnh không bắt những request đầu tiên gánh chi phí khởi tạo (Tadss:Warmup);
+        // lỗi hay hết ngân sách chỉ là cảnh báo, không chặn khởi động
+        await app.Services.GetRequiredService<DecisionPathWarmup>().RunAsync(app.Lifetime.ApplicationStopping);
     }
 }
