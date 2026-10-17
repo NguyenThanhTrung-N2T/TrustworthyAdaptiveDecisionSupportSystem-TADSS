@@ -189,6 +189,7 @@ Lớp `DefaultStrategyOptions`, project `TADSS.Strategies.Default` (tất cả s
 | :--- | :--- | :--- | :--- |
 | `Tadss:Strategies:Default:HighValueThreshold` | `decimal` | `2000000` | Tổng tiền từ ngưỡng này trở lên cần Manager duyệt; không âm. |
 | `Tadss:Strategies:Default:NoShowReviewThreshold` | `int` | `2` | Số lần không đến từ ngưỡng này trở lên cần Manager duyệt; từ 1 trở lên. |
+| `Tadss:Strategies:Default:PaymentExpiryRejectThreshold` | `int` | `5` | Số lần hết hạn thanh toán (giữ chỗ nhưng không thanh toán) từ ngưỡng này trở lên, đồng thời nhiều hơn số lần hoàn tất, thì từ chối đơn (`REJECTED`, mã `REPEATED_PAYMENT_EXPIRY`); không âm, 0 là tắt quy tắc. Giá trị khởi điểm, chưa hiệu chỉnh theo dữ liệu thật. |
 | `Tadss:Strategies:Default:StandardDepositRate` | `decimal` | `0.5` | Tỷ lệ cọc cho khách vãng lai và hạng `STANDARD`; trong [0, 1], tối đa 4 chữ số thập phân. |
 | `Tadss:Strategies:Default:SilverDepositRate` | `decimal` | `0.4` | Tỷ lệ cọc hạng `SILVER`; trong [0, 1], tối đa 4 chữ số thập phân. |
 | `Tadss:Strategies:Default:GoldDepositRate` | `decimal` | `0.3` | Tỷ lệ cọc hạng `GOLD`; trong [0, 1], tối đa 4 chữ số thập phân. |

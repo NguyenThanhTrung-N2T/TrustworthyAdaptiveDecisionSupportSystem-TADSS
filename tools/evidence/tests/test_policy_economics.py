@@ -60,9 +60,9 @@ def test_need_approval_two_conventions_and_operational_table() -> None:
 
 
 def test_invalid_rows_are_excluded_with_reason_never_zero() -> None:
-    rows = [row(default=("", "")), row(price=""), row(status="Lost"), row(default=("REJECTED", "")), row(default=("APPROVED", "x")), row()]
+    rows = [row(default=("", "")), row(price=""), row(status="Lost"), row(default=("REJECTED", "")), row(default=("APPROVED", "x")), row(default=("MAYBE", "")), row()]
     result = pe.summarize(rows, POLICY, reconciliation=None, pairing_counts={}, violations={}, iterations=10)
-    assert result["counts"]["excluded"] == {"no_decision": 1, "invalid_price": 1, "invalid_reservation_status": 1, "unsupported_status": 1, "invalid_rate": 1}
+    assert result["counts"]["excluded"] == {"no_decision": 1, "invalid_price": 1, "invalid_reservation_status": 1, "rejected": 1, "unsupported_status": 1, "invalid_rate": 1}
     assert result["counts"]["compared"] == 1
 
 

@@ -1,7 +1,7 @@
 namespace TADSS.Strategies.Default;
 
 /// <summary>
-/// Tham số của <see cref="DefaultDecisionStrategy"/> 2.0.0 (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3),
+/// Tham số của <see cref="DefaultDecisionStrategy"/> 2.1.0 (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3),
 /// runtime bind từ <c>Tadss:Strategies:Default</c>. Giá trị mặc định là chính sách SmashCourt.
 /// </summary>
 public sealed class DefaultStrategyOptions
@@ -14,6 +14,12 @@ public sealed class DefaultStrategyOptions
 
     /// <summary>Số lần không đến từ ngưỡng này trở lên cần Manager duyệt (≥ 1).</summary>
     public int NoShowReviewThreshold { get; init; } = 2;
+
+    /// <summary>
+    /// Số lần hết hạn thanh toán (khách giữ chỗ nhưng không thanh toán) từ ngưỡng này trở lên, đồng thời nhiều hơn số lần hoàn tất, thì từ chối đơn.
+    /// 0 = tắt quy tắc; ≥ 1 = bật. Là số lần vi phạm đã ghi nhận, không phải xác suất khách sẽ vi phạm tiếp.
+    /// </summary>
+    public int PaymentExpiryRejectThreshold { get; init; } = 5;
 
     /// <summary>Tỷ lệ cọc cho khách vãng lai và hạng <c>STANDARD</c>.</summary>
     public decimal StandardDepositRate { get; init; } = 0.5m;
@@ -41,6 +47,11 @@ public sealed class DefaultStrategyOptions
         if (NoShowReviewThreshold < 1)
         {
             throw new ArgumentException("NoShowReviewThreshold phải ≥ 1.", nameof(NoShowReviewThreshold));
+        }
+
+        if (PaymentExpiryRejectThreshold < 0)
+        {
+            throw new ArgumentException("PaymentExpiryRejectThreshold phải ≥ 0 (0 = tắt).", nameof(PaymentExpiryRejectThreshold));
         }
 
         foreach (var (name, rate) in new[]

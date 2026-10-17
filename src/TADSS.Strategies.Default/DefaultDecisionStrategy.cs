@@ -8,11 +8,15 @@ using Shared.DecisionContractSDK.Interfaces;
 namespace TADSS.Strategies.Default;
 
 /// <summary>
-/// Strategy mặc định 2.0.0 — cọc theo hạng thành viên (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3).
+/// Strategy mặc định 2.1.0 — cọc theo hạng thành viên, duyệt đơn lớn hoặc khách hay không đến, từ chối khách lặp lại việc giữ chỗ mà không thanh toán
+/// (SOFTWARE_ARCHITECTURE_SPECIFICATION 4.3).
 /// Không đọc đồng hồ hệ thống, không I/O, stateless và thread-safe.
 /// </summary>
 public sealed class DefaultDecisionStrategy : IReservationDecisionStrategy
 {
+    /// <summary>Mã lý do của quyết định từ chối khách lặp lại việc giữ chỗ nhưng để hết hạn thanh toán (contract cho phép mã mới, INTEGRATION_SPEC Mục 6).</summary>
+    public const string RepeatedPaymentExpiryReasonCode = "REPEATED_PAYMENT_EXPIRY";
+
     private readonly DefaultStrategyOptions _options;
 
     /// <summary>Khởi tạo strategy với tham số đã kiểm tra.</summary>
@@ -33,7 +37,7 @@ public sealed class DefaultDecisionStrategy : IReservationDecisionStrategy
     public string StrategyName => nameof(DefaultDecisionStrategy);
 
     /// <inheritdoc />
-    public string StrategyVersion => "2.0.0";
+    public string StrategyVersion => "2.1.0";
 
     /// <inheritdoc />
     public StrategyCachePolicy CachePolicy { get; }
@@ -50,6 +54,18 @@ public sealed class DefaultDecisionStrategy : IReservationDecisionStrategy
 
     private StrategyDecision Decide(Reservation reservation)
     {
+        // Từ chối xét đầu tiên: đưa khách hay giữ chỗ vào hàng chờ duyệt chỉ kéo dài thời gian slot bị giữ mà không ai thanh toán
+        var history = reservation.Customer.History;
+        var paymentExpired = history?.PaymentExpiredCount ?? 0;
+        if (_options.PaymentExpiryRejectThreshold > 0
+            && paymentExpired >= _options.PaymentExpiryRejectThreshold
+            && paymentExpired > history!.CompletedCount)
+        {
+            return StrategyDecision.Reject(
+                RepeatedPaymentExpiryReasonCode,
+                [$"Khách có {paymentExpired} lần giữ chỗ hết hạn thanh toán và {history.CompletedCount} lần hoàn tất (ngưỡng {_options.PaymentExpiryRejectThreshold})."]);
+        }
+
         if (reservation.TotalPrice >= _options.HighValueThreshold)
         {
             return StrategyDecision.RequireApproval(

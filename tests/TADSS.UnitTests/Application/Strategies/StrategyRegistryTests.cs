@@ -38,7 +38,7 @@ public class StrategyRegistryTests
 
         var strategy = ContractSamples.Required(resolved);
         strategy.Strategy.StrategyName.Should().Be(expectedName);
-        strategy.Strategy.StrategyVersion.Should().Be("2.0.0");
+        strategy.Strategy.StrategyVersion.Should().Be(expectedName == "DefaultDecisionStrategy" ? "2.1.0" : "2.0.0");
         strategy.OptionsFingerprint.Should().MatchRegex("^[0-9a-f]{16}$");
     }
 

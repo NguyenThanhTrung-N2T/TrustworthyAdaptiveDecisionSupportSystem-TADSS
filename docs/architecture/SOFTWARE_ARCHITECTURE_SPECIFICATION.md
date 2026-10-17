@@ -186,16 +186,19 @@ Ghi audit là lời gọi đồng bộ qua `IDecisionEvaluationStore` (không qu
 
 ### 4.3. Strategy v2 (tham số mặc định, chỉnh qua cấu hình)
 
-**`DefaultDecisionStrategy` 2.0.0 — cọc theo hạng thành viên** (`Tadss:Strategies:Default`)
+**`DefaultDecisionStrategy` 2.1.0 — cọc theo hạng thành viên, từ chối khách lặp lại việc giữ chỗ không thanh toán** (`Tadss:Strategies:Default`)
 
 | Điều kiện (kiểm tra theo thứ tự) | Kết quả | `reasonCode` |
 | :--- | :--- | :--- |
+| `history.paymentExpiredCount ≥ PaymentExpiryRejectThreshold` (mặc định 5; 0 = tắt) **và** `paymentExpiredCount > history.completedCount` | `REJECTED` | `REPEATED_PAYMENT_EXPIRY` |
 | `totalPrice ≥ 2.000.000` | `NEED_APPROVAL` | `HIGH_VALUE_REVIEW` |
 | `history.noShowCount ≥ 2` | `NEED_APPROVAL` | `NO_SHOW_HISTORY_REVIEW` |
 | Khách vãng lai hoặc `STANDARD` | `APPROVED`, cọc 50% | `TIER_DEPOSIT` |
 | `SILVER` | `APPROVED`, cọc 40% | `TIER_DEPOSIT` |
 | `GOLD` | `APPROVED`, cọc 30% | `TIER_DEPOSIT` |
 | `PLATINUM`, `DIAMOND` | `APPROVED`, cọc 20% | `TIER_DEPOSIT` |
+
+Quy tắc `REJECTED` xét **đầu tiên** để khách hay giữ chỗ không bị đưa vào hàng chờ duyệt (kéo dài thời gian slot bị giữ mà không ai thanh toán). `paymentExpiredCount` là số lần booking của khách bị hệ thống hủy do hết hạn thanh toán (trọn đời, BE đếm); thiếu lịch sử thì coi là 0, tức không đủ bằng chứng thì không từ chối. Ngưỡng 5 là giá trị khởi điểm, **chưa hiệu chỉnh** theo dữ liệu thật; đây là số lần vi phạm đã ghi nhận, không phải xác suất khách vi phạm tiếp. Quyết định `REJECTED` là cuối cùng (override chỉ áp cho `NEED_APPROVAL`), lý do và phiên bản strategy được ghi trong audit. Mã `REPEATED_PAYMENT_EXPIRY` khai báo trong project strategy, không nằm trong `ReasonCodes` của SDK (contract cho phép thêm mã lý do trong `2.x.y`, INTEGRATION_SPEC Mục 6). Không dùng `noShowCount` để từ chối tự động: cọc cao đã xử lý được rủi ro bỏ sân, còn giữ chỗ không thanh toán thì cọc không bù được.
 
 **`MockAlternativeDecisionStrategy` 2.0.0 — cọc theo khung giờ** (`Tadss:Strategies:MockAlternative`)
 

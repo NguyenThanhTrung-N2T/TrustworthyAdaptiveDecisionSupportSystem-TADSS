@@ -100,7 +100,7 @@ public class DefaultDecisionStrategyTests
     public void Identity_NameAndVersion_MatchV2Contract()
     {
         Strategy.StrategyName.Should().Be("DefaultDecisionStrategy");
-        Strategy.StrategyVersion.Should().Be("2.0.0");
+        Strategy.StrategyVersion.Should().Be("2.1.0");
     }
 
     [Fact]

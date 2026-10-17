@@ -40,6 +40,7 @@ public static class StrategyRegistrations
         var fingerprint = new OptionsFingerprintBuilder();
         fingerprint.Add(nameof(options.HighValueThreshold), options.HighValueThreshold);
         fingerprint.Add(nameof(options.NoShowReviewThreshold), options.NoShowReviewThreshold);
+        fingerprint.Add(nameof(options.PaymentExpiryRejectThreshold), options.PaymentExpiryRejectThreshold);
         fingerprint.Add(nameof(options.StandardDepositRate), options.StandardDepositRate);
         fingerprint.Add(nameof(options.SilverDepositRate), options.SilverDepositRate);
         fingerprint.Add(nameof(options.GoldDepositRate), options.GoldDepositRate);

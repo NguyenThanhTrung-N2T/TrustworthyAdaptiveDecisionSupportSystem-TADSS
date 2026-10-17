@@ -1,11 +1,11 @@
-# ĐẶC TẢ TỪNG BƯỚC CÁC KỊCH BẢN KIỂM THỬ ĐẦU–CUỐI (E2E-01…E2E-13)
+# ĐẶC TẢ TỪNG BƯỚC CÁC KỊCH BẢN KIỂM THỬ ĐẦU–CUỐI (E2E-01…E2E-14)
 
 | | |
 | :--- | :--- |
 | **Trạng thái** | Bản đặc tả cho Phase 6–8, **chưa hiện thực**; SV2 review. Bản đầu do SV1 viết ngày 12/10/2026 theo yêu cầu người dùng (task T5.27, gói 5.7), bàn lại với SV2 sau Phase 5 |
 | **Sở hữu** | Đặc tả **từng bước** của mỗi kịch bản E2E: điều kiện trước, thao tác, quan sát kỳ vọng ở giao diện, API, DB và TADSS, minh chứng, tiêu chí đạt |
 | **Không sở hữu** | Mã kịch bản, tiêu chí tóm tắt và KPI: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.8 và Mục 5 (khi khác nhau, methodology đúng). Hợp đồng BE ↔ FE (route, DTO, mã lỗi, sự kiện SignalR, câu hỏi mở Q1–Q11): [`DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md). Hợp đồng BE ↔ TADSS: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Dựng và vận hành E-STAGING: [`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md#môi-trường-tích-hợp-e-staging) |
-| **Hiện thực** | Phase 6: bản chạy trên MSW (FE-02, T6.15, SV2). Phase 7: chuyển Playwright sang E-STAGING (T7.3) và smoke các luồng của Gate M7 (T7.1). Phase 8: chạy chính thức E2E-01…E2E-13 kèm video và trace (T8.4, SV2) |
+| **Hiện thực** | Phase 6: bản chạy trên MSW (FE-02, T6.15, SV2). Phase 7: chuyển Playwright sang E-STAGING (T7.3) và smoke các luồng của Gate M7 (T7.1). Phase 8: chạy chính thức E2E-01…E2E-14 kèm video và trace (T8.4, SV2) |
 
 Tài liệu này không chọn selector, tên file test hay câu SQL cụ thể; các chi tiết đó chốt khi hiện thực (Mục 8). Mọi giá trị trong ví dụ là giá trị mẫu.
 
@@ -68,6 +68,7 @@ Bí danh dưới đây dùng trong mọi kịch bản. Tài liệu không ghi m�
 | `MGR-B1` | `BRANCH_MANAGER` | `CN-B` (Manager chi nhánh khác) | E2E-08 |
 | `STAFF-A1` | `STAFF` | `CN-A` | E2E-08, 09, 10, 13 |
 | `CUS-STD` | `CUSTOMER` | — | Khách hạng thấp nhất (`STANDARD` sau ánh xạ), không có booking `NO_SHOW`: các ca `APPROVED` (E2E-01, 05, 06, 09) và người đặt lại slot ở E2E-03 |
+| `CUS-EXPIRY` | `CUSTOMER` | — | Khách có ít nhất `PaymentExpiryRejectThreshold` booking `PAYMENT_EXPIRED` (nhiều hơn số booking hoàn tất) trên nhánh `staging`: ca bị từ chối (E2E-14) |
 | `CUS-REVIEW` | `CUSTOMER` | — | Khách tạo các đơn chờ duyệt (E2E-02, 03, 04, 05, 07, 08, 10, 11, 12) theo điều kiện N ở Mục 3.3; ở E2E-05 còn đặt slot thỏa điều kiện N khi cờ tắt |
 
 Khách vãng lai không dùng trong E2E: theo đề xuất Q3, khách vãng lai chỉ nhận kết quả duyệt qua email; E2E-02 dùng khách đã đăng nhập. Mọi email và số điện thoại của tài khoản thử là địa chỉ/số do nhóm kiểm soát, vì BE gửi email thật khi duyệt, từ chối, hết hạn.
@@ -98,6 +99,8 @@ Số cọc kỳ vọng: `depositAmount = round(F × rate)`, VND không có chữ
   - N3 — hạ `Tadss:Strategies:Default:HighValueThreshold` của TADSS staging bằng biến môi trường (chỉ cấu hình, như cách PT cấu hình instance riêng), ghi giá trị vào cấu hình đã dùng của minh chứng.
 - Với điều kiện N, giờ bắt đầu phải đủ xa theo Mục 2.3, nếu không TADSS trả `APPROVED` cọc 100 % (`APPROVAL_WINDOW_UNAVAILABLE`).
 - Điều kiện N là thuộc tính của **cặp khách + slot**: N1 và N3 là thuộc tính của slot (F ≥ ngưỡng, khách nào đặt cũng cần duyệt), N2 là thuộc tính của khách `CUS-REVIEW` (slot nào cũng cần duyệt, khách khác đặt cùng slot thì `APPROVED`). Vì vậy mọi đơn chờ duyệt đều do `CUS-REVIEW` đặt trên slot thỏa cách đã chọn; bước nào cho khách khác đặt lại slot đó (E2E-03 bước 5) ghi kỳ vọng riêng cho từng cách.
+
+- **Điều kiện R (kỳ vọng `REJECTED`):** khách `CUS-EXPIRY` có `paymentExpiredCount ≥ PaymentExpiryRejectThreshold` (mặc định 5) và `paymentExpiredCount > completedCount`. Điều kiện R xét trước điều kiện N: khách này bị từ chối kể cả khi đặt slot giá trị lớn. Lịch sử `PAYMENT_EXPIRED` chỉ tạo được bằng SQL trên nhánh `staging` (Mục 3.4, điều 3) hoặc để các booking `PENDING` quá hạn thanh toán.
 
 ### 3.4. Dựng và dựng lại dữ liệu trên nhánh `staging`
 
@@ -473,6 +476,28 @@ Người thua có thể bị chặn ở bước kiểm DB của BE, ở TADSS (`
 
 ---
 
+### E2E-14 — Đặt sân bị từ chối theo chính sách
+
+**Mục tiêu:** khách lặp lại việc giữ chỗ rồi để hết hạn thanh toán bị từ chối ngay lúc đặt; không có gì để thanh toán, không giữ slot, không vào hàng chờ duyệt.
+
+**Lý do thêm vào danh mục:** nhánh `REJECTED` của luồng đặt sân (DEPOSIT_APPROVAL_API, Q1) chưa có kịch bản kiểm; strategy mặc định 2.1.0 là nơi đầu tiên sinh ra trạng thái này.
+
+**Điều kiện trước:** `CUS-EXPIRY` thỏa điều kiện R (Mục 3.3); `EnableTadssDecision = true`, TADSS `/health/ready` 200; một slot trống ở `CN-A`; `MGR-A1` mở hàng chờ.
+
+| # | Tác nhân → thao tác | Kỳ vọng |
+| :---: | :--- | :--- |
+| 1 | `CUS-EXPIRY` đặt slot | API: 400 `BOOKING_REJECTED`, `data = null`. UI: thông báo không nhận đơn, gợi ý chọn khung giờ khác hoặc liên hệ chi nhánh; không hiển thị lý do hay lịch sử của khách |
+| 2 | Kiểm TADSS | K-DEC với `status = REJECTED`, `reason_code = REPEATED_PAYMENT_EXPIRY`, `deposit_rate`/`deposit_amount`/`approval_expires_at` rỗng, `strategy_version = 2.1.0`; K-OVR(0) |
+| 3 | Kiểm DB | Booking `CANCELLED` (hủy trước khi trả lỗi), không có slot lock, không có Payment |
+| 4 | `MGR-A1` mở hàng chờ | Không có đơn của `CUS-EXPIRY`; không nhận `BookingPendingApproval` |
+| 5 | `CUS-STD` đặt đúng slot đó | 201 như bình thường (slot đã được nhả) |
+| 6 | Sau chu kỳ job outcome: K-OUT(`REJECTED`) | `decision_outcomes` có đúng một dòng `REJECTED` |
+| 7 | Kiểm K-SC6 | 0 vi phạm |
+
+**Minh chứng:** ảnh ở bước 1; kết quả K-DEC, K-OUT.
+
+**Tiêu chí đạt:** 400 `BOOKING_REJECTED`; K-DEC đúng; booking `CANCELLED` không Payment; slot đặt lại được; K-SC6 đạt.
+
 ## 6. Ma trận truy vết
 
 Endpoint TADSS là endpoint BE gọi (FE không bao giờ gọi TADSS). Use case theo `docs/use-cases/` của repo SmashCourt-BE.
@@ -491,6 +516,7 @@ Endpoint TADSS là endpoint BE gọi (FE không bao giờ gọi TADSS). Use case
 | E2E-10 | `GET /api/bookings/pending-approval` (tải lại khi có sự kiện, khi kết nối lại) | `BookingPendingApproval`, `PendingApprovalQueueChanged` | — | BE-IT-18 | FE-08, FE-10 | — |
 | E2E-11 | `POST /api/bookings/{bookingId}/approve` (503 rồi 200) | `BookingApprovalResolved`, `PendingApprovalQueueChanged` (chỉ sau lần thành công) | `.../override` (lỗi kết nối, rồi thành công) | BE-UT-04, BE-IT-14 | FE-06 | — |
 | E2E-12 | `POST /api/bookings/{bookingId}/approve` (hai tab) | `BookingApprovalResolved`, `PendingApprovalQueueChanged` (một lần) | `.../override` (đúng một lần) | BE-IT-13 | FE-05, FE-06 | — |
+| E2E-14 | `POST /api/bookings/online` (nhánh c: bị từ chối); `GET /api/bookings/pending-approval` | không có `BookingPendingApproval` | `POST /api/v2/decisions` (`REJECTED`); `.../outcome` | BE-IT-02, BE-IT-09 | FE-04 | UC-BOOKING-01 |
 | E2E-13 | `POST /api/bookings/walk-in`; `POST /api/bookings/{bookingId}/approve` | `BookingCreated` | không gọi | BE-UT-05, BE-UT-07, BE-IT-16 | FE-09 | UC-BOOKING-02 |
 
 KPI: mọi dòng liên quan SC6; E2E-05 thêm SC5 (minh họa, số đo ở FI-13). Bảng truy vết E2E ↔ endpoint ↔ sự kiện ở phía hợp đồng BE ↔ FE: DEPOSIT_APPROVAL_API Mục 8.

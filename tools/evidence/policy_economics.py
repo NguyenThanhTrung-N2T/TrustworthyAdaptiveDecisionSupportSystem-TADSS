@@ -39,11 +39,12 @@ NA_CONVENTIONS = (NA_MAIN, NA_LOWER)
 PROVISIONAL_DEFAULT_VARIANT = pm.REFUND_OF_PAID  # quy ước mô phỏng tạm thời (spec 4.3), KHÔNG phải chính sách tài chính đã xác nhận
 CHECK_OUT, CANCELED, NO_SHOW = hotel_adapter.RESERVATION_STATUSES
 EVENT_STATUSES = frozenset({CANCELED, NO_SHOW})
-EXCLUSION_REASONS = ("no_decision", "invalid_price", "invalid_reservation_status", "unsupported_status", "invalid_rate")
+EXCLUSION_REASONS = ("no_decision", "invalid_price", "invalid_reservation_status", "rejected", "unsupported_status", "invalid_rate")
 DIFF_KEYS = ("DEFAULT_MINUS_STATIC_100", "MOCKALT_MINUS_DEFAULT")
 INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
 NOT_APPLICABLE = "NOT_APPLICABLE"
 NEED_APPROVAL = "NEED_APPROVAL"
+REJECTED = "REJECTED"
 AGGREGATE_NOTE = "Chỉ số mô phỏng theo kịch bản trên dữ liệu proxy khách sạn; không phải kết quả tài chính; giả định hành vi khách không đổi theo mức cọc; không kết luận nhân quả."
 SC_LIMIT_NOTE = "Thời điểm hủy trong ngày và giờ đến không quan sát được; phân loại vào mốc hoàn tiền là bất định trong vùng đã nêu."
 BIAS_THRESHOLD_NOTE = "99 % là ngưỡng vận hành, không phải ngưỡng thống kê"
@@ -84,6 +85,8 @@ def _rate(status: str, text: str) -> tuple[float | None, str | None]:
     """(mức cọc hoặc None = NEED_APPROVAL, lý do loại)."""
     if status == NEED_APPROVAL:
         return None, None
+    if status == REJECTED:  # đơn bị từ chối không có cọc thu được: không phải cọc 0 % hay 100 %, nên không vào so sánh mà đếm riêng
+        return None, "rejected"
     if status != "APPROVED":
         return None, "unsupported_status"
     try:

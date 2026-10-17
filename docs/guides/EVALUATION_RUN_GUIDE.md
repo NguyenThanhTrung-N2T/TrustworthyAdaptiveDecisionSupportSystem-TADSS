@@ -97,7 +97,7 @@ Xem theo thứ tự: mục **1 Kết luận KPI** (SC1…SC8) > mục **2 Các b
 
 1. **Nhãn đối soát shadow** (`RECONCILED` / `UNKNOWN` / `FAILED`). `RECONCILED` là đạt; `UNKNOWN` là chưa kiểm được (thiếu Prometheus, counter reset, quá thời gian chờ: xem trường `reason`, thường chạy lại `--steps e,f` là đủ); `FAILED` là đỏ, báo lại. Đây là đối soát **tổng hợp** (DB + counter), không phải bằng chứng cho từng request; bằng chứng theo request là số ghép cặp ở bước 2.
 2. **Ghép cặp** (`PAIRED`, `PRIMARY_FALLBACK`, `SHADOW_FALLBACK`, `UNPAIRED`) và `violations` (phải rỗng). Tỷ lệ `PAIRED` ≥ 99 % là ngưỡng vận hành để chạy bản đầy đủ, không phải ngưỡng thống kê. Chỉ các đơn `PAIRED` (`counts.compared`) được dùng để so sánh hai strategy; số đơn bị loại được đếm riêng, không thành 0.
-3. **Hai biến thể hoàn tiền** (`REFUND_OF_PAID`, `REFUND_OF_TOTAL_CAPPED`) luôn đi cạnh nhau vì gốc tính hoàn tiền chưa chốt (Q-6); không biến thể nào là kết quả "chính". Rủi ro hoàn vượt của mã BE hiện tại (`AS_IS_BE`) là mục riêng, không dùng để xếp hạng.
+3. **Hai biến thể hoàn tiền** (`REFUND_OF_PAID`, `REFUND_OF_TOTAL_CAPPED`) luôn đi cạnh nhau. Q-6 đã chốt 18/10/2026: hoàn theo tiền đã thanh toán, nên `REFUND_OF_PAID` là chính sách; `REFUND_OF_TOTAL_CAPPED` là phân tích độ nhạy (báo cáo của evaluator vẫn ghi "tạm thời" tới khi sửa nhãn). Rủi ro hoàn vượt của mã BE hiện tại (`AS_IS_BE`) là mục riêng, không dùng để xếp hạng.
 4. **Hai cận của `S-SC`**: dataset chỉ có ngày hủy nên mỗi số được báo ở cận `low` (hủy lúc 00:00, hoàn nhiều) và `high` (hủy lúc 23:59, hoàn ít); thực tế nằm giữa hai cận. `NEED_APPROVAL` tính r = 1 làm số chính và r = 0 làm cận dưới. Câu kết luận xếp hạng (`ranking.statement`) chỉ nêu chính sách tốt hơn khi đúng ở mọi cận, biến thể, kịch bản và CI không chứa 0; còn lại là "không phân biệt được" hoặc "phụ thuộc giả định".
 
 Xem nhanh (thay `<run_id>`):
@@ -180,7 +180,7 @@ $env:EVAL_MODE="full"; docker compose up -d --build   # PowerShell
 bash tools/evaluation/run.sh full                     # hoặc: chỉ stack đánh giá, không bật app
 ```
 
-- Thời lượng **ước tính ≈ 2,8 giờ** + khoảng 8-18 phút cho bước (e) (PT ~118 nghìn request, 107-330 request/s tùy độ bận của máy). Chưa đo trọn vẹn.
+- Thời lượng **đo thật ≈ 3 giờ 25 phút** (lượt `EV-20261017-EVAL-full-r1`: a 9 phút, b 1 giờ 51 phút, c 18 phút, d 45 phút, e 13 phút, f 9 phút). Bước (e) gửi ~118 nghìn request PT, 107–330 request/s tùy độ bận của máy.
 - Chỉ chạy khi máy rảnh và đã tắt chế độ ngủ. Muốn dọn ngay sau khi xong: thêm `--clean` (`bash tools/evaluation/run.sh full --clean`).
 
 Trước khi chạy lượt đầy đủ chính thức, kiểm lần lượt:

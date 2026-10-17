@@ -17,7 +17,7 @@
 | Strategy không xác định được (giá trị lớn, rủi ro, chính sách yêu cầu duyệt) | Manager | `NEED_APPROVAL` → booking chờ duyệt; Manager **APPROVE kèm mức cọc** hoặc **REJECT** |
 | Strategy lỗi / timeout / circuit breaker mở (fallback của runtime) | TADSS | `APPROVED` với cọc **100%**, `executionType = FALLBACK`, `fallbackUsed = true`, `reasonCode` ∈ `FALLBACK_STRATEGY_TIMEOUT`, `FALLBACK_STRATEGY_EXCEPTION`, `FALLBACK_CIRCUIT_OPEN`. Không vào hàng chờ duyệt, không override được |
 | Cần duyệt nhưng không còn đủ thời gian duyệt trước giờ chơi (quy tắc *approval window*, Mục 1.1) | TADSS | `APPROVED` với cọc 100%, `reasonCode = APPROVAL_WINDOW_UNAVAILABLE` |
-| Strategy từ chối theo chính sách | TADSS | `REJECTED` → SmashCourt hủy booking |
+| Strategy từ chối theo chính sách (strategy mặc định: khách lặp lại việc giữ chỗ rồi để hết hạn thanh toán, `reasonCode = REPEATED_PAYMENT_EXPIRY`) | TADSS | `REJECTED` → SmashCourt hủy booking; quyết định cuối cùng, không override |
 | Feature flag tắt, hoặc TADSS không phản hồi / timeout / lỗi 5xx / lỗi xác thực | SmashCourt | Cọc **100%** (hành vi Đồ án 1), không chặn khách |
 | Hết hạn duyệt mà Manager chưa xử lý | SmashCourt (job) | Hủy booking, giải phóng sân. **Không bao giờ tự động duyệt** |
 
@@ -316,12 +316,13 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
     "EnableTadssDecision": true,
     "BaseUrl": "http://localhost:5296",
     "TimeoutMs": 800,
+    "ApprovedPaymentWindowMinutes": 30,
     "TierMapping": { "Đồng": "STANDARD", "Bạc": "SILVER", "Vàng": "GOLD", "Bạch Kim": "PLATINUM", "Kim Cương": "DIAMOND" }
   }
 }
 ```
 
-`ApiKey` đặt trong user-secrets/biến môi trường, không ghi vào `appsettings.json`. Tên hạng trong `TierMapping` là ví dụ; giá trị thật lấy theo bảng `loyalty_tiers`.
+`ApprovedPaymentWindowMinutes`: hạn thanh toán cọc sau khi Manager duyệt (không vượt giờ bắt đầu chơi; DEPOSIT_APPROVAL_API Q2). `ApiKey` đặt trong user-secrets/biến môi trường, không ghi vào `appsettings.json`. Tên hạng trong `TierMapping` là ví dụ; giá trị thật lấy theo bảng `loyalty_tiers`.
 
 **Cách SmashCourt-BE dùng contract:** BE **không** reference `Shared.DecisionContractSDK` (reference chéo repo từng làm vỡ CI độc lập và đã được gỡ ở commit `0b5d041` của SmashCourt-BE). BE tự định nghĩa DTO và `ITadssClient`/`TadssClient` trong `Integrations/Tadss/` theo mẫu `Integrations/AI/` hiện có; tính tương thích được bảo đảm bằng kiểm thử CT-04 (response mẫu kiểm tra theo JSON schema v2).
 
@@ -340,7 +341,7 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 ### 4.3. Xử lý kết quả
 
 - Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát. Quyết định fallback của runtime (`APPROVED` cọc 100%, `fallbackUsed = true`) là một quyết định `TADSS` hợp lệ: BE xử lý như mọi `APPROVED` (thanh toán `deposit.amount`), không cần nhánh riêng.
-- Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429 hoặc lỗi mạng → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
+- Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429, lỗi mạng, hoặc 400/409 bất thường (request do BE dựng sai: lỗi lập trình của BE, ghi log mức Error) → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
 - **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.
 

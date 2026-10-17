@@ -31,8 +31,8 @@ internal static class DomainTestData
     public static ReservationItem CreateItem(DateTimeOffset start, double hours = 2, decimal price = 240_000m) =>
         new(Guid.NewGuid(), Guid.NewGuid(), start, start.AddHours(hours), price);
 
-    public static CustomerHistory CreateHistory(int noShowCount = 0) =>
-        new(completedCount: 12, noShowCount: noShowCount, cancelledCount: 2, lateCancelledCount: 0, paymentExpiredCount: 0, lastCompletedAt: null);
+    public static CustomerHistory CreateHistory(int noShowCount = 0, int completedCount = 12, int paymentExpiredCount = 0) =>
+        new(completedCount: completedCount, noShowCount: noShowCount, cancelledCount: 2, lateCancelledCount: 0, paymentExpiredCount: paymentExpiredCount, lastCompletedAt: null);
 
     public static CustomerProfile CreateMember(CustomerTier tier = CustomerTier.GOLD, CustomerHistory? history = null) =>
         new(isGuest: false, customerId: Guid.NewGuid(), tier: tier,

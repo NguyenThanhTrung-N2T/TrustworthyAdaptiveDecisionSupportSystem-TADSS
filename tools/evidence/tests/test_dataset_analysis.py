@@ -320,5 +320,6 @@ def test_rejected_status_is_counted_separately(calendar) -> None:
     online = summary["scopes"]["ONLINE"]
     assert online["status_by_channel"]["ONLINE"] == {"APPROVED": 5, "NEED_APPROVAL": 1, "NO_RESULT": 1, "REJECTED": 1}
     runtime = online["policies"]["TADSS_V2"]
-    assert runtime["rejected"] == 1 and runtime["need_approval"] == 1 and runtime["no_decision"] == 2 and runtime["decided"] == 6
+    assert runtime["rejected"] == 1 and runtime["need_approval"] == 1 and runtime["no_decision"] == 1 and runtime["decided"] == 6
+    assert runtime["approved"] + runtime["need_approval"] + runtime["rejected"] + runtime["no_decision"] == runtime["bookings"]
     assert sum(online["status_by_channel"]["ONLINE"].values()) == online["bookings"]

@@ -136,7 +136,7 @@ public class StrategyRegistrationsTests
 
         defaultStrategy.Strategy.StrategyName.Should().Be("DefaultDecisionStrategy");
         mock.Strategy.StrategyName.Should().Be("MockAlternativeDecisionStrategy");
-        defaultStrategy.Strategy.StrategyVersion.Should().Be("2.0.0");
+        defaultStrategy.Strategy.StrategyVersion.Should().Be("2.1.0");
         mock.Strategy.StrategyVersion.Should().Be("2.0.0");
     }
 }

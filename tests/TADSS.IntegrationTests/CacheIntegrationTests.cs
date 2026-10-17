@@ -19,7 +19,7 @@ namespace TADSS.IntegrationTests;
 [Trait("Category", "Integration")]
 public class CacheIntegrationTests : DecisionApiTestBase
 {
-    private const string CacheKeyPrefix = "tadss:v2:DefaultDecisionStrategy:2.0.0:";
+    private const string CacheKeyPrefix = "tadss:v2:DefaultDecisionStrategy:2.1.0:";
     private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromMinutes(60);
 
     public CacheIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)

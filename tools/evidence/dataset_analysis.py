@@ -23,7 +23,7 @@ from evidence import hotel_adapter, replay, shadow_pairing
 
 APPROVED = "APPROVED"
 NEED_APPROVAL = replay.NEED_APPROVAL
-REJECTED = "REJECTED"  # hợp lệ theo contract nhưng strategy mặc định không sinh ra
+REJECTED = "REJECTED"  # strategy mặc định 2.1.0 sinh ra khi khách lặp lại việc giữ chỗ hết hạn thanh toán; không có cọc, không phải "chưa có quyết định"
 NO_RESULT = "NO_RESULT"
 PEAK = "PEAK"
 OFFPEAK = "OFFPEAK"
@@ -95,10 +95,11 @@ def _policy_stats(rows: list[dict[str, Any]], adjusted: bool = False) -> dict[st
     approved = [(row, rate, amount) for row, status, rate, amount in views if status == APPROVED]
     need = sum(1 for _, status, _, _ in views if status == NEED_APPROVAL)
     decided = len(approved) + need
+    rejected = sum(1 for _, status, _, _ in views if status == REJECTED)
     no_show = [(row, status, amount) for row, status, _, amount in views if row.get("dev_final_status") == NO_SHOW]
     return {
-        "bookings": len(rows), "decided": decided, "approved": len(approved), "need_approval": need, "rejected": sum(1 for _, status, _, _ in views if status == REJECTED),
-        "no_decision": len(rows) - decided,
+        "bookings": len(rows), "decided": decided, "approved": len(approved), "need_approval": need, "rejected": rejected,
+        "no_decision": len(rows) - decided - rejected,
         "mean_rate": _mean([rate for _, rate, _ in approved if rate is not None]),
         "mean_amount": _mean([amount for _, _, amount in approved if amount is not None]),
         "need_approval_rate": need / decided if decided else None,
