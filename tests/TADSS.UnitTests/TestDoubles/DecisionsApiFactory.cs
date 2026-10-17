@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using TADSS.Application.Decisions;
 using TADSS.Application.Governance;
+using TADSS.Application.Options;
 using TADSS.Application.Outcomes;
 using TADSS.UnitTests.TestData;
 
@@ -101,10 +102,11 @@ public sealed class DecisionsApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(HostEnvironment);
         // appsettings.json chỉ có chuỗi giữ chỗ (bị DatabaseOptionsValidator từ chối) và ApiKeys rỗng: cấp chuỗi test (không bao giờ mở kết nối)
-        // và API key giả qua cấu hình, như người vận hành cấp qua biến môi trường
+        // và API key giả qua cấu hình, như người vận hành cấp qua biến môi trường.
+        // Tắt làm nóng: nó mở kết nối tới chuỗi giả (lỗi, chờ retry) và chạy strategy ở mỗi lần khởi động host, làm chậm cả bộ test trên CI ít CPU
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
-            configuration.AddInMemoryCollection([TestConnectionStrings.Pair]);
+            configuration.AddInMemoryCollection([TestConnectionStrings.Pair, new($"{WarmupOptions.SectionName}:{nameof(WarmupOptions.Enabled)}", "false")]);
             configuration.AddInMemoryCollection(TestApiKeys.ToConfiguration(ApiKeys));
         });
         if (!UseDoubles)

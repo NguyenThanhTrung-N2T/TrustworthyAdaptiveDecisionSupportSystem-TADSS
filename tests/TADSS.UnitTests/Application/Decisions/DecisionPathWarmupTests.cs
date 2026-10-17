@@ -6,6 +6,7 @@ using Microsoft.Extensions.Time.Testing;
 using Shared.DecisionContractSDK.Common;
 using Shared.DecisionContractSDK.Decisions;
 using TADSS.Application.Abstractions.Persistence;
+using TADSS.Application.Abstractions.Resilience;
 using TADSS.Application.Decisions;
 using TADSS.Application.Options;
 using TADSS.Application.Strategies;
@@ -114,21 +115,35 @@ public class DecisionPathWarmupTests
     [Trait("CatalogId", "UT-11")]
     public async Task RunAsync_ExceedsTimeBudget_StopsWithWarning()
     {
-        // Đồng hồ giả: chỉ tua qua ngân sách sau khi pipeline đã thật sự treo, nên test không phụ thuộc tải của máy
+        // Đồng hồ giả: chỉ tua qua ngân sách sau khi pipeline đã thật sự treo. Cả chuỗi hủy phải hoàn tất NGAY trong Advance, trên luồng test,
+        // không chờ luồng nào khác: khi chạy cả bộ trên CI ít CPU, thread pool và các khe của xUnit bị test khác chiếm hàng chục giây nên
+        // giới hạn 30 s bị vượt dù logic đúng. Vì vậy pipeline treo là task chỉ hủy qua token (lambda async sẽ bắt SynchronizationContext của
+        // xUnit) và Advance chạy khi luồng không có SynchronizationContext (có context khác mặc định thì .NET không chạy tiếp continuation
+        // ConfigureAwait(false) của mã làm nóng ngay tại chỗ mà đẩy sang thread pool)
         var time = new FakeTimeProvider(Now);
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pipeline = new FakeStrategyPipeline(async (_, _, _, token) =>
+        var entered = new TaskCompletionSource();
+        var pipeline = new FakeStrategyPipeline((_, _, _, token) =>
         {
             entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, token);
-            throw new InvalidOperationException("không bao giờ tới");
+            var hung = new TaskCompletionSource<StrategyExecutionOutcome>();
+            token.Register(() => hung.TrySetCanceled(token));
+            return hung.Task;
         });
         var options = new WarmupOptions { DatabaseConnections = 1, Iterations = 1, TimeoutMs = WarmupOptionsValidator.MinTimeoutMs };
         var fixture = new Fixture(options, pipeline, time);
 
         var run = fixture.Warmup.RunAsync(CancellationToken.None);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        time.Advance(TimeSpan.FromMilliseconds(options.TimeoutMs));
+        var testContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            time.Advance(TimeSpan.FromMilliseconds(options.TimeoutMs));
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(testContext);
+        }
 
         (await run.WaitAsync(TimeSpan.FromSeconds(30))).Should().BeFalse();
         fixture.Logger.Entries.Should().Contain(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("ngân sách"));
