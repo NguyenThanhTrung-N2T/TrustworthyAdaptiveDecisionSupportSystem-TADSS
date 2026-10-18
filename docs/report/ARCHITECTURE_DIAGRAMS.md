@@ -6,12 +6,12 @@
 | **Phạm vi** | Mức hệ thống (ngữ cảnh, container), so sánh trước/sau, cấu trúc bên trong TADSS |
 | **Nguồn sự thật** | Contract và luồng tích hợp: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md). Cấu trúc project: [`SOFTWARE_ARCHITECTURE_SPECIFICATION.md`](../architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md). Pipeline chịu lỗi: [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md). Khi sơ đồ khác các tài liệu đó, tài liệu đó đúng |
 | **Bộ sơ đồ** | Tài liệu này (kiến trúc) · [`USE_CASES.md`](USE_CASES.md) (use case) · [`SEQUENCE_DIAGRAMS.md`](SEQUENCE_DIAGRAMS.md) (tuần tự) · [`ACTIVITY_AND_STATE_DIAGRAMS.md`](ACTIVITY_AND_STATE_DIAGRAMS.md) (hoạt động, trạng thái) |
-| **Cập nhật** | 17/10/2026 |
+| **Cập nhật** | 18/10/2026 (đồng bộ thiết kế Phase 6: quyết định P6, DEPOSIT_APPROVAL_API Mục 11) |
 
 **Quy ước trạng thái.** Mỗi sơ đồ ghi rõ một trong hai nhãn:
 
 - **Hiện trạng**: đã có trong mã (TADSS hoàn thành Phase 5; SmashCourt của Đồ án 1).
-- **Thiết kế Phase 6**: phần SmashCourt-BE/FE sẽ hiện thực ở Phase 6 (02/11 – 29/11/2026), theo [`DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md); chỗ còn phụ thuộc câu hỏi mở (Q1…Q11 của tài liệu đó) được ghi chú tại chỗ.
+- **Thiết kế Phase 6**: phần SmashCourt-BE/FE sẽ hiện thực ở Phase 6 (02/11 – 29/11/2026), theo [`DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (Q1…Q12 đã chốt ở Mục 9, các quyết định Phase 6 ở Mục 11 của tài liệu đó).
 
 ---
 
@@ -23,7 +23,7 @@ TADSS là một **hệ thống riêng**, không có giao diện người dùng v
 
 ```mermaid
 flowchart TB
-    customer(["👤 Khách hàng<br/>(đã đăng nhập / vãng lai)"])
+    customer(["👤 Khách hàng<br/>(đã đăng nhập)"])
     staff(["👤 Nhân viên chi nhánh"])
     manager(["👤 Quản lý chi nhánh"])
     owner(["👤 Chủ hệ thống"])
@@ -77,7 +77,7 @@ flowchart LR
         hangfire["<b>Hangfire</b><br/>Job nền trong BE<br/><i>+ job hết hạn duyệt, job báo outcome</i>"]
         hub["<b>SignalR hub</b><br/>/hubs/notifications"]
         ai["<b>SmashCourt-AI</b><br/>FastAPI + Gemini"]
-        scdb[("<b>PostgreSQL SmashCourt</b><br/>booking, hóa đơn, thanh toán<br/><i>+ PENDING_APPROVAL, cột cọc,<br/>tadss_decision_id</i>")]
+        scdb[("<b>PostgreSQL SmashCourt</b><br/>booking, hóa đơn, thanh toán<br/><i>+ PENDING_APPROVAL, cột cọc,<br/>tadss_decision_id, cancel_reason</i>")]
     end
 
     subgraph TD["TADSS"]
@@ -122,7 +122,7 @@ Chú thích màu: **cam** là container của SmashCourt **phải sửa** ở Ph
 | BE → FE (SignalR) | WebSocket | BE đẩy | Best-effort: FE luôn tải lại qua REST |
 | TADSS → PostgreSQL | EF Core | Ghi đồng bộ trước khi trả lời | Fail-closed: không ghi được audit thì không trả quyết định (503) |
 
-Hai database tách biệt về sở hữu: không có khóa ngoại giữa schema `tadss` và bảng của SmashCourt. Liên kết là **logic**: `tadss.decision_executions.reservation_id` = `bookings.id`, và BE lưu `tadss_decision_id` trên booking/hóa đơn.
+Hai database tách biệt về sở hữu: không có khóa ngoại giữa schema `tadss` và bảng của SmashCourt. Liên kết là **logic**: `tadss.decision_executions.reservation_id` = `bookings.id`, và BE lưu `tadss_decision_id` trên booking (mức cọc lưu trên hóa đơn).
 
 ## 3. So sánh trước và sau khi có TADSS
 
@@ -139,9 +139,10 @@ flowchart LR
 
     subgraph DA2["Đồ án 2: quyết định cọc theo từng đơn"]
         direction TB
-        b1["Khách đặt sân online"] --> b2["BE tạo booking PENDING<br/>giữ slot"]
+        b1["Khách đăng nhập, đặt sân online"] --> b2["BE tạo booking PENDING<br/>giữ slot tối đa 15 phút"]
         b2 --> b3{"Gọi TADSS"}
-        b3 -- "APPROVED<br/>(cọc theo hạng)" --> b4["VNPay thu <b>số tiền cọc</b>"]
+        b3 -- "APPROVED<br/>(cọc theo hạng)" --> b4["VNPay thu <b>số tiền cọc</b><br/>lỗi thẻ: thử lại trong 5 phút"]
+        b3 -- "APPROVED, cọc<br/>dưới 5.000 đ" --> b9["CONFIRMED<br/>thu tại quầy"]
         b3 -- "NEED_APPROVAL<br/>(đơn lớn, hay bỏ sân)" --> b5["PENDING_APPROVAL<br/>Manager duyệt mức cọc"]
         b5 -- "duyệt" --> b4
         b5 -- "từ chối / hết hạn" --> b7["CANCELLED<br/>nhả slot"]
@@ -163,16 +164,19 @@ flowchart LR
 
 | Phần của SmashCourt | Đồ án 1 | Đồ án 2 (Phase 6) |
 | :--- | :--- | :--- |
-| Số tiền khách trả online | Luôn 100 % `finalTotal` | `deposit.amount` do TADSS tính (theo hạng: 50 % / 40 % / 30 % / 20 %), hoặc mức Manager duyệt; 100 % khi có sự cố |
+| Ai được đặt online | Khách đăng nhập (FE từ 12/05/2026); BE vẫn nhận đặt ẩn danh qua API | Chỉ khách đăng nhập `CUSTOMER`; khách vãng lai đặt qua nhân viên |
+| Số tiền khách trả online | Luôn 100 % `finalTotal` | `deposit.amount` do TADSS tính (theo hạng: 50 % / 40 % / 30 % / 20 %), hoặc mức Manager duyệt; 100 % khi có sự cố; 0 (thu tại quầy) khi cọc dưới 5.000 đ |
+| Thời gian giữ slot chờ thanh toán | 10 phút, nhưng bấm "Thanh toán lại" gia hạn không giới hạn; thanh toán lỗi là hủy đơn | Tối đa 15 phút kể từ lúc đặt hoặc lúc duyệt; thanh toán lỗi còn 5 phút để thử lại hoặc tự hủy |
 | Trạng thái booking | `PENDING` → `PAID_ONLINE` → … | Thêm `PENDING_APPROVAL` (giữ slot tới hạn duyệt) |
 | Vai trò Manager | Không tham gia đặt sân | Duyệt mức cọc / từ chối đơn chờ duyệt, theo chi nhánh của mình |
-| Checkout tại quầy | Thu dịch vụ phát sinh | Thu thêm phần còn lại `finalTotal − depositAmount` |
+| Checkout tại quầy | Thu dịch vụ phát sinh | Thu `finalTotal − tổng đã thanh toán` (gồm phần tiền sân chưa cọc) |
+| Hủy và hoàn tiền | Hoàn `finalTotal × %`, giờ tính lệch 7 giờ | Hoàn trên số đã trả, đúng múi giờ; khách tự hủy được đơn chưa thanh toán; mọi lần hủy ghi lý do (`cancel_reason`) |
 | Job nền | Hủy `PENDING` quá hạn, no-show, … | Thêm: hủy đơn hết hạn duyệt (không bao giờ tự duyệt), báo kết quả booking về TADSS |
 | Thông báo realtime | Booking tạo/hủy/thanh toán | Thêm: đơn chờ duyệt, kết quả duyệt, hàng chờ thay đổi |
 | Dữ liệu | Không lưu lý do chính sách | Mỗi quyết định có audit bất biến ở TADSS (strategy, lý do, thời gian xử lý, fallback, ghi đè, kết quả thật) |
 | Khi thành phần quyết định hỏng | Không áp dụng | Tự quay về cọc 100 %; khách không thấy lỗi |
 
-Chính sách cụ thể của strategy mặc định (`DefaultDecisionStrategy` 2.0.0, tham số mặc định):
+Chính sách cụ thể của strategy mặc định (`DefaultDecisionStrategy` 2.1.0, tham số mặc định):
 
 | Điều kiện (xét theo thứ tự) | Kết quả | `reasonCode` |
 | :--- | :--- | :--- |

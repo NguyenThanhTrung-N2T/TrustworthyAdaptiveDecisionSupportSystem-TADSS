@@ -107,15 +107,15 @@ Cột *Test case* liệt kê mọi mã mà cột *Task* của methodology Mục 
 
 | Mã | Task | Tuần | Test case |
 |:---|:---|:---:|:---|
-| T6.1 | DB SmashCourt: giá trị `PENDING_APPROVAL` cho `booking_status`; trường cọc và `decision_id` trên hóa đơn/booking | W09 | BE-UT-06, BE-IT-01 |
+| T6.1 | DB SmashCourt: giá trị `PENDING_APPROVAL` cho `booking_status`; trường cọc và `decision_id` trên hóa đơn/booking | W09 | BE-UT-06, BE-UT-11, BE-IT-01 |
 | T6.2 | `TadssClient` (HttpClient, timeout, idempotency key, correlation id, API key) + options `TadssConfig` qua `IOptionsMonitor` | W09 | BE-UT-01, BE-IT-19, CT-04 |
-| T6.3 | Ánh xạ booking SmashCourt → request v2 (nhiều sân, khách vãng lai, hạng thành viên, lịch sử khách) | W09 | BE-UT-02 |
-| T6.4 | Luồng đặt sân online theo cọc: APPROVED → VNPay theo số tiền cọc; NEED_APPROVAL → `PENDING_APPROVAL` + giữ slot; tắt flag/TADSS lỗi → 100% | W10 | BE-UT-07, BE-IT-02…BE-IT-04, BE-IT-16, BE-IT-17, BE-IT-19 |
+| T6.3 | Ánh xạ booking SmashCourt → request v2 (nhiều sân, hạng thành viên, lịch sử khách theo lý do hủy; đặt online bắt buộc đăng nhập nên không có khách vãng lai) | W09 | BE-UT-02, BE-UT-09 |
+| T6.4 | Luồng đặt sân online theo cọc: APPROVED → VNPay theo số tiền cọc; NEED_APPROVAL → `PENDING_APPROVAL` + giữ slot; tắt flag/TADSS lỗi → 100% | W10 | BE-UT-07, BE-IT-02…BE-IT-04, BE-IT-16, BE-IT-17, BE-IT-19, BE-IT-24 |
 | T6.5 | Endpoint cho Manager: hàng chờ theo chi nhánh, chi tiết quyết định, duyệt (kèm mức cọc) / từ chối — proxy sang TADSS với `X-Actor-Id` lấy từ JWT | W10 | BE-UT-03…BE-UT-05, BE-UT-07, BE-IT-05, BE-IT-06, BE-IT-11…BE-IT-15 |
-| T6.6 | Sau duyệt: tạo link thanh toán cọc, thông báo khách (SignalR/email) | W10–W11 | BE-IT-07, BE-IT-18 |
+| T6.6 | Sau duyệt: đặt hạn thanh toán 15 phút, thông báo khách (SignalR/email dẫn tới lịch sử; link VNPay sinh khi khách bấm thanh toán); thanh toán lại có hạn giữ chỗ tuyệt đối; IPN thất bại không hủy đơn; tiền về sau khi hủy ⇒ hoàn 100 % | W10–W11 | BE-UT-08, BE-IT-07, BE-IT-18, BE-IT-21, BE-IT-22 |
 | T6.7 | Job hết hạn duyệt: hủy booking, giải phóng sân, báo outcome `APPROVAL_EXPIRED` (không tự duyệt) | W11 | BE-IT-08, BE-IT-15 |
-| T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…) | W11 | BE-IT-09 |
-| T6.9 | Thu phần còn lại khi checkout; hoàn cọc theo chính sách hủy hiện có | W11 | BE-IT-10 |
+| T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…) | W11 | BE-UT-09, BE-IT-09 |
+| T6.9 | Thu phần còn lại khi checkout; hoàn trên số đã trả theo chính sách hủy (sửa lệch múi giờ); hủy đơn chưa thanh toán; lý do hủy cho mọi đường hủy | W11 | BE-UT-10, BE-IT-10, BE-IT-23 |
 | T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2 | W12 | BE-IT-20, Gate M6 |
 
 ### Epic 6B — smashcourt-fe (SV2)
@@ -123,7 +123,7 @@ Cột *Test case* liệt kê mọi mã mà cột *Task* của methodology Mục 
 | Mã | Task | Tuần | Test case |
 |:---|:---|:---:|:---|
 | T6.11 | Thiết kế UI/UX: hiển thị cọc, trạng thái chờ duyệt, dashboard duyệt, chi tiết quyết định | W09 | — |
-| T6.12 | Màn hình khách: tóm tắt cọc trước thanh toán, thanh toán cọc, trang chờ duyệt, thông báo kết quả | W10 | FE-04, FE-08, FE-09; E2E-01…E2E-06, E2E-11 |
+| T6.12 | Màn hình khách: tóm tắt cọc trước thanh toán, thanh toán cọc, trang chờ duyệt, thông báo kết quả | W10 | FE-04, FE-08, FE-09, FE-11; E2E-01…E2E-06, E2E-11 |
 | T6.13 | Dashboard Manager: hàng chờ theo chi nhánh, duyệt kèm mức cọc + lý do, từ chối, xử lý xung đột, realtime | W11 | FE-05…FE-10; E2E-02, E2E-03, E2E-07, E2E-08, E2E-10…E2E-12 |
 | T6.14 | Thu phần còn lại tại quầy (màn hình staff) | W11 | FE-09; E2E-09, E2E-13 |
 | T6.15 | Playwright trên mock API; build + lint | W12 | FE-01…FE-03, Gate M6 |

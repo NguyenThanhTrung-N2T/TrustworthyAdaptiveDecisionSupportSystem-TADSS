@@ -316,13 +316,13 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
     "EnableTadssDecision": true,
     "BaseUrl": "http://localhost:5296",
     "TimeoutMs": 800,
-    "ApprovedPaymentWindowMinutes": 30,
-    "TierMapping": { "Đồng": "STANDARD", "Bạc": "SILVER", "Vàng": "GOLD", "Bạch Kim": "PLATINUM", "Kim Cương": "DIAMOND" }
+    "ApprovedPaymentWindowMinutes": 15,
+    "BranchTimeZone": "Asia/Ho_Chi_Minh"
   }
 }
 ```
 
-`ApprovedPaymentWindowMinutes`: hạn thanh toán cọc sau khi Manager duyệt (không vượt giờ bắt đầu chơi; DEPOSIT_APPROVAL_API Q2). `ApiKey` đặt trong user-secrets/biến môi trường, không ghi vào `appsettings.json`. Tên hạng trong `TierMapping` là ví dụ; giá trị thật lấy theo bảng `loyalty_tiers`.
+`ApprovedPaymentWindowMinutes`: hạn thanh toán cọc sau khi Manager duyệt, 15 phút (không vượt giờ bắt đầu chơi; DEPOSIT_APPROVAL_API Q2, sửa 18/10/2026 từ 30). `ApiKey` đặt trong user-secrets/biến môi trường, không ghi vào `appsettings.json`. Không có bảng ánh xạ tên hạng: hạng ánh xạ theo thứ hạng `MinPoints` (Mục 4.2). Các tham số giữ chỗ và mức thanh toán online tối thiểu là cấu hình riêng của BE (`BookingPayment`, DEPOSIT_APPROVAL_API Mục 11), không thuộc hợp đồng này.
 
 **Cách SmashCourt-BE dùng contract:** BE **không** reference `Shared.DecisionContractSDK` (reference chéo repo từng làm vỡ CI độc lập và đã được gỡ ở commit `0b5d041` của SmashCourt-BE). BE tự định nghĩa DTO và `ITadssClient`/`TadssClient` trong `Integrations/Tadss/` theo mẫu `Integrations/AI/` hiện có; tính tương thích được bảo đảm bằng kiểm thử CT-04 (response mẫu kiểm tra theo JSON schema v2).
 
@@ -333,8 +333,8 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 - `totalPrice` = `finalTotal` của hóa đơn (phí sân − giảm theo hạng − khuyến mãi); mức cọc tính trên số này.
 - `branchTimeZone`: bảng `branches` không có múi giờ, BE gửi hằng số cấu hình `Asia/Ho_Chi_Minh`.
 - `tier`: ánh xạ `loyalty_tiers` theo **thứ hạng `MinPoints` tăng dần** → `STANDARD`, `SILVER`, `GOLD`, `PLATINUM`, `DIAMOND` (hạng vượt quá 5 gộp vào `DIAMOND`), không phụ thuộc tên hạng do Owner đặt. Khách chưa có hạng → `STANDARD`.
-- Khách vãng lai → `isGuest = true`, `customerId = null`, `tier = STANDARD`, `memberSince = null`.
-- `history` tính từ các booking đã kết thúc của khách; với khách vãng lai, ghép theo số điện thoại đã chuẩn hóa (chỉ gửi số đếm, không gửi số điện thoại).
+- Khách vãng lai → `isGuest = true`, `customerId = null`, `tier = STANDARD`, `memberSince = null`. *SmashCourt từ Phase 6 chỉ nhận đặt online khi khách đã đăng nhập (DEPOSIT_APPROVAL_API P6-01), nên BE luôn gửi `isGuest = false`; contract vẫn hỗ trợ khách vãng lai cho client khác (PT dùng nhánh này).*
+- `history` tính từ các booking đã kết thúc trước booking đang xét của cùng khách; với khách vãng lai, ghép theo số điện thoại đã chuẩn hóa (chỉ gửi số đếm, không gửi số điện thoại). `paymentExpiredCount` **chỉ** đếm booking bị hủy vì hết hạn thanh toán (lý do hủy `PAYMENT_EXPIRED` của SmashCourt, kể cả hết hạn sau khi đã được duyệt); **không** tính hết hạn duyệt, bị Manager hoặc TADSS từ chối, nhân viên hủy hay booking BE tự dọn do lỗi. Khách tự hủy đơn chưa thanh toán tính vào `cancelledCount`. Thanh toán thất bại rồi thanh toán lại thành công không tính.
 - `demand` tính tại thời điểm tạo booking (Mục 3.3).
 - `X-Idempotency-Key = bookingId`, nên đánh giá lại cùng booking (khi client retry) không sinh quyết định mới.
 

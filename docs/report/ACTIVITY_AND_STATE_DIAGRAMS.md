@@ -6,7 +6,7 @@
 | **Trạng thái** | Mục 1, 2, 4: **thiết kế Phase 6**. Mục 3, 5: **hiện trạng** (TADSS) |
 | **Nguồn sự thật** | [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md), [`DEPOSIT_APPROVAL_API.md`](../../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md), [`RESILIENCE_AND_FAULT_TAXONOMY.md`](../architecture/RESILIENCE_AND_FAULT_TAXONOMY.md), [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md). Khi khác nhau, các tài liệu đó đúng |
 | **Bộ sơ đồ** | [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md) · [`USE_CASES.md`](USE_CASES.md) · [`SEQUENCE_DIAGRAMS.md`](SEQUENCE_DIAGRAMS.md) · tài liệu này |
-| **Cập nhật** | 17/10/2026 |
+| **Cập nhật** | 18/10/2026 (đồng bộ thiết kế Phase 6: quyết định P6, DEPOSIT_APPROVAL_API Mục 11) |
 
 ---
 
@@ -20,8 +20,12 @@ flowchart TB
         k1([Bắt đầu]) --> k2[Chọn sân, khung giờ,<br/>khuyến mãi]
         k2 --> k3[Xác nhận đặt sân]
         k7[Xem trang 'Chờ duyệt cọc']
+        k6[Xem tóm tắt cọc,<br/>bấm 'Thanh toán cọc']
         k8[Thanh toán cọc trên VNPay]
+        k10{Thanh toán<br/>thành công?}
+        k11{Thử lại trong<br/>ân hạn 5 phút?}
         k9[Nhận thông báo<br/>đơn bị hủy]
+        k12([Kết thúc: thanh toán<br/>tại quầy khi đến chơi])
     end
 
     subgraph L2["SmashCourt-BE"]
@@ -31,11 +35,13 @@ flowchart TB
         b4{TADSS phản hồi<br/>trong 800 ms?}
         b5{Kết quả?}
         b6[Lưu mức cọc,<br/>tạo link VNPay = tiền cọc]
+        b14{Tiền cọc ≥ mức<br/>tối thiểu 5.000 đ?}
+        b15[CONFIRMED,<br/>không qua VNPay]
         b7[Cọc 100 %,<br/>tạo link VNPay = tổng tiền]
         b8[PENDING_APPROVAL,<br/>giữ slot tới hạn duyệt,<br/>báo chi nhánh]
         b9[Hủy booking, nhả slot]
         b10{Quản lý xử lý<br/>trước hạn?}
-        b11[Áp mức cọc của Quản lý,<br/>tạo link VNPay]
+        b11[Áp mức cọc của Quản lý,<br/>hạn thanh toán 15 phút]
         b12[Ghi nhận thanh toán<br/>PAID_ONLINE]
         b13([Kết thúc: đã cọc,<br/>chờ ngày chơi])
     end
@@ -59,24 +65,31 @@ flowchart TB
     k3 --> b1 --> b2
     b2 -- "tắt" --> b7
     b2 -- "bật" --> b3 --> t1 --> t2 --> b4
-    b4 -- "không: timeout,<br/>lỗi, 5xx, 401, 429" --> b7
+    b4 -- "không: timeout, lỗi mạng,<br/>5xx, 401, 413, 429,<br/>400/409 bất thường" --> b7
     b4 -- "có" --> b5
-    b5 -- "APPROVED" --> b6
+    b5 -- "APPROVED" --> b14
+    b14 -- "có" --> b6
+    b14 -- "không" --> b15 --> k12
     b5 -- "NEED_APPROVAL" --> b8
     b5 -- "REJECTED" --> b9
     b8 --> k7
     b8 --> m1 --> m2
     m2 -- "duyệt" --> m3 --> b10
     m2 -- "từ chối" --> m4 --> b10
-    b10 -- "duyệt kịp" --> b11 --> k8
+    b10 -- "duyệt kịp, cọc > 0" --> b11 --> k6
+    b10 -- "duyệt cọc 0 %" --> b15
     b10 -- "từ chối, hoặc<br/>hết hạn (job hủy)" --> b9
-    b6 --> k8
-    b7 --> k8
-    k8 --> v1 --> b12 --> b13
+    b6 --> k6
+    b7 --> k6
+    k6 --> k8 --> v1 --> k10
+    k10 -- "có" --> b12 --> b13
+    k10 -- "không" --> k11
+    k11 -- "thanh toán lại" --> k6
+    k11 -- "hủy đơn, hoặc<br/>hết ân hạn (job hủy)" --> b9
     b9 --> k9
 ```
 
-Ghi chú: nhánh "hết hạn" do job chạy mỗi phút thực hiện, **không bao giờ tự duyệt** (UC-DEPOSIT-09). Thanh toán không kịp trước hạn thanh toán thì job hiện có của Đồ án 1 hủy booking (không vẽ để sơ đồ gọn).
+Ghi chú: nhánh "hết hạn" do job chạy mỗi phút thực hiện, **không bao giờ tự duyệt** (UC-DEPOSIT-09). Thanh toán không kịp trước hạn thì job hủy booking với lý do `PAYMENT_EXPIRED`. Thanh toán thất bại không hủy ngay: khách có tối đa 5 phút để thanh toán lại hoặc tự hủy; mọi lần thanh toán lại không kéo dài quá hạn giữ chỗ tuyệt đối (15 phút từ lúc đặt hoặc lúc duyệt).
 
 ## 2. Quy trình Quản lý duyệt mức cọc
 
@@ -91,17 +104,21 @@ flowchart TB
     d2 -- "không" --> e2([403: không có quyền])
     d2 -- "có" --> d3{Theo DB SmashCourt:<br/>còn PENDING_APPROVAL<br/>và còn hạn?}
     d3 -- "không" --> e3([409: đã xử lý / đã hết hạn /<br/>không còn chờ duyệt])
-    d3 -- "có" --> a2[Gửi ghi đè APPROVE tới TADSS<br/>người duyệt lấy từ phiên đăng nhập]
+    d3 -- "có" --> d7{Số tiền cọc = 0<br/>hoặc ≥ 5.000 đ?}
+    d7 -- "không" --> e1
+    d7 -- "có" --> a2[Gửi ghi đè APPROVE tới TADSS<br/>người duyệt lấy từ phiên đăng nhập]
     a2 --> d4{TADSS trả lời?}
     d4 -- "timeout, 5xx,<br/>429, 401" --> e4[503: báo thử lại,<br/>đơn vẫn chờ duyệt]
     e4 --> d5{Quản lý thử lại<br/>với đúng nội dung cũ?}
     d5 -- "có" --> d3
     d5 -- "không" --> e5([Đơn chờ tới khi<br/>có người duyệt hoặc hết hạn])
-    d4 -- "409 đã có ghi đè,<br/>hết hạn" --> e3
-    d4 -- "200" --> a3[Cập nhật có điều kiện:<br/>PENDING_APPROVAL → PENDING,<br/>mức cọc do TADSS quy đổi]
+    d4 -- "409 đã có ghi đè" --> q9[Đồng bộ: đọc chi tiết quyết định,<br/>áp ghi đè đã lưu nếu đơn còn chờ]
+    q9 --> e3
+    d4 -- "409 hết hạn" --> e3
+    d4 -- "200" --> a3["Cập nhật có điều kiện:<br/>PENDING_APPROVAL → PENDING<br/>(cọc 0 % ⇒ CONFIRMED),<br/>mức cọc do TADSS quy đổi"]
     a3 --> d6{Cập nhật thành công?}
     d6 -- "không: job/khách/<br/>người khác chen vào" --> e3
-    d6 -- "có" --> a4[Tạo link VNPay, báo khách<br/>qua SignalR và email]
+    d6 -- "có" --> a4[Đặt hạn thanh toán 15 phút,<br/>báo khách qua SignalR và email<br/>khách tự lấy link VNPay]
     a4 --> f([Đơn rời hàng chờ])
 ```
 
@@ -146,7 +163,8 @@ stateDiagram-v2
     [*] --> CONFIRMED: Đặt tại quầy (không qua TADSS)
 
     PENDING --> PENDING_APPROVAL: (mới) TADSS NEED_APPROVAL
-    PENDING --> CANCELLED: hết hạn thanh toán<br/>(mới) TADSS REJECTED
+    PENDING --> CANCELLED: hết hạn thanh toán<br/>(mới) TADSS REJECTED<br/>(mới) khách, nhân viên hủy
+    PENDING --> CONFIRMED: (mới) cọc dưới mức tối thiểu
     PENDING --> PAID_ONLINE: VNPay IPN thành công<br/>(trả số tiền cọc)
 
     PENDING_APPROVAL --> PENDING: (mới) Quản lý duyệt kèm mức cọc
@@ -159,6 +177,7 @@ stateDiagram-v2
 
     PAID_ONLINE --> IN_PROGRESS: Check-in
     PAID_ONLINE --> CANCELLED_PENDING_REFUND: Hủy (hoàn theo chính sách)
+    PAID_ONLINE --> CANCELLED: Hủy, chính sách hoàn 0 %
     PAID_ONLINE --> NO_SHOW: Không đến
     PAID_ONLINE --> COMPLETED: Hết giờ
 
@@ -167,6 +186,7 @@ stateDiagram-v2
     PENDING_PAYMENT --> COMPLETED: Check-out, thu phần còn lại
 
     CANCELLED_PENDING_REFUND --> CANCELLED_REFUNDED: Xác nhận hoàn tiền
+    CANCELLED --> CANCELLED_PENDING_REFUND: (mới) tiền VNPay về<br/>sau khi đơn đã hủy, hoàn 100 %
 
     CANCELLED --> [*]
     CANCELLED_REFUNDED --> [*]
@@ -185,10 +205,11 @@ stateDiagram-v2
 | Chỗ trong BE | Thay đổi |
 | :--- | :--- |
 | `Models/Enums/BookingStatus.cs`, enum `booking_status` của PostgreSQL | Thêm `PENDING_APPROVAL` |
-| `BookingStatusTransition.CanTransition` | Thêm 5 chuyển trạng thái có nhãn "(mới)" (chuyển `PENDING → CANCELLED` đã có) |
+| `BookingStatusTransition.CanTransition` | Thêm các chuyển trạng thái có nhãn "(mới)" (chuyển `PENDING → CANCELLED` đã có; `PAID_ONLINE → CANCELLED` khi hoàn 0 % có trong mã nhưng chưa có trong `CanTransition`) |
 | `BookingStatusTransition.GetActiveStatuses` | Thêm `PENDING_APPROVAL` để time grid, kiểm tra trùng giờ và lịch theo ngày coi slot là đã có người giữ |
 | Job hủy `PENDING` quá hạn (Job-01) | Không đụng `PENDING_APPROVAL` (đơn chờ duyệt có job riêng, UC-DEPOSIT-09) |
-| Hủy và hoàn tiền từ `PAID_ONLINE` | Số tiền hoàn tính trên số đã thanh toán (tiền cọc), không còn là `finalTotal` (chốt khi hiện thực T6.9) |
+| Hủy và hoàn tiền từ `PAID_ONLINE` | Số tiền hoàn tính trên số đã thanh toán (tiền cọc), không còn là `finalTotal`; % hoàn tính đúng múi giờ (Q12, chốt 18/10) |
+| Mọi đường hủy | Ghi lý do hủy (`cancel_reason`); lịch sử gửi TADSS và kết quả báo về TADSS đọc lý do này |
 
 ## 5. Vòng đời một quyết định trong TADSS
 

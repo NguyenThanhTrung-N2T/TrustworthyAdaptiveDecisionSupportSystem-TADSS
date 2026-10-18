@@ -44,7 +44,7 @@ Theo [Môi trường tích hợp E-STAGING](../planning/MASTER_EXECUTION_PLAN.md
 | Khung giờ cho các ca chờ duyệt có cửa sổ đầy đủ | Giờ bắt đầu ≥ T0 + 150 phút ⇒ `approvalExpiresAt = T0 + 30 phút` | Suy từ dòng trên |
 | Khung giờ cho E2E-04 (hết hạn nhanh) | Giờ bắt đầu − 120 phút − T0 ∈ [3; 10] phút ⇒ `approvalExpiresAt = giờ bắt đầu − 120 phút` | Suy từ dòng trên |
 | Chu kỳ job hết hạn duyệt | 1 phút (như job hủy `PENDING` quá hạn hiện có) | DEPOSIT_APPROVAL_API Mục 7 |
-| Hạn thanh toán sau khi duyệt | Chưa chốt (Q2); đề xuất 30 phút, không vượt giờ bắt đầu | DEPOSIT_APPROVAL_API Q2 |
+| Hạn thanh toán sau khi duyệt | 15 phút (Q2, chốt 18/10/2026), không vượt giờ bắt đầu; cũng là hạn giữ chỗ tuyệt đối của đơn (thanh toán lại không kéo dài quá mốc này) | DEPOSIT_APPROVAL_API Q2, Mục 3.3 |
 | Hạn thanh toán khi tạo booking `PENDING` | 10 phút (hành vi hiện có) | UC-BOOKING-01 |
 | Cửa sổ check-in | Từ 15 phút trước tới 15 phút sau giờ bắt đầu | UC-BOOKING-05 |
 | Hiệu lực khi đổi `EnableTadssDecision` | < 2 giây, không khởi động lại | INTEGRATION_SPEC §4.1; KPI SC5 |
@@ -71,7 +71,7 @@ Bí danh dưới đây dùng trong mọi kịch bản. Tài liệu không ghi m�
 | `CUS-EXPIRY` | `CUSTOMER` | — | Khách có ít nhất `PaymentExpiryRejectThreshold` booking `PAYMENT_EXPIRED` (nhiều hơn số booking hoàn tất) trên nhánh `staging`: ca bị từ chối (E2E-14) |
 | `CUS-REVIEW` | `CUSTOMER` | — | Khách tạo các đơn chờ duyệt (E2E-02, 03, 04, 05, 07, 08, 10, 11, 12) theo điều kiện N ở Mục 3.3; ở E2E-05 còn đặt slot thỏa điều kiện N khi cờ tắt |
 
-Khách vãng lai không dùng trong E2E: theo đề xuất Q3, khách vãng lai chỉ nhận kết quả duyệt qua email; E2E-02 dùng khách đã đăng nhập. Mọi email và số điện thoại của tài khoản thử là địa chỉ/số do nhóm kiểm soát, vì BE gửi email thật khi duyệt, từ chối, hết hạn.
+Khách vãng lai không dùng trong E2E đặt online: từ Phase 6 đặt sân online bắt buộc đăng nhập `CUSTOMER` (DEPOSIT_APPROVAL_API P6-01; FE đã chỉ cho đặt khi đăng nhập từ 12/05/2026). Khách vãng lai chỉ xuất hiện ở đặt tại quầy (E2E-13). Mọi email và số điện thoại của persona là địa chỉ thử của nhóm.
 
 ### 3.2. Chi nhánh, sân, bảng giá
 
@@ -185,13 +185,21 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | 7 | `CUS-STD` mở chi tiết booking | API: `GET /api/me/bookings/{id}` → `status = PAID_ONLINE`, trường cọc như bước 2, `approvalReasonCode = null`. UI: "Đã cọc" kèm phần còn lại |
 | 8 | Kiểm K-SC6 | 0 vi phạm |
 
+**Biến thể thẻ lỗi (P6-03):** lặp bước 1–5 với booking mới, ở trang VNPay sandbox chọn hủy giao dịch (hoặc thẻ thử báo lỗi).
+
+| # | Tác nhân → thao tác | Kỳ vọng |
+| :---: | :--- | :--- |
+| V1 | VNPay → callback và IPN thất bại | UI: trang kết quả thất bại có "Thanh toán lại" và "Hủy đơn". DB: booking vẫn `PENDING`, Payment `FAILED`, `expiresAt` ≤ thời điểm IPN + 5 phút. Sự kiện `PaymentFailed` |
+| V2 | `CUS-STD` bấm "Thanh toán lại", thanh toán thành công | API: `POST /api/me/bookings/{id}/retry-payment` → 200 với số tiền = `depositAmount`. DB: booking `PAID_ONLINE`; hai Payment (`FAILED`, `SUCCESS`) |
+| V3 | (booking khác) lặp V1 rồi bấm "Hủy đơn" | DB: booking `CANCELLED`, `cancel_reason = CUSTOMER_CANCELLED`, slot nhả ngay, không Refund |
+
 **Bản ghi TADSS kỳ vọng:** một quyết định `APPROVED`; không override; chưa có outcome (outcome `COMPLETED` kiểm ở E2E-09).
 
 **Minh chứng:** ảnh ở bước 3, 5, 7; panel "Quyết định theo trạng thái", "Độ trễ p95 theo endpoint".
 
 **Tiêu chí đạt:** số cọc giống nhau ở bốn nơi — UI, response BE, VNPay, `decision_executions.deposit_amount`; trạng thái cuối `PAID_ONLINE`/`PARTIALLY_PAID`; K-SC6 đạt.
 
-**Liên quan:** KPI SC6 · BE-UT-02, BE-UT-07, BE-IT-02, CT-04 · FE-04, FE-09 · câu hỏi mở: không.
+**Liên quan:** KPI SC6 · BE-UT-02, BE-UT-07, BE-UT-08, BE-IT-02, BE-IT-21, CT-04 · FE-04, FE-09, FE-11 · câu hỏi mở: không.
 
 ### E2E-02 — NEED_APPROVAL và Manager duyệt
 
@@ -205,20 +213,20 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | 2 | Kiểm DB và TADSS | DB: booking `PENDING_APPROVAL`, `tadss_decision_id` khác `null`, slot lock hiệu lực tới `approvalExpiresAt`, không có Payment. TADSS: K-DEC với `status = NEED_APPROVAL`, `approval_expires_at` trùng thời điểm của BE, `reason_code` ∈ {`HIGH_VALUE_REVIEW`, `NO_SHOW_HISTORY_REVIEW`} theo điều kiện N đã chọn |
 | 3 | `CUS-STD` thử đặt đúng slot đó | API: bị từ chối bằng lỗi slot hiện có (`SLOT_UNAVAILABLE` hoặc `SLOT_UNAVAILABLE_NOTIFY_REGISTERED`); time grid hiện slot đã giữ với nhãn chờ duyệt |
 | 4 | — (trang của `MGR-A1` đang mở) | Sự kiện `BookingPendingApproval` và `PendingApprovalQueueChanged` (`ADDED`/`NEW`); FE gọi lại `GET /api/bookings/pending-approval`; UI: đơn xuất hiện với tên khách, sân, giờ, F, lý do cần duyệt (Q6), hạn duyệt |
-| 5 | `MGR-A1` mở hộp thoại duyệt, nhập 30 (%) và lý do ≥ 5 ký tự, bấm duyệt | API: `POST /api/bookings/{bookingId}/approve` với body `{ "depositRate": 0.3, "reason": "…" }` (URL và body không có `decisionId`) → 200, `approvalResult = APPROVED`, `status = PENDING`, `depositSource = MANAGER`, `depositRate = 0.3`, `depositAmount = round(F × 0.3)`, `remainingAmount = F − depositAmount`, `expiresAt` theo Q2. UI: hộp thoại đóng, đơn rời hàng chờ (`PendingApprovalQueueChanged` `REMOVED`/`APPROVED`). DB: đúng một Payment `PENDING` với số tiền = `depositAmount` (BE tạo Payment và URL VNPay ngay lúc duyệt, DEPOSIT_APPROVAL_API 4.2 bước 6) |
+| 5 | `MGR-A1` mở hộp thoại duyệt, nhập 30 (%) và lý do ≥ 5 ký tự, bấm duyệt | API: `POST /api/bookings/{bookingId}/approve` với body `{ "depositRate": 0.3, "reason": "…" }` (URL và body không có `decisionId`) → 200, `approvalResult = APPROVED`, `status = PENDING`, `depositSource = MANAGER`, `depositRate = 0.3`, `depositAmount = round(F × 0.3)`, `remainingAmount = F − depositAmount`, `expiresAt` = thời điểm duyệt + 15 phút (Q2). UI: hộp thoại đóng, đơn rời hàng chờ (`PendingApprovalQueueChanged` `REMOVED`/`APPROVED`). DB: **không** có Payment (duyệt không tạo Payment/URL VNPay, DEPOSIT_APPROVAL_API P6-10), hóa đơn `deposit_source = MANAGER`, slot lock gia hạn tới `expiresAt` |
 | 6 | Kiểm TADSS | K-OVR(1): `action = APPROVE`, `deposit_rate = 0.3`, `deposit_amount = depositAmount` của BE, `actor_id` = `userId` của `MGR-A1`, `idempotency_key = {decisionId}:APPROVE`. Dòng `decision_executions` không đổi (vẫn `NEED_APPROVAL`, bất biến) |
 | 7 | — (trang chờ của `CUS-REVIEW` đang mở) | Sự kiện `BookingApprovalResolved` (`APPROVED`); FE gọi lại `GET /api/me/bookings/{id}`; UI: đã duyệt, số cọc, nút thanh toán. Email gửi khách (chỉ ghi nhận có gửi) |
-| 8 | `CUS-REVIEW` bấm thanh toán | API: `POST /api/me/bookings/{id}/retry-payment` → 200, `status = PENDING`, `paymentUrl` khác `null`. UI (VNPay): số tiền = `depositAmount`. DB: hai Payment — Payment tạo ở bước 5 bị đánh dấu `FAILED`, một Payment mới `PENDING` với số tiền = `depositAmount` (hành vi `retry-payment` hiện có: hủy các Payment `PENDING` cũ rồi tạo Payment mới; số tiền theo DEPOSIT_APPROVAL_API 3.3) |
-| 9 | Thanh toán sandbox; callback và IPN | DB: booking `PAID_ONLINE`, hóa đơn `PARTIALLY_PAID`; Payment mới của bước 8 `SUCCESS`, Payment của bước 5 vẫn `FAILED`. Sự kiện `PaymentSuccess` |
+| 8 | `CUS-REVIEW` bấm thanh toán | API: `POST /api/me/bookings/{id}/retry-payment` → 200, `status = PENDING`, `paymentUrl` khác `null`. UI (VNPay): số tiền = `depositAmount`. DB: đúng một Payment `PENDING` với số tiền = `depositAmount`; `expiresAt` **không đổi** (đã bằng hạn giữ chỗ tuyệt đối, DEPOSIT_APPROVAL_API 3.3) |
+| 9 | Thanh toán sandbox; callback và IPN | DB: booking `PAID_ONLINE`, hóa đơn `PARTIALLY_PAID`; Payment của bước 8 `SUCCESS`. Sự kiện `PaymentSuccess` |
 | 10 | Kiểm K-SC6 | 0 vi phạm (kể cả lúc đơn còn `PENDING_APPROVAL`: điều 2 — có `decisionId` và slot lock) |
 
 **Bản ghi TADSS kỳ vọng:** một quyết định `NEED_APPROVAL`, một override `APPROVE`, chưa có outcome.
 
 **Minh chứng:** ảnh ở bước 1, 4, 5, 7, 8; panel "Quyết định chờ duyệt theo chi nhánh", "Override theo hành động".
 
-**Tiêu chí đạt:** không có Payment nào trước bước 5 (lúc đơn còn chờ duyệt); sau bước 5 đúng một Payment, sau bước 8 đúng hai Payment (cũ `FAILED`, mới `PENDING`, như kiểm "đúng một Payment" sau khi duyệt ở E2E-07 và E2E-12); cọc = round(F × tỷ lệ Manager nhập) ở UI, response, VNPay và `decision_overrides`; đúng một override; K-SC6 đạt.
+**Tiêu chí đạt:** không có Payment nào trước bước 8 (lúc chờ duyệt và ngay sau khi duyệt); sau bước 8 đúng một Payment; hạn thanh toán không bị kéo dài khi bấm thanh toán; cọc = round(F × tỷ lệ Manager nhập) ở UI, response, VNPay và `decision_overrides`; đúng một override; K-SC6 đạt.
 
-**Liên quan:** KPI SC6 · BE-UT-03, BE-IT-03, BE-IT-05, BE-IT-06, BE-IT-07, BE-IT-18 · FE-04, FE-05, FE-08, FE-10 · câu hỏi mở: Q2, Q3, Q5, Q6.
+**Liên quan:** KPI SC6 · BE-UT-03, BE-IT-03, BE-IT-05, BE-IT-06, BE-IT-07, BE-IT-18 · FE-04, FE-05, FE-08, FE-10 · câu hỏi mở: không (Q2, Q3, Q5, Q6 đã chốt).
 
 ### E2E-03 — Manager từ chối
 
@@ -229,7 +237,7 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | # | Tác nhân → thao tác | Kỳ vọng |
 | :---: | :--- | :--- |
 | 1 | `MGR-A1` bấm từ chối, nhập lý do ≥ 5 ký tự | API: `POST /api/bookings/{bookingId}/reject` với body `{ "reason": "…" }` → 200, `approvalResult = REJECTED`, `status = CANCELLED`, trường cọc `null`. UI: đơn rời hàng chờ (`REMOVED`/`REJECTED`) |
-| 2 | Kiểm DB và TADSS | DB: booking `CANCELLED`, `cancel_source = STAFF`, `cancelled_at` khác `null`, slot lock đã xóa, không có Payment hay Refund. TADSS: K-OVR(1) với `action = REJECT`, `deposit_rate`/`deposit_amount` `null`, `idempotency_key = {decisionId}:REJECT` |
+| 2 | Kiểm DB và TADSS | DB: booking `CANCELLED`, `cancel_source = STAFF`, `cancel_reason = APPROVAL_REJECTED`, `cancelled_at` khác `null`, slot lock đã xóa, không có Payment hay Refund. TADSS: K-OVR(1) với `action = REJECT`, `deposit_rate`/`deposit_amount` `null`, `idempotency_key = {decisionId}:REJECT` |
 | 3 | — (trang chờ của khách) | Sự kiện `BookingApprovalResolved` (`REJECTED`); UI: đơn bị từ chối/đã hủy. Email gửi khách (chỉ ghi nhận) |
 | 4 | — (time grid của chi nhánh) | Sự kiện `BookingCancelled`; `GET /api/branches/{branchId}/courts/{courtId}/time-grid` hiện slot trống |
 | 5 | `CUS-STD` đặt đúng slot đó | API: 201 (slot đã được giải phóng, không phải `SLOT_UNAVAILABLE`). `status` theo cách tạo điều kiện N đã chọn (Mục 3.3): N2 ⇒ `PENDING`, cọc theo hạng của `CUS-STD` (`depositSource = TADSS`); N1/N3 ⇒ `PENDING_APPROVAL` (F của slot vẫn ≥ ngưỡng). Dọn: booking `PENDING` để hết hạn thanh toán theo job hiện có; booking `PENDING_APPROVAL` do `MGR-A1` từ chối |
@@ -254,7 +262,7 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | :---: | :--- | :--- |
 | 1 | `CUS-REVIEW` đặt slot | API: 201, `status = PENDING_APPROVAL`, `approvalExpiresAt` = giờ bắt đầu − 120 phút. TADSS: K-DEC với `status = NEED_APPROVAL` (không phải `APPROVAL_WINDOW_UNAVAILABLE`) |
 | 2 | `MGR-A1` mở hộp thoại duyệt của đơn, nhập 30 % và lý do, **không bấm gửi** | UI: hộp thoại mở, đơn có đồng hồ đếm |
-| 3 | Chờ tới `approvalExpiresAt` + tối đa 2 phút (một chu kỳ job 1 phút cộng biên) | DB: booking `CANCELLED`, `cancel_source = SYSTEM`, nguồn cọc `null`, slot lock đã xóa, không có Payment. Sự kiện `BookingExpired` và `PendingApprovalQueueChanged` (`REMOVED`/`EXPIRED`); UI hàng chờ: đơn biến mất sau khi FE tải lại |
+| 3 | Chờ tới `approvalExpiresAt` + tối đa 2 phút (một chu kỳ job 1 phút cộng biên) | DB: booking `CANCELLED`, `cancel_source = SYSTEM`, `cancel_reason = APPROVAL_EXPIRED`, nguồn cọc `null`, slot lock đã xóa, không có Payment. Sự kiện `BookingExpired` và `PendingApprovalQueueChanged` (`REMOVED`/`EXPIRED`); UI hàng chờ: đơn biến mất sau khi FE tải lại |
 | 4 | `MGR-A1` bấm gửi ở hộp thoại đã mở từ bước 2. Nếu thiết kế UI đóng hộp thoại khi đơn rời hàng chờ (T6.11) nên không còn nút gửi, gửi cùng request `POST /api/bookings/{bookingId}/approve` (30 %, cùng lý do) bằng API của Playwright trong cùng phiên, như E2E-12 bước 3 | API: 409 `APPROVAL_EXPIRED` (kể cả khi job chưa chạy, vì BE kiểm `approvalExpiresAt ≤ now` trước khi gọi TADSS). UI (khi gửi từ hộp thoại): thông báo hết hạn duyệt, tải lại hàng chờ. TADSS: K-OVR(0) |
 | 5 | `CUS-REVIEW` mở chi tiết | API: `GET /api/me/bookings/{id}` → `status = CANCELLED`; UI: đã hủy |
 | 6 | Chờ job outcome | K-OUT(`APPROVAL_EXPIRED`) |
@@ -325,7 +333,7 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | 1 | `MGR-A1` nhập 30 % và lý do R1; `MGR-A2` nhập 40 % và lý do R2 | — |
 | 2 | Hai người bấm gửi cùng lúc (Playwright kích hoạt song song) | API: đúng một response 200 và một 409 `APPROVAL_ALREADY_RESOLVED` |
 | 3 | — | UI người thắng: duyệt thành công. UI người thua: "Đơn đã được xử lý trước đó…", hàng chờ tải lại, đơn không còn |
-| 4 | Kiểm DB và TADSS | DB: booking `PENDING`, nguồn cọc `MANAGER`, `depositRate` = tỷ lệ của người thắng, `resolvedBy` = người thắng, đúng một Payment. TADSS: K-OVR(1) với `actor_id` và `deposit_rate` của người thắng |
+| 4 | Kiểm DB và TADSS | DB: booking `PENDING`, nguồn cọc `MANAGER`, `depositRate` = tỷ lệ của người thắng, `resolvedBy` = người thắng, không có Payment (duyệt không tạo Payment, P6-10). TADSS: K-OVR(1) với `actor_id` và `deposit_rate` của người thắng |
 | 5 | — | Cả hai trang nhận `PendingApprovalQueueChanged` (`REMOVED`/`APPROVED`) |
 | 6 | Lặp bước 1–5 với booking mới: `MGR-A1` duyệt, `MGR-A2` từ chối, gửi cùng lúc | Như trên: một 200, một 409 `APPROVAL_ALREADY_RESOLVED`; trạng thái booking theo người thắng; K-OVR(1) |
 | 7 | Kiểm K-SC6 | 0 vi phạm |
@@ -442,7 +450,7 @@ Người thua có thể bị chặn ở bước kiểm DB của BE, ở TADSS (`
 | 1 | Tab 2: mở hộp thoại duyệt của đơn, nhập 30 % và lý do R, chưa gửi | — |
 | 2 | Tab 1: duyệt 30 % với lý do R | API: 200, `status = PENDING` |
 | 3 | Tab 2: bấm gửi. Nếu thiết kế UI đóng hộp thoại khi đơn rời hàng chờ (T6.11), gửi cùng request bằng API của Playwright trong cùng phiên | API: 409 `APPROVAL_ALREADY_RESOLVED`. UI: "Đơn đã được xử lý trước đó…", tải lại hàng chờ/chi tiết thấy kết quả của bước 2 |
-| 4 | Kiểm DB và TADSS | DB: booking chỉ chuyển trạng thái một lần, đúng một Payment. TADSS: K-OVR(1); log của TADSS (Loki) hoặc trace (Tempo) trong khoảng thời gian của kịch bản có đúng một request override cho `decisionId` này |
+| 4 | Kiểm DB và TADSS | DB: booking chỉ chuyển trạng thái một lần, không có Payment (duyệt không tạo Payment, P6-10). TADSS: K-OVR(1); log của TADSS (Loki) hoặc trace (Tempo) trong khoảng thời gian của kịch bản có đúng một request override cho `decisionId` này |
 | 5 | Kiểm K-SC6 | 0 vi phạm |
 
 **Minh chứng:** trace của hai tab; truy vấn log/trace TADSS ở bước 4.
@@ -527,13 +535,13 @@ KPI: mọi dòng liên quan SC6; E2E-05 thêm SC5 (minh họa, số đo ở FI-1
 
 | Hành vi | Vì sao không thành E2E | Được kiểm ở |
 | :--- | :--- | :--- |
-| TADSS trả `REJECTED` khi đặt sân (400 `BOOKING_REJECTED`, Q1) | Hai strategy hiện có (`DefaultDecisionStrategy`, `MockAlternativeDecisionStrategy`) chỉ trả `APPROVED` hoặc `NEED_APPROVAL`, nên không tạo được trên E-STAGING mà không thêm mã | BE-IT-17 (TADSS giả lập), FE-04 (MSW) |
 | Fallback của runtime (`APPROVED` 100 %, `fallbackUsed = true`) và `APPROVAL_WINDOW_UNAVAILABLE` | Giao diện giống E2E-01 với `depositRate = 1`, `depositSource = TADSS`; tiêm lỗi strategy chỉ có ở môi trường `Testing` | FI-02…FI-04, UT-10 (TADSS); BE-IT-02 |
 | TADSS chậm hơn `TimeoutMs`, đứt mạng BE ↔ TADSS | Kịch bản tiêm lỗi mạng của SV1 trên E-STAGING | FI-12, FI-14; BE-IT-04 |
 | Thử lại sau 503 khi TADSS thực ra đã ghi override | Cần chặn đúng lúc sau khi TADSS ghi, khó tạo ổn định trên E-STAGING | BE-IT-13 |
-| Khách hủy khi đang chờ duyệt | Chưa chốt (Q8) | BE-UT-05, BE-IT-15 theo đề xuất Q8 |
-| Trang trạng thái cho khách vãng lai | Chưa chốt (Q3); đề xuất chỉ qua email | FE-04 |
-| Cọc 0 % | Chưa chốt (Q4) | BE-UT-03, BE-IT-07, FE-05 |
+| Khách hủy khi đang chờ duyệt hoặc chưa thanh toán | Đã chốt (Q8, P6-09); thao tác ngắn, không cần TADSS | BE-IT-23, FE-09 |
+| Thanh toán thất bại, ân hạn 5 phút, hạn giữ chỗ tuyệt đối (P6-02, P6-03) | Thẻ lỗi kiểm ở biến thể của E2E-01; chờ hết ân hạn và bấm thanh toán lại liên tục tốn thời gian, kiểm ở mức BE | E2E-01 (biến thể), BE-UT-08, BE-IT-21, FE-11 |
+| Cọc 0 % và cọc dưới mức tối thiểu (Q4, P6-06) | Đã chốt; không qua VNPay nên không có gì thêm để quan sát ở UI ngoài trang kết quả | BE-IT-07, BE-IT-24, FE-05, FE-11 |
+| Tiền về sau khi đơn đã hủy (P6-07) | Cần VNPay sandbox trả thành công sau khi đơn hết hạn, không tạo ổn định được | BE-IT-22 |
 
 ---
 
