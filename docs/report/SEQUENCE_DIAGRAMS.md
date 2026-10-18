@@ -278,7 +278,7 @@ sequenceDiagram
 
 ## 6. Hủy đơn và hoàn tiền (UC-DEPOSIT-04, 12)
 
-*Thiết kế Phase 6.* Mọi đường hủy đi qua một dịch vụ hủy chung trong BE: cập nhật có điều kiện ghi đủ trạng thái, thời điểm, nguồn hủy và **lý do hủy** trong một câu lệnh; tiền hoàn tính trên **số đã trả**, % hoàn theo chính sách hủy tính đúng múi giờ.
+*Thiết kế Phase 6.* Mọi đường hủy đi qua một dịch vụ hủy chung trong BE: cập nhật có điều kiện ghi đủ trạng thái, thời điểm, nguồn hủy và **lý do hủy** trong một câu lệnh; tiền hoàn tính trên **số đã trả**, % hoàn theo chính sách hủy tính đúng múi giờ. Khách chỉ tự hủy được **trước giờ bắt đầu** (P6-23); từ giờ bắt đầu chỉ nhân viên hủy được, đơn khách không đến do job đánh `NO_SHOW`.
 
 ```mermaid
 sequenceDiagram
@@ -291,6 +291,10 @@ sequenceDiagram
 
     C->>FE: Bấm Hủy đơn
     FE->>BE: POST /api/me/bookings/{id}/cancel (khách)<br/>hoặc POST /api/bookings/{id}/cancel (nhân viên)
+    opt Khách hủy khi đã tới giờ bắt đầu (P6-23)
+        BE-->>FE: 400 BOOKING_ALREADY_STARTED, đơn không đổi
+        Note over BE: Khách không đến thì job đánh NO_SHOW
+    end
     BE->>DB: Cập nhật có điều kiện: → CANCELLED, cancelled_at,<br/>nguồn hủy, lý do CUSTOMER_CANCELLED / STAFF_CANCELLED
     alt Người khác vừa đổi trạng thái (duyệt, từ chối, job)
         BE-->>FE: 409, FE tải lại

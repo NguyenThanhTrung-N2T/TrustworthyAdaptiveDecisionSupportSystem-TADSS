@@ -172,11 +172,11 @@ stateDiagram-v2
     PENDING_APPROVAL --> CONFIRMED: (mới) Duyệt cọc 0 % (Q4)
 
     CONFIRMED --> IN_PROGRESS: Check-in
-    CONFIRMED --> CANCELLED: Hủy
+    CONFIRMED --> CANCELLED: Hủy (khách chỉ trước giờ bắt đầu)
     CONFIRMED --> NO_SHOW: Không đến
 
     PAID_ONLINE --> IN_PROGRESS: Check-in
-    PAID_ONLINE --> CANCELLED_PENDING_REFUND: Hủy (hoàn theo chính sách)
+    PAID_ONLINE --> CANCELLED_PENDING_REFUND: Hủy (hoàn theo chính sách,<br/>khách chỉ trước giờ bắt đầu)
     PAID_ONLINE --> CANCELLED: Hủy, chính sách hoàn 0 %
     PAID_ONLINE --> NO_SHOW: Không đến
     PAID_ONLINE --> COMPLETED: Hết giờ

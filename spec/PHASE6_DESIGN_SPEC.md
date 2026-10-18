@@ -4,8 +4,8 @@
 | :--- | :--- |
 | **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0) |
 | **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `master` tại `4f6af8c`. `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
-| **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày |
-| **Trạng thái** | Người dùng đã duyệt (P6-01…P6-21). Plan chi tiết từng gói lập từ 19/10 |
+| **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày; rà soát thời gian và múi giờ 19/10 (Mục 3.3) |
+| **Trạng thái** | Người dùng đã duyệt P6-01…P6-23 (P6-22, P6-23 chốt 19/10). Plan chi tiết từng gói lập từ 19/10 |
 | **Hợp đồng liên quan** | [`DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (BE ↔ FE, đã cập nhật theo spec này, tóm tắt ở Mục 11 của file đó), [`INTEGRATION_SPEC.md`](../docs/contracts/INTEGRATION_SPEC.md) (BE ↔ TADSS) |
 | **Danh mục test** | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.7–4.8, [`E2E_TEST_SPECIFICATION.md`](../docs/research/E2E_TEST_SPECIFICATION.md) |
 | **Gate M6** | Toàn bộ test case BE trong danh mục đạt; FE build + lint + Playwright (trên mock) đạt; không còn task tính năng mở (MASTER_EXECUTION_PLAN) |
@@ -16,7 +16,7 @@
 | :--- | :--- |
 | 1 | Tóm tắt; bản đồ luồng → sơ đồ, use case, mục thiết kế (1.1) |
 | 2 | Luồng đang chạy FE → BE → TADSS |
-| 3 | Vấn đề tìm thấy (R-x, N-x) |
+| 3 | Vấn đề tìm thấy (R-x, N-x, T-x thời gian) |
 | 4 | Quyết định (P6-x), thông số, lý do chọn |
 | 5 | Chia gói, thứ tự |
 | 6 | Thiết kế DB (T6.1) |
@@ -41,7 +41,7 @@
 
 **Thay đổi lớn so với Đồ án 1** (chi tiết Mục 4): đặt online bắt buộc đăng nhập; mức cọc do TADSS hoặc Manager quyết; giữ chỗ tối đa 15 phút; thanh toán thất bại không hủy đơn ngay; mọi đường hủy ghi lý do hủy; hoàn tiền trên số đã trả và đúng múi giờ; check-out thu phần còn lại.
 
-**Lỗi có sẵn của Đồ án 1 được sửa luôn:** hoàn vượt số đã trả (R-1), check-out thu thiếu (R-3), `retry-payment` giữ slot vô hạn (N-20), tiền về sau khi hủy không có bản ghi (N-11, N-15), % hoàn lệch 7 giờ (N-18), `finalTotal = 0` làm hỏng đặt sân (N-7), hủy đơn chưa thu tiền làm lệch lượt khuyến mãi (N-8, N-22).
+**Lỗi có sẵn của Đồ án 1 được sửa luôn:** hoàn vượt số đã trả (R-1), check-out thu thiếu (R-3), `retry-payment` giữ slot vô hạn (N-20), tiền về sau khi hủy không có bản ghi (N-11, N-15), % hoàn lệch 7 giờ (N-18), `finalTotal = 0` làm hỏng đặt sân (N-7), hủy đơn chưa thu tiền làm lệch lượt khuyến mãi (N-8, N-22), email đơn tại quầy không gửi vì hạn link hủy sai kiểu giờ (T-3), "hôm nay" ở FE ra ngày hôm qua trước 07:00 (T-7), ngày/tháng bị đảo ở vài màn FE (T-8).
 
 ### 1.1. Bản đồ luồng và sơ đồ
 
@@ -100,7 +100,7 @@ sequenceDiagram
 
 - **FE chỉ cho đặt online khi đã đăng nhập** từ commit FE `4130360` (12/05/2026): trang đặt sân và trang kết quả thanh toán nằm trong `app/(customer)` có `RoleGuard allowedRole="CUSTOMER"`. **BE vẫn nhận đặt ẩn danh** nếu gọi thẳng API. Dữ liệu cũ có 60 đơn online của khách vãng lai, đơn cuối 25/05/2026.
 - **Chỉ IPN ghi DB.** `vnpay/confirm` gọi `HandleVnPayReturnAsync` là hàm chỉ đọc, dù comment ở `PaymentController` nói "Confirm làm fallback". Không có IPN tới BE thì đơn mãi `PENDING` rồi bị job hủy.
-- Thư viện `VNPAY.NET 2.1.0` **không gửi `vnp_ExpireDate`** (đã kiểm trong DLL): BE không đặt được hạn phiên VNPay; URL đã ký nên không thêm tham số được.
+- Thư viện `VNPAY.NET 2.1.0` **không gửi `vnp_ExpireDate`** (đã kiểm trong DLL): BE không đặt được hạn phiên VNPay; URL đã ký nên không thêm tham số được. Thư viện gửi `vnp_CreateDate` theo **UTC** (chạy thử 19/10, T-5).
 - **Thanh toán lại** (`POST /api/me/bookings/{id}/retry-payment`): vô hiệu Payment `PENDING` cũ, tạo Payment mới bằng `FinalTotal`, đặt hạn = `now + 10'`, **không giới hạn số lần**.
 - **Job** (Hangfire, mỗi phút): Job-01 hủy `PENDING` có hóa đơn `UNPAID` quá hạn (`CancelSource = SYSTEM`, hóa đơn `EXPIRED`) bằng cập nhật **không** có điều kiện, không có `[DisableConcurrentExecution]`; Job-03 xóa slot lock hết hạn; Job-02 kết thúc đơn hết giờ; Job-04 đánh `NO_SHOW` cho `CONFIRMED`/`PAID_ONLINE` không check-in.
 - FE gửi bộ lọc trạng thái dạng **số** (`BookingStatus.PENDING = 0`…); màn xác nhận đặt sân ghi "Tổng tiền thanh toán… sẽ được chuyển đến trang thanh toán"; `NotificationDispatcher` chỉ đăng ký các sự kiện hiện có.
@@ -116,7 +116,7 @@ sequenceDiagram
 | Check-in | `CONFIRMED`, `PAID_ONLINE`, trong ±15' giờ bắt đầu | — | Quy đổi múi giờ đúng (`ConvertTimeToUtc`) |
 | Check-out / complete-payment | `IN_PROGRESS`, `PENDING_PAYMENT` | — | `UNPAID` ⇒ thu `FinalTotal`; `PARTIALLY_PAID` ⇒ **chỉ thu `ServiceFee`** |
 
-`CalculateRefundPercentAsync` lấy giờ chơi (giờ Việt Nam) trừ `UtcNow` ⇒ số giờ còn lại **dư 7 giờ**; hạn link hủy coi giờ chơi là UTC ⇒ hết hạn sau giờ chơi 7 giờ.
+`CalculateRefundPercentAsync` lấy giờ chơi (giờ Việt Nam) trừ `UtcNow` ⇒ số giờ còn lại **dư 7 giờ**; hạn link hủy coi giờ chơi là UTC ⇒ hết hạn sau giờ chơi 7 giờ. Khách hủy trong app **không kiểm giờ bắt đầu**; Job-04 đánh `NO_SHOW` sau giờ bắt đầu 15', chạy 5 phút/lần (T-4).
 
 ### 2.3. Ba lớp "giữ sân"
 
@@ -188,6 +188,54 @@ Mức: **Cao** = phải có quyết định trước khi code; **TB** = phải c
 | N-24 | TB | Rate limit TADSS theo client, dùng chung giữa job outcome và đánh giá lúc đặt | Job gửi dồn ⇒ khách đặt sân nhận 429 ⇒ cọc 100 % |
 | N-25 | Thấp | Màn xác nhận đặt sân ghi "chuyển tới trang thanh toán" tổng tiền; `NotificationDispatcher` chưa có sự kiện mới | Sai thông tin cho khách; không có thông báo realtime cho luồng duyệt |
 
+### 3.3. Thời gian và múi giờ (T-1…T-13)
+
+Lần theo mã ngày 19/10/2026: mọi chỗ BE dùng `DateTime`/`DateOnly`/`TimeOnly`, mọi chỗ FE gọi `new Date(...)`, `toISOString`, và các trường thời gian gửi sang VNPay, TADSS.
+
+**Quy ước đang chạy (đúng, giữ nguyên):**
+
+| Tầng | Quy ước |
+| :--- | :--- |
+| DB | Mốc thời điểm là `timestamptz` (UTC). `date`/`time` của booking, giá, khuyến mãi, giờ mở cửa là **giờ tường VN** |
+| BE | Npgsql `EnableLegacyTimestampBehavior = false`: đọc ra `Kind = Utc`; ghi `DateTime` vào `timestamptz` **bắt buộc** `Kind = Utc` (kiểu khác ⇒ Npgsql ném lỗi). "Hôm nay"/"bây giờ" theo VN qua `DateTimeHelper`; giờ chơi → UTC qua `ToUtcFromVietnam` (check-in, Job-02, Job-04, slot interest đã đúng). Hangfire chạy theo `VNTimezone`; container BE đặt `TZ=Asia/Ho_Chi_Minh` |
+| REST | `VietnamDateTimeConverter` ghi mọi `DateTime` thành `dd/MM/yyyy HH:mm:ss` giờ VN, **không offset**; `DateOnly` là `yyyy-MM-dd`, `TimeOnly` là `HH:mm:ss`; dashboard tự định dạng `yyyy-MM-ddTHH:mm:ss` giờ VN. Chiều vào: `DateTime.TryParse` theo culture máy chủ; FE gửi ISO hoặc `yyyy-MM-dd` nên đúng |
+| SignalR | JSON mặc định (không qua converter VN) ⇒ ISO UTC có `Z`; FE `new Date(...)` đọc đúng |
+| FE | `parseBackendDate` (`src/shared/utils/date.ts`) và các hàm định dạng của booking khách đọc đúng `dd/MM/yyyy`; giờ tường VN được hiểu là giờ của trình duyệt |
+
+Luồng đặt sân, lịch sử đơn, hạn thanh toán, time grid, check-in, job và dashboard hiển thị **đúng**. Các lỗi dưới đây nằm ở phép tính phía sau, ở màn phụ, hoặc chỉ xảy ra trong khung 00:00–07:00.
+
+**Phân loại (người dùng chốt 19/10):** mục nào là lỗi thật (ra kết quả sai) thì sửa trong Phase 6, kể cả lỗi có sẵn ở báo cáo; mục không phải lỗi (giả định môi trường, hành vi hiện tại đúng) thì **để nguyên, không sửa** để tránh ảnh hưởng. Mọi lỗi thật đều có test kiểm trước và sau khi sửa (9.1, 9.4).
+
+| # | Mức | Vấn đề (vị trí) | Hệ quả | Xử lý |
+| :---: | :--- | :--- | :--- | :--- |
+| T-1 | TB | `CalculateRefundPercentAsync` (`BookingService.cs:2123`) lấy giờ tường VN trừ `UtcNow` (= N-18) | % hoàn tính dư 7 giờ: hoàn cao hơn chính sách khi hủy sát mốc; tới 7 giờ sau giờ bắt đầu vẫn có thể được hoàn | P6-08 |
+| T-2 | TB | Hạn link hủy đơn online `GenerateCancelTokenData` (`PaymentService.cs:519`) gọi `SpecifyKind(giờ VN, Utc)` (= N-18) | Link hủy dùng được tới 7 giờ sau giờ chơi | P6-08 |
+| T-3 | TB | Hạn link hủy đơn tại quầy (`BookingService.SendConfirmationEmailAsync`, dòng 2473) = `min(giờ VN Kind = Unspecified, UtcNow + 24h)`; phép so sánh bỏ qua `Kind` nên đơn trong khoảng 31 giờ tới chọn giá trị `Unspecified` rồi ghi vào `timestamptz` | Npgsql ném lỗi, `catch` nuốt ⇒ **email xác nhận đơn tại quầy không được gửi** (gần như mọi đơn đặt trong ngày). Suy từ hành vi Npgsql 6+; BE-IT xác nhận khi sửa | P6-22, 7.9 |
+| T-4 | Cao | Khách hủy trong app không kiểm giờ bắt đầu (`CancelByCustomerAsync`); Job-04 đánh `NO_SHOW` sau giờ bắt đầu 15', chạy 5 phút/lần | Trong 15–20' sau giờ bắt đầu, khách không đến vẫn tự hủy được: đơn thành `CUSTOMER_CANCELLED` (tính `lateCancelled`) thay vì `NO_SHOW` ⇒ né quy tắc `noShowCount ≥ 2` của strategy 2.1.0 (C2); trước khi sửa T-1 còn có thể được hoàn tiền | P6-23 |
+| T-5 | Thấp | `VNPAY.NET 2.1.0` gửi `vnp_CreateDate` theo UTC (chạy thử: `20261018170329` lúc giờ VN là `20261019000329`); đặc tả VNPay ghi GMT+7; không gửi `vnp_ExpireDate` | Sandbox vẫn nhận (luồng hiện chạy). Nếu sau này dùng API truy vấn hoặc hoàn tiền của VNPay phải gửi đúng chuỗi `CreateDate` đã gửi lúc tạo. Hạn giữ chỗ do BE kiểm (P6-02), tiền về muộn do P6-07 | Không phải lỗi quan sát được (sandbox nhận, thanh toán thành công); thay thư viện tạo URL ảnh hưởng lớn ⇒ **để nguyên**. Kiểm lại ở 10.1 bước 2; nếu VNPay báo hết hạn hoặc từ chối vì giờ thì nâng thành lỗi |
+| T-6 | TB | Contract TADSS bắt buộc offset, thiếu ⇒ 400 `VALIDATION_ERROR`. Spec mới ghi `+07:00` cho `items`; `requestedAt`, `memberSince`, `lastCompletedAt`, `occurredAt` chưa nêu cách đổi; `approvalExpiresAt` TADSS trả theo UTC | DTO dùng `DateTime` hoặc đi qua converter VN ⇒ mất offset ⇒ 400 ⇒ nhánh (d) cọc 100 % **âm thầm** cho mọi đơn | P6-22, 7.3, 7.4, 7.11 |
+| T-7 | TB | FE lấy "hôm nay" bằng `new Date().toISOString().split("T")[0]` (khoảng 20 chỗ: `useBookingForm`, `CourtAndTimeSelectionStep` (`min`), `walkinBooking.types`, `filter.types`, `BookingManagementBase`, `BookingCalendarView`, `BookingFilterToolbar`, `CourtManagementBase`, `CourtFilters`, `useCourtManagement`, 4 panel AI) | Từ 00:00 tới 06:59 giờ VN ra **ngày hôm qua**: nhân viên mở ca sớm thấy lịch, sân của hôm qua; đặt tại quầy mặc định hôm qua; ô ngày của khách cho chọn hôm qua (BE chặn) | P6-22, 8.1 |
+| T-8 | TB | FE gọi `new Date(...)` thẳng trên chuỗi `dd/MM/yyyy HH:mm:ss`. V8 đọc thành `MM/dd`: ngày ≤ 12 **đảo ngày và tháng, không báo lỗi**; ngày > 12 ra `Invalid Date` (chạy thử bằng Node 19/10). Vị trí: `PromotionSelector` (hạn khuyến mãi lúc đặt sân, qua `shared/utils/dateFormatter.formatDate`), `SessionManagementTab`, `BranchManagerTab` (`assignedAt`), `OwnerPromotionsPage`/`StaffPromotionsPage` (sắp theo `createdAt`), panel AI và `ChatPanel` (`generatedAt`, thử `new Date` trước khi đọc `dd/MM`) | Hạn khuyến mãi, ngày gán quản lý, phiên đăng nhập, thời điểm tạo gợi ý AI sai trong 12 ngày đầu tháng; sắp xếp khuyến mãi sai | P6-22, 8.1, 8.2 |
+| T-9 | Thấp | Biên ngày cho `users.created_at` dựng bằng `ToDateTime(..., DateTimeKind.Utc)` (`ReportRepository.cs:103, 1347, 1457`); xu hướng khách mới nhóm theo `CreatedAt.Date` UTC (dòng 1476); `ReportService.cs:45` mặc định `toDate` theo ngày UTC | Khách đăng ký 00:00–06:59 tính sang ngày trước; số khách mới theo ngày lệch | Lỗi thật ⇒ sửa: P6-22, 7.14 |
+| T-10 | Thấp | Dashboard Manager: `upcomingLimit = TimeOnly(now + 30')` (`ReportRepository.cs:277, 344`) quay vòng qua nửa đêm | 23:30–23:59 danh sách "sắp bắt đầu" sai | Lỗi thật ⇒ sửa: P6-22, 7.14 |
+| T-11 | Thấp | `LoyaltyTransactionQuery.FromDate/ToDate` (`DateTime` từ query, `Kind = Unspecified`) so với `timestamptz` (`CustomerManagementRepository.cs:266, 271`) | Gọi kèm bộ lọc ngày ⇒ Npgsql ném lỗi ⇒ 500. FE hiện chưa gọi hàm này | Lỗi thật của API ⇒ sửa: P6-22, 7.14 |
+| T-12 | Thấp | Giờ tường VN ở FE được hiểu theo múi giờ trình duyệt (`parseBackendDate`, `CourtTrack`, `calculateHoursUntil`, `canCheckIn`) | Máy đặt múi giờ khác VN ⇒ đếm ngược, ô quá giờ, xem trước hoàn tiền lệch | Không phải lỗi (giả định người dùng ở VN) ⇒ để nguyên; chỉ đồng hồ đếm ngược **mới** tính bằng `+07:00` (R-6); Mục 11 |
+| T-13 | Thấp | Chiều vào của BE đọc `DateTime` bằng `DateTime.TryParse` theo culture máy chủ | FE gửi lại chính chuỗi `dd/MM/yyyy` BE trả ra sẽ bị đọc sai. Hiện FE không làm vậy; body mới của Phase 6 (duyệt, từ chối) không có trường thời gian | Không phải lỗi ⇒ để nguyên; quy tắc FE ở P6-22 cho mã mới |
+| T-14 | TB | **Nguồn đồng hồ** (câu hỏi của người dùng 19/10, chi tiết dưới bảng): mốc UTC do máy chạy BE cấp (`DateTime.UtcNow`), không do Neon; Neon chỉ cấp `now()` cho cột mà mã không gán; TADSS, VNPay, trình duyệt mỗi bên một đồng hồ | Đồng hồ máy chạy BE sai (Docker trên WSL2 trôi giờ sau khi máy ngủ) ⇒ hạn giữ chỗ, hạn duyệt, % hoàn, no-show lệch theo; lệch giữa các máy ⇒ hạn hiển thị và hạn kiểm khác nhau vài giây tới vài phút | Kiểm ở 10.1 bước 3 và ca 9.4; mã mới dùng `TimeProvider` (7.14) để test được |
+
+**T-14 — giờ "hiện tại" lấy từ đâu (đã kiểm 19/10):**
+
+| Thời điểm | Nguồn | Ghi chú |
+| :--- | :--- | :--- |
+| `created_at` của booking, hóa đơn, Payment, slot lock, user; `expires_at`; `cancelled_at`; `paid_at`; mọi so sánh hạn trong service và job | `DateTime.UtcNow` của **máy chạy BE**: `dotnet run` ⇒ đồng hồ Windows; Docker ⇒ đồng hồ VM Linux của Docker Desktop (WSL2) | Mã gán tường minh nên EF không dùng default của DB. UTC không phụ thuộc múi giờ của máy, chỉ phụ thuộc đồng hồ máy chạy đúng hay không |
+| Cột có `HasDefaultValueSql("now()")` mà mã **không** gán; dữ liệu chèn bằng SQL | `now()` của **Neon** (giờ bắt đầu transaction) | EF chỉ dùng default khi thuộc tính để giá trị mặc định của CLR |
+| Lịch Hangfire | Đồng hồ máy chạy BE, theo `VNTimezone` | |
+| `approvalExpiresAt`, `evaluatedAt`, `overriddenAt`, `reportedAt` | `TimeProvider` của **máy chạy TADSS** | BE so `approvalExpiresAt` với đồng hồ BE |
+| `vnp_CreateDate` | Đồng hồ máy chạy BE (UTC, T-5) | |
+| Đồng hồ đếm ngược, ô quá giờ, "hôm nay" ở FE | Đồng hồ **trình duyệt** | |
+
+Đo lúc 00:16 ngày 19/10 giờ VN: đồng hồ Windows lệch giờ chuẩn (header `Date` của Google) không quá 2 giây. Docker Desktop đang tắt nên chưa đo được container; Docker Desktop trên WSL2 có thể trôi giờ sau khi máy ngủ hoặc ngủ đông, cần đo lại trước E2E (10.1).
+
 ---
 
 ## 4. QUYẾT ĐỊNH
@@ -232,6 +280,8 @@ Q1…Q12 của DEPOSIT_APPROVAL_API Mục 9 vẫn giữ, trừ những điểm s
 | **P6-19** | **Job outcome gửi tuần tự, tối đa 20 đơn mỗi chu kỳ**, gặp 429 thì dừng chu kỳ | N-24 |
 | **P6-20** | **Không làm trong Phase 6:** doanh thu theo tiền thực thu; tách báo cáo "đã hủy" theo lý do | N-12, N-23 |
 | **P6-21** | **Tùy chọn (W11 còn thời gian):** nút "Báo tôi khi trống" trên ô đang giữ, endpoint `POST /api/slot-interests` | N-21 |
+| **P6-22** | **Quy tắc thời gian** (chi tiết 7.14, 8.1): BE so sánh và lưu thời điểm ở UTC, giờ chơi đổi bằng `DateTimeHelper.ToUtcFromVietnam`, không `SpecifyKind(giờ VN, Utc)`, không trừ giờ tường VN cho `UtcNow`; DTO TADSS dùng `DateTimeOffset` có offset; service/job mới nhận `TimeProvider`; FE lấy "hôm nay" theo giờ VN, đọc chuỗi BE chỉ qua `parseBackendDate`. **Sửa mọi lỗi thật:** T-1, T-2, T-3, T-6, T-7, T-8, T-9, T-10, T-11. **Để nguyên** (không phải lỗi): T-5, T-12, T-13 | T-1…T-3, T-5…T-14 |
+| **P6-23** | **Khách không tự hủy khi đã tới giờ bắt đầu** (trong app và bằng link; `UtcNow ≥ ToUtcFromVietnam(ngày, giờ bắt đầu sớm nhất)`) ⇒ 400 `BOOKING_ALREADY_STARTED`, kiểm trước mọi thay đổi; FE ẩn nút hủy từ giờ bắt đầu. Nhân viên vẫn hủy được. Đơn khách không đến do Job-04 đánh `NO_SHOW` | T-4 |
 
 ### 4.3. Thông số thời gian và tiền
 
@@ -323,19 +373,19 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 
 | Gói | Nội dung | Task | Tuần | Test (danh mục) | Hoàn thành khi |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **6A-1** Nền | Script DB (Mục 6), enum + entity + `SmashCourtContext` + `MapEnum`; phân loại trạng thái (P6-15); fixture integration trên schema thật (P6-16); cấu hình (7.1); `TadssClient` (7.3); dựng request + lịch sử (7.4) | T6.1, T6.2, T6.3 | W09 | BE-UT-01, 02, 06, 09, 11; BE-IT-01; CT-04 | Người dùng đã áp script lên `staging`; build + test xanh; luồng cũ không đổi khi cờ tắt |
+| **6A-1** Nền | Script DB (Mục 6), enum + entity + `SmashCourtContext` + `MapEnum`; phân loại trạng thái (P6-15); fixture integration trên schema thật (P6-16); cấu hình (7.1); `TadssClient` (7.3); dựng request + lịch sử (7.4), thời gian theo 7.14 | T6.1, T6.2, T6.3 | W09 | BE-UT-01, 02, 06, 09, 11, 12; BE-IT-01; CT-04 | Người dùng đã áp script lên `staging`; build + test xanh; luồng cũ không đổi khi cờ tắt |
 | **6A-2** Đặt sân | `CreateOnlineAsync` hai transaction, 5 nhánh kết quả, bắt đăng nhập, DTO mới (7.6) | T6.4 | W10 | BE-UT-07; BE-IT-02, 03, 04, 16, 17, 19, 24 | Các nhánh chạy với WireMock; cờ tắt = hành vi Đồ án 1 (trừ các sửa lỗi) |
 | **6A-3** Duyệt | Hàng chờ, duyệt, từ chối, đồng bộ Q9 (7.7) | T6.5, T6.6 | W10 | BE-UT-03, 04, 05; BE-IT-05, 06, 07, 11…15, 18 | Ma trận lỗi Mục 5 của DEPOSIT_APPROVAL_API đủ |
-| **6A-4** Thanh toán, hủy, check-out | `retry-payment` theo P6-02; IPN P6-03, P6-07; dịch vụ hủy chung (7.9); hoàn tiền P6-08; khuyến mãi P6-18; check-out P6-12 | T6.6, T6.9 | W11 | BE-UT-08, 10; BE-IT-10, 21, 22, 23 | Không còn đường mất tiền đã biết |
+| **6A-4** Thanh toán, hủy, check-out | `retry-payment` theo P6-02; IPN P6-03, P6-07; dịch vụ hủy chung (7.9); hoàn tiền P6-08; hạn link hủy online và tại quầy (T-2, T-3); chặn khách hủy sau giờ bắt đầu (P6-23); khuyến mãi P6-18; check-out P6-12 | T6.6, T6.9 | W11 | BE-UT-08, 10, 12; BE-IT-10, 21, 22, 23, 25 | Không còn đường mất tiền đã biết |
 | **6A-5** Job | Job-01 sửa (lý do, có điều kiện); job hết hạn duyệt; job outcome (7.11) | T6.7, T6.8 | W11 | BE-IT-08, 09 | Không tự duyệt; outcome không gửi lặp, không tranh rate limit |
-| **6A-6** Hoàn thiện | Bộ test theo danh mục, truy vấn SC6 (BE-IT-20), script k6 E2E cùng SV2; tùy chọn P6-21 | T6.10 | W12 | BE-IT-20; Gate M6 | Mọi BE-UT/BE-IT đạt |
+| **6A-6** Hoàn thiện | Bộ test theo danh mục, truy vấn SC6 (BE-IT-20), script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo, dashboard, lọc điểm (T-9…T-11, 7.14); tùy chọn P6-21 | T6.10 | W12 | BE-IT-20, 25; Gate M6 | Mọi BE-UT/BE-IT đạt |
 
 ### 5.2. Epic 6B — smashcourt-fe
 
 | Gói | Nội dung | Task | Tuần | Test | Hoàn thành khi |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **6B-1** Nền FE | Type, hàm API, sự kiện SignalR + `NotificationDispatcher`, mock MSW theo ví dụ DEPOSIT_APPROVAL_API; thiết kế UI (8.1) | T6.11 | W09 | FE-03 | Mock khớp hợp đồng; thiết kế được duyệt |
-| **6B-2** Khách | Màn xác nhận, kết quả đặt sân, chờ duyệt, thanh toán cọc, kết quả thanh toán (thử lại/hủy), lịch sử, hủy (8.2) | T6.12 | W10 | FE-04, 08, 09, 11 | Rẽ nhánh theo `status`/`code` |
+| **6B-1** Nền FE | Type, hàm API, sự kiện SignalR + `NotificationDispatcher`, mock MSW theo ví dụ DEPOSIT_APPROVAL_API; hàm giờ VN và sửa T-7, T-8 (8.1); thiết kế UI | T6.11 | W09 | FE-03, FE-12 | Mock khớp hợp đồng; thiết kế được duyệt |
+| **6B-2** Khách | Màn xác nhận, kết quả đặt sân, chờ duyệt, thanh toán cọc, kết quả thanh toán (thử lại/hủy), lịch sử, hủy, ẩn nút hủy từ giờ bắt đầu (8.2) | T6.12 | W10 | FE-04, 08, 09, 11, 12 | Rẽ nhánh theo `status`/`code` |
 | **6B-3** Manager/Owner | Hàng chờ duyệt, hộp thoại duyệt/từ chối, realtime, badge (8.3) | T6.13 | W11 | FE-05…FE-08, FE-10 | Mọi mã lỗi có thông điệp |
 | **6B-4** Staff | Trạng thái mới ở danh sách/lịch/time grid; hủy đơn chờ duyệt; check-out hiện `remainingAmount` (8.4) | T6.14 | W11 | FE-09 | — |
 | **6B-5** Kiểm thử | Playwright trên MSW cho E2E-01…14; `tsc` vào CI | T6.15, T5.25 | W12 | FE-01, FE-02 | Gate M6 |
@@ -473,7 +523,7 @@ Hạng thành viên ánh xạ theo **thứ hạng `MinPoints` tăng dần** (INT
 
 ### 7.3. Client TADSS (T6.2)
 
-Thư mục `Integrations/Tadss/` theo mẫu `Integrations/AI/`: `ITadssClient`, `TadssClient` (typed `HttpClient` đăng ký `AddHttpClient`), DTO trong `Integrations/Tadss/DTOs/` viết tay theo JSON schema v2 (BE **không** reference SDK). JSON camelCase, enum dạng chuỗi.
+Thư mục `Integrations/Tadss/` theo mẫu `Integrations/AI/`: `ITadssClient`, `TadssClient` (typed `HttpClient` đăng ký `AddHttpClient`), DTO trong `Integrations/Tadss/DTOs/` viết tay theo JSON schema v2 (BE **không** reference SDK). JSON camelCase, enum dạng chuỗi. Mọi trường thời gian của DTO là `DateTimeOffset`; client dùng `JsonSerializerOptions` riêng, **không** dùng `VietnamDateTimeConverter` của MVC (T-6, P6-22).
 
 | Hàm | Endpoint TADSS | Header | Thử lại trong client |
 | :--- | :--- | :--- | :--- |
@@ -490,6 +540,7 @@ Kết quả kiểu `TadssCallResult<T>`: thành công kèm `T`, hoặc thất b�
 
 - `items`: mỗi `booking_court` một item; `resourceId = courtId`, `resourceTypeId = courtTypeId`, `price` = phí sân của sân đó trước giảm giá (từ `CourtPriceResultDto`), thời gian ISO 8601 có offset `+07:00`.
 - `totalPrice = invoice.FinalTotal`, `currency = "VND"`, `channel = "ONLINE"`, `branchTimeZone` theo cấu hình, `requestedAt` = giờ tạo booking.
+- Thời gian (7.14): `items[].startTime/endTime` và `lastCompletedAt` dựng từ `date` + `time` (giờ tường VN) thành `DateTimeOffset` offset `+07:00`; `requestedAt` (`bookings.created_at`), `memberSince` (`users.created_at`) là mốc UTC, gửi offset `+00:00` hoặc đổi sang `+07:00` (cùng thời điểm). Không bao giờ gửi chuỗi thiếu offset.
 - `customer`: luôn `isGuest = false` (P6-01), `customerId`, `tier` theo thứ hạng, `memberSince = users.created_at`.
 - `history` (repo mới `ICustomerHistoryRepository` / `CustomerHistoryRepository`): đếm các booking **đã kết thúc trước** booking đang xét của cùng `customer_id`, theo bảng 4.4.1: `completedCount` + `lastCompletedAt` (`COMPLETED`, mốc = giờ kết thúc chơi muộn nhất), `noShowCount` (`NO_SHOW`), `cancelledCount` / `lateCancelledCount` (`CUSTOMER_CANCELLED`; đã thanh toán và tỷ lệ hoàn lớn nhất < 100 ⇒ `late`), `paymentExpiredCount` (`PAYMENT_EXPIRED` duy nhất).
 - `demand` (tùy chọn): `occupancyRate` = số sân hoạt động của chi nhánh có booking hiệu lực giao khung giờ (không tính booking này) / số sân hoạt động; `waitlistCount` = số `slot_interests` còn hạn giao khung giờ.
@@ -591,7 +642,9 @@ Phần chung (mọi đường):
 5. `UsedCount` khuyến mãi chỉ giảm khi hóa đơn có Payment `SUCCESS` hoặc `PaymentTiming = POSTPAID` (N-8). `PromotionRepository.GetUserUsageCountAsync` bỏ booking ở trạng thái hủy (P6-18).
 6. Sau commit: email, `NotifySlotInterestedUsersAsync`, `BookingCancelled`/`BookingExpired`; đơn đang `PENDING_APPROVAL` thêm `PendingApprovalQueueChanged` (`REMOVED`/`CANCELLED|REJECTED|EXPIRED`).
 
-`GetCancelInfoAsync` (xem trước khi hủy bằng link) dùng cùng công thức. Hạn link hủy (`GenerateCancelTokenData`) quy đổi giờ chơi bằng `ToUtcFromVietnam`.
+`GetCancelInfoAsync` (xem trước khi hủy bằng link) dùng cùng công thức. Hạn link hủy = `min(ToUtcFromVietnam(ngày, giờ bắt đầu), UtcNow + 24h)`, dùng **một hàm chung** cho cả đơn online (`PaymentService.GenerateCancelTokenData`, T-2) và đơn tại quầy (`BookingService.SendConfirmationEmailAsync`, T-3); kết quả luôn `Kind = Utc`.
+
+P6-23: đường hủy của khách (app, link) kiểm `UtcNow ≥ ToUtcFromVietnam(ngày, giờ bắt đầu sớm nhất)` ⇒ 400 `BOOKING_ALREADY_STARTED` trước bước 1 (không đổi dữ liệu, không tiêu token); đường của nhân viên không đổi. Link hủy vốn hết hạn ở giờ bắt đầu (sau khi sửa T-2) nên kiểm này là lớp thứ hai.
 
 ### 7.10. Check-out (T6.9)
 
@@ -611,7 +664,7 @@ Sơ đồ: [Tuần tự 4](../docs/report/SEQUENCE_DIAGRAMS.md#4-hết-hạn-duy
 
 Hai job mới và Job-01 gắn `[DisableConcurrentExecution]` như các job khác của `BookingJob`.
 
-Ánh xạ outcome theo bảng 4.4.1; `occurredAt` cố định để chống trùng theo nội dung của TADSS: `COMPLETED`, `NO_SHOW` ⇒ giờ kết thúc chơi muộn nhất; các lý do hủy ⇒ `cancelled_at`; `SYSTEM_CLEANUP` không gửi, ghi `tadss_outcome_reported_at` kèm log Warning.
+Ánh xạ outcome theo bảng 4.4.1; `occurredAt` cố định để chống trùng theo nội dung của TADSS: `COMPLETED`, `NO_SHOW` ⇒ giờ kết thúc chơi muộn nhất (giờ tường VN, gửi offset `+07:00`); các lý do hủy ⇒ `cancelled_at` đọc từ DB (UTC, độ chính xác µs nên lần gửi lại trùng nội dung); `SYSTEM_CLEANUP` không gửi, ghi `tadss_outcome_reported_at` kèm log Warning. "Đã kết thúc" xét bằng `ToUtcFromVietnam(ngày, giờ kết thúc) ≤ UtcNow` như Job-02.
 
 ### 7.12. Phân loại trạng thái (P6-15)
 
@@ -623,9 +676,31 @@ Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nh�
 
 ### 7.13. Mã lỗi, sự kiện, email
 
-- `Common/ErrorCodes.cs` nhóm `// ─── Deposit Approval ───`: các mã của DEPOSIT_APPROVAL_API Mục 5 + `PAYMENT_HOLD_EXPIRED` (400).
+- `Common/ErrorCodes.cs` nhóm `// ─── Deposit Approval ───`: các mã của DEPOSIT_APPROVAL_API Mục 5, gồm `PAYMENT_HOLD_EXPIRED` (400) và `BOOKING_ALREADY_STARTED` (400, P6-23).
 - `Common/Constants/SignalREvents.cs`: `BookingPendingApproval`, `BookingApprovalResolved`, `PendingApprovalQueueChanged` (DEPOSIT_APPROVAL_API Mục 6).
-- `Templates/`: email chờ duyệt, đã duyệt, bị từ chối, hết hạn duyệt, tiền về sau khi hủy; email xác nhận thanh toán thêm "đã cọc / còn lại".
+- `Templates/`: email chờ duyệt, đã duyệt, bị từ chối, hết hạn duyệt, tiền về sau khi hủy; email xác nhận thanh toán thêm "đã cọc / còn lại". Hạn ghi trong email ("thanh toán cọc trước HH:mm") lấy `expires_at` đổi bằng `DateTimeHelper.ToVietnamTime`, định dạng `HH:mm dd/MM/yyyy`.
+
+### 7.14. Quy tắc thời gian (P6-22)
+
+| Việc | Cách làm | Cấm |
+| :--- | :--- | :--- |
+| So sánh "đã tới giờ / quá hạn" | Hai vế đều UTC: `DateTimeHelper.GetUtcNow()` với cột `timestamptz` hoặc `ToUtcFromVietnam(date, time)` | Trừ giờ tường VN (`date.ToDateTime(time)`) cho `UtcNow` (T-1) |
+| Ghi mốc thời điểm vào DB | `DateTime` có `Kind = Utc` | `SpecifyKind(giờ VN, Utc)` (T-2); `Kind = Unspecified` (T-3) |
+| "Hôm nay", giờ trong ngày | `GetTodayInVietnam()`, `GetVietnamNow()` | `DateOnly.FromDateTime(DateTime.UtcNow)` |
+| Gửi TADSS | `DateTimeOffset`: giờ chơi `+07:00`, mốc DB theo UTC; đọc `approvalExpiresAt` bằng `.UtcDateTime` trước khi lưu | `DateTime` trong DTO TADSS; serialize qua converter VN (T-6) |
+| Trả FE | Giữ converter VN (`dd/MM/yyyy HH:mm:ss`), không đổi wire | Định dạng mới cho trường mới |
+
+`BookingJob` đang có bản sao riêng của `ToUtcFromVietnam`; mã mới dùng `DateTimeHelper.ToUtcFromVietnam`.
+
+**Đồng hồ (T-14):** service và job **mới** của Phase 6 (`BookingDepositService`, `BookingApprovalService`, `BookingCancellationService`, `BookingApprovalJob`, `TadssOutcomeJob`) nhận `TimeProvider` qua DI (`AddSingleton(TimeProvider.System)`) và lấy `GetUtcNow().UtcDateTime`; `PaymentHoldHelper` nhận `now` làm tham số. Test cố định thời điểm (00:30, 06:59, 23:45 giờ VN, đúng mốc chính sách hủy, đúng giờ bắt đầu) bằng `FakeTimeProvider`. Mã cũ không đụng tới thì giữ `DateTime.UtcNow`. Không dùng `now()` của DB cho logic mới; cột mới (`hold_deadline`, `approval_resolved_at`, `tadss_outcome_reported_at`, `cancelled_at`) do BE gán.
+
+**Sửa lỗi có sẵn ngoài luồng cọc (T-9…T-11), giữ nguyên wire:**
+
+| # | Chỗ sửa | Cách sửa |
+| :---: | :--- | :--- |
+| T-9 | `ReportRepository` (khách mới, xu hướng khách mới), `ReportService.cs:45` | Biên `[ToUtcFromVietnam(fromDate, 00:00), ToUtcFromVietnam(toDate + 1 ngày, 00:00))`; nhóm theo ngày VN của `created_at` (đổi `ToVietnamTime` trước khi lấy ngày); `toDate` mặc định `GetTodayInVietnam()` |
+| T-10 | `ReportRepository.cs:277, 344` | Nếu `now + 30'` sang ngày hôm sau thì giới hạn là cuối ngày (`TimeOnly.MaxValue`) |
+| T-11 | `CustomerManagementRepository.GetLoyaltyTransactionsAsync` | Lấy phần ngày của `FromDate`/`ToDate`, đổi thành biên UTC theo giờ VN như T-9 (`ToDate` tính hết ngày) |
 
 ---
 
@@ -639,7 +714,9 @@ Tên file/thư mục theo skill `smashcourt-fe-architecture`.
 - Types hàng chờ: `src/features/booking-approval/shared/types/booking-approval.types.ts` (`PendingApprovalBookingDto`, `ApproveBookingRequest`, `RejectBookingRequest`, `BookingApprovalResultDto`).
 - API: `src/api/booking-approval.api.ts` (`fetchPendingApprovals`, `approveBooking`, `rejectBooking`), JSDoc "METHOD /api/route".
 - `src/lib/signalr-events.ts`: ba sự kiện mới; đăng ký vào `src/features/notifications/NotificationDispatcher.tsx` (toast cho Manager/Owner/khách theo nhóm nhận) và các hook tải lại (`useRealtimeRefresh`).
-- Hàm giờ VN: chuỗi `dd/MM/yyyy HH:mm:ss` hiểu là `+07:00` khi đếm ngược (R-6), đặt ở `src/shared/utils/`.
+- Hàm giờ VN trong `src/shared/utils/date.ts` (P6-22): `getTodayVN()` trả `yyyy-MM-dd` theo `Asia/Ho_Chi_Minh` (`Intl.DateTimeFormat`), không theo UTC; `parseBackendDateVN()` đọc `dd/MM/yyyy HH:mm:ss` thành thời điểm `+07:00` cho đồng hồ đếm ngược (R-6, không phụ thuộc múi giờ máy, T-12).
+- Thay `new Date().toISOString().split("T")[0]` bằng `getTodayVN()` ở các chỗ liệt kê trong T-7 (khoảng 20 chỗ); điều hướng ngày trước/sau trong `useBookingSchedule`, `CourtFilters` cộng ngày trên chuỗi `yyyy-MM-dd`, không qua `toISOString`.
+- Chuỗi thời gian BE trả về chỉ đọc qua `parseBackendDate`/`formatDateTime` của `src/shared/utils/date.ts`: sửa `SessionManagementTab`, `BranchManagerTab`, `OwnerPromotionsPage`, `StaffPromotionsPage`, các panel AI và `ChatPanel` (đọc `dd/MM` trước, T-8). `src/shared/utils/dateFormatter.ts` chuyển sang gọi `parseBackendDate` để mọi nơi import nó đọc đúng. Không gửi lại chuỗi `dd/MM/yyyy` lên BE (T-13): ngày gửi lên là `yyyy-MM-dd`.
 - MSW: handler và dữ liệu mẫu chép từ ví dụ DEPOSIT_APPROVAL_API (FE-03).
 
 ### 8.2. Khách (6B-2)
@@ -649,10 +726,12 @@ Sơ đồ: [Hoạt động 1](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md#1-qu
 | Màn | Vị trí | Hành vi |
 | :--- | :--- | :--- |
 | Xác nhận đặt sân | `BookingConfirmationStep.tsx` (sửa) | Bỏ câu "Tổng tiền thanh toán… sẽ được chuyển đến trang thanh toán"; thay bằng "Tổng tiền đơn; mức cọc được xác định sau khi đặt, phần còn lại thu tại quầy" |
+| Chọn ngày, khuyến mãi | `CourtAndTimeSelectionStep`, `useBookingForm`, `PromotionSelector` (sửa) | Ngày mặc định và `min` theo `getTodayVN()` (T-7); hạn khuyến mãi đọc qua `parseBackendDate` (T-8) |
 | Kết quả đặt sân | `app/(customer)/bookings/result/page.tsx` → `src/features/booking/customer/components/booking-result/BookingResultPage.tsx` | `useBookingSubmit` không redirect thẳng mà chuyển tới trang này với `bookingId` (dữ liệu response giữ trong state/sessionStorage, tải lại bằng `GET /api/me/bookings/{id}`). `PENDING`: cọc, còn lại, đồng hồ tới `expiresAt`, nút "Thanh toán cọc" ⇒ `paymentUrl`. `CONFIRMED`: "Đặt sân thành công, thanh toán tại quầy". `PENDING_APPROVAL`: "Chờ chi nhánh xác nhận", `bookingCode`, đồng hồ tới `approvalExpiresAt`, nút "Hủy đơn"; nghe `BookingApprovalResolved` ⇒ tải lại. `BOOKING_REJECTED` hiện tại bước xác nhận, gợi ý chọn khung giờ khác |
 | Kết quả thanh toán | `PaymentResult.tsx` (sửa) | Thất bại: hai nút "Thanh toán lại" (`retry-payment`) và "Hủy đơn" (thay "Đặt lại"); `PAYMENT_HOLD_EXPIRED` ⇒ báo hết thời gian giữ chỗ |
 | Lịch sử / chi tiết | `BookingCard`, `BookingDetailModal` (sửa) | Nhãn `PENDING_APPROVAL`, `CONFIRMED` online ("thanh toán tại quầy"); cọc / còn lại; nút "Thanh toán cọc" khi `PENDING` và chưa quá `expiresAt`; hủy được `PENDING`, `PENDING_APPROVAL`; lý do hủy theo `cancelReason` |
 | Xem trước hoàn tiền | `customer/utils/bookingStatus.ts`, `CancelBookingModal` | `calculateRefundInfo` nhận **số đã thanh toán** (`depositAmount` khi `PAID_ONLINE`, 0 khi chưa trả), không còn `finalTotal` |
+| Hủy sau giờ bắt đầu (P6-23) | `customer/utils/bookingStatus.ts` (`canCancel`), `BookingCard`, `BookingDetailModal`, `CancelBookingModal`, trang hủy bằng link | Ẩn nút hủy khi đã tới giờ bắt đầu (tính bằng `+07:00`); `BOOKING_ALREADY_STARTED` ⇒ "Đơn đã tới giờ chơi, không thể tự hủy; vui lòng liên hệ chi nhánh" |
 
 ### 8.3. Manager / Owner (6B-3)
 
@@ -685,11 +764,14 @@ Các mã hiện có giữ nguyên ý nghĩa, đã sửa chi tiết theo spec nà
 | BE-UT-09 | Lịch sử khách theo `cancel_reason` và ánh xạ outcome (bảng 4.4.1) | 6A-1, 6A-5 |
 | BE-UT-10 | % hoàn ở mỗi mốc chính sách (đúng mốc, trước/sau 1 phút) theo giờ VN; hoàn trên số đã trả | 6A-4 |
 | BE-UT-11 | Mọi giá trị `BookingStatus` được phân loại (7.12) | 6A-1 |
+| BE-UT-12 | Quy tắc thời gian (7.14): request TADSS mọi trường có offset (giờ chơi `+07:00`, mốc DB đúng thời điểm), hợp lệ theo `decision-request.schema.json`; `approvalExpiresAt` lưu đúng UTC; hạn link hủy online và tại quầy `Kind = Utc`, bằng giờ bắt đầu khi đơn trong 24 giờ tới; P6-23 chặn đúng ở giờ bắt đầu, trước 1 phút vẫn hủy được, nhân viên hủy được; thời điểm cố định bằng `FakeTimeProvider` (00:30, 06:59, 23:45 giờ VN) | 6A-1, 6A-4 |
+| BE-IT-25 | Lỗi thời gian có sẵn, trên schema thật (P6-16): tạo đơn tại quầy trong ngày cho khách có email ⇒ ghi được `cancel_token_expires_at`, email được gửi (T-3); khách đăng ký lúc 00:30 giờ VN được tính đúng ngày ở báo cáo khách mới và xu hướng (T-9); "sắp bắt đầu" lúc 23:45 không quay vòng (T-10); lọc giao dịch điểm theo ngày trả 200 và đủ cả ngày cuối (T-11); mọi cột thời gian mới do BE ghi có giá trị bằng đồng hồ test (T-14) | 6A-4, 6A-6 |
 | BE-IT-21 | Thanh toán thất bại: đơn giữ `PENDING`, hạn rút về 5'; thanh toán lại thành công; bỏ đi ⇒ `PAYMENT_EXPIRED`; bấm thanh toán lại liên tục dừng ở `hold_deadline` (400 `PAYMENT_HOLD_EXPIRED`); IPN thất bại của link cũ không đổi đơn | 6A-4 |
 | BE-IT-22 | Tiền về sau khi hủy ⇒ Refund 100 % `PENDING`, `CANCELLED_PENDING_REFUND` | 6A-4 |
 | BE-IT-23 | Khách/nhân viên hủy đơn `PENDING`/`PENDING_APPROVAL`: không hoàn, không giảm `UsedCount`, Payment chờ ⇒ `FAILED`, `cancel_reason` đúng, đơn rời hàng chờ; đơn đã hủy không tính vào giới hạn khuyến mãi mỗi khách | 6A-4 |
 | BE-IT-24 | Đặt online không đăng nhập ⇒ 401; vai trò khác `CUSTOMER` ⇒ 403; cọc nhỏ/0 ⇒ `CONFIRMED` (a′) | 6A-2 |
 | FE-11 | Trang kết quả thanh toán thất bại: "Thanh toán lại" gọi `retry-payment`, "Hủy đơn" gọi hủy, `PAYMENT_HOLD_EXPIRED` có thông điệp; trang kết quả đặt sân rẽ nhánh `CONFIRMED` | 6B-2 |
+| FE-12 | Hàm giờ VN (8.1): `getTodayVN()` lúc 00:30 và 06:59 giờ VN ra đúng ngày VN; `parseBackendDate("05/10/2026 07:00:00")` là 05/10 (không đảo tháng); đồng hồ đếm ngược đúng khi trình duyệt đặt múi giờ khác VN; nút hủy của khách ẩn từ giờ bắt đầu, `BOOKING_ALREADY_STARTED` có thông điệp (P6-23) | 6B-1, 6B-2 |
 
 ### 9.2. Hạ tầng test BE
 
@@ -711,6 +793,12 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 | Thanh toán thất bại (P6-03) | Thẻ lỗi lúc phút 3, thử lại trong 5'; thẻ lỗi rồi bỏ đi | Đơn vẫn `PENDING`, thanh toán lại được; bỏ đi ⇒ slot nhả ở phút 8, time grid cập nhật |
 | Hạn tuyệt đối (P6-02) | Duyệt 09:00, retry 09:02; đơn thường retry liên tục | Hạn vẫn 09:15; đơn thường dừng ở `createdAt + 15'` |
 | Hoàn tiền (P6-08) | Cọc 30 %, hủy sớm (100 %); hủy sát mốc chính sách | Hoàn 30 % tổng; % đúng mốc theo giờ VN |
+| Email đơn tại quầy (T-3) | Nhân viên tạo đơn trong ngày cho khách có email | Email xác nhận gửi được; `cancel_token_expires_at` = giờ bắt đầu theo UTC |
+| Khách hủy sau giờ bắt đầu (T-4, P6-23) | Đơn `PAID_ONLINE`, sau giờ bắt đầu 5', khách bấm hủy | 400 `BOOKING_ALREADY_STARTED`; Job-04 đánh `NO_SHOW`; outcome `NO_SHOW` |
+| "Hôm nay" ở FE (T-7) | Đặt đồng hồ máy 06:30 giờ VN, mở lịch nhân viên và màn đặt tại quầy | Ngày mặc định là hôm nay theo giờ VN |
+| Request TADSS (T-6) | Bắt request gửi WireMock | Mọi trường thời gian có offset; không đơn nào rơi nhánh (d) vì 400 `VALIDATION_ERROR` |
+| Báo cáo, dashboard, lọc điểm (T-9…T-11) | BE-IT-25 | Số khách mới đúng ngày VN; danh sách sắp bắt đầu đúng lúc 23:45; lọc điểm 200 |
+| Đồng hồ các máy (T-14) | 10.1 bước 3, chạy lại sau khi máy ngủ dậy | Lệch ≤ 5 giây giữa BE (IDE và Docker), TADSS, Neon và giờ chuẩn |
 | Check-out (P6-12) | Cọc 30 % + dịch vụ 20.000 đ | Thu 70 % + 20.000 đ; hóa đơn `PAID` |
 | Enum số (P6-15) | Lọc nhân viên theo từng trạng thái cũ | Như trước Phase 6 |
 | Hai Manager | E2E-07 | 200 và 409 `APPROVAL_ALREADY_RESOLVED` |
@@ -723,7 +811,8 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 ### 10.1. Xác minh trước khi bắt đầu 6A-1
 
 1. Truy vấn 6.1 trên `staging`: `chk_bookings_cancelled_at`, `uq_slot_locks_booking` có thật không (quyết định cách viết câu lệnh hủy và slot lock).
-2. VNPay sandbox (đầu 6A-4): mức tiền tối thiểu; IPN có được gọi khi khách bấm "Hủy giao dịch" không; URL IPN công khai trỏ vào BE (N-16).
+2. VNPay sandbox (đầu 6A-4): mức tiền tối thiểu; IPN có được gọi khi khách bấm "Hủy giao dịch" không; URL IPN công khai trỏ vào BE (N-16); trang VNPay có báo hết hạn hoặc từ chối vì `vnp_CreateDate` theo UTC không (T-5).
+3. Đồng hồ (T-14), trước mỗi đợt E2E và sau khi máy ngủ dậy: so giờ UTC của Windows (`date -u`), của container BE (`docker exec <container> date -u`), của Neon (`SELECT now()` trên `staging`) và của TADSS (`evaluatedAt` trong response) với giờ chuẩn. Lệch > 5 giây ⇒ đồng bộ (`w32tm /resync` trên Windows; `wsl --shutdown` rồi mở lại Docker Desktop cho container) rồi mới chạy.
 
 ### 10.2. Thứ tự (P6-17)
 
@@ -750,6 +839,9 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | SV2 làm FE trước khi BE xong | Mock MSW theo DEPOSIT_APPROVAL_API (6B-1) |
 | Đơn đang chạy lúc deploy | `hold_deadline = NULL` hiểu là `created_at + 15'` |
 | Job outcome tranh rate limit với đặt sân | P6-19 |
+| Request TADSS thiếu offset ⇒ mọi đơn âm thầm cọc 100 % (T-6) | 7.14, BE-UT-12; theo dõi log Error của nhánh (d) với 400 trên `staging` |
+| Máy người dùng đặt múi giờ khác VN (T-12) | Chấp nhận; đồng hồ đếm ngược mới tính `+07:00` |
+| Đồng hồ máy chạy BE hoặc container trôi giờ (T-14) | Đo ở 10.1 bước 3 trước E2E; mã mới test bằng `FakeTimeProvider` nên kết quả test không phụ thuộc đồng hồ máy |
 
 ---
 
@@ -790,6 +882,17 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | N-23 báo cáo "đã hủy" gộp từ chối/hết hạn duyệt | P6-20 (không làm) | — |
 | N-24 job outcome tranh rate limit | P6-19 | 6A-5 |
 | N-25 màn xác nhận và `NotificationDispatcher` | 8.1, 8.2 | 6B-1, 6B-2 |
+| T-1, T-2 lệch 7 giờ khi hoàn tiền, hạn link hủy online | P6-08, 7.9 | 6A-4 |
+| T-3 email đơn tại quầy không gửi | P6-22, 7.9 | 6A-4 |
+| T-4 khách hủy sau giờ bắt đầu né `NO_SHOW` | P6-23, 7.9, 8.2 | 6A-4, 6B-2 |
+| T-5 `vnp_CreateDate` theo UTC | Để nguyên (không phải lỗi); kiểm 10.1 bước 2 | — |
+| T-6 thời gian request/response TADSS | P6-22, 7.3, 7.4, 7.11, 7.14 | 6A-1, 6A-5 |
+| T-7 "hôm nay" ở FE theo UTC | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
+| T-8 FE đảo ngày/tháng | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
+| T-9, T-10, T-11 báo cáo, dashboard, lọc điểm | P6-22, 7.14 | 6A-6 |
+| T-12 múi giờ trình duyệt | Để nguyên (không phải lỗi); Mục 11 | — |
+| T-13 BE đọc `DateTime` theo culture | Để nguyên (không phải lỗi); quy tắc FE ở P6-22 | — |
+| T-14 nguồn đồng hồ | 3.3, 7.14, 10.1 bước 3, Mục 11 | 6A-1 (`TimeProvider`), Phase 7 (đo) |
 
 ---
 
@@ -804,5 +907,7 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | TADSS-Runtime | `docs/research/E2E_TEST_SPECIFICATION.md` | Q2 = 15'; không khách vãng lai online; E2E-02/07/12 không Payment lúc duyệt; biến thể thẻ lỗi của E2E-01; Mục 7 |
 | TADSS-Runtime | `docs/report/USE_CASES.md`, `SEQUENCE_DIAGRAMS.md`, `ACTIVITY_AND_STATE_DIAGRAMS.md`, `ARCHITECTURE_DIAGRAMS.md` | Đồng bộ toàn bộ P6-01…P6-21 (rà soát lần hai 18/10): thêm tuần tự 5 (thanh toán, thất bại, thanh toán lại, tiền về sau hủy) và tuần tự 6 (hủy, hoàn tiền); UC-DEPOSIT-04 đổi tên "Hủy đơn chưa thanh toán"; strategy 2.1.0; cọc dưới mức tối thiểu, duyệt 0 %, Q9, kiểm mức tối thiểu khi duyệt; 18 sơ đồ render kiểm |
 | TADSS-Runtime | `docs/planning/BACKLOG_SPRINTS.md`, `docs/PHASE5_SUMMARY.md` | Mô tả T6.x và mã test; phạm vi danh mục |
+
+**Rà soát thời gian 19/10/2026 (Mục 3.3):** `DEPOSIT_APPROVAL_API.md` Mục 1.3 (FE gửi ngày `yyyy-MM-dd`), Mục 11 (P6-22); methodology thêm BE-UT-12, FE-12 và sửa BE-UT-10; `BACKLOG_SPRINTS.md` T6.3, T6.9, T6.10, T6.11, T6.12; `PHASE5_SUMMARY.md` phạm vi danh mục. P6-23 chốt cùng ngày: `DEPOSIT_APPROVAL_API.md` 3.4, Mục 5 (`BOOKING_ALREADY_STARTED`, dòng 21; nối lại bảng bị tách giữa dòng 18 và 19), Mục 7, Mục 11; report: Tuần tự 6 (nhánh 400), trạng thái booking (nhãn "khách chỉ trước giờ bắt đầu"), UC-DEPOSIT-12 quy tắc 3 (render lại 2 sơ đồ đạt); methodology BE-UT-12, BE-IT-25, FE-12.
 
 Không sửa (có lý do): `PHASE5_SUMMARY.md` dòng PT-03 "chưa chốt (Q-6)" là mô tả thiết kế lượt đánh giá Phase 5, đổi nhãn sau lượt full 2.1.0; `SmashCourt-BE/docs/3.1-kien-truc-he-thong.md` lệch mã từ Đồ án 1, báo cáo mới dùng `docs/report/`.

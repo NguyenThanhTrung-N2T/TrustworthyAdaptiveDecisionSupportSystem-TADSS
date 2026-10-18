@@ -482,3 +482,4 @@ Như UC hủy booking online của Đồ án 1, khác ở cách tính tiền ho�
 
 1. Đồ án 1 tính `tiền hoàn = finalTotal × % hoàn`, đúng khi khách luôn trả 100 %. Khi chỉ cọc một phần, cách cũ hoàn vượt số đã trả (ví dụ cọc 30 %, hủy sớm được hoàn 100 % ⇒ hoàn 100 % tổng tiền); đây là lỗi B-1 đã ghi nhận và được sửa bằng quy tắc trên.
 2. Booking online tạo trước khi có cọc (đã trả 100 %) cho cùng kết quả như cách tính cũ.
+3. Khách chỉ tự hủy được trước giờ bắt đầu (P6-23). Từ giờ bắt đầu, BE trả 400 `BOOKING_ALREADY_STARTED` và FE ẩn nút hủy; đơn khách không đến do job đánh `NO_SHOW`, nhờ đó lịch sử gửi TADSS không ghi nhầm "hủy muộn" thay cho "không đến". Nhân viên vẫn hủy hộ được.
