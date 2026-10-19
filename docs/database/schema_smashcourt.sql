@@ -1,11 +1,11 @@
-﻿--
+--
 -- PostgreSQL database dump
 --
 
-\restrict XGNkEnF8KJxDa0Y3GT65YDXfg6heHRHwjNxyVVq7c1do9R6iKK9SoAEkDY70qzb
+\restrict lu8vQKehY1DdNFTcqaIqN1F5Q8BMfnOcv4o1K7RbHL9c7bP5aEfCQfBchIMTRCa
 
--- Dumped from database version 17.11 (c4ba6b8)
--- Dumped by pg_dump version 17.7
+-- Dumped from database version 17.11 (59c914d)
+-- Dumped by pg_dump version 17.11
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -57,6 +57,35 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 
 --
+-- Name: approval_result; Type: TYPE; Schema: public; Owner: neondb_owner
+--
+
+CREATE TYPE public.approval_result AS ENUM (
+    'APPROVED',
+    'REJECTED'
+);
+
+
+ALTER TYPE public.approval_result OWNER TO neondb_owner;
+
+--
+-- Name: booking_cancel_reason; Type: TYPE; Schema: public; Owner: neondb_owner
+--
+
+CREATE TYPE public.booking_cancel_reason AS ENUM (
+    'PAYMENT_EXPIRED',
+    'APPROVAL_EXPIRED',
+    'APPROVAL_REJECTED',
+    'POLICY_REJECTED',
+    'CUSTOMER_CANCELLED',
+    'STAFF_CANCELLED',
+    'SYSTEM_CLEANUP'
+);
+
+
+ALTER TYPE public.booking_cancel_reason OWNER TO neondb_owner;
+
+--
 -- Name: booking_source; Type: TYPE; Schema: public; Owner: neondb_owner
 --
 
@@ -82,7 +111,8 @@ CREATE TYPE public.booking_status AS ENUM (
     'CANCELLED',
     'CANCELLED_PENDING_REFUND',
     'CANCELLED_REFUNDED',
-    'NO_SHOW'
+    'NO_SHOW',
+    'PENDING_APPROVAL'
 );
 
 
@@ -181,6 +211,19 @@ CREATE TYPE public.day_type AS ENUM (
 
 
 ALTER TYPE public.day_type OWNER TO neondb_owner;
+
+--
+-- Name: deposit_source; Type: TYPE; Schema: public; Owner: neondb_owner
+--
+
+CREATE TYPE public.deposit_source AS ENUM (
+    'TADSS',
+    'MANAGER',
+    'FULL_PAYMENT_FALLBACK'
+);
+
+
+ALTER TYPE public.deposit_source OWNER TO neondb_owner;
 
 --
 -- Name: discount_type_enum; Type: TYPE; Schema: public; Owner: neondb_owner
@@ -841,8 +884,21 @@ CREATE TABLE public.bookings (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     checked_in_at timestamp with time zone,
     booking_code character varying(20) NOT NULL,
+    tadss_decision_id uuid,
+    approval_expires_at timestamp with time zone,
+    approval_reason_code character varying(64),
+    approval_reasons text[],
+    approval_result public.approval_result,
+    approval_resolved_by uuid,
+    approval_resolved_at timestamp with time zone,
+    approval_resolution_note character varying(500),
+    cancel_reason public.booking_cancel_reason,
+    tadss_outcome_reported_at timestamp with time zone,
+    CONSTRAINT chk_bookings_approval_resolution CHECK (((approval_result IS NULL) = (approval_resolved_at IS NULL))),
+    CONSTRAINT chk_bookings_cancel_reason CHECK (((cancel_reason IS NULL) OR (status = ANY (ARRAY['CANCELLED'::public.booking_status, 'CANCELLED_PENDING_REFUND'::public.booking_status, 'CANCELLED_REFUNDED'::public.booking_status])))),
     CONSTRAINT chk_bookings_cancelled_at CHECK ((((status = ANY (ARRAY['CANCELLED'::public.booking_status, 'CANCELLED_PENDING_REFUND'::public.booking_status, 'CANCELLED_REFUNDED'::public.booking_status])) AND (cancelled_at IS NOT NULL)) OR (status <> ALL (ARRAY['CANCELLED'::public.booking_status, 'CANCELLED_PENDING_REFUND'::public.booking_status, 'CANCELLED_REFUNDED'::public.booking_status])))),
-    CONSTRAINT chk_bookings_guest_info CHECK (((customer_id IS NOT NULL) OR (NULLIF(TRIM(BOTH FROM guest_name), ''::text) IS NOT NULL) OR (NULLIF(TRIM(BOTH FROM guest_phone), ''::text) IS NOT NULL)))
+    CONSTRAINT chk_bookings_guest_info CHECK (((customer_id IS NOT NULL) OR (NULLIF(TRIM(BOTH FROM guest_name), ''::text) IS NOT NULL) OR (NULLIF(TRIM(BOTH FROM guest_phone), ''::text) IS NOT NULL))),
+    CONSTRAINT chk_bookings_pending_approval CHECK (((status <> 'PENDING_APPROVAL'::public.booking_status) OR ((tadss_decision_id IS NOT NULL) AND (approval_expires_at IS NOT NULL))))
 );
 
 
@@ -1024,7 +1080,14 @@ CREATE TABLE public.invoices (
     payment_timing integer DEFAULT 1 NOT NULL,
     invoice_code character varying(20) NOT NULL,
     expires_at timestamp with time zone,
+    deposit_rate numeric(5,4),
+    deposit_amount numeric(12,2),
+    deposit_source public.deposit_source,
+    hold_deadline timestamp with time zone,
     CONSTRAINT chk_invoices_amounts_positive CHECK (((court_fee >= (0)::numeric) AND (service_fee >= (0)::numeric) AND (loyalty_discount_amount >= (0)::numeric) AND (promotion_discount_amount >= (0)::numeric) AND (final_total >= (0)::numeric))),
+    CONSTRAINT chk_invoices_deposit_amount_positive CHECK (((deposit_amount IS NULL) OR (deposit_amount >= (0)::numeric))),
+    CONSTRAINT chk_invoices_deposit_fields CHECK ((((deposit_source IS NULL) = (deposit_amount IS NULL)) AND ((deposit_rate IS NULL) = (deposit_amount IS NULL)))),
+    CONSTRAINT chk_invoices_deposit_rate_range CHECK (((deposit_rate IS NULL) OR ((deposit_rate >= (0)::numeric) AND (deposit_rate <= (1)::numeric)))),
     CONSTRAINT chk_invoices_expires_at CHECK (((expires_at IS NULL) OR (expires_at > created_at))),
     CONSTRAINT chk_invoices_final_total_formula CHECK ((final_total = (((court_fee - loyalty_discount_amount) - promotion_discount_amount) + service_fee)))
 );
@@ -1932,14 +1995,6 @@ ALTER TABLE ONLY public.oauth_accounts
 
 
 --
--- Name: slot_locks uq_slot_locks_booking; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
---
-
-ALTER TABLE ONLY public.slot_locks
-    ADD CONSTRAINT uq_slot_locks_booking UNIQUE (booking_id);
-
-
---
 -- Name: system_prices uq_system_prices; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
 --
 
@@ -2149,6 +2204,20 @@ CREATE INDEX idx_bookings_customer_date ON public.bookings USING btree (customer
 --
 
 CREATE INDEX idx_bookings_date ON public.bookings USING btree (booking_date);
+
+
+--
+-- Name: idx_bookings_outcome_pending; Type: INDEX; Schema: public; Owner: neondb_owner
+--
+
+CREATE INDEX idx_bookings_outcome_pending ON public.bookings USING btree (updated_at) WHERE ((tadss_decision_id IS NOT NULL) AND (tadss_outcome_reported_at IS NULL));
+
+
+--
+-- Name: idx_bookings_pending_approval; Type: INDEX; Schema: public; Owner: neondb_owner
+--
+
+CREATE INDEX idx_bookings_pending_approval ON public.bookings USING btree (approval_expires_at) WHERE (status = 'PENDING_APPROVAL'::public.booking_status);
 
 
 --
@@ -2460,6 +2529,13 @@ CREATE UNIQUE INDEX uq_bookings_cancel_token ON public.bookings USING btree (can
 
 
 --
+-- Name: uq_bookings_tadss_decision; Type: INDEX; Schema: public; Owner: neondb_owner
+--
+
+CREATE UNIQUE INDEX uq_bookings_tadss_decision ON public.bookings USING btree (tadss_decision_id) WHERE (tadss_decision_id IS NOT NULL);
+
+
+--
 -- Name: uq_refresh_tokens_hash; Type: INDEX; Schema: public; Owner: neondb_owner
 --
 
@@ -2572,6 +2648,14 @@ ALTER TABLE ONLY public.booking_services
 
 ALTER TABLE ONLY public.booking_services
     ADD CONSTRAINT fk_booking_services_service FOREIGN KEY (service_id) REFERENCES public.services(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: bookings fk_bookings_approval_resolved_by; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+--
+
+ALTER TABLE ONLY public.bookings
+    ADD CONSTRAINT fk_bookings_approval_resolved_by FOREIGN KEY (approval_resolved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
 
 
 --
@@ -2866,5 +2950,5 @@ ALTER TABLE ONLY public.users
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XGNkEnF8KJxDa0Y3GT65YDXfg6heHRHwjNxyVVq7c1do9R6iKK9SoAEkDY70qzb
+\unrestrict lu8vQKehY1DdNFTcqaIqN1F5Q8BMfnOcv4o1K7RbHL9c7bP5aEfCQfBchIMTRCa
 

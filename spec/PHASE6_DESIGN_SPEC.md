@@ -274,7 +274,7 @@ Q1…Q12 của DEPOSIT_APPROVAL_API Mục 9 vẫn giữ, trừ những điểm s
 | **P6-13** | **Một slot lock cho mỗi sân**: script T6.1 `DROP CONSTRAINT IF EXISTS uq_slot_locks_booking`; EF đổi `Booking.SlotLock` thành `ICollection<SlotLock> SlotLocks` | N-9 |
 | **P6-14** | **Mọi cập nhật sang trạng thái hủy** ghi `status`, `cancelled_at`, `cancel_source`, `cancel_reason` (và `cancelled_by` nếu có) **trong một câu lệnh** có điều kiện trạng thái | N-9 |
 | **P6-15** | **`PENDING_APPROVAL` = 10** (cuối enum C#); thêm vào từng danh sách trạng thái đang có `PENDING`; test buộc mọi giá trị enum được phân loại | N-4, N-5 |
-| **P6-16** | **Integration test BE chạy trên schema thật** (`schema_smashcourt.sql` + script T6.1) thay `EnsureCreated` | N-9 |
+| **P6-16** | **Integration test BE chạy trên schema thật** (`schema_smashcourt.sql` dump lại sau khi áp script T6.1, xem 9.2) thay `EnsureCreated` | N-9 |
 | **P6-17** | **Thứ tự triển khai:** DB → BE với `EnableTadssDecision = false` → FE → bật cờ | N-3 |
 | **P6-18** | **Giới hạn khuyến mãi mỗi khách** chỉ đếm booking không ở trạng thái hủy | N-22 |
 | **P6-19** | **Job outcome gửi tuần tự, tối đa 20 đơn mỗi chu kỳ**, gặp 429 thì dừng chu kỳ | N-24 |
@@ -398,6 +398,8 @@ Phụ thuộc: 6B-1 chỉ cần DEPOSIT_APPROVAL_API (không chờ BE). 6B-2…6
 
 Schema SmashCourt không dùng EF migration. Script SQL đặt ở `SmashCourt-BE/docs/database/phase6_deposit.sql` (thư mục mới, cạnh `docs/api/`), người dùng tự áp: **nhánh `staging` trước**, Neon chính sau Gate M6. Sau khi áp: cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` (pg_dump) và **khởi động lại BE**.
 
+Branch Neon (chốt 19/10/2026): project SmashCourt-BE có `main` (production) và `tadss-dev`. Trong spec này **`staging` là `tadss-dev`**: branch chép nguyên schema và dữ liệu từ `main`, vừa để test vừa để implement Phase 6; ổn mới đưa lên `main`. DB của TADSS là project Neon riêng (PostgreSQL 18). So sánh schema bằng `python TADSS-Runtime/tools/database/schema_snapshot.py --target main --target tadss-dev` (chỉ đọc; chuỗi kết nối trong `TADSS-Runtime/data/private/db-urls.env`, gitignore).
+
 ### 6.1. Kiểm tra trước khi áp (chỉ đọc)
 
 ```sql
@@ -408,6 +410,14 @@ SELECT enum_range(NULL::booking_status);
 ```
 
 Có `chk_bookings_cancelled_at` ⇒ thử khách hủy một đơn `PAID_ONLINE` trên `staging` để biết luồng hiện tại có hỏng không. Có `uq_slot_locks_booking` ⇒ thử đặt online 2 sân.
+
+Kết quả 19/10/2026 (bằng `schema_snapshot.py` và truy vấn chỉ đọc):
+
+- `main` và `tadss-dev` giống hệt nhau và khớp `schema_smashcourt.sql` (chỉ khác `DEFAULT PRIVILEGES` do Neon thêm). Cả hai có `chk_bookings_cancelled_at`, `uq_slot_locks_booking`, cột `cancel_source` đủ 4 giá trị; script 6.2 chưa áp.
+- Mã BE khớp DB: 31 bảng, 271 cột trùng `HasColumnName`; kiểu, NULL, 90 giá trị mặc định và 21 enum khớp. Thừa nhưng không phải lỗi (để nguyên): `HasPostgresEnum`/`MapEnum` của `PaymentTiming` (cột là `integer` qua `HasConversion<int>`), kiểu `court_status_old` không dùng, 3 job Hangfire định kỳ tên cũ (`daily-token-cleanup`, `daily-user-cleanup`, `hourly-otp-cleanup`) gọi lại các method dọn dẹp hiện có.
+- TADSS: 4/4 migration; cột, ràng buộc, index khớp bản dựng từ migration trong mã.
+- Hangfire trên `tadss-dev`: không có job chờ, không lock, không server; dữ liệu không có đơn mở hay đăng ký theo dõi khung giờ nên lần khởi động đầu không đổi dữ liệu, không gửi email.
+- Script 6.2 chạy thử sạch trên bản dựng từ `schema_smashcourt.sql` (PostgreSQL 17 local).
 
 ### 6.2. Script
 
@@ -435,7 +445,7 @@ ALTER TABLE public.bookings
     ADD COLUMN approval_resolution_note character varying(500),
     ADD COLUMN cancel_reason public.booking_cancel_reason,
     ADD COLUMN tadss_outcome_reported_at timestamp with time zone,
-    ADD CONSTRAINT fk_bookings_approval_resolved_by FOREIGN KEY (approval_resolved_by) REFERENCES public.users(id),
+    ADD CONSTRAINT fk_bookings_approval_resolved_by FOREIGN KEY (approval_resolved_by) REFERENCES public.users(id) ON DELETE RESTRICT,
     ADD CONSTRAINT chk_bookings_pending_approval CHECK (
         status <> 'PENDING_APPROVAL'::public.booking_status
         OR (tadss_decision_id IS NOT NULL AND approval_expires_at IS NOT NULL)),
@@ -775,7 +785,7 @@ Các mã hiện có giữ nguyên ý nghĩa, đã sửa chi tiết theo spec nà
 
 ### 9.2. Hạ tầng test BE
 
-Fixture integration (`PostgreSqlIntegrationFixture`) dựng DB bằng `schema_smashcourt.sql` + `phase6_deposit.sql` thay `EnsureCreatedAsync` (P6-16), để ràng buộc `CHECK`, exclusion, enum PostgreSQL có mặt trong BE-IT. TADSS giả lập bằng WireMock theo response mẫu kiểm bằng JSON schema v2 (CT-04).
+Fixture integration (`PostgreSqlIntegrationFixture`) dựng DB bằng `schema_smashcourt.sql` thay `EnsureCreatedAsync` (P6-16), để ràng buộc `CHECK`, exclusion, enum PostgreSQL có mặt trong BE-IT. Chốt 19/10/2026: fixture **chỉ** dùng `schema_smashcourt.sql` đã dump lại sau khi áp `phase6_deposit.sql` lên `staging`; không chạy `phase6_deposit.sql` trong fixture (chạy lần hai sẽ lỗi ở `CREATE TYPE`). `phase6_deposit.sql` chỉ để áp lên Neon. TADSS giả lập bằng WireMock theo response mẫu kiểm bằng JSON schema v2 (CT-04).
 
 ### 9.3. SC6
 
@@ -810,13 +820,13 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 
 ### 10.1. Xác minh trước khi bắt đầu 6A-1
 
-1. Truy vấn 6.1 trên `staging`: `chk_bookings_cancelled_at`, `uq_slot_locks_booking` có thật không (quyết định cách viết câu lệnh hủy và slot lock).
+1. Truy vấn 6.1 trên `staging`: `chk_bookings_cancelled_at`, `uq_slot_locks_booking` có thật không (quyết định cách viết câu lệnh hủy và slot lock). **Đã làm 19/10/2026:** cả hai có thật (kết quả ở 6.1).
 2. VNPay sandbox (đầu 6A-4): mức tiền tối thiểu; IPN có được gọi khi khách bấm "Hủy giao dịch" không; URL IPN công khai trỏ vào BE (N-16); trang VNPay có báo hết hạn hoặc từ chối vì `vnp_CreateDate` theo UTC không (T-5).
 3. Đồng hồ (T-14), trước mỗi đợt E2E và sau khi máy ngủ dậy: so giờ UTC của Windows (`date -u`), của container BE (`docker exec <container> date -u`), của Neon (`SELECT now()` trên `staging`) và của TADSS (`evaluatedAt` trong response) với giờ chuẩn. Lệch > 5 giây ⇒ đồng bộ (`w32tm /resync` trên Windows; `wsl --shutdown` rồi mở lại Docker Desktop cho container) rồi mới chạy.
 
 ### 10.2. Thứ tự (P6-17)
 
-1. `staging`: kiểm 6.1 → áp script 6.2 → cập nhật `schema_smashcourt.sql` → khởi động lại BE.
+1. `staging` (`tadss-dev`): kiểm 6.1 → áp script 6.2 → `schema_snapshot.py --target tadss-dev` ra "đã áp đủ" → dump lại `schema_smashcourt.sql` từ `tadss-dev` → khởi động lại BE.
 2. BE mới, `EnableTadssDecision = false`: hồi quy luồng cũ (đặt, thanh toán, thanh toán lỗi, hủy, check-out). Hành vi mới P6-01…P6-18 (trừ đánh giá TADSS) có hiệu lực ngay cả khi cờ tắt.
 3. FE mới.
 4. Tạo khóa API cho client `smashcourt-be`: mã băm vào cấu hình TADSS, khóa gốc vào User Secrets của BE. Bật cờ trên `staging`, chạy E2E với persona sạch (N-17).

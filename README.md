@@ -58,7 +58,8 @@ dotnet restore TADSS.slnx
 dotnet build TADSS.slnx -c Release --warnaserror        # bắt buộc 0 warning
 dotnet test  TADSS.slnx -c Release --no-build -m:1       # 1874 unit + 240 integration (240 đạt ở bước (a) của `quick-r2`, 15/10/2026); integration cần Docker Desktop đang chạy
 python tools/docs/check_docs.py                         # DOC-1…3 (kiểm kê, thuật ngữ đã gỡ, link nội bộ); DOC-4 là unit test .NET
-python -m pytest -q tools/evaluation                    # chạy riêng từng bộ: tools/evaluation, tools/evidence, tools/docs
+python -m pytest -q tools/evaluation                    # chạy riêng từng bộ: tools/evaluation, tools/evidence, tools/docs, tools/database
+python tools/database/schema_snapshot.py --target main --target tadss-dev   # chỉ đọc (chuỗi kết nối trong data/private/db-urls.env): dump schema các branch Neon, so với docs/database/schema_smashcourt.sql, kiểm script Phase 6 và migration tadss; kết quả ở data/private/schema-snapshots/
 dotnet run --project src/TADSS.Runtime.Api               # http://localhost:5296/swagger (mọi /api/* cần X-Api-Key, xem mục Bảo mật)
 ```
 
