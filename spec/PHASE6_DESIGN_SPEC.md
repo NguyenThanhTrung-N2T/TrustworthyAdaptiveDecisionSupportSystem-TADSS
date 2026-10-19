@@ -418,6 +418,7 @@ Kết quả 19/10/2026 (bằng `schema_snapshot.py` và truy vấn chỉ đọc)
 - TADSS: 4/4 migration; cột, ràng buộc, index khớp bản dựng từ migration trong mã.
 - Hangfire trên `tadss-dev`: không có job chờ, không lock, không server; dữ liệu không có đơn mở hay đăng ký theo dõi khung giờ nên lần khởi động đầu không đổi dữ liệu, không gửi email.
 - Script 6.2 chạy thử sạch trên bản dựng từ `schema_smashcourt.sql` (PostgreSQL 17 local).
+- `uq_slot_locks_booking` (probe EF Core 8 + Npgsql 8.0.11, cùng mapping 1-1 `Booking.SlotLock`, PostgreSQL thật): đặt online 2 sân A, B ⇒ cả khi có lẫn không có ràng buộc, DB chỉ còn lock của B vì EF xóa lock A như bản ghi "mồ côi" của quan hệ 1-1. Bỏ ràng buộc vì vậy **không đổi hành vi mã hiện tại**. Lỗi có sẵn (cả production): sân A không có lock nên time grid hiện `LOCKED` (nhờ booking `PENDING`) nhưng không có đếm ngược; đặt trùng vẫn bị chặn bởi `HasOverlapAsync` và `excl_booking_courts_no_overlap`. Sửa ở 6A-1 theo P6-13 (`ICollection<SlotLock>`); khi đó bắt buộc đã bỏ ràng buộc, nếu không lock thứ hai vi phạm unique. Test: đặt online 2 sân ⇒ 2 lock, time grid cả hai sân có đếm ngược (thêm vào BE-IT-02).
 
 ### 6.2. Script
 
