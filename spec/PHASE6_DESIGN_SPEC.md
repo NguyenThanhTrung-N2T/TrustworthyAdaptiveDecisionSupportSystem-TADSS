@@ -3,9 +3,9 @@
 | | |
 | :--- | :--- |
 | **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0) |
-| **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `master` tại `4f6af8c`. `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
+| **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `develop` tại `8320f8a` (20/10/2026; mã đã lần theo ở Mục 2 là `master` `4f6af8c`). `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
 | **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày; rà soát thời gian và múi giờ 19/10 (Mục 3.3) |
-| **Trạng thái** | Người dùng đã duyệt P6-01…P6-23 (P6-22, P6-23 chốt 19/10). Plan chi tiết từng gói lập từ 19/10 |
+| **Trạng thái** | Người dùng đã duyệt P6-01…P6-23 (P6-22, P6-23 chốt 19/10). Plan chi tiết từng gói lập từ 19/10: 6A-1 ở [PHASE6_PLAN_6A-1_FOUNDATION.md](PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c) |
 | **Hợp đồng liên quan** | [`DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (BE ↔ FE, đã cập nhật theo spec này, tóm tắt ở Mục 11 của file đó), [`INTEGRATION_SPEC.md`](../docs/contracts/INTEGRATION_SPEC.md) (BE ↔ TADSS) |
 | **Danh mục test** | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.7–4.8, [`E2E_TEST_SPECIFICATION.md`](../docs/research/E2E_TEST_SPECIFICATION.md) |
 | **Gate M6** | Toàn bộ test case BE trong danh mục đạt; FE build + lint + Playwright (trên mock) đạt; không còn task tính năng mở (MASTER_EXECUTION_PLAN) |
@@ -235,6 +235,16 @@ Luồng đặt sân, lịch sử đơn, hạn thanh toán, time grid, check-in, 
 | Đồng hồ đếm ngược, ô quá giờ, "hôm nay" ở FE | Đồng hồ **trình duyệt** | |
 
 Đo lúc 00:16 ngày 19/10 giờ VN: đồng hồ Windows lệch giờ chuẩn (header `Date` của Google) không quá 2 giây. Docker Desktop đang tắt nên chưa đo được container; Docker Desktop trên WSL2 có thể trôi giờ sau khi máy ngủ hoặc ngủ đông, cần đo lại trước E2E (10.1).
+
+**Đo lại 20/10/2026 23:53 giờ VN (chuẩn: NTP `time.windows.com` và header `Date` của Google, Cloudflare):**
+
+| Đồng hồ | Lệch so với chuẩn | Ghi chú |
+| :--- | :--- | :--- |
+| Máy chạy BE/TADSS (Windows, múi giờ SE Asia Standard Time) | chậm khoảng 1,7 s | Dịch vụ Windows Time chạy nhưng **chưa đồng bộ** (nguồn "Local CMOS Clock"). `DateTime.UtcNow` khớp chuẩn vì múi giờ máy đặt đúng; UTC chỉ sai nếu múi giờ máy bị đặt sai rồi chỉnh giờ tường cho "đúng VN" |
+| Docker Desktop VM (WSL2) | +0,04 s so với máy (±0,05) | Đang theo sát đồng hồ máy; đo lại sau khi máy ngủ |
+| Neon `tadss-dev` và `main` | +1,9 s so với máy (±0,2) | Tức gần đúng chuẩn; chỉ dùng cho cột mặc định `now()`, không dùng trong logic (7.14) |
+
+Kết luận: BE và TADSS chạy cùng một máy nên không lệch nhau; lệch 1,7–1,9 s giữa máy và Neon chỉ ảnh hưởng mốc ở mức giây, không đổi kết quả nghiệp vụ (hạn tính bằng phút). Nên đồng bộ lại giờ máy trước E2E (`w32tm /resync` bằng PowerShell quản trị, sau khi cấu hình nguồn giờ).
 
 ---
 
@@ -543,18 +553,18 @@ Thư mục `Integrations/Tadss/` theo mẫu `Integrations/AI/`: `ITadssClient`, 
 | `GetDecisionAsync(decisionId)` | `GET /{decisionId}` | `X-Api-Key` | Không (dùng cho Q9) |
 | `ReportOutcomeAsync(decisionId, request)` | `POST /{decisionId}/outcome` | + `X-Idempotency-Key = {decisionId}:OUTCOME` | Không (job thử lại ở chu kỳ sau) |
 
-Kết quả kiểu `TadssCallResult<T>`: thành công kèm `T`, hoặc thất bại kèm `TadssFailureKind` (`Timeout`, `Network`, `Http`), mã HTTP, `code` RFC 7807, `Retry-After`. Client **không ném** exception cho lỗi TADSS; service quyết định ánh xạ. Timeout theo `TimeoutMs` cho từng lần gọi. Không ghi `X-Api-Key` vào log. Khóa API cho client `smashcourt-be` tạo bằng `tools/security/hash_api_key.py` của TADSS.
+Kết quả kiểu `TadssCallResult<T>`: thành công kèm `T`, hoặc thất bại kèm `TadssFailureKind` (`Timeout`, `Network`, `Http`, `InvalidResponse`), mã HTTP, `code` RFC 7807, `Retry-After`. `InvalidResponse` (chốt 20/10) là 2xx nhưng body không parse được, thiếu trường bắt buộc, `status` lạ hoặc vi phạm INV-7 (`APPROVED` không có `deposit`, `NEED_APPROVAL` không có `approvalExpiresAt`): **không** thử lại (nguyên nhân cố định như trang HTML của ngrok, `BaseUrl` sai), service xử lý như lỗi TADSS (nhánh (d)), log Error kèm correlation id, idempotency key, status, `Content-Type`, độ dài và 200 ký tự đầu của body. Client **không ném** exception cho lỗi TADSS (chỉ ném `OperationCanceledException` khi caller hủy token, không tính là timeout, không thử lại); service quyết định ánh xạ. Timeout theo `TimeoutMs` cho từng lần gọi. `BaseUrl`, `ApiKey`, `TimeoutMs` đọc từ `IOptionsMonitor` ở **mỗi lần gọi** (đổi cấu hình có hiệu lực ngay, không phụ thuộc vòng đời `HttpClient`). Không ghi `X-Api-Key` vào log. Khóa API cho client `smashcourt-be` tạo bằng `tools/security/hash_api_key.py` của TADSS.
 
 ### 7.4. Dựng request và lịch sử khách (T6.3)
 
 `Services/BookingDepositService.cs` (`IBookingDepositService`) dựng request từ booking vừa ghi ở transaction 1 và gọi client.
 
-- `items`: mỗi `booking_court` một item; `resourceId = courtId`, `resourceTypeId = courtTypeId`, `price` = phí sân của sân đó trước giảm giá (từ `CourtPriceResultDto`), thời gian ISO 8601 có offset `+07:00`.
+- `items`: mỗi `booking_court` đang hoạt động một item (sắp theo ngày, giờ bắt đầu, sân để request tất định); `resourceId = courtId`, `resourceTypeId = courtTypeId`, `price` = phí sân của dòng đó trước giảm giá, đọc lại từ DB bằng tổng `booking_price_items.unit_price` (cùng quy tắc bản export Phase 5; bằng `CourtPriceResultDto.CourtFee` lúc đặt khi khung giá khớp: kiểm trên `tadss-dev` 21/10/2026, mọi đơn từ 07/05/2026 đều khớp, 17 đơn cũ 22/04–06/05 lệch do cấu hình khung giá cũ), thời gian ISO 8601 có offset `+07:00`.
 - `totalPrice = invoice.FinalTotal`, `currency = "VND"`, `channel = "ONLINE"`, `branchTimeZone` theo cấu hình, `requestedAt` = giờ tạo booking.
 - Thời gian (7.14): `items[].startTime/endTime` và `lastCompletedAt` dựng từ `date` + `time` (giờ tường VN) thành `DateTimeOffset` offset `+07:00`; `requestedAt` (`bookings.created_at`), `memberSince` (`users.created_at`) là mốc UTC, gửi offset `+00:00` hoặc đổi sang `+07:00` (cùng thời điểm). Không bao giờ gửi chuỗi thiếu offset.
 - `customer`: luôn `isGuest = false` (P6-01), `customerId`, `tier` theo thứ hạng, `memberSince = users.created_at`.
 - `history` (repo mới `ICustomerHistoryRepository` / `CustomerHistoryRepository`): đếm các booking **đã kết thúc trước** booking đang xét của cùng `customer_id`, theo bảng 4.4.1: `completedCount` + `lastCompletedAt` (`COMPLETED`, mốc = giờ kết thúc chơi muộn nhất), `noShowCount` (`NO_SHOW`), `cancelledCount` / `lateCancelledCount` (`CUSTOMER_CANCELLED`; đã thanh toán và tỷ lệ hoàn lớn nhất < 100 ⇒ `late`), `paymentExpiredCount` (`PAYMENT_EXPIRED` duy nhất).
-- `demand` (tùy chọn): `occupancyRate` = số sân hoạt động của chi nhánh có booking hiệu lực giao khung giờ (không tính booking này) / số sân hoạt động; `waitlistCount` = số `slot_interests` còn hạn giao khung giờ.
+- `demand` (tùy chọn; **chưa gửi ở 6A-1**, strategy 2.1.0 không dùng, ghi vào backlog nếu strategy sau cần): `occupancyRate` = số sân hoạt động của chi nhánh có booking hiệu lực giao khung giờ (không tính booking này) / số sân hoạt động; `waitlistCount` = số `slot_interests` còn hạn giao khung giờ.
 - `metadata.promotionCode` nếu có khuyến mãi.
 
 ### 7.5. Chính sách giữ chỗ (P6-02)
@@ -681,7 +691,7 @@ Hai job mới và Job-01 gắn `[DisableConcurrentExecution]` như các job khá
 
 Sơ đồ: [Trạng thái booking](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md#4-vòng-đời-booking-sau-khi-có-tadss).
 
-Thêm `PENDING_APPROVAL` vào: `BookingStatusTransition.GetActiveStatuses` và `CanTransition` (`PENDING_APPROVAL → PENDING | CONFIRMED | CANCELLED`; thêm `PENDING → CONFIRMED` cho nhánh (a′), `CANCELLED → CANCELLED_PENDING_REFUND` cho P6-07; ghi nhận `PAID_ONLINE → CANCELLED` khi hoàn 0 % đã có trong mã nhưng chưa có trong `CanTransition`); `BookingRepository` (heatmap, `GetActiveByCourtAndDateAsync`); `TimeGridService` (ô `LOCKED`, `lockRemainingSeconds` tới `approval_expires_at`); `BranchRepository`/`CourtRepository.HasActiveBookingsAsync`; `CourtRepository` timeline; `CourtService` (active, nhãn "Chờ duyệt", timeline); `ReportRepository` (sân sắp tới, dự báo). **Không** thêm vào Job-01/02/04, `GetNoShowEligibleStatuses`, check-in.
+Thêm `PENDING_APPROVAL` vào: `BookingStatusTransition.GetActiveStatuses` và `CanTransition` (`PENDING_APPROVAL → PENDING | CONFIRMED | CANCELLED`; thêm `PENDING → CONFIRMED` cho nhánh (a′), `CANCELLED → CANCELLED_PENDING_REFUND` cho P6-07; ghi nhận `PAID_ONLINE → CANCELLED` khi hoàn 0 % đã có trong mã nhưng chưa có trong `CanTransition`); `BookingRepository` (heatmap, `GetActiveByCourtAndDateAsync`); `TimeGridService` (ô `LOCKED`, `lockRemainingSeconds` tới `approval_expires_at`); `BranchRepository`/`CourtRepository.HasActiveBookingsAsync`; `CourtRepository` timeline; `CourtService` (active, nhãn "Chờ duyệt", timeline); `ReportRepository` (sân sắp tới = `GetLiveCourtBookingStatuses`, dự báo = `GetForecastBookingStatuses`; **không** thêm vào `GetCheckInWaitingStatuses` vì nhân viên chưa check-in được đơn chưa duyệt). **Không** thêm vào Job-01/02/04, `GetNoShowEligibleStatuses`, check-in. Danh sách hủy của nhân viên (`CancelByStaffAsync`) làm ở 6A-4 cùng dịch vụ hủy chung.
 
 Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nhất một tập có tên ở `BookingStatusTransition` hoặc trong danh sách "cố ý không giữ sân"; thêm giá trị enum mới mà không phân loại ⇒ test đỏ.
 
@@ -703,7 +713,7 @@ Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nh�
 
 `BookingJob` đang có bản sao riêng của `ToUtcFromVietnam`; mã mới dùng `DateTimeHelper.ToUtcFromVietnam`.
 
-**Đồng hồ (T-14):** service và job **mới** của Phase 6 (`BookingDepositService`, `BookingApprovalService`, `BookingCancellationService`, `BookingApprovalJob`, `TadssOutcomeJob`) nhận `TimeProvider` qua DI (`AddSingleton(TimeProvider.System)`) và lấy `GetUtcNow().UtcDateTime`; `PaymentHoldHelper` nhận `now` làm tham số. Test cố định thời điểm (00:30, 06:59, 23:45 giờ VN, đúng mốc chính sách hủy, đúng giờ bắt đầu) bằng `FakeTimeProvider`. Mã cũ không đụng tới thì giữ `DateTime.UtcNow`. Không dùng `now()` của DB cho logic mới; cột mới (`hold_deadline`, `approval_resolved_at`, `tadss_outcome_reported_at`, `cancelled_at`) do BE gán.
+**Đồng hồ (T-14):** service và job **mới** của Phase 6 cần "bây giờ" (`BookingApprovalService`, `BookingCancellationService`, `BookingApprovalJob`, `TadssOutcomeJob`) nhận `TimeProvider` qua DI (`AddSingleton(TimeProvider.System)`) và lấy `GetUtcNow().UtcDateTime`; `PaymentHoldHelper` nhận `now` làm tham số. `BookingDepositService` không đọc đồng hồ: mọi mốc của request lấy từ DB (`bookings.created_at`), nên request tất định và gọi lại cùng `bookingId` không bị 409. Test cố định thời điểm (00:30, 06:59, 23:45 giờ VN, đúng mốc chính sách hủy, đúng giờ bắt đầu) bằng `FakeTimeProvider`. Mã cũ không đụng tới thì giữ `DateTime.UtcNow`. Không dùng `now()` của DB cho logic mới; cột mới (`hold_deadline`, `approval_resolved_at`, `tadss_outcome_reported_at`, `cancelled_at`) do BE gán.
 
 **Sửa lỗi có sẵn ngoài luồng cọc (T-9…T-11), giữ nguyên wire:**
 
@@ -786,7 +796,7 @@ Các mã hiện có giữ nguyên ý nghĩa, đã sửa chi tiết theo spec nà
 
 ### 9.2. Hạ tầng test BE
 
-Fixture integration (`PostgreSqlIntegrationFixture`) dựng DB bằng `schema_smashcourt.sql` thay `EnsureCreatedAsync` (P6-16), để ràng buộc `CHECK`, exclusion, enum PostgreSQL có mặt trong BE-IT. Chốt 19/10/2026: fixture **chỉ** dùng `schema_smashcourt.sql` đã dump lại sau khi áp `phase6_deposit.sql` lên `staging`; không chạy `phase6_deposit.sql` trong fixture (chạy lần hai sẽ lỗi ở `CREATE TYPE`). `phase6_deposit.sql` chỉ để áp lên Neon. TADSS giả lập bằng WireMock theo response mẫu kiểm bằng JSON schema v2 (CT-04).
+Fixture integration (`PostgreSqlIntegrationFixture`) dựng DB bằng `schema_smashcourt.sql` thay `EnsureCreatedAsync` (P6-16), để ràng buộc `CHECK`, exclusion, enum PostgreSQL có mặt trong BE-IT. Chốt 19/10/2026: fixture **chỉ** dùng `schema_smashcourt.sql` đã dump lại sau khi áp `phase6_deposit.sql` lên `staging`; hiện thực 20/10 (6A-1a): PostgreSQL `postgres:17.6-alpine`, nạp bằng `psql` trong container từ **bản sao** `SmashCourt-BE.Tests/TestData/Database/schema_smashcourt.sql` (CI của BE chỉ có repo BE; `SchemaCopySyncTests` so với bản chuẩn khi có thư mục TADSS-Runtime); không chạy `phase6_deposit.sql` trong fixture (chạy lần hai sẽ lỗi ở `CREATE TYPE`). `phase6_deposit.sql` chỉ để áp lên Neon. TADSS giả lập bằng WireMock theo response mẫu kiểm bằng JSON schema v2 (CT-04).
 
 ### 9.3. SC6
 
@@ -830,7 +840,7 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 1. `staging` (`tadss-dev`): kiểm 6.1 → áp script 6.2 → `schema_snapshot.py --target tadss-dev` ra "đã áp đủ" → dump lại `schema_smashcourt.sql` từ `tadss-dev` → khởi động lại BE.
 2. BE mới, `EnableTadssDecision = false`: hồi quy luồng cũ (đặt, thanh toán, thanh toán lỗi, hủy, check-out). Hành vi mới P6-01…P6-18 (trừ đánh giá TADSS) có hiệu lực ngay cả khi cờ tắt.
 3. FE mới.
-4. Tạo khóa API cho client `smashcourt-be`: mã băm vào cấu hình TADSS, khóa gốc vào User Secrets của BE. Bật cờ trên `staging`, chạy E2E với persona sạch (N-17).
+4. Tạo khóa API cho client `smashcourt-be`: mã băm vào cấu hình TADSS, khóa gốc vào User Secrets của BE. Kiểm không còn đơn hủy nào có `cancel_reason` NULL (lịch sử khách bỏ qua các đơn đó; backfill lại nếu có). Bật cờ trên `staging`, chạy E2E với persona sạch (N-17).
 5. Neon chính và `master`: sau Gate M6.
 
 ### 10.3. Rollback
