@@ -480,6 +480,23 @@ Toàn bộ suite **1812 xanh, 3 lần liên tiếp** (trước gói: 1626), buil
 - Email hủy hoàn 0 đ ghi "hủy quá gần giờ chơi" cả với đơn chưa trả (có từ trước). Nay phân biệt bằng `hasPaidAmount`. `CancelEmailTests` + 2 BE-IT.
 - Đột biến 5/5 bị bắt (cờ luôn true/false, đếm cả Payment chờ, đảo nhánh, bỏ `Include`).
 
+**Đối chiếu lại plan (25/10): code đủ 19 task, nhưng thiếu một số ca kiểm.** Bảng kết quả ở trên ghi ✅ trong khi 6 nhóm ca kiểm của plan chưa có test. Đã bổ sung 23 test, không đổi code production:
+
+| Task | Ca còn thiếu | Test bổ sung |
+| :---: | :--- | :--- |
+| 8 | Đăng ký trùng cổng; `Program.cs` nối VNPay vào resolver | `OnlinePaymentStarterTests.Resolver_TwoGatewaysForOneMethod_…` (resolver là Scoped nên lỗi lộ ở request đầu tiên, không phải lúc khởi động); `HttpHostSmokeTests.Host_WiresVnPayAsTheOnlyPaymentGateway`. Hai ca chọn cổng và phương thức chưa đăng ký đã có sẵn |
+| 12 (C1) | Trả hai lần ⇒ check-out | `CheckoutFlowTests`: trả hai lần 100 % ⇒ thu 0 + log Error; trả hai lần cọc ⇒ thu `finalTotal − 2 × cọc`. Test cũ `SecondLinkPaidAfterTheFirst_…CountedAtCheckout` không hề check-out, đổi tên thành `…_IsRecordedWithoutChangingTheBooking` |
+| 14 | Tích điểm trong scope lồng; đơn tại quầy (HTTP) | Điểm = `floor(courtFee / 1000)` (biên 199.999 ⇒ 199), ba loại đơn, hai check-out đồng thời chỉ cộng một lần; tại quầy trả sau / trả ngay, `paid_at` của khoản thu là UTC trong request. `EarnLoyaltyPointsAsync` nuốt lỗi nên trước đây hỏng vẫn 200 |
+| 16 | Đơn đã duyệt, thẻ lỗi | Hạn rút về ≤ 5' và ngắn hơn hạn trả cọc; trả lại đúng 60.000 đ cọc đã duyệt |
+| 17 | Link sau giờ bắt đầu; % theo giờ VN (HTTP); trả hai lần rồi hủy | 400 `BOOKING_ALREADY_STARTED`, token chưa bị tiêu; Theory còn 30/20/5 giờ ⇒ 100/50/20 % (ca 20 giờ bắt lỗi lệch 7 giờ cũ); hai Refund theo Payment, xác nhận cộng dồn, email ghi tổng |
+| 18 | Mốc thời gian | `paid_at` (IPN), `cancelled_at`, `created_at` và `processed_at` của Refund là UTC trong khoảng request |
+
+Thêm ngoài plan (bất biến về tiền): tiền về sau khi đã hoàn xong (thêm Refund mới, Refund cũ giữ nguyên `COMPLETED`); xác nhận hoàn lần hai bị từ chối, không hoàn thêm; thanh toán lại sau khi khách hủy bị từ chối, không tạo link; giới hạn lượt mỗi khách với đơn **đã trả** bị hủy (`CANCELLED_PENDING_REFUND`).
+
+**Đột biến cho các test mới: 16/16 bị bắt** (công thức check-out theo cọc, log trả thừa, bỏ 409 check-out, làm tròn điểm, scope lồng khai rõ mức cô lập khác, % hoàn theo giờ tường, bỏ chốt giờ bắt đầu ở link, xác nhận chỉ một Refund, thiếu `processed_at`, bỏ chốt trạng thái xác nhận hoàn, tiền về sau khi hoàn xong bị coi là trả thêm, P6-18 chỉ bỏ `CANCELLED`, thẻ lỗi không rút hạn, resolver chọn bừa khi trùng, quên đăng ký VNPay, thanh toán lại không chặn đơn hủy). Một đột biến tương đương bị loại: scope lồng tạo bằng `new TransactionScope(AsyncFlowOption)` không truyền `TransactionOptions` thì chỉ nhập vào transaction ngoài, không kiểm mức cô lập; .NET chỉ ném `ArgumentException` khi scope lồng **khai rõ** mức cô lập khác (bẫy thật của mục 0.2 là trường hợp này).
+
+**Lỗi có sẵn ghi nhận, không sửa:** `DeductLoyaltyPointsAsync` ghi `loyalty_transactions.type = DEDUCT`, vi phạm `chk_loyalty_earn_booking_id` (chỉ cho `EARN`/`ADJUST`) ⇒ nếu chạy tới thì xác nhận hoàn trả 500. Luồng thật không chạm tới: điểm chỉ cộng lúc check-out, đơn đã check-out không hủy được. Ghi ở Mục 11 của spec.
+
 **Còn lại cho gói sau:**
 - Job-01 (6A-5) vẫn ghi bằng `SaveChanges` nhiều dòng, chưa theo thứ tự "khóa booking trước"; viết lại bằng dịch vụ hủy chung ở 6A-5.
 - Lý do `PAYMENT_EXPIRED` / `SYSTEM_CLEANUP` của Job-01 làm ở 6A-5.
