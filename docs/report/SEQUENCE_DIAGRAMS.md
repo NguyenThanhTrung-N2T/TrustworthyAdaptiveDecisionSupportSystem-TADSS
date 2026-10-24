@@ -96,15 +96,19 @@ sequenceDiagram
     M->>FE: Duyệt, cọc 30 %, lý do
     FE->>BE: POST /api/bookings/{bookingId}/approve<br/>{ depositRate: 0.3, reason }
 
-    BE->>BE: Kiểm dữ liệu nhập, quyền chi nhánh,<br/>số tiền cọc quy đổi = 0 hoặc ≥ 5.000 đ (sai ⇒ 400)
-    BE->>DB: Đọc booking: còn PENDING_APPROVAL? còn hạn? có decisionId?
-    alt Không còn chờ duyệt, đã quá hạn, hoặc thiếu decisionId
+    BE->>BE: Kiểm dữ liệu nhập: tỷ lệ 0…1 tối đa 4 chữ số thập phân,<br/>lý do 5…500 ký tự (sai ⇒ 400)
+    BE->>DB: Đọc booking: tồn tại? đúng chi nhánh của Quản lý?<br/>còn PENDING_APPROVAL? còn hạn? có decisionId?
+    alt Không tồn tại / chi nhánh khác
+        BE-->>FE: 404 NOT_FOUND / 403 FORBIDDEN
+    else Không còn chờ duyệt, đã quá hạn, hoặc thiếu decisionId
         BE-->>FE: 409 APPROVAL_ALREADY_RESOLVED / APPROVAL_EXPIRED /<br/>BOOKING_NOT_PENDING_APPROVAL / APPROVAL_DECISION_NOT_FOUND
+    else Số tiền cọc quy đổi lớn hơn 0 nhưng dưới 5.000 đ
+        BE-->>FE: 400 VALIDATION_ERROR (errors.DepositRate)
     else Hợp lệ
         BE->>T: POST /api/v2/decisions/{decisionId}/override<br/>{ action: APPROVE, deposit.rate: 0.3, reason }<br/>X-Actor-Id = userId từ JWT, X-Idempotency-Key = {decisionId}:APPROVE
         alt 200 OK
             T-->>BE: deposit { rate 0.3, amount }, actorId, overriddenAt
-            BE->>DB: Cập nhật có điều kiện: PENDING_APPROVAL → PENDING<br/>(cọc 0 % ⇒ CONFIRMED, xóa slot lock),<br/>mức cọc do TADSS trả, nguồn MANAGER, người duyệt,<br/>hạn thanh toán 15 phút (Q2), gia hạn slot lock<br/>(không tạo giao dịch VNPay)
+            BE->>DB: Cập nhật có điều kiện (còn chờ duyệt và còn hạn): PENDING_APPROVAL → PENDING<br/>(cọc TADSS trả dưới 5.000 đ ⇒ CONFIRMED, xóa slot lock),<br/>mức cọc do TADSS trả, nguồn MANAGER, người duyệt,<br/>hạn thanh toán 15 phút (Q2), gia hạn slot lock<br/>(không tạo giao dịch VNPay)
             alt Cập nhật thành công
                 BE-->>FE: 200 approvalResult APPROVED, depositAmount, expiresAt
                 BE-)H: BookingApprovalResolved, PendingApprovalQueueChanged
@@ -120,7 +124,7 @@ sequenceDiagram
         else 409 APPROVAL_EXPIRED / NOT_PENDING_APPROVAL
             T-->>BE: 409
             BE-->>FE: 409 APPROVAL_EXPIRED / BOOKING_NOT_PENDING_APPROVAL
-        else Timeout, lỗi mạng, 5xx, 429, 401
+        else Timeout, lỗi mạng, 5xx, 429, 401, 403, 404 không mã, response hỏng
             BE-->>FE: 503 TADSS_UNAVAILABLE (booking vẫn PENDING_APPROVAL)
             FE->>M: Giữ hộp thoại, nút "Thử lại" gửi lại đúng nội dung cũ
         end

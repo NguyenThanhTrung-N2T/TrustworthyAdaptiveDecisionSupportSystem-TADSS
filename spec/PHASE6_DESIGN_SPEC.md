@@ -5,7 +5,7 @@
 | **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0) |
 | **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `develop` tại `8320f8a` (20/10/2026; mã đã lần theo ở Mục 2 là `master` `4f6af8c`). `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
 | **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày; rà soát thời gian và múi giờ 19/10 (Mục 3.3) |
-| **Trạng thái** | Người dùng đã duyệt P6-01…P6-23 (P6-22, P6-23 chốt 19/10). Plan chi tiết từng gói lập từ 19/10: 6A-1 ở [PHASE6_PLAN_6A-1_FOUNDATION.md](PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c) |
+| **Trạng thái** | Người dùng đã duyệt P6-01…P6-23 (P6-22, P6-23 chốt 19/10). Plan chi tiết từng gói lập từ 19/10: 6A-1 ở [PHASE6_PLAN_6A-1_FOUNDATION.md](PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c); 6A-3 ở [PHASE6_PLAN_6A-3_APPROVAL.md](PHASE6_PLAN_6A-3_APPROVAL.md) (xong 24/10) |
 | **Hợp đồng liên quan** | [`DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (BE ↔ FE, đã cập nhật theo spec này, tóm tắt ở Mục 11 của file đó), [`INTEGRATION_SPEC.md`](../docs/contracts/INTEGRATION_SPEC.md) (BE ↔ TADSS) |
 | **Danh mục test** | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.7–4.8, [`E2E_TEST_SPECIFICATION.md`](../docs/research/E2E_TEST_SPECIFICATION.md) |
 | **Gate M6** | Toàn bộ test case BE trong danh mục đạt; FE build + lint + Playwright (trên mock) đạt; không còn task tính năng mở (MASTER_EXECUTION_PLAN) |
@@ -389,8 +389,8 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | **6A-1** Nền | Script DB (Mục 6), enum + entity + `SmashCourtContext` + `MapEnum`; phân loại trạng thái (P6-15); fixture integration trên schema thật (P6-16); cấu hình (7.1); `TadssClient` (7.3); dựng request + lịch sử (7.4), thời gian theo 7.14 | T6.1, T6.2, T6.3 | W09 | BE-UT-01, 02, 06, 09, 11, 12; BE-IT-01; CT-04 | Người dùng đã áp script lên `staging`; build + test xanh; luồng cũ không đổi khi cờ tắt |
 | **6A-2** Đặt sân | `CreateOnlineAsync` hai transaction, 5 nhánh kết quả, bắt đăng nhập, DTO mới (7.6) | T6.4 | W10 | BE-UT-07; BE-IT-02, 03, 04, 16, 17, 19, 24 | Các nhánh chạy với WireMock; cờ tắt = hành vi Đồ án 1 (trừ các sửa lỗi) |
-| **6A-3** Duyệt | Hàng chờ, duyệt, từ chối, đồng bộ Q9 (7.7) | T6.5, T6.6 | W10 | BE-UT-03, 04, 05; BE-IT-05, 06, 07, 11…15, 18 | Ma trận lỗi Mục 5 của DEPOSIT_APPROVAL_API đủ |
-| **6A-4** Thanh toán, hủy, check-out | `retry-payment` theo P6-02; IPN P6-03, P6-07; dịch vụ hủy chung (7.9); hoàn tiền P6-08; hạn link hủy online và tại quầy (T-2, T-3) đã làm trước ở 6A-2 (2b Task 4, D8); chặn khách hủy sau giờ bắt đầu (P6-23); giảm lượt khuyến mãi khi hủy (7.9 bước 5; P6-18 đã làm ở 6A-2c); mức cô lập của 12 transaction cũ (N-29); check-out P6-12 | T6.6, T6.9 | W11 | BE-UT-08, 10, 12; BE-IT-10, 21, 22, 23, 25 | Không còn đường mất tiền đã biết |
+| **6A-3** Duyệt | Hàng chờ, duyệt, từ chối, đồng bộ Q9 (7.7); email chờ duyệt / đã duyệt / bị từ chối (7.13); **kéo từ 6A-4 (chốt 24/10):** số tiền và hạn của `retry-payment` (7.8 dòng 1) để luồng "duyệt ⇒ trả cọc" chạy trọn và BE-IT-07 đạt trong gói | T6.5, T6.6 | W10 | BE-UT-03, 04, 05, 08 (dòng duyệt, thanh toán lại); BE-IT-05, 06, 07, 11…15, 18 | Ma trận lỗi Mục 5 của DEPOSIT_APPROVAL_API đủ |
+| **6A-4** Thanh toán, hủy, check-out | `retry-payment`: phần số tiền theo cọc và hạn giữ chỗ đã làm ở 6A-3, còn mức cô lập; IPN P6-03, P6-07; dịch vụ hủy chung (7.9); hoàn tiền P6-08; hạn link hủy online và tại quầy (T-2, T-3) đã làm trước ở 6A-2 (2b Task 4, D8); chặn khách hủy sau giờ bắt đầu (P6-23); giảm lượt khuyến mãi khi hủy (7.9 bước 5; P6-18 đã làm ở 6A-2c); mức cô lập của 12 transaction cũ (N-29); check-out P6-12 | T6.6, T6.9 | W11 | BE-UT-08, 10, 12; BE-IT-10, 21, 22, 23, 25 | Không còn đường mất tiền đã biết |
 | **6A-5** Job | Job-01 sửa (lý do, có điều kiện); job hết hạn duyệt; job outcome (7.11) | T6.7, T6.8 | W11 | BE-IT-08, 09 | Không tự duyệt; outcome không gửi lặp, không tranh rate limit |
 | **6A-6** Hoàn thiện | Bộ test theo danh mục, truy vấn SC6 (BE-IT-20), script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo, dashboard, lọc điểm (T-9…T-11, 7.14); tùy chọn P6-21 | T6.10 | W12 | BE-IT-20, 25; Gate M6 | Mọi BE-UT/BE-IT đạt |
 
@@ -573,7 +573,7 @@ Kết quả kiểu `TadssCallResult<T>`: thành công kèm `T`, hoặc thất b�
 
 ### 7.5. Chính sách giữ chỗ (P6-02)
 
-Hàm thuần `Helpers/PaymentHoldHelper.cs` (dùng chung cho đặt sân, duyệt, thanh toán lại, IPN), nhận thời điểm và settings làm tham số:
+Hàm thuần `Services/Deposit/PaymentHoldPolicy.cs` (đổi tên từ `Helpers/PaymentHoldHelper` khi dọn kiến trúc 24/10; dùng chung cho đặt sân, duyệt, thanh toán lại, IPN), nhận thời điểm và settings làm tham số:
 
 | Thời điểm | `expires_at` | `hold_deadline` |
 | :--- | :--- | :--- |
@@ -582,7 +582,7 @@ Hàm thuần `Helpers/PaymentHoldHelper.cs` (dùng chung cho đặt sân, duyệ
 | IPN thất bại | `min(expires_at, now + PaymentFailureGraceMinutes)` | không đổi |
 | Thanh toán lại | `min(hold_deadline, max(expires_at, now + RetryExtendMinutes))` | không đổi; `now ≥ hold_deadline` ⇒ 400 `PAYMENT_HOLD_EXPIRED` |
 
-**Thứ tự làm (A7, chốt 22/10):** mỗi dòng là một hàm tĩnh riêng của `PaymentHoldHelper`; 6A-2 chỉ làm dòng "đặt sân", dòng duyệt làm ở 6A-3, hai dòng còn lại ở 6A-4. Đơn online luôn một ngày và một giờ chung (`CreateOnlineBookingDto`), nên "giờ bắt đầu chơi" là một mốc duy nhất. Dòng duyệt và thanh toán lại phải báo được "quá hạn tuyệt đối" cho caller (không trả mốc đã qua) để trả 400 `PAYMENT_HOLD_EXPIRED`; cách báo cụ thể (đề xuất mẫu `Try…(out window)`) chốt khi làm 6A-3, 6A-4.
+**Thứ tự làm (A7, chốt 22/10):** mỗi dòng là một hàm tĩnh riêng của `PaymentHoldPolicy`; 6A-2 chỉ làm dòng "đặt sân", dòng duyệt làm ở 6A-3, hai dòng còn lại ở 6A-4. **Đã làm ở 6A-3 (24/10):** dòng duyệt `TryForApproval(now, playStartUtc, approvedWindowMinutes, out window)` và dòng thanh toán lại `TryForRetry(now, expiresAt, holdDeadline, retryExtendMinutes, out window)` (kéo từ 6A-4 cùng `retry-payment`); cả hai trả `false` thay vì trả mốc đã qua. Còn dòng IPN thất bại ở 6A-4. Đơn online luôn một ngày và một giờ chung (`CreateOnlineBookingDto`), nên "giờ bắt đầu chơi" là một mốc duy nhất. Dòng duyệt và thanh toán lại phải báo được "quá hạn tuyệt đối" cho caller (không trả mốc đã qua) để trả 400 `PAYMENT_HOLD_EXPIRED`; cách báo cụ thể (đề xuất mẫu `Try…(out window)`) chốt khi làm 6A-3, 6A-4.
 
 Slot lock của đơn luôn có `expires_at` bằng `expires_at` của hóa đơn (đơn `PENDING_APPROVAL`: bằng `approval_expires_at`).
 
@@ -645,6 +645,13 @@ Sơ đồ: [Tuần tự 2](../docs/report/SEQUENCE_DIAGRAMS.md#2-quản-lý-duy�
   - cả hai: `approval_result = APPROVED`, `approval_resolved_by` (JWT), `approval_resolved_at`, `approval_resolution_note = reason`.
 - **Từ chối:** override `REJECT` (bỏ khóa `deposit`). TADSS 200 ⇒ qua dịch vụ hủy chung (7.9) với `cancel_reason = APPROVAL_REJECTED`, `cancel_source = STAFF`, `cancelled_by` = Manager; `approval_result = REJECTED`.
 - **Lỗi TADSS** ánh xạ theo DEPOSIT_APPROVAL_API Mục 5 (không có đường lùi 100 %). `ALREADY_OVERRIDDEN` / `IDEMPOTENCY_KEY_REUSE` mà booking còn chờ và chưa hết hạn ⇒ đọc `GET /{decisionId}`, áp override đã lưu như một lần duyệt/từ chối thành công, vẫn trả 409 (Q9).
+- **Chốt khi làm 6A-3 (24/10), xem plan 6A-3:**
+  - **Câu cổng** của duyệt, từ chối và đồng bộ: `status = PENDING_APPROVAL AND approval_expires_at > now`; không bao giờ ghi kết quả cho đơn quá hạn kể cả khi job hết hạn duyệt chưa chạy. Giờ duyệt (`approval_resolved_at`, mốc tính hạn trả cọc) là lúc BE ghi, sau khi TADSS trả lời; giờ chơi đã tới lúc đó ⇒ 409 `APPROVAL_EXPIRED`, không ghi, log Error.
+  - **Nhánh sau duyệt theo số tiền TADSS trả**, cùng quy tắc a′: dưới `MinOnlinePaymentAmount` (gồm 0) ⇒ `CONFIRMED`; số TADSS trả vượt tổng đơn hoặc sai tiền tệ ⇒ 503, không ghi.
+  - **Từ chối dùng lõi hủy** `CancelWithStatusCheckAsync` cộng các lệnh nhả sân (như nhánh c của 6A-2), **chưa** qua dịch vụ hủy chung: đơn chờ duyệt chưa có tiền, chưa tăng lượt khuyến mãi, chưa đổi trạng thái sân. 6A-4 chuyển phần chung vào dịch vụ mà không đổi hành vi.
+  - **Client kiểm response ghi đè** (mã quyết định, hành động, có/không mức cọc, phạm vi cọc) và chi tiết quyết định (mã quyết định); lệch ⇒ `InvalidResponse` ⇒ 503. Giữ tên trường lỗi của TADSS (`ErrorFields`) để tách 400 về `deposit.rate` với 400 khác.
+  - **Đồng bộ Q9:** áp đúng ghi đè đã lưu (cùng câu cổng), phát sự kiện và gửi email như duyệt thường, luôn trả 409. Người duyệt bên TADSS không phải user của BE (gọi thẳng TADSS, hoặc GUID của database khác) ⇒ vẫn áp, để trống `approval_resolved_by`, log Warning ghi `actorId`.
+  - **Email từ chối không ghi lý do của Quản lý** (ghi chú nội bộ, cùng nguyên tắc Q6 và payload SignalR).
 - **Sau commit:** `BookingApprovalResolved`, `PendingApprovalQueueChanged` (`REMOVED`/`APPROVED|REJECTED`); từ chối thêm `BookingCancelled` (time grid). Email cho khách: cọc > 0: "đã duyệt, vui lòng thanh toán cọc trước HH:mm" kèm link `{FrontendBaseUrl}/bookings` (không URL VNPay); cọc 0 %: "đã duyệt, đơn đã xác nhận, thanh toán tại quầy" kèm link hủy (D8, cùng mẫu với đơn a′), không nói tới thanh toán cọc; từ chối: "đơn không được nhận".
 
 ### 7.8. Thanh toán (T6.6, T6.9)
@@ -653,7 +660,7 @@ Sơ đồ: [Tuần tự 5](../docs/report/SEQUENCE_DIAGRAMS.md#5-thanh-toán-c�
 
 `PaymentService`:
 
-- **`RetryPaymentAsync`** ("Thanh toán ngay"/"Thanh toán cọc"): giữ điều kiện `status = PENDING`; số tiền = `deposit_amount` (đơn cũ không có cọc: `finalTotal`); hạn theo 7.5; quá `hold_deadline` ⇒ 400 `PAYMENT_HOLD_EXPIRED`. Payment `PENDING` cũ đánh `FAILED` như hiện tại.
+- **`RetryPaymentAsync`** ("Thanh toán ngay"/"Thanh toán cọc"): giữ điều kiện `status = PENDING`; số tiền = `deposit_amount` (đơn cũ không có cọc: `finalTotal`); hạn theo 7.5; quá `hold_deadline` ⇒ 400 `PAYMENT_HOLD_EXPIRED`. Payment `PENDING` cũ đánh `FAILED` như hiện tại. **Đã làm ở 6A-3 (chốt 24/10):** kiểm hạn giữ chỗ **trước** hạn thanh toán (hạn thanh toán không bao giờ vượt hạn giữ chỗ, nên kiểm sau thì `PAYMENT_HOLD_EXPIRED` không bao giờ xảy ra); đơn trước Phase 6 không có `hold_deadline` ⇒ coi là `created_at + PaymentHoldMaxMinutes`. Mức cô lập của transaction này đổi ở 6A-4 (N-29).
 - **IPN thành công:** giữ `AtomicUpdatePaymentSuccessAsync` (`PENDING → PAID_ONLINE`). Đánh các Payment `PENDING` khác của hóa đơn thành `FAILED`. Hóa đơn `PARTIALLY_PAID` như hiện tại; email xác nhận ghi đã cọc / còn lại.
 - **IPN thành công nhưng đơn đã hủy** (P6-07): Payment `SUCCESS` (`paid_at`), Refund 100 % `PENDING`, đơn `CANCELLED → CANCELLED_PENDING_REFUND` có điều kiện, giữ `cancel_reason`; log Warning; email báo khách sẽ được hoàn tiền; phát `BookingCancelled` để nhân viên thấy đơn trong hàng "Chờ hoàn tiền".
 - **IPN thất bại** (P6-03): chỉ khi Payment đang `PENDING` ⇒ `FAILED`; đơn không đổi; hạn rút theo 7.5 (cả slot lock); phát `PaymentFailed` kèm time grid. Payment không còn `PENDING` (link cũ) ⇒ chỉ log.
@@ -720,7 +727,7 @@ Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nh�
 
 - `Common/ErrorCodes.cs` nhóm `// ─── Deposit Approval ───`: các mã của DEPOSIT_APPROVAL_API Mục 5, gồm `PAYMENT_HOLD_EXPIRED` (400) và `BOOKING_ALREADY_STARTED` (400, P6-23).
 - `Common/Constants/SignalREvents.cs`: `BookingPendingApproval`, `BookingApprovalResolved`, `PendingApprovalQueueChanged` (DEPOSIT_APPROVAL_API Mục 6).
-- `Templates/`: email chờ duyệt, đã duyệt, bị từ chối, hết hạn duyệt, tiền về sau khi hủy; email xác nhận thanh toán thêm "đã cọc / còn lại"; email xác nhận kèm link hủy cho đơn a′ và duyệt 0 % (D8) dùng lại mẫu `BookingConfirmation.html` như đơn tại quầy (E2). Hạn ghi trong email ("thanh toán cọc trước HH:mm") lấy `expires_at` đổi bằng `DateTimeHelper.ToVietnamTime`, định dạng `HH:mm dd/MM/yyyy`.
+- `Templates/`: email chờ duyệt, đã duyệt, bị từ chối, hết hạn duyệt, tiền về sau khi hủy (6A-3 đã làm `BookingPendingApproval.html`, `DepositApproved.html`, `ApprovalRejected.html`, model `DepositApprovalEmailModel`; email đã duyệt ghi tiền cọc, phần còn lại, hạn trả cọc, N-13); email xác nhận thanh toán thêm "đã cọc / còn lại"; email xác nhận kèm link hủy cho đơn a′ và duyệt 0 % (D8) dùng lại mẫu `BookingConfirmation.html` như đơn tại quầy (E2). Hạn ghi trong email ("thanh toán cọc trước HH:mm") lấy `expires_at` đổi bằng `DateTimeHelper.ToVietnamTime`, định dạng `HH:mm dd/MM/yyyy`.
 
 ### 7.14. Quy tắc thời gian (P6-22)
 
@@ -734,7 +741,7 @@ Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nh�
 
 `BookingJob` đang có bản sao riêng của `ToUtcFromVietnam`; mã mới dùng `DateTimeHelper.ToUtcFromVietnam`.
 
-**Đồng hồ (T-14):** service và job **mới** của Phase 6 cần "bây giờ" (`BookingApprovalService`, `BookingCancellationService`, `BookingApprovalJob`, `TadssOutcomeJob`) nhận `TimeProvider` qua DI (`AddSingleton(TimeProvider.System)`) và lấy `GetUtcNow().UtcDateTime`; `PaymentHoldHelper` nhận `now` làm tham số. `BookingDepositService` không đọc đồng hồ: mọi mốc của request lấy từ DB (`bookings.created_at`), nên request tất định và gọi lại cùng `bookingId` không bị 409. Test cố định thời điểm (00:30, 06:59, 23:45 giờ VN, đúng mốc chính sách hủy, đúng giờ bắt đầu) bằng `FakeTimeProvider`. Mã cũ không đụng tới thì giữ `DateTime.UtcNow`. Không dùng `now()` của DB cho logic mới; cột mới (`hold_deadline`, `approval_resolved_at`, `tadss_outcome_reported_at`, `cancelled_at`) do BE gán.
+**Đồng hồ (T-14):** service và job **mới** của Phase 6 cần "bây giờ" (`BookingApprovalService`, `BookingCancellationService`, `BookingApprovalJob`, `TadssOutcomeJob`) nhận `TimeProvider` qua DI (`AddSingleton(TimeProvider.System)`) và lấy `GetUtcNow().UtcDateTime`; `PaymentHoldPolicy` nhận `now` làm tham số. `BookingDepositService` không đọc đồng hồ: mọi mốc của request lấy từ DB (`bookings.created_at`), nên request tất định và gọi lại cùng `bookingId` không bị 409. Test cố định thời điểm (00:30, 06:59, 23:45 giờ VN, đúng mốc chính sách hủy, đúng giờ bắt đầu) bằng `FakeTimeProvider`. Mã cũ không đụng tới thì giữ `DateTime.UtcNow`. Không dùng `now()` của DB cho logic mới; cột mới (`hold_deadline`, `approval_resolved_at`, `tadss_outcome_reported_at`, `cancelled_at`) do BE gán.
 
 **Sửa lỗi có sẵn ngoài luồng cọc (T-9…T-11), giữ nguyên wire:**
 
@@ -804,7 +811,7 @@ Các mã hiện có giữ nguyên ý nghĩa, đã sửa chi tiết theo spec nà
 
 | Mã | Nội dung | Gói |
 | :--- | :--- | :--- |
-| BE-UT-08 | `PaymentHoldHelper`: bốn thời điểm của 7.5, biên (đúng hạn, trước/sau 1 giây, hạn tuyệt đối, giờ chơi); dòng "đặt sân" ở 6A-2, dòng duyệt ở 6A-3, hai dòng còn lại ở 6A-4 | 6A-2, 6A-3, 6A-4 |
+| BE-UT-08 | `PaymentHoldPolicy`: bốn thời điểm của 7.5, biên (đúng hạn, trước/sau 1 giây, hạn tuyệt đối, giờ chơi); dòng "đặt sân" ở 6A-2, dòng duyệt ở 6A-3, hai dòng còn lại ở 6A-4 | 6A-2, 6A-3, 6A-4 |
 | BE-UT-09 | Lịch sử khách theo `cancel_reason` và ánh xạ outcome (bảng 4.4.1) | 6A-1, 6A-5 |
 | BE-UT-10 | % hoàn ở mỗi mốc chính sách (đúng mốc, trước/sau 1 phút) theo giờ VN; hoàn trên số đã trả | 6A-4 |
 | BE-UT-11 | Mọi giá trị `BookingStatus` được phân loại (7.12) | 6A-1 |
@@ -895,6 +902,8 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | Đơn a′ có khuyến mãi bị khách tự hủy (link email, app) hoặc nhân viên hủy trước 6A-4 | Đường hủy bằng link chưa trả lượt (`UsedCount` giữ +1), đường nhân viên luôn −1 kể cả đơn chưa từng tăng (N-8). Sửa chung ở 7.9 bước 5 (6A-4); BE-IT đã chứng minh hủy bằng link của đơn a′ chạy đầu cuối, không tạo hoàn tiền |
 | Lỗi sau khi thắng câu cổng ở transaction 2 (VD dựng URL VNPay ném lỗi vì thiếu cấu hình hoặc IP máy khách) | Transaction 2 rollback cả câu cổng ⇒ đơn `PENDING` không cọc, không Payment, khách nhận 500; Job-01 hủy khi hết `expires_at` (10 phút; lý do `SYSTEM_CLEANUP` từ 6A-5). Ngoài đời request luôn có IP; cấu hình VNPay kiểm lúc khởi động |
 | 12 transaction cũ còn Serializable (N-29) | Tranh chấp ở tại quầy, hủy, IPN, thanh toán lại có thể ra 500; chuyển `TransactionScopeHelper.ReadCommitted()` ở 6A-4 cùng lúc viết lại bằng câu cổng (hạ mức cô lập trước đó sẽ thành mất cập nhật) |
+| Hai Quản lý duyệt cùng lúc, response TADSS của người thắng về chậm hơn lần đồng bộ của người thua (ghi nhận 24/10, 6A-3) | Người thua đồng bộ ghi đè của người thắng vào đơn trước, nên người thắng thua câu cổng và **cả hai nhận 409**. Dữ liệu vẫn đúng (mức cọc và người duyệt là của người thắng), chỉ thông báo cho người thắng sai; tải lại thấy đúng. Chấp nhận: cửa sổ rất hẹp, sửa (coi "đơn đã được chính mình duyệt cùng nội dung" là 200) trái quy tắc "hai lần bấm song song ⇒ một 409" của API doc 7 |
+| Người duyệt bên TADSS không phải user của BE khi đồng bộ Q9 | `approval_resolved_by` để trống, ai duyệt tra ở audit TADSS và log Warning; chỉ xảy ra khi gọi thẳng TADSS (Swagger dev) hoặc BE dùng database khác với lúc ghi đè |
 
 ---
 
@@ -915,7 +924,7 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | N-3 FE redirect vô điều kiện; thứ tự triển khai | 8.2, P6-17 | 6B-2 |
 | N-4 enum số ở FE | P6-15, 8.1 | 6A-1, 6B-1 |
 | N-5 11 danh sách trạng thái | P6-15, 7.12 | 6A-1 |
-| N-6 thanh toán lại rút ngắn hạn | P6-02, 7.5 | 6A-4 |
+| N-6 thanh toán lại rút ngắn hạn | P6-02, 7.5 | 6A-3 (kéo từ 6A-4, 24/10) |
 | N-7 tiền 0 / dưới mức VNPay | P6-06, 7.6 (a′), 7.7 | 6A-2, 6A-3 |
 | N-8 giảm `UsedCount` sai | 7.9 bước 5 | 6A-4 |
 | N-9 ràng buộc DB không có trong test; 2 ràng buộc cần xác minh | P6-13, P6-14, P6-16, 6.1, 10.1 | 6A-1 |
@@ -929,7 +938,7 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | N-17 dữ liệu thử nhiều đơn hết hạn | 10.2 bước 4, 11 | Phase 7 |
 | N-18 lệch 7 giờ khi hoàn tiền | P6-08 | 6A-4 |
 | N-19 dịch vụ chỉ thêm sau check-in | Ghi vào DEPOSIT_APPROVAL_API Mục 7; không đổi mã | — |
-| N-20 thanh toán lại giữ slot vô hạn | P6-02 | 6A-4 |
+| N-20 thanh toán lại giữ slot vô hạn | P6-02 | 6A-3 (kéo từ 6A-4, 24/10) |
 | N-21 người khác không chờ được slot đang giữ | P6-21 (tùy chọn) | 6A-6 |
 | N-22 giới hạn khuyến mãi mỗi khách đếm cả đơn hủy | P6-18 | 6A-2c (làm sớm 23/10) |
 | N-26 khuyến mãi không điều kiện bỏ qua giới hạn lượt | Sửa lỗi có sẵn | 6A-2c |

@@ -89,11 +89,11 @@ sequenceDiagram
     BE->>BE: Đọc booking PENDING_APPROVAL chưa hết hạn (DB của BE)
     M->>FE: Duyệt, cọc 30%, lý do
     FE->>BE: POST /api/bookings/{bookingId}/approve
-    BE->>BE: Kiểm quyền chi nhánh, booking còn PENDING_APPROVAL; lấy tadss_decision_id đã lưu
+    BE->>BE: Kiểm quyền chi nhánh, booking còn PENDING_APPROVAL, lấy tadss_decision_id đã lưu
     BE->>T: POST /api/v2/decisions/{decisionId}/override (deposit.rate, X-Actor-Id = userId từ JWT)
     alt 200 OK
-        BE->>BE: Cập nhật booking, tạo URL thanh toán cọc
-        BE-)C: SignalR/email: link thanh toán
+        BE->>BE: Cập nhật booking có điều kiện (còn chờ, còn hạn), chưa tạo URL VNPay
+        BE-)C: SignalR/email dẫn tới lịch sử đặt sân, khách bấm "Thanh toán cọc" mới có link
     else 409 ALREADY_OVERRIDDEN / NOT_PENDING_APPROVAL / APPROVAL_EXPIRED
         BE-->>FE: Thông báo xung đột / đã hết hạn
     end
