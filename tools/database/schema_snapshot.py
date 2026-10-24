@@ -44,9 +44,11 @@ PHASE6_COLUMNS = {
 }
 PHASE6_CONSTRAINTS = ("fk_bookings_approval_resolved_by", "chk_bookings_pending_approval", "chk_bookings_approval_resolution",
                       "chk_bookings_cancel_reason", "chk_invoices_deposit_rate_range", "chk_invoices_deposit_amount_positive",
-                      "chk_invoices_deposit_fields")
+                      "chk_invoices_deposit_fields",
+                      # Bổ sung N-28 (23/10, phase6_fix_promotion_snapshot.sql): CHECK theo loại khuyến mãi thay cho chk_booking_promotions_rate
+                      "chk_booking_promotions_discount_value")
 PHASE6_INDEXES = ("uq_bookings_tadss_decision", "idx_bookings_pending_approval", "idx_bookings_outcome_pending")
-PHASE6_DROPPED_CONSTRAINTS = ("uq_slot_locks_booking",)
+PHASE6_DROPPED_CONSTRAINTS = ("uq_slot_locks_booking", "chk_booking_promotions_rate")
 # Điều kiện script giả định có sẵn (Mục 6.1, câu backfill)
 PRECONDITION_COLUMNS = {"bookings": ("cancel_source", "cancelled_at")}
 PRECONDITION_CONSTRAINTS = ("chk_bookings_cancelled_at",)
