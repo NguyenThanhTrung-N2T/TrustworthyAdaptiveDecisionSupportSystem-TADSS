@@ -266,8 +266,11 @@ sequenceDiagram
             BE->>DB: Payment đang chờ ⇒ FAILED, đơn giữ PENDING,<br/>hạn rút về min(hạn, now + 5')
             BE-)H: PaymentFailed (kèm time grid)
         else Thành công nhưng đơn đã bị hủy (phiên VNPay còn sống sau khi hết hạn)
-            BE->>DB: Payment SUCCESS, Refund 100 % PENDING,<br/>CANCELLED → CANCELLED_PENDING_REFUND
+            BE->>DB: Payment SUCCESS, Refund 100 % PENDING (hoàn tiền mặt tại chi nhánh),<br/>CANCELLED → CANCELLED_PENDING_REFUND
             BE-)H: BookingCancelled (nhân viên thấy đơn chờ hoàn)
+        else Thành công cho đơn đã được trả bằng link khác
+            BE->>DB: Payment SUCCESS, đơn không đổi
+            Note over BE,DB: Khoản thừa trừ vào số thu tại quầy khi check-out
         end
         V->>FE: Chuyển về /payment/result
         FE->>BE: POST /api/payments/vnpay/confirm (chỉ đọc)
@@ -282,7 +285,7 @@ sequenceDiagram
 
 ## 6. Hủy đơn và hoàn tiền (UC-DEPOSIT-04, 12)
 
-*Thiết kế Phase 6.* Mọi đường hủy đi qua một dịch vụ hủy chung trong BE: cập nhật có điều kiện ghi đủ trạng thái, thời điểm, nguồn hủy và **lý do hủy** trong một câu lệnh; tiền hoàn tính trên **số đã trả**, % hoàn theo chính sách hủy tính đúng múi giờ. Khách chỉ tự hủy được **trước giờ bắt đầu** (P6-23); từ giờ bắt đầu chỉ nhân viên hủy được, đơn khách không đến do job đánh `NO_SHOW`.
+*Thiết kế Phase 6.* Ba đường hủy của người dùng (khách trong app, link email, nhân viên) đi qua một dịch vụ hủy chung trong BE: cập nhật có điều kiện ghi đủ trạng thái, thời điểm, nguồn hủy và **lý do hủy** trong một câu lệnh; tiền hoàn tính trên **số đã trả**, % hoàn theo chính sách hủy tính đúng múi giờ. Khách chỉ tự hủy được **trước giờ bắt đầu** (P6-23); từ giờ bắt đầu chỉ nhân viên hủy được, đơn khách không đến do job đánh `NO_SHOW`.
 
 ```mermaid
 sequenceDiagram
@@ -294,7 +297,7 @@ sequenceDiagram
     participant H as SignalR hub
 
     C->>FE: Bấm Hủy đơn
-    FE->>BE: POST /api/me/bookings/{id}/cancel (khách)<br/>hoặc POST /api/bookings/{id}/cancel (nhân viên)
+    FE->>BE: POST /api/me/bookings/{id}/cancel (khách), POST /api/bookings/cancel/{token} (link email)<br/>hoặc POST /api/bookings/{id}/cancel (nhân viên)
     opt Khách hủy khi đã tới giờ bắt đầu (P6-23)
         BE-->>FE: 400 BOOKING_ALREADY_STARTED, đơn không đổi
         Note over BE: Khách không đến thì job đánh NO_SHOW
@@ -305,9 +308,11 @@ sequenceDiagram
     else Thành công
         BE->>DB: Tắt booking_courts, xóa slot lock, Payment đang chờ ⇒ FAILED
         alt Đơn đã có thanh toán thành công
-            BE->>BE: tiền hoàn = round(tổng đã trả × % hoàn)
-            BE->>DB: Tiền hoàn > 0 ⇒ Refund PENDING, CANCELLED_PENDING_REFUND,<br/>trả lại lượt khuyến mãi
-        else Chưa thanh toán (PENDING, PENDING_APPROVAL, CONFIRMED cọc 0 %)
+            BE->>BE: tiền hoàn = round(số đã thu × % hoàn), mỗi khoản thu một phần
+            BE->>DB: Tiền hoàn > 0 ⇒ Refund PENDING (tiền mặt tại chi nhánh), CANCELLED_PENDING_REFUND,<br/>trả lại lượt khuyến mãi
+        else Thu tại quầy (CONFIRMED trả sau, cọc 0 %)
+            BE->>DB: Không hoàn tiền, trả lại lượt khuyến mãi (đã tính lúc xác nhận)
+        else Chưa thanh toán online (PENDING, PENDING_APPROVAL)
             Note over BE,DB: Không hoàn tiền, không giảm lượt khuyến mãi,<br/>không tính là hết hạn thanh toán
         end
         BE-->>FE: 200
@@ -316,4 +321,4 @@ sequenceDiagram
     end
 ```
 
-Các đường hủy khác (Manager từ chối, TADSS từ chối, job hết hạn duyệt, job hết hạn thanh toán) dùng cùng dịch vụ với lý do `APPROVAL_REJECTED`, `POLICY_REJECTED`, `APPROVAL_EXPIRED`, `PAYMENT_EXPIRED` (hoặc `SYSTEM_CLEANUP` khi đơn chưa có giao dịch nào).
+Manager từ chối (`APPROVAL_REJECTED`) và TADSS từ chối (`POLICY_REJECTED`) dùng câu cập nhật có điều kiện riêng (cần thêm điều kiện như "còn hạn duyệt"), cùng lõi ghi cột hủy. Job hết hạn duyệt và job hết hạn thanh toán (6A-5) dùng dịch vụ hủy chung với lý do `APPROVAL_EXPIRED`, `PAYMENT_EXPIRED` (hoặc `SYSTEM_CLEANUP` khi đơn chưa có giao dịch nào). Link hủy chỉ bị đánh "đã dùng" khi lệnh hủy thành công.
