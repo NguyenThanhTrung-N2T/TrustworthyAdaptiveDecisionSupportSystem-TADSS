@@ -147,6 +147,8 @@ gantt
 
 ### ⏳ Phase 6 — SmashCourt-BE ∥ smashcourt-fe (W09–W12, 02/11 – 29/11)
 
+*Tiến độ 25/10/2026 (bắt đầu sớm 19/10):* đặc tả duy nhất của phase là [`spec/PHASE6_DESIGN_SPEC.md`](../../spec/PHASE6_DESIGN_SPEC.md) (P6-01…P6-23), plan và kết quả từng gói ở `spec/PHASE6_PLAN_6A-*.md`. BE: ✅ 6A-1 nền (DB, `TadssClient`, dựng request), ✅ 6A-2 đặt sân online hai transaction, ✅ 6A-3 duyệt cọc, ✅ 6A-4 thanh toán / hủy / check-out (nhánh `feat/phase-6-deposit`, commit `f554fad`; khoảng 1850 test xanh); ⏳ 6A-5 job (hết hạn thanh toán, hết hạn duyệt, báo outcome) đang lập plan; 6A-6 hoàn thiện chưa làm. Cờ `EnableTadssDecision` vẫn tắt. FE (Epic 6B) chưa bắt đầu. TADSS không đổi mã.
+
 | Tuần | SV1 — SmashCourt-BE | SV2 — smashcourt-fe |
 |:---|:---|:---|
 | **W09** (02–08/11) | Thay đổi DB SmashCourt (trạng thái `PENDING_APPROVAL`, trường cọc trên hóa đơn, liên kết `decision_id`); `TadssClient` (timeout, idempotency) + feature flag `EnableTadssDecision` qua `IOptionsMonitor` | **Thiết kế UI/UX**: hiển thị cọc cho khách, trạng thái chờ duyệt, dashboard duyệt, chi tiết quyết định |

@@ -187,6 +187,7 @@ stateDiagram-v2
 
     CANCELLED_PENDING_REFUND --> CANCELLED_REFUNDED: Xác nhận hoàn tiền
     CANCELLED --> CANCELLED_PENDING_REFUND: (mới) tiền VNPay về<br/>sau khi đơn đã hủy, hoàn 100 %
+    CANCELLED_REFUNDED --> CANCELLED_PENDING_REFUND: (mới) thêm một khoản về<br/>sau khi đã hoàn xong, hoàn 100 % khoản đó
 
     CANCELLED --> [*]
     CANCELLED_REFUNDED --> [*]

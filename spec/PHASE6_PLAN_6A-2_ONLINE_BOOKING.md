@@ -37,10 +37,10 @@
 | 6A-2b | Task 1 ✅ | `PaymentHoldHelper.ForNewBooking` + `PaymentHoldWindow` (chỉ dòng "đặt sân", A7) |
 | 6A-2b | Task 4 ✅ | `CancelTokenHelper` dùng chung cho IPN, đơn tại quầy, a′; sửa T-2 (lệch 7 giờ), T-3 (`Unspecified`); a′ ghi token trong câu cổng (D8) |
 | 6A-2b | Task 2 ✅ | `DepositDecisionResolver` + `DepositDecision` + `DepositBranch` + `IBookingDepositService.DecideAsync` |
-| 6A-2c | Task 1 ✅ (chưa commit) | `CreateOnlineAsync` hai transaction + A9 + P6-01 + email a′ (xem "Kết quả thực hiện" của 2c) |
-| 6A-2c | Task 2 ✅ (chưa commit) | DTO cọc (BE-UT-07): `DepositFieldsHelper`, `BookingDto`/`OnlineBookingResponse`, `message` theo trạng thái |
-| 6A-2c | Task 3 ✅ (chưa commit) | Sự kiện sau transaction 2: `BookingCreated` theo trạng thái, nhánh b báo hàng chờ, nhánh c chỉ báo nhân viên (C2) |
-| 6A-2c | Task 4 ✅ (chưa commit) | 66 BE-IT HTTP cho đặt sân online; sửa N-26 (giới hạn lượt khuyến mãi), N-27 (IPN không tăng lượt); N-28 (schema snapshot khuyến mãi `FIXED`) có script chờ áp `tadss-dev`; rà soát lần 2: sửa N-29 (đặt đồng thời lỗi 500), làm sớm P6-18; kiểm `reservationId` (24/10); 1276 test xanh |
+| 6A-2c | Task 1 ✅ (`beff795`) | `CreateOnlineAsync` hai transaction + A9 + P6-01 + email a′ (xem "Kết quả thực hiện" của 2c) |
+| 6A-2c | Task 2 ✅ (`beff795`) | DTO cọc (BE-UT-07): `DepositFieldsHelper`, `BookingDto`/`OnlineBookingResponse`, `message` theo trạng thái |
+| 6A-2c | Task 3 ✅ (`beff795`) | Sự kiện sau transaction 2: `BookingCreated` theo trạng thái, nhánh b báo hàng chờ, nhánh c chỉ báo nhân viên (C2) |
+| 6A-2c | Task 4 ✅ (`beff795`) | 66 BE-IT HTTP cho đặt sân online; sửa N-26 (giới hạn lượt khuyến mãi), N-27 (IPN không tăng lượt); N-28 (schema snapshot khuyến mãi `FIXED`, script đã áp `tadss-dev` 24/10); rà soát lần 2: sửa N-29 (đặt đồng thời lỗi 500), làm sớm P6-18; kiểm `reservationId` (24/10); 1276 test xanh |
 
 **Gói kế tiếp 6A-3 (duyệt cọc) đã làm xong code và test 24/10:** xem [PHASE6_PLAN_6A-3_APPROVAL.md](PHASE6_PLAN_6A-3_APPROVAL.md). **Làm tiếp được ngay (6A-2a, 6A-2b, 6A-2c xong hết; N-28 đã áp `tadss-dev` 24/10):** FE chưa sửa C1 nên chưa đưa BE Phase 6 lên môi trường dùng chung có FE thật; rồi kiểm tra cuối gói (BE chạy thật cờ tắt; VNPay sandbox 5.000/4.999 đ cần người dùng; BE với TADSS local, cờ bật chỉ trong lúc kiểm).
 

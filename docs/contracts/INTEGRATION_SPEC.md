@@ -128,7 +128,7 @@ Khi booking kết thúc, job SmashCourt gửi `POST /api/v2/decisions/{decisionI
 | Header | Bắt buộc | Mô tả |
 | :--- | :---: | :--- |
 | `X-Api-Key` | Mọi endpoint | Khóa service-to-service do TADSS cấp cho từng client; server so SHA-256 của khóa với danh sách đã cấu hình (so sánh thời gian cố định). Thiếu hoặc sai → 401 `UNAUTHORIZED` kèm `WWW-Authenticate: ApiKey header="X-Api-Key"`, không gọi tới nghiệp vụ. Không bao giờ được ghi vào log |
-| `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá) hoặc `{decisionId}:{action}` (override). Thiếu hoặc toàn khoảng trắng → 400 `MISSING_HEADER`; dài hơn 128 → 400 `VALIDATION_ERROR`. Ở `/outcome` key chỉ được kiểm tra, **không được lưu** (chống trùng theo nội dung, xem 3.7) |
+| `X-Idempotency-Key` | `POST /decisions`, `POST /override`, `POST /outcome` | 1..128 ký tự; SmashCourt dùng `bookingId` (đánh giá), `{decisionId}:{action}` (override) hoặc `{decisionId}:OUTCOME` (outcome). Thiếu hoặc toàn khoảng trắng → 400 `MISSING_HEADER`; dài hơn 128 → 400 `VALIDATION_ERROR`. Ở `/outcome` key chỉ được kiểm tra, **không được lưu** (chống trùng theo nội dung, xem 3.7) |
 | `X-Actor-Id` | `POST /override` | Định danh Manager do SmashCourt lấy từ JWT đã xác thực; 1..100 ký tự (code point). Thiếu hoặc toàn khoảng trắng → 400 `MISSING_HEADER`; dài hơn 100 → 400 `VALIDATION_ERROR` |
 | `X-Correlation-ID` | Tùy chọn | Được echo lại trong response và gắn vào log, trace, audit. Giá trị rỗng/khoảng trắng hoặc dài hơn 128 ký tự bị bỏ qua: server cấp một GUID mới (không từ chối request) |
 
@@ -342,13 +342,14 @@ Hai request đồng thời cùng key: ràng buộc unique của PostgreSQL bảo
 
 - Lưu `decisionId`, mức cọc và nguồn áp dụng (`TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK`) trên booking/hóa đơn để đối soát. Quyết định fallback của runtime (`APPROVED` cọc 100%, `fallbackUsed = true`) là một quyết định `TADSS` hợp lệ: BE xử lý như mọi `APPROVED` (thanh toán `deposit.amount`), không cần nhánh riêng.
 - Timeout `TimeoutMs`, lỗi 5xx, 401, 413, 429, lỗi mạng, hoặc 400/409 bất thường (request do BE dựng sai: lỗi lập trình của BE, ghi log mức Error) → áp dụng 100%, ghi log kèm correlation id (413 do body quá lớn, 429 do vượt tần suất: đều không retry ngay; 429 có thể ghi log `Retry-After`). Không retry POST quá một lần; lần retry dùng lại cùng idempotency key.
+- Response 2xx nhưng không dùng được (body hỏng, thiếu trường bắt buộc, vi phạm INV-7, `deposit` ngoài phạm vi, `reservationId` khác booking đã gửi) cũng áp dụng 100 %, không thử lại và **không lưu** `decisionId`; ghi log Error kèm correlation id.
 - Không bao giờ để lỗi của TADSS làm hỏng booking hoặc trả lỗi 500 cho khách.
 - **Tranh chấp override ↔ outcome:** runtime kiểm tra "chưa có outcome" rồi mới ghi override, hai bước này không được khóa nguyên tử với việc ghi outcome (tranh chấp override ↔ override thì do `UNIQUE(decision_id)` bảo đảm). Cửa sổ tranh chấp chỉ có ở đúng thời điểm hết hạn duyệt, khi job báo outcome `APPROVAL_EXPIRED` chạy trùng lúc Manager bấm duyệt; khi đó có thể cả hai cùng thành công và `GET /api/v2/decisions/{decisionId}` hiện cả `override` lẫn `outcome`. BE coi trạng thái booking của mình là nguồn sự thật: không dùng một override 200 để hồi sinh booking đã hết hạn hoặc đã hủy, và đối soát theo chi tiết quyết định.
 
 ### 4.4. Thay đổi dữ liệu SmashCourt (chi tiết hóa ở Phase 6)
 
 - Thêm giá trị `PENDING_APPROVAL` cho enum `booking_status`.
-- Hóa đơn: số tiền cọc, tỷ lệ cọc, `tadss_decision_id`, nguồn áp dụng cọc; trạng thái `PARTIALLY_PAID` (đã có) dùng sau khi thanh toán cọc.
+- Booking: `tadss_decision_id`, thông tin duyệt, lý do hủy, mốc đã báo outcome. Hóa đơn: số tiền cọc, tỷ lệ cọc, nguồn áp dụng cọc, hạn giữ chỗ; trạng thái `PARTIALLY_PAID` (đã có) dùng sau khi thanh toán cọc. Chi tiết: `spec/PHASE6_DESIGN_SPEC.md` Mục 6.
 - Job: hết hạn duyệt (hủy + giải phóng sân), báo outcome.
 - Script SQL cập nhật `TADSS-Runtime/docs/database/schema_smashcourt.sql` theo quy trình hiện có của SmashCourt-BE.
 

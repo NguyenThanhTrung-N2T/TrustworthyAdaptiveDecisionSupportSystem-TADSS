@@ -476,7 +476,7 @@ Kết quả xác định theo trạng thái cuối và **lý do hủy** lưu tr�
 
 #### Luồng chính
 
-Như UC hủy booking online của Đồ án 1, khác ở cách tính tiền hoàn: `tiền hoàn = round(tổng các khoản đã thanh toán thành công × % hoàn)`, với % hoàn lấy theo chính sách hủy hiện có (theo số giờ trước giờ chơi, tính đúng múi giờ: mã Đồ án 1 tính dư 7 giờ nên có thể hoàn nhiều hơn chính sách sát các mốc). Sau đó job ở UC-DEPOSIT-10 báo kết quả `CANCELLED_BY_CUSTOMER` (hoặc `CANCELLED_BY_STAFF`) cho TADSS.
+Như UC hủy booking online của Đồ án 1, khác ở cách tính tiền hoàn: `tiền hoàn = round(tổng các khoản đã thanh toán thành công × % hoàn)`, với % hoàn lấy theo chính sách hủy hiện có (theo số giờ trước giờ chơi, tính đúng múi giờ: mã Đồ án 1 tính dư 7 giờ nên có thể hoàn nhiều hơn chính sách sát các mốc). Tiền hoàn **luôn trả bằng tiền mặt tại chi nhánh đặt sân** (nhân viên xác nhận ở hàng "Chờ hoàn tiền"), không hoàn qua cổng thanh toán; đơn có nhiều khoản đã trả thì mỗi khoản một yêu cầu hoàn, khách nhận một lần tổng tiền. Sau đó job ở UC-DEPOSIT-10 báo kết quả `CANCELLED_BY_CUSTOMER` (hoặc `CANCELLED_BY_STAFF`) cho TADSS.
 
 #### Quy tắc nghiệp vụ
 

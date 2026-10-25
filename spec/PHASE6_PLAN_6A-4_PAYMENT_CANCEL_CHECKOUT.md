@@ -18,7 +18,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit`. Nền: 6A-3 (chưa commit lúc lập plan).
 
-**Trạng thái:** ✅ đã thực hiện (24/10), chưa commit; kết quả ở cuối file. Bản 2 (24/10). Người dùng đã chốt C1…C4 theo đề xuất, thêm hai yêu cầu: hoàn tiền chỉ offline tại chi nhánh; logic thanh toán dùng chung cho nhiều cổng (Task 8).
+**Trạng thái:** ✅ đã thực hiện (24/10) và commit (`f554fad`, 25/10, gồm bổ sung test và rà soát hồi quy); kết quả ở cuối file. Bản 2 (24/10). Người dùng đã chốt C1…C4 theo đề xuất, thêm hai yêu cầu: hoàn tiền chỉ offline tại chi nhánh; logic thanh toán dùng chung cho nhiều cổng (Task 8).
 
 ---
 

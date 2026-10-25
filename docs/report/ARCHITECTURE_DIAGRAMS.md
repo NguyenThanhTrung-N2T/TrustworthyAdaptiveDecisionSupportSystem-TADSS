@@ -91,7 +91,7 @@ flowchart LR
     vnpay["VNPay"]
 
     user -- "HTTPS" --> fe
-    fe -- "REST + JWT cookie" --> be
+    fe -- "REST + JWT Bearer" --> be
     hub -. "WebSocket: đơn chờ duyệt,<br/>kết quả duyệt" .-> fe
     be --- hub
     be --- hangfire
@@ -116,7 +116,7 @@ Chú thích màu: **cam** là container của SmashCourt **phải sửa** ở Ph
 
 | Kết nối | Giao thức | Hướng | Ghi chú |
 | :--- | :--- | :--- | :--- |
-| FE → BE | REST, JWT trong cookie HTTP-only | FE gọi | FE **chỉ** gọi BE, không bao giờ thấy `decisionId` của TADSS |
+| FE → BE | REST, access token JWT ở header `Authorization: Bearer` (refresh token trong cookie HTTP-only) | FE gọi | FE **chỉ** gọi BE, không bao giờ thấy `decisionId` của TADSS |
 | BE → TADSS | HTTP JSON, header `X-Api-Key`, `X-Idempotency-Key`, `X-Correlation-ID` | BE gọi | Timeout phía BE `TadssConfig:TimeoutMs` (800 ms); TADSS tự giới hạn 500 ms cho pipeline strategy |
 | Hangfire → TADSS | HTTP, như trên | Job gọi | Báo kết quả thật của booking (`COMPLETED`, `NO_SHOW`, …) |
 | BE → FE (SignalR) | WebSocket | BE đẩy | Best-effort: FE luôn tải lại qua REST |
