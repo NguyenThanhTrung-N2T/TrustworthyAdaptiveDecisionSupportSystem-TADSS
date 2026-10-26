@@ -48,7 +48,7 @@ Theo [Môi trường tích hợp E-STAGING](../planning/MASTER_EXECUTION_PLAN.md
 | Hạn thanh toán khi tạo booking `PENDING` | 10 phút (hành vi hiện có) | UC-BOOKING-01 |
 | Cửa sổ check-in | Từ 15 phút trước tới 15 phút sau giờ bắt đầu | UC-BOOKING-05 |
 | Hiệu lực khi đổi `EnableTadssDecision` | < 2 giây, không khởi động lại | INTEGRATION_SPEC §4.1; KPI SC5 |
-| Chu kỳ job outcome | Chốt ở T6.8 | BACKLOG T6.8 |
+| Chu kỳ job outcome | 5 phút, tối đa 20 booking mỗi chu kỳ, gửi tuần tự (chốt 27/10, P6-19, P6-26); E2E chờ tối đa 2 chu kỳ | spec Phase 6 Mục 7.11 |
 
 T0 là thời điểm FE gửi `POST /api/bookings/online`. Khung giờ đặt phải tồn tại trong lịch mở cửa và bảng `time_slots` của chi nhánh thử, nên giờ chạy E2E-04 và E2E-09 phải chọn theo lưới khung giờ (Mục 8).
 
@@ -241,7 +241,7 @@ Một kịch bản **đạt** khi mọi kỳ vọng của mọi bước đúng, 
 | 3 | — (trang chờ của khách) | Sự kiện `BookingApprovalResolved` (`REJECTED`); UI: đơn bị từ chối/đã hủy. Email gửi khách (chỉ ghi nhận) |
 | 4 | — (time grid của chi nhánh) | Sự kiện `BookingCancelled`; `GET /api/branches/{branchId}/courts/{courtId}/time-grid` hiện slot trống |
 | 5 | `CUS-STD` đặt đúng slot đó | API: 201 (slot đã được giải phóng, không phải `SLOT_UNAVAILABLE`). `status` theo cách tạo điều kiện N đã chọn (Mục 3.3): N2 ⇒ `PENDING`, cọc theo hạng của `CUS-STD` (`depositSource = TADSS`); N1/N3 ⇒ `PENDING_APPROVAL` (F của slot vẫn ≥ ngưỡng). Dọn: booking `PENDING` để hết hạn thanh toán theo job hiện có; booking `PENDING_APPROVAL` do `MGR-A1` từ chối |
-| 6 | Chờ job outcome | K-OUT(v) với v theo ánh xạ chốt ở T6.8 (dự kiến `REJECTED`) |
+| 6 | Chờ job outcome | K-OUT(`REJECTED`) (ánh xạ chốt ở spec Phase 6 Mục 4.4.1) |
 | 7 | Kiểm K-SC6 | 0 vi phạm |
 
 **Bản ghi TADSS kỳ vọng:** quyết định `NEED_APPROVAL`, một override `REJECT`, một outcome.
@@ -383,7 +383,7 @@ Người thua có thể bị chặn ở bước kiểm DB của BE, ở TADSS (`
 | 3 | `STAFF-A1` check-in | API: `POST /api/bookings/{id}/check-in` → booking `IN_PROGRESS`; sự kiện `BookingCheckedIn` |
 | 4 | `STAFF-A1` checkout | UI: hộp xác nhận hiện số cần thu = `remainingAmount` hiện tại. API: `POST /api/bookings/{id}/checkout` thành công; sự kiện `BookingCheckedOut` |
 | 5 | Kiểm DB | Booking `COMPLETED`, hóa đơn `PAID`, tổng đã thu (VNPay + tiền mặt) = `finalTotal` hiện tại |
-| 6 | Chờ job outcome | K-OUT(v) với v theo ánh xạ chốt ở T6.8 (dự kiến `COMPLETED`) |
+| 6 | Chờ job outcome | K-OUT(`COMPLETED`) (booking có thời điểm check-in, P6-26) |
 | 7 | Kiểm K-SC6 | 0 vi phạm |
 
 **Minh chứng:** ảnh ở bước 1, 4; bản ghi Payment của booking.
@@ -553,7 +553,7 @@ KPI: mọi dòng liên quan SC6; E2E-05 thêm SC5 (minh họa, số đo ở FI-1
 | Câu SQL chỉ đọc của K-DEC, K-NODEC, K-OVR, K-OUT, K-SC6 (theo tên cột chốt ở T6.1) | T6.10, T7.3 | SV1 |
 | Cách đổi `EnableTadssDecision` lúc chạy trên E-STAGING | T6.2, T7.2 | SV1 |
 | Chọn điều kiện N1/N2/N3 và ghi vào ghi chú dựng lại | T7.2 | SV1 |
-| Chu kỳ job outcome và ánh xạ trạng thái → outcome | T6.8 | SV1 |
+| ~~Chu kỳ job outcome và ánh xạ trạng thái → outcome~~ | Đã chốt 27/10 (spec Phase 6 Mục 4.4.1, 7.11, P6-26) | SV1 |
 | Lưới khung giờ của `CN-A` để lên lịch E2E-04 (hết hạn sau 3–10 phút) và E2E-09 (trong cửa sổ check-in) | T7.2 | SV1 |
 | Cách giả lập SignalR và trang VNPay trên MSW | T6.15 | SV2 |
 | Chỉ báo trạng thái kết nối SignalR trên UI và cách làm đứt kết nối ở E2E-10 bước 4 | T6.11, T6.15 | SV2 |

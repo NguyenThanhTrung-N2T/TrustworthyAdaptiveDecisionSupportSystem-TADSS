@@ -113,10 +113,10 @@ Cột *Test case* liệt kê mọi mã mà cột *Task* của methodology Mục 
 | T6.4 | Luồng đặt sân online theo cọc: APPROVED → VNPay theo số tiền cọc; NEED_APPROVAL → `PENDING_APPROVAL` + giữ slot; tắt flag/TADSS lỗi → 100% | W10 | BE-UT-07, BE-IT-02…BE-IT-04, BE-IT-16, BE-IT-17, BE-IT-19, BE-IT-24 |
 | T6.5 | Endpoint cho Manager: hàng chờ theo chi nhánh, chi tiết quyết định, duyệt (kèm mức cọc) / từ chối — proxy sang TADSS với `X-Actor-Id` lấy từ JWT | W10 | BE-UT-03…BE-UT-05, BE-UT-07, BE-IT-05, BE-IT-06, BE-IT-11…BE-IT-15 |
 | T6.6 | Sau duyệt: đặt hạn thanh toán 15 phút, thông báo khách (SignalR/email dẫn tới lịch sử; link VNPay sinh khi khách bấm thanh toán); thanh toán lại có hạn giữ chỗ tuyệt đối; IPN thất bại không hủy đơn; tiền về sau khi hủy ⇒ hoàn 100 % | W10–W11 | BE-UT-08, BE-IT-07, BE-IT-18, BE-IT-21, BE-IT-22 |
-| T6.7 | Job hết hạn duyệt: hủy booking, giải phóng sân, báo outcome `APPROVAL_EXPIRED` (không tự duyệt) | W11 | BE-IT-08, BE-IT-15 |
-| T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…) | W11 | BE-UT-09, BE-IT-09 |
+| T6.7 | Job hết hạn duyệt: hủy booking, giải phóng sân, báo outcome `APPROVAL_EXPIRED` (không tự duyệt); bổ sung 27/10: Job-01, Job-02, Job-04 ghi trạng thái có điều kiện từng đơn (P6-25); kiểm hạn duyệt lúc nhận quyết định (P6-24) | W11 | BE-IT-04, BE-IT-08, BE-IT-15, BE-IT-26 |
+| T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…); nhãn khớp thời điểm check-in, chọn mới cập nhật trước, dừng chu kỳ ở lỗi hệ thống, timeout riêng 5 giây (P6-26) | W11 | BE-UT-01, BE-UT-09, BE-IT-09 |
 | T6.9 | Thu phần còn lại khi checkout; hoàn trên số đã trả theo chính sách hủy (sửa lệch múi giờ); hủy đơn chưa thanh toán; lý do hủy cho mọi đường hủy; hạn link hủy đúng múi giờ cho đơn online và tại quầy; khách không tự hủy khi đã tới giờ bắt đầu | W11 | BE-UT-10, BE-UT-12, BE-IT-10, BE-IT-23, BE-IT-25 |
-| T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo khách mới, dashboard "sắp bắt đầu", lọc giao dịch điểm | W12 | BE-IT-20, BE-IT-25, Gate M6 |
+| T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo khách mới, dashboard "sắp bắt đầu", lọc giao dịch điểm; hạn link thanh toán (P6-27, cần thử sandbox VNPay) | W12 | BE-IT-20, BE-IT-25, Gate M6 |
 
 ### Epic 6B — smashcourt-fe (SV2)
 

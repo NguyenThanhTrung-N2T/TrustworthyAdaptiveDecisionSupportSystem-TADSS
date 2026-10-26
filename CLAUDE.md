@@ -46,7 +46,7 @@ Tài liệu: `docs/contracts/` (INTEGRATION_SPEC = contract v2, `openapi-v2.yaml
   (bản đồ: Mục III `docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md`) — sửa thông số ở file sở hữu, file khác chỉ dẫn link.
 - Kế hoạch v2.1 (05/10/2026): 16 tuần 07/09 – 26/12/2026 (Phase 5 W05–W08, Phase 6 W09–W12, Phase 7 W13, Phase 8 W14–W15, Phase 9 W16); không pilot với người dùng thật — chất lượng quyết định đánh giá bằng dữ liệu import (replay 215 booking, Hotel Booking Demand).
 - Danh mục test case (UT/IT/CT/MT/FI/LT/SEC/NG/BE/FE/E2E/RP/PT) + KPI SC1–SC8: `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`.
-- **Gate M5 đạt 18/10/2026** (báo cáo `spec/PHASE5_REPORT_5.7.md`); strategy mặc định 2.1.0 sau Gate. **Phase 6** (tích hợp cọc vào SmashCourt-BE/FE) đang làm theo `spec/PHASE6_DESIGN_SPEC.md`: BE xong 6A-1…6A-4, 6A-5 đang lập plan, FE chưa bắt đầu. TADSS **không đổi mã** trong Phase 6; tài liệu Phase 6 (spec, plan, `docs/report/`, INTEGRATION_SPEC Mục 4) sửa ở repo này, chạy `check_docs.py` sau khi sửa.
+- **Gate M5 đạt 18/10/2026** (báo cáo `spec/PHASE5_REPORT_5.7.md`); strategy mặc định 2.1.0 sau Gate. **Phase 6** (tích hợp cọc vào SmashCourt-BE/FE) đang làm theo `spec/PHASE6_DESIGN_SPEC.md`: BE xong 6A-1…6A-4, 6A-5 plan bản 5 đã chốt 27/10 (P6-24…P6-27), chưa code, FE chưa bắt đầu. TADSS **không đổi mã** trong Phase 6; tài liệu Phase 6 (spec, plan, `docs/report/`, INTEGRATION_SPEC Mục 4) sửa ở repo này, chạy `check_docs.py` sau khi sửa.
 
 ## Điểm cần nhớ
 - Contract v1 (Phase 1–4) đã gỡ hoàn toàn khỏi mã và tài liệu (tra lại qua tag `phase4-baseline`); `NoLegacyV1Tests` chặn v1 quay lại. Chỉ còn 3 migration v1 trong `src/TADSS.Infrastructure/Persistence/Migrations/` để lịch sử migration trên Neon khớp — không xóa.

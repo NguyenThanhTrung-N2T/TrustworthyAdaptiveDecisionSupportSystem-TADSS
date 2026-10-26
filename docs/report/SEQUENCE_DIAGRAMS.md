@@ -209,14 +209,20 @@ sequenceDiagram
     participant H as SignalR hub
     participant T as TADSS
 
-    J1->>DB: Booking PENDING_APPROVAL có approvalExpiresAt ≤ now
-    loop Từng booking
-        J1->>DB: Cập nhật có điều kiện: → CANCELLED (nguồn SYSTEM,<br/>lý do APPROVAL_EXPIRED), xóa slot lock
+    J1->>DB: Booking PENDING_APPROVAL có approvalExpiresAt ≤ now (tối đa 100)
+    loop Từng booking, mỗi booking một transaction
+        J1->>DB: Khóa booking, kiểm lại hạn duyệt
+        alt Vẫn quá hạn và vẫn PENDING_APPROVAL
+            J1->>DB: Cập nhật có điều kiện: → CANCELLED (nguồn SYSTEM,<br/>lý do APPROVAL_EXPIRED), hóa đơn EXPIRED, xóa slot lock
+        else Đã được duyệt hoặc đã hủy
+            Note over J1: Bỏ qua, không ghi gì
+        end
         J1-)H: BookingExpired, PendingApprovalQueueChanged (REMOVED, EXPIRED)
         Note over J1: Gửi email cho khách, báo người đăng ký chờ slot.<br/>Không bao giờ tự duyệt
     end
 
-    J2->>DB: Booking đã kết thúc, có decisionId, chưa báo kết quả<br/>(giới hạn số booking mỗi lần chạy)
+    J2->>DB: Booking đã kết thúc, có decisionId, chưa báo kết quả<br/>(tối đa 20, cập nhật gần nhất trước)
+    Note over J2: COMPLETED cần có check-in, NO_SHOW cần không có.<br/>Mâu thuẫn thì không gửi, log Error
     loop Từng booking, tuần tự (rate limit của TADSS dùng chung với lúc đặt sân)
         J2->>T: POST /api/v2/decisions/{decisionId}/outcome<br/>{ outcome, occurredAt }
         alt 200 (kể cả gửi trùng cùng nội dung)
@@ -225,10 +231,10 @@ sequenceDiagram
         else 409 OUTCOME_ALREADY_RECORDED
             T-->>J2: Đã có kết quả khác
             J2->>DB: Đánh dấu, ghi log để đối soát
-        else 429 RATE_LIMITED
-            Note over J2: Dừng chu kỳ này, phần còn lại để lần sau
-        else Lỗi tạm thời
-            Note over J2: Để lần chạy sau thử lại
+        else 404 DECISION_NOT_FOUND, 400 VALIDATION_ERROR
+            Note over J2: Lỗi riêng quyết định này: log, để lần sau, gửi tiếp booking khác
+        else 429, 5xx, timeout 5 s, trang lỗi đường hầm, response không khớp
+            Note over J2: Lỗi hệ thống: dừng chu kỳ, không đánh dấu, phần còn lại để lần sau
         end
     end
 ```

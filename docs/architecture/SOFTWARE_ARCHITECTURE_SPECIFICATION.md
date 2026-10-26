@@ -20,7 +20,7 @@ flowchart LR
     OT["OpenTelemetry → grafana/otel-lgtm"]
     VN["VNPay"]
 
-    FE -- "REST + JWT cookie" --> BE
+    FE -- "REST + JWT Bearer" --> BE
     BE -- "REST /api/v2 + X-Api-Key" --> API
     BE --> PG
     BE --> VN

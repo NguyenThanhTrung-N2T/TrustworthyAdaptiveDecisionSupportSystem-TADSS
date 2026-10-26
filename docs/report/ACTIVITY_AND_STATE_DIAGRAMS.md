@@ -71,6 +71,7 @@ flowchart TB
     b14 -- "có" --> b6
     b14 -- "không" --> b15 --> k12
     b5 -- "NEED_APPROVAL" --> b8
+    b5 -- "NEED_APPROVAL nhưng hạn duyệt<br/>đã qua lúc nhận hoặc sau giờ chơi" --> b7
     b5 -- "REJECTED" --> b9
     b8 --> k7
     b8 --> m1 --> m2
@@ -168,21 +169,21 @@ stateDiagram-v2
     PENDING --> PAID_ONLINE: VNPay IPN thành công<br/>(trả số tiền cọc)
 
     PENDING_APPROVAL --> PENDING: (mới) Quản lý duyệt kèm mức cọc
-    PENDING_APPROVAL --> CANCELLED: (mới) Quản lý từ chối<br/>hết hạn duyệt (job)<br/>khách hủy (Q8)
+    PENDING_APPROVAL --> CANCELLED: (mới) Quản lý từ chối<br/>hết hạn duyệt (job)<br/>khách, nhân viên hủy (Q8)
     PENDING_APPROVAL --> CONFIRMED: (mới) Duyệt cọc 0 % (Q4)
 
     CONFIRMED --> IN_PROGRESS: Check-in
     CONFIRMED --> CANCELLED: Hủy (khách chỉ trước giờ bắt đầu)
-    CONFIRMED --> NO_SHOW: Không đến
+    CONFIRMED --> NO_SHOW: Không check-in sau giờ chơi + 15 phút (job)
 
     PAID_ONLINE --> IN_PROGRESS: Check-in
     PAID_ONLINE --> CANCELLED_PENDING_REFUND: Hủy (hoàn theo chính sách,<br/>khách chỉ trước giờ bắt đầu)
     PAID_ONLINE --> CANCELLED: Hủy, chính sách hoàn 0 %
-    PAID_ONLINE --> NO_SHOW: Không đến
-    PAID_ONLINE --> COMPLETED: Hết giờ
+    PAID_ONLINE --> NO_SHOW: Không check-in sau giờ chơi + 15 phút (job)
+    PAID_ONLINE --> COMPLETED: có trong bảng chuyển trạng thái,<br/>không mã nào dùng (N-35)
 
     IN_PROGRESS --> PENDING_PAYMENT: Hết giờ chơi
-    IN_PROGRESS --> COMPLETED: Check-out
+    IN_PROGRESS --> COMPLETED: Check-out, hoặc hết giờ chơi<br/>khi hóa đơn đã trả đủ
     PENDING_PAYMENT --> COMPLETED: Check-out, thu phần còn lại
 
     CANCELLED_PENDING_REFUND --> CANCELLED_REFUNDED: Xác nhận hoàn tiền
@@ -206,9 +207,10 @@ stateDiagram-v2
 | Chỗ trong BE | Thay đổi |
 | :--- | :--- |
 | `Models/Enums/BookingStatus.cs`, enum `booking_status` của PostgreSQL | Thêm `PENDING_APPROVAL` |
-| `BookingStatusTransition.CanTransition` | Thêm các chuyển trạng thái có nhãn "(mới)" (chuyển `PENDING → CANCELLED` đã có; `PAID_ONLINE → CANCELLED` khi hoàn 0 % có trong mã nhưng chưa có trong `CanTransition`) |
+| `BookingStatusTransition.CanTransition` | Thêm các chuyển trạng thái có nhãn "(mới)" (chuyển `PENDING → CANCELLED` đã có; `PAID_ONLINE → CANCELLED` khi hoàn 0 % đã thêm vào `CanTransition` ở 6A-1) |
 | `BookingStatusTransition.GetActiveStatuses` | Thêm `PENDING_APPROVAL` để time grid, kiểm tra trùng giờ và lịch theo ngày coi slot là đã có người giữ |
 | Job hủy `PENDING` quá hạn (Job-01) | Không đụng `PENDING_APPROVAL` (đơn chờ duyệt có job riêng, UC-DEPOSIT-09) |
+| Job kết thúc giờ chơi (Job-02), job đánh `NO_SHOW` (Job-04) | Cập nhật có điều kiện từng đơn (P6-25): không ghi đè check-in, check-out hay lệnh hủy vừa xảy ra |
 | Hủy và hoàn tiền từ `PAID_ONLINE` | Số tiền hoàn tính trên số đã thanh toán (tiền cọc), không còn là `finalTotal`; % hoàn tính đúng múi giờ (Q12, chốt 18/10) |
 | Mọi đường hủy | Ghi lý do hủy (`cancel_reason`); lịch sử gửi TADSS và kết quả báo về TADSS đọc lý do này |
 

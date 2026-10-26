@@ -218,6 +218,8 @@ flowchart LR
   1. Hệ thống bỏ qua bước 5–6, áp cọc 100 %, nguồn `FULL_PAYMENT_FALLBACK`; tiếp tục bước 7.
 - **(6d) TADSS trả `APPROVED` nhưng số tiền cọc dưới mức thanh toán online tối thiểu** (mặc định 5.000 đ, gồm 0; hoặc tổng tiền bằng 0)
   1. Hệ thống xác nhận booking `CONFIRMED`, không tạo giao dịch VNPay, thu toàn bộ tại quầy; trang kết quả báo "thanh toán tại quầy".
+- **(6e) TADSS trả `NEED_APPROVAL` nhưng hạn duyệt không dùng được lúc hệ thống nhận** (hạn đã qua do độ trễ mạng hoặc lệch đồng hồ khi đặt sát mốc 2 giờ trước giờ chơi; hoặc hạn sau giờ chơi; P6-24)
+  1. Hệ thống không dùng quyết định này, áp cọc 100 %, nguồn `FULL_PAYMENT_FALLBACK`, không lưu mã quyết định; tiếp tục bước 7. Khách thanh toán được ngay thay vì chờ một lần duyệt không thể xảy ra.
 - **(6c) TADSS trả cọc 100 % do sự cố bên trong TADSS** (strategy lỗi, quá hạn, circuit breaker mở; hoặc cần duyệt nhưng không kịp trước giờ chơi)
   1. Hệ thống xử lý như luồng chính (đây là một `APPROVED` hợp lệ, nguồn `TADSS`).
 
@@ -237,7 +239,7 @@ flowchart LR
 3. Số tiền cọc do TADSS quy đổi tại một nơi: `round(finalTotal × tỷ lệ)`, VND không có số lẻ.
 4. Chỉ booking `ONLINE` gọi TADSS.
 5. Cùng một booking gọi lại TADSS (thử lại) không sinh quyết định mới (idempotency theo mã booking).
-6. Hạn duyệt = sớm hơn trong hai mốc: 30 phút sau khi đặt, hoặc 2 giờ trước giờ chơi. Không còn thời gian duyệt thì TADSS trả cọc 100 % thay vì đưa vào hàng chờ.
+6. Hạn duyệt = sớm hơn trong hai mốc: 30 phút sau khi đặt, hoặc 2 giờ trước giờ chơi. Không còn thời gian duyệt thì TADSS trả cọc 100 % thay vì đưa vào hàng chờ; hạn duyệt đã qua lúc hệ thống nhận cũng xử lý như vậy (6e).
 
 #### Yêu cầu phi chức năng
 
@@ -417,7 +419,7 @@ flowchart LR
 #### Luồng chính
 
 1. Job tìm các booking `PENDING_APPROVAL` có `approvalExpiresAt ≤ now`.
-2. Với từng booking: chuyển sang `CANCELLED` (lý do `APPROVAL_EXPIRED`) bằng cập nhật có điều kiện trạng thái, xóa slot lock, báo người đăng ký chờ slot, gửi email cho khách. Lần hủy này **không** tính vào lịch sử hết hạn thanh toán của khách (lỗi không ở khách).
+2. Với từng booking (tối đa 100 booking mỗi lần chạy): khóa booking, kiểm lại hạn duyệt, chuyển sang `CANCELLED` (lý do `APPROVAL_EXPIRED`) bằng cập nhật có điều kiện trạng thái, hóa đơn `EXPIRED`, xóa slot lock, báo người đăng ký chờ slot, gửi email cho khách. Lần hủy này **không** tính vào lịch sử hết hạn thanh toán của khách (lỗi không ở khách).
 3. Job phát `BookingExpired` (khách, chi nhánh, time grid) và `PendingApprovalQueueChanged` (`REMOVED`/`EXPIRED`).
 4. Kết quả `APPROVAL_EXPIRED` được báo cho TADSS qua UC-DEPOSIT-10.
 
@@ -439,8 +441,9 @@ flowchart LR
 
 | Booking kết thúc với | Kết quả gửi |
 | :--- | :--- |
-| `COMPLETED` | `COMPLETED` |
-| `NO_SHOW` (job phát hiện không đến) | `NO_SHOW` |
+| `COMPLETED`, hoặc `PENDING_PAYMENT` (hết giờ chơi, chờ nhân viên check-out), **có** thời điểm check-in | `COMPLETED` |
+| `NO_SHOW` (job phát hiện không đến), **không có** thời điểm check-in | `NO_SHOW` |
+| Trạng thái mâu thuẫn dữ liệu check-in | Không gửi; giữ lại, ghi log Error để người vận hành xem |
 | Khách hủy | `CANCELLED_BY_CUSTOMER` |
 | Nhân viên hủy (trừ từ chối duyệt) | `CANCELLED_BY_STAFF` |
 | Hết hạn thanh toán cọc | `PAYMENT_EXPIRED` |
@@ -450,9 +453,9 @@ flowchart LR
 
 Kết quả xác định theo trạng thái cuối và **lý do hủy** lưu trên booking (`cancel_reason`), không theo nguồn hủy. Thời điểm xảy ra cố định (giờ kết thúc chơi, hoặc thời điểm hủy) để gửi lại nhiều lần vẫn trùng nội dung.
 
-**Luồng chính.** Job (mỗi 5 phút) chọn các booking đã kết thúc nhưng chưa báo kết quả → gửi **tuần tự**, giới hạn số booking mỗi lần chạy (TADSS giới hạn tần suất theo client, dùng chung với lúc đặt sân) → TADSS trả 200 → đánh dấu đã báo.
+**Luồng chính.** Job (mỗi 5 phút) chọn các booking đã kết thúc nhưng chưa báo kết quả, booking cập nhật gần nhất trước (để quyết định cũ bị TADSS từ chối vĩnh viễn không chặn booking mới) → gửi **tuần tự**, giới hạn số booking mỗi lần chạy (TADSS giới hạn tần suất theo client, dùng chung với lúc đặt sân) → TADSS trả 200 → đánh dấu đã báo.
 
-**Luồng ngoại lệ.** TADSS không phản hồi: để lần chạy sau thử lại (gửi trùng cùng nội dung được TADSS chấp nhận và trả lại bản đã lưu). TADSS báo đã có kết quả khác (409): ghi log để đối soát, không gửi lại.
+**Luồng ngoại lệ.** TADSS không phản hồi trong 5 giây, lỗi 5xx, 429, trang lỗi của đường hầm, hoặc response không khớp quyết định đã gửi: dừng lần chạy này, không đánh dấu, để lần chạy sau thử lại (gửi trùng cùng nội dung được TADSS chấp nhận và trả lại bản đã lưu). TADSS báo đã có kết quả khác (409): ghi log để đối soát, không gửi lại. TADSS báo không có quyết định (`DECISION_NOT_FOUND`) hoặc nội dung sai: ghi log, để lần sau, gửi tiếp booking khác.
 
 ### 5.11. UC-DEPOSIT-11: Bật/tắt quyết định cọc
 
