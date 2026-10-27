@@ -5,7 +5,7 @@
 | **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0) |
 | **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `develop` tại `8320f8a` (20/10/2026; mã đã lần theo ở Mục 2 là `master` `4f6af8c`). `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
 | **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày; rà soát thời gian và múi giờ 19/10 (Mục 3.3) |
-| **Trạng thái** | Người dùng đã duyệt P6-01…P6-27 (P6-22, P6-23 chốt 19/10; P6-24…P6-27 chốt 27/10 khi rà soát plan 6A-5). Plan chi tiết từng gói (kết quả ghi ở cuối mỗi plan): 6A-1 [PHASE6_PLAN_6A-1_FOUNDATION.md](PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c) ✅; 6A-2 [PHASE6_PLAN_6A-2_ONLINE_BOOKING.md](PHASE6_PLAN_6A-2_ONLINE_BOOKING.md) (plan con 2a, 2b, 2c) ✅; 6A-3 [PHASE6_PLAN_6A-3_APPROVAL.md](PHASE6_PLAN_6A-3_APPROVAL.md) ✅ (24/10, `023e7c8`); 6A-4 [PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md](PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md) ✅ (25/10, `f554fad`, kèm rà soát hồi quy Phase 6); 6A-5 [PHASE6_PLAN_6A-5_JOBS.md](PHASE6_PLAN_6A-5_JOBS.md) plan bản 5 đã chốt (27/10), chưa code. Epic 6B (FE) chưa bắt đầu |
+| **Trạng thái** | Người dùng đã duyệt P6-01…P6-27 (P6-22, P6-23 chốt 19/10; P6-24…P6-27 chốt 27/10 khi rà soát plan 6A-5). Plan chi tiết từng gói (kết quả ghi ở cuối mỗi plan): 6A-1 [PHASE6_PLAN_6A-1_FOUNDATION.md](PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c) ✅; 6A-2 [PHASE6_PLAN_6A-2_ONLINE_BOOKING.md](PHASE6_PLAN_6A-2_ONLINE_BOOKING.md) (plan con 2a, 2b, 2c) ✅; 6A-3 [PHASE6_PLAN_6A-3_APPROVAL.md](PHASE6_PLAN_6A-3_APPROVAL.md) ✅ (24/10, `023e7c8`); 6A-4 [PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md](PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md) ✅ (25/10, `f554fad`, kèm rà soát hồi quy Phase 6); 6A-5 [PHASE6_PLAN_6A-5_JOBS.md](PHASE6_PLAN_6A-5_JOBS.md) ✅ (27/10, đã code và kiểm, chưa commit). Epic 6B (FE) chưa bắt đầu |
 | **Hợp đồng liên quan** | [`DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (BE ↔ FE, đã cập nhật theo spec này, tóm tắt ở Mục 11 của file đó), [`INTEGRATION_SPEC.md`](../docs/contracts/INTEGRATION_SPEC.md) (BE ↔ TADSS) |
 | **Danh mục test** | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.7–4.8, [`E2E_TEST_SPECIFICATION.md`](../docs/research/E2E_TEST_SPECIFICATION.md) |
 | **Gate M6** | Toàn bộ test case BE trong danh mục đạt; FE build + lint + Playwright (trên mock) đạt; không còn task tính năng mở (MASTER_EXECUTION_PLAN) |
@@ -806,6 +806,7 @@ Tên file/thư mục theo skill `smashcourt-fe-architecture`.
 - Thay `new Date().toISOString().split("T")[0]` bằng `getTodayVN()` ở các chỗ liệt kê trong T-7 (khoảng 20 chỗ); điều hướng ngày trước/sau trong `useBookingSchedule`, `CourtFilters` cộng ngày trên chuỗi `yyyy-MM-dd`, không qua `toISOString`.
 - Chuỗi thời gian BE trả về chỉ đọc qua `parseBackendDate`/`formatDateTime` của `src/shared/utils/date.ts`: sửa `SessionManagementTab`, `BranchManagerTab`, `OwnerPromotionsPage`, `StaffPromotionsPage`, các panel AI và `ChatPanel` (đọc `dd/MM` trước, T-8). `src/shared/utils/dateFormatter.ts` chuyển sang gọi `parseBackendDate` để mọi nơi import nó đọc đúng. Không gửi lại chuỗi `dd/MM/yyyy` lên BE (T-13): ngày gửi lên là `yyyy-MM-dd`.
 - MSW: handler và dữ liệu mẫu chép từ ví dụ DEPOSIT_APPROVAL_API (FE-03).
+- **Ghi chú từ BE 6A-5 (27/10):** `PendingApprovalQueueChanged` có thêm `reason = EXPIRED` (đơn rời hàng chờ vì hết hạn duyệt); `BookingExpired` nay phát cho cả đơn hết hạn thanh toán lẫn hết hạn duyệt (khách, chi nhánh, OWNER, lưới giờ; câu thông báo khác nhau theo lý do). Kiểu `cancelReason` gồm đủ 7 giá trị của `BookingCancelReason` (thêm `PAYMENT_EXPIRED`, `APPROVAL_EXPIRED`, `SYSTEM_CLEANUP` do job ghi). Mock MSW cần ca đơn bị job hủy (`cancelSource = SYSTEM`).
 
 ### 8.2. Khách (6B-2)
 
@@ -822,6 +823,7 @@ Sơ đồ: [Hoạt động 1](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md#1-qu
 | Xem trước hoàn tiền | `customer/utils/bookingStatus.ts`, `CancelBookingModal` | `calculateRefundInfo` nhận **số đã thanh toán** (`depositAmount` khi `PAID_ONLINE`, 0 khi chưa trả), không còn `finalTotal` |
 | Hủy sau giờ bắt đầu (P6-23) | `customer/utils/bookingStatus.ts` (`canCancel`), `BookingCard`, `BookingDetailModal`, `CancelBookingModal`, trang hủy bằng link | Ẩn nút hủy khi đã tới giờ bắt đầu (tính bằng `+07:00`); `BOOKING_ALREADY_STARTED` ⇒ "Đơn đã tới giờ chơi, không thể tự hủy; vui lòng liên hệ chi nhánh" |
 | Email "slot đã trống" (ghi chú 27/10, N-32) | `bookings/new` | BE gửi link trang chủ (trang chủ tự chuyển khách đã đăng nhập tới `/bookings/new`). Muốn email mở sẵn đúng sân và giờ thì `/bookings/new` phải đọc tham số `courtId`, `date`, `start`, `end` và BE gửi lại link có tham số; tùy chọn, làm cùng P6-21 nếu còn thời gian |
+| Ghi chú FE từ BE 6A-5 (27/10) | `BookingResultPage`, `BookingCard`, `BookingDetailModal`, `PaymentResult.tsx`, `customer/utils/bookingStatus.ts` | **Nhãn lý do hủy** theo `cancelReason`: `PAYMENT_EXPIRED` "Hết hạn thanh toán", `APPROVAL_EXPIRED` "Chi nhánh chưa xác nhận kịp, bạn chưa bị trừ tiền", `SYSTEM_CLEANUP` "Đơn chưa hoàn tất, sân đã được trả lại", `POLICY_REJECTED`/`APPROVAL_REJECTED` "Không được nhận". **Đơn chờ duyệt quá hạn:** job hủy trong vòng 1 phút sau `approvalExpiresAt`; đồng hồ về 0 thì hiện "Đang chờ chi nhánh phản hồi…" và tải lại khi nhận `BookingExpired` (hoặc sau 60 giây), không tự hiện "đã hủy" trước khi BE xác nhận. **P6-24:** TADSS yêu cầu duyệt nhưng hạn đã qua lúc BE nhận ⇒ BE trả `status = PENDING`, `depositSource = FULL_PAYMENT_FALLBACK` (cọc 100 %); FE luôn rẽ nhánh theo `status`, không giả định đơn sẽ vào hàng chờ. **Thanh toán lại đơn đã bị job hủy** ⇒ 400 `BAD_REQUEST` ("Chỉ có thể thanh toán lại cho đơn đang chờ thanh toán"): hiện "Đơn đã hết hạn, vui lòng đặt lại" và nút về `/bookings/new`. **Tiền về sau khi hủy** (khách trả bằng tab cũ): đơn thành `CANCELLED_PENDING_REFUND` ⇒ màn kết quả thanh toán hiện "Đã nhận tiền nhưng đơn đã hết hạn; tiền được hoàn đủ tại chi nhánh". **Email hết hạn duyệt** dẫn tới `/bookings` (lịch sử): trang phải hiện được đơn `CANCELLED` với nhãn trên |
 
 ### 8.3. Manager / Owner (6B-3)
 
@@ -831,11 +833,14 @@ Sơ đồ: [Hoạt động 2](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md#2-qu
 - Menu: `src/layouts/manager/navigation/manager.navigation.ts`, `src/layouts/owner/navigation/owner.navigation.ts`; badge = `totalItems`.
 - Hộp thoại duyệt: phần trăm (0…100, tối đa 2 chữ số thập phân) ⇒ `depositRate = % / 100`; hiện trước "Số tiền cọc ≈ …" (cùng công thức làm tròn) và báo trước nếu dưới mức tối thiểu; `reason` 5..500 code point. Xử lý mọi `code` của DEPOSIT_APPROVAL_API Mục 5; 503 giữ hộp thoại và nút "Thử lại" gửi lại **đúng** nội dung.
 - Realtime: `BookingPendingApproval`, `PendingApprovalQueueChanged` ⇒ gọi lại hàng chờ; tải lại khi focus/kết nối lại.
+- **Ghi chú từ BE 6A-5 (27/10):** đơn tự rời hàng chờ khi quá hạn duyệt (`PendingApprovalQueueChanged` `REMOVED`/`EXPIRED`, trong vòng 1 phút sau hạn); dòng sắp hết hạn nên có đồng hồ đếm ngược và tô màu cảnh báo. Bấm duyệt đúng lúc job vừa hủy ⇒ 409 `APPROVAL_EXPIRED` (thông điệp có sẵn ở DEPOSIT_APPROVAL_API Mục 5); đóng hộp thoại và tải lại hàng chờ.
 - Đơn chờ duyệt có `finalTotal = 0` (6A-2 D5): hộp thoại ghi rõ "Đơn 0 đ: duyệt là xác nhận không cọc, thu tại quầy"; tỷ lệ nhập nào cũng ra 0 nên có thể ẩn ô tỷ lệ.
 
 ### 8.4. Staff (6B-4)
 
 `shared/utils/bookingStatus.ts` (nhãn), `shared/utils/bookingRules.ts` (`canCancel` thêm `PENDING_APPROVAL`), `BookingFilterToolbar` (tùy chọn lọc "Chờ duyệt cọc"), `BookingDetailDrawer` (cọc, đã trả, còn lại khi check-out; lý do cần duyệt; lý do hủy), time grid/lịch hiện nhãn "Chờ duyệt".
+
+**Ghi chú từ BE 6A-5 (27/10):** Job-04 và Job-02 không còn ghi đè thao tác của nhân viên. Check-in đúng lúc job vừa đánh `NO_SHOW` ⇒ 409 `CONFLICT` (nạp đơn trước lúc job ghi) hoặc 400 (đơn đã là `NO_SHOW`, quá khung check-in): hiện "Đơn đã bị đánh không đến, vui lòng tải lại" và tải lại danh sách. Đơn hết giờ chơi mà chưa check-out chuyển `PENDING_PAYMENT` ("chờ thu tiền"; đơn trả cọc online luôn vào trạng thái này vì hóa đơn `PARTIALLY_PAID`): check-out thu `remainingAmount`. Đơn bị job hủy có `cancelSource = SYSTEM` (hiện "Hệ thống" thay vì tên người hủy).
 
 ### 8.5. Kiểm thử (6B-5)
 
@@ -941,7 +946,7 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | Request TADSS thiếu offset ⇒ mọi đơn âm thầm cọc 100 % (T-6) | 7.14, BE-UT-12; theo dõi log Error của nhánh (d) với 400 trên `staging` |
 | Máy người dùng đặt múi giờ khác VN (T-12) | Chấp nhận; đồng hồ đếm ngược mới tính `+07:00` |
 | Đồng hồ máy chạy BE hoặc container trôi giờ (T-14) | Đo ở 10.1 bước 3 trước E2E; mã mới test bằng `FakeTimeProvider` nên kết quả test không phụ thuộc đồng hồ máy |
-| **Bật cờ TADSS trước khi xong 6A-4** (ghi nhận khi rà soát 6A-2, 24/10): check-out đơn đã cọc chỉ thu phí dịch vụ, hụt phần tiền sân còn lại (R-3); `retry-payment` thu `finalTotal` thay vì cọc; nhân viên chưa hủy được đơn `PENDING_APPROVAL` | Giữ `EnableTadssDecision = false` tới hết 6A-5 (đã chốt). **Đã sửa ở 6A-3/6A-4 (24/10):** R-3, `retry-payment` theo cọc, dịch vụ hủy chung nhận `PENDING_APPROVAL`. Còn chặn bật cờ: job hết hạn duyệt, job outcome, Job-01 ghi lý do, kiểm hạn duyệt lúc nhận (6A-5) |
+| **Bật cờ TADSS trước khi xong 6A-4** (ghi nhận khi rà soát 6A-2, 24/10): check-out đơn đã cọc chỉ thu phí dịch vụ, hụt phần tiền sân còn lại (R-3); `retry-payment` thu `finalTotal` thay vì cọc; nhân viên chưa hủy được đơn `PENDING_APPROVAL` | Giữ `EnableTadssDecision = false` tới hết 6A-5 (đã chốt). **Đã sửa ở 6A-3/6A-4 (24/10):** R-3, `retry-payment` theo cọc, dịch vụ hủy chung nhận `PENDING_APPROVAL`. **Xong 6A-5 (27/10):** job hết hạn duyệt, job outcome, Job-01 ghi lý do, kiểm hạn duyệt lúc nhận ⇒ đủ điều kiện kỹ thuật để bật cờ; bật cờ là quyết định riêng của người dùng. Còn mở: hạn link VNPay (6A-6, P6-27, cần thử sandbox), tiền vẫn an toàn nhờ P6-07 |
 | TADSS trả `approvalExpiresAt` đã qua hoặc sau giờ bắt đầu chơi (độ trễ mạng, lệch đồng hồ T-14, hoặc TADSS tính sai) | **6A-5 (P6-24, chốt 27/10):** BE coi là quyết định không dùng được ⇒ cọc 100 %, không lưu `decisionId`. Sửa ghi nhận cũ: hạn sau giờ chơi chỉ xảy ra khi TADSS vi phạm công thức hạn duyệt, không do đồng hồ; lệch đồng hồ và độ trễ mạng chỉ gây ca hạn vừa qua lúc BE nhận. Trước 6A-5: BE nhận nguyên (chỉ kiểm có mặt, INV-7); đơn vẫn giữ sân qua `booking_courts`. 6A-3 chặn duyệt khi `approvalExpiresAt ≤ now` (409) và hạn thanh toán sau duyệt lấy `min(…, giờ bắt đầu chơi)` (7.5); job hết hạn duyệt (6A-5) dọn đơn |
 | Đơn a′ có khuyến mãi bị khách tự hủy (link email, app) hoặc nhân viên hủy trước 6A-4 | **Đã sửa ở 6A-4 (24/10):** mọi đường hủy trả lượt theo `CancellationPolicy.ShouldReleasePromotionUse` (đã có tiền về hoặc `POSTPAID`); BE-IT kiểm đơn chưa trả không trả lượt. **Bổ sung 25/10:** đường link thiếu `Include` `BookingPromotion` nên chưa trả lượt (ghi nhận này trước đó nói quá); đã sửa, BE-IT kiểm cả ba đường với đơn đã trả và đơn `POSTPAID` hủy bằng link (7.9) |
 | Lỗi sau khi thắng câu cổng ở transaction 2 (VD dựng URL VNPay ném lỗi vì thiếu cấu hình hoặc IP máy khách) | Transaction 2 rollback cả câu cổng ⇒ đơn `PENDING` không cọc, không Payment, khách nhận 500; Job-01 hủy khi hết `expires_at` (10 phút; lý do `SYSTEM_CLEANUP` từ 6A-5). Ngoài đời request luôn có IP; cấu hình VNPay kiểm lúc khởi động |
@@ -995,22 +1000,22 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | N-27 IPN không tính lượt khuyến mãi | Sửa lỗi có sẵn | 6A-2c |
 | N-28 cột snapshot khuyến mãi `numeric(5,2)` | Script `phase6_fix_promotion_snapshot.sql` | 6A-2c (đã áp `tadss-dev` 24/10; `main` sau Gate M6) |
 | N-29 đặt đồng thời lỗi 500 (Serializable, deadlock exclusion) | `TransactionScopeHelper.ReadCommitted`, nhận `40P01` | 6A-2c (đặt online), 6A-4 (12 transaction còn lại) |
-| N-30 Job-04 ghi đè check-in / lệnh hủy | P6-25, 7.11 | 6A-5 |
-| N-31 Job-02 ghi đè check-out | P6-25, 7.11 | 6A-5 |
-| N-32 link "slot đã trống" 404 | 7.11 (dùng `SlotInterestNotificationService`) | 6A-5 |
-| N-33 hạn duyệt không dùng được lúc nhận | P6-24, 7.6, INTEGRATION_SPEC §4.3 | 6A-5 |
-| N-34 timeout gửi outcome khi DB TADSS ngủ | P6-26, 7.11 | 6A-5 |
+| N-30 Job-04 ghi đè check-in / lệnh hủy | P6-25, 7.11 | 6A-5 ✅ |
+| N-31 Job-02 ghi đè check-out | P6-25, 7.11 | 6A-5 ✅ |
+| N-32 link "slot đã trống" 404 | 7.11 (dùng `SlotInterestNotificationService`) | 6A-5 ✅ |
+| N-33 hạn duyệt không dùng được lúc nhận | P6-24, 7.6, INTEGRATION_SPEC §4.3 | 6A-5 ✅ |
+| N-34 timeout gửi outcome khi DB TADSS ngủ | P6-26, 7.11 | 6A-5 ✅ |
 | N-35 cạnh `PAID_ONLINE → COMPLETED` thừa | Không sửa; Mục 11 | — |
-| Định nghĩa `SYSTEM_CLEANUP` xếp nhầm đơn đã duyệt chưa thanh toán | 4.4.1 (sửa 27/10) | 6A-5 |
+| Định nghĩa `SYSTEM_CLEANUP` xếp nhầm đơn đã duyệt chưa thanh toán | 4.4.1 (sửa 27/10) | 6A-5 ✅ |
 | N-15 hạn link VNPay (sửa gốc) | P6-27 | 6A-6 |
 | N-23 báo cáo "đã hủy" gộp từ chối/hết hạn duyệt | P6-20 (không làm) | — |
-| N-24 job outcome tranh rate limit | P6-19 | 6A-5 |
+| N-24 job outcome tranh rate limit | P6-19 | 6A-5 ✅ |
 | N-25 màn xác nhận và `NotificationDispatcher` | 8.1, 8.2 | 6B-1, 6B-2 |
 | T-1 % hoàn lệch 7 giờ | P6-08, 7.9 | 6A-4 |
 | T-2 hạn link hủy online lệch 7 giờ; T-3 email đơn tại quầy không gửi | P6-22, 7.9 | 6A-2 (2b Task 4) |
 | T-4 khách hủy sau giờ bắt đầu né `NO_SHOW` | P6-23, 7.9, 8.2 | 6A-4, 6B-2 |
 | T-5 `vnp_CreateDate` theo UTC | Để nguyên (không phải lỗi); kiểm 10.1 bước 2 | — |
-| T-6 thời gian request/response TADSS | P6-22, 7.3, 7.4, 7.11, 7.14 | 6A-1, 6A-5 |
+| T-6 thời gian request/response TADSS | P6-22, 7.3, 7.4, 7.11, 7.14 | 6A-1, 6A-5 ✅ |
 | T-7 "hôm nay" ở FE theo UTC | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
 | T-8 FE đảo ngày/tháng | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
 | T-9, T-10, T-11 báo cáo, dashboard, lọc điểm | P6-22, 7.14 | 6A-6 |
