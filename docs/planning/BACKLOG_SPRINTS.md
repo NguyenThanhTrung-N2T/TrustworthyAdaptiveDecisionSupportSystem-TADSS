@@ -116,7 +116,7 @@ Cột *Test case* liệt kê mọi mã mà cột *Task* của methodology Mục 
 | T6.7 | Job hết hạn duyệt: hủy booking, giải phóng sân, báo outcome `APPROVAL_EXPIRED` (không tự duyệt); bổ sung 27/10: Job-01, Job-02, Job-04 ghi trạng thái có điều kiện từng đơn (P6-25); kiểm hạn duyệt lúc nhận quyết định (P6-24) | W11 | BE-IT-04, BE-IT-08, BE-IT-15, BE-IT-26 |
 | T6.8 | Job báo outcome khi booking kết thúc (COMPLETED / NO_SHOW / CANCELLED…); nhãn khớp thời điểm check-in, chọn mới cập nhật trước, dừng chu kỳ ở lỗi hệ thống, timeout riêng 5 giây (P6-26) | W11 | BE-UT-01, BE-UT-09, BE-IT-09 |
 | T6.9 | Thu phần còn lại khi checkout; hoàn trên số đã trả theo chính sách hủy (sửa lệch múi giờ); hủy đơn chưa thanh toán; lý do hủy cho mọi đường hủy; hạn link hủy đúng múi giờ cho đơn online và tại quầy; khách không tự hủy khi đã tới giờ bắt đầu | W11 | BE-UT-10, BE-UT-12, BE-IT-10, BE-IT-23, BE-IT-25 |
-| T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo khách mới, dashboard "sắp bắt đầu", lọc giao dịch điểm; hạn link thanh toán (P6-27, cần thử sandbox VNPay) | W12 | BE-IT-20, BE-IT-25, Gate M6 |
+| T6.10 | Bộ test BE theo danh mục (unit + integration Testcontainers); script k6 E2E cùng SV2; sửa lỗi thời gian có sẵn ở báo cáo khách mới, dashboard "sắp bắt đầu", lọc giao dịch điểm; hạn link thanh toán (P6-27; đã thử sandbox VNPay 28/10) | W12 | BE-IT-20, BE-IT-25, Gate M6 |
 
 ### Epic 6B — smashcourt-fe (SV2)
 

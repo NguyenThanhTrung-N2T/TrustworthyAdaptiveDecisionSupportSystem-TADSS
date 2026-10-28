@@ -147,7 +147,7 @@ gantt
 
 ### ⏳ Phase 6 — SmashCourt-BE ∥ smashcourt-fe (W09–W12, 02/11 – 29/11)
 
-*Tiến độ 27/10/2026 (bắt đầu sớm 19/10):* đặc tả duy nhất của phase là [`spec/PHASE6_DESIGN_SPEC.md`](../../spec/PHASE6_DESIGN_SPEC.md) (P6-01…P6-27), plan và kết quả từng gói ở `spec/PHASE6_PLAN_6A-*.md`. BE: ✅ 6A-1 nền (DB, `TadssClient`, dựng request), ✅ 6A-2 đặt sân online hai transaction, ✅ 6A-3 duyệt cọc, ✅ 6A-4 thanh toán / hủy / check-out (nhánh `feat/phase-6-deposit`, commit `f554fad`; khoảng 1850 test xanh); ✅ 6A-5 job (hết hạn thanh toán, hết hạn duyệt, báo outcome; Job-02/Job-04 có điều kiện; kiểm hạn duyệt lúc nhận; 27/10, 2232 test xanh, chưa commit); 6A-6 hoàn thiện chưa làm (thêm hạn link VNPay P6-27, cần thử sandbox). Cờ `EnableTadssDecision` vẫn tắt. FE (Epic 6B) chưa bắt đầu. TADSS không đổi mã.
+*Tiến độ 28/10/2026 (bắt đầu sớm 19/10):* đặc tả duy nhất của phase là [`spec/PHASE6_DESIGN_SPEC.md`](../../spec/PHASE6_DESIGN_SPEC.md) (P6-01…P6-27), plan và kết quả từng gói ở `spec/PHASE6_PLAN_6A-*.md`. BE: ✅ 6A-1 nền (DB, `TadssClient`, dựng request), ✅ 6A-2 đặt sân online hai transaction, ✅ 6A-3 duyệt cọc, ✅ 6A-4 thanh toán / hủy / check-out (nhánh `feat/phase-6-deposit`, commit `f554fad`; khoảng 1850 test xanh); ✅ 6A-5 job (hết hạn thanh toán, hết hạn duyệt, báo outcome; Job-02/Job-04 có điều kiện; kiểm hạn duyệt lúc nhận; 27/10, 2232 test xanh, commit `fd29a51`); 6A-6 hoàn thiện chưa làm (thêm hạn link VNPay P6-27; đã thử VNPay sandbox 28/10, các luồng thanh toán đạt, số liệu ở spec 10.1 bước 2). Cờ `EnableTadssDecision` vẫn tắt. FE (Epic 6B) chưa bắt đầu. TADSS không đổi mã.
 
 | Tuần | SV1 — SmashCourt-BE | SV2 — smashcourt-fe |
 |:---|:---|:---|
@@ -202,7 +202,7 @@ Quy trình:
 
 #### VNPay sandbox
 
-BE nhận URL trả về và IPN của VNPay từ `VnPay__CallbackUrl` và `VnPay__IpnUrl` (đọc từ `.env` của BE qua `VNPAY_CALLBACK_URL`, `VNPAY_IPN_URL` trong `docker-compose.yml` của BE). Máy chủ VNPay phải gọi được các URL này nên chúng phải truy cập công khai: dùng service `ngrok` của **BE** (`http smashcourt-be:8080`, theo dõi tại `http://localhost:4040`). URL ngrok bản miễn phí đổi mỗi lần khởi động lại, nên mỗi lần bật phải cập nhật hai biến trên (và URL IPN đăng ký ở cổng quản trị sandbox của VNPay nếu cổng yêu cầu: kiểm khi dựng) rồi tạo lại container BE. Mã đơn vị (`VnPay__TmnCode`) và khóa băm (`VnPay__HashSecret`) chỉ nằm trong `.env`/biến môi trường, không ghi vào tài liệu.
+BE nhận URL trả về và IPN của VNPay từ `VnPay__CallbackUrl` và `VnPay__IpnUrl` (đọc từ `.env` của BE qua `VNPAY_CALLBACK_URL`, `VNPAY_IPN_URL` trong `docker-compose.yml` của BE). Máy chủ VNPay phải gọi được các URL này nên chúng phải truy cập công khai: dùng service `ngrok` của **BE** (`http smashcourt-be:8080`, theo dõi tại `http://localhost:4040`). Kiểm 28/10/2026 (spec Phase 6 Mục 10.1 bước 2): tài khoản ngrok của nhóm có tên miền dev cố định nên URL không đổi qua các lần khởi động; **VNPay chỉ gọi IPN URL khai ở trang "VNPAYGW SIT Testing" theo từng terminal** (bắt buộc, `VnPay__IpnUrl` không được gửi sang VNPay); đổi URL ngrok hoặc đổi terminal thì phải khai lại ở đó. Mã đơn vị (`VnPay__TmnCode`) và khóa băm (`VnPay__HashSecret`) nằm trong `.env` (compose truyền vào container, đè cấu hình) và `appsettings.Development.json`, hai nơi phải khớp; không ghi vào tài liệu.
 
 #### Ai chạy gì ở Phase 7–8
 
@@ -228,7 +228,7 @@ Xuất CSV SmashCourt (215 booking ẩn danh, bước U-3 của gói 5.6, hướ
 | Rủi ro | Tác động | Giảm thiểu |
 | :--- | :--- | :--- |
 | Một máy chạy FE + BE + TADSS + Grafana (và ngrok của BE) cùng Docker | Thiếu RAM/CPU làm số đo LT-04 sai lệch, container bị kill | Chỉ bật service cần thiết (không bật stack `eval-*`, không bật ngrok của TADSS); ghi thông số máy vào Evidence; đo LT-04 khi không chạy việc nặng khác; kiểm RAM Docker khi dựng |
-| URL ngrok của BE đổi mỗi lần khởi động | VNPay không trả về/IPN được tới BE; E2E-01 gãy | Cập nhật `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL` và tạo lại container BE mỗi lần bật; muốn URL cố định thì dùng domain tĩnh của ngrok bằng cách sửa lệnh `ngrok` trong `docker-compose.yml` của **BE** (service dùng `ngrok/ngrok:latest`; cú pháp `--url=<domain>` như README của TADSS mô tả cho compose của TADSS, kiểm lại với bản ngrok của BE): việc của T7.2 |
+| URL ngrok của BE đổi (đổi tài khoản ngrok) hoặc terminal VNPay chưa khai IPN URL | VNPay không trả về/IPN được tới BE; E2E-01 gãy | Kiểm 28/10: URL hiện cố định (tên miền dev của tài khoản ngrok). Nếu đổi: cập nhật `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL`, khai lại IPN URL ở trang SIT của terminal, tạo lại container BE; muốn URL cố định thì dùng domain tĩnh của ngrok bằng cách sửa lệnh `ngrok` trong `docker-compose.yml` của **BE** (service dùng `ngrok/ngrok:latest`; cú pháp `--url=<domain>` như README của TADSS mô tả cho compose của TADSS, kiểm lại với bản ngrok của BE): việc của T7.2 |
 | Làm mới nhánh làm mất tài khoản thử và dữ liệu E2E | Phải dựng lại trước mỗi đợt | Giữ ghi chú dựng lại (mục "Dữ liệu", bước 6); làm mới có chủ ý, không làm giữa một đợt đang đo |
 | Trỏ nhầm E2E vào nhánh chính | Dữ liệu thử lẫn vào DB chính, ba bảng audit không dọn được | Chuỗi kết nối staging tách bạch khỏi dev; kiểm tên nhánh/host trong trang quản trị Neon trước khi chạy đợt chính thức |
 | Hai ngrok cùng cổng host `4040` | `compose up` báo cổng đã dùng | Không bật ngrok của TADSS ở E-STAGING |

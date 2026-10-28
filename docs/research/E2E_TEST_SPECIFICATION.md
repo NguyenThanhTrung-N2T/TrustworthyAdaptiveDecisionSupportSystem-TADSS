@@ -122,7 +122,7 @@ Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số đi
 
 1. Ghi commit của ba repo, digest image, cấu hình đã dùng (không kèm bí mật), thông số máy.
 2. Xác nhận chuỗi kết nối của BE và TADSS trỏ vào nhánh `staging` (kiểm tên nhánh/host trong trang quản trị Neon).
-3. TADSS `GET /health/ready` trả 200; `EnableTadssDecision = true`; URL ngrok của BE đã cập nhật vào `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL`.
+3. TADSS `GET /health/ready` trả 200; `EnableTadssDecision = true`; URL ngrok của BE đã cập nhật vào `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL`. **VNPay chỉ gọi IPN URL khai ở trang "VNPAYGW SIT Testing" của đúng terminal** (biến `VNPAY_IPN_URL` không gửi sang VNPay): kiểm dòng của terminal đang dùng trỏ `https://<ngrok BE>/api/payments/vnpay/ipn`; mở thử một link do BE tạo phải tới trang chọn phương thức thanh toán (terminal bị khóa ⇒ trang lỗi mã 71). Mã terminal và HashSecret trong `.env` của BE phải khớp `appsettings.Development.json`. Ghi chú môi trường đầy đủ: [spec Phase 6 Mục 10.1](../../spec/PHASE6_DESIGN_SPEC.md#101-xác-minh-trước-khi-bắt-đầu-6a-1) (thử sandbox 28/10/2026).
 4. Kiểm giới hạn tốc độ `booking` của BE (vượt ngưỡng trả 429 `OTP_LIMIT_EXCEEDED`, DEPOSIT_APPROVAL_API 3.1) đủ cho số booking của đợt chạy.
 5. Ghi mốc bắt đầu `t_start` của đợt; cuối đợt ghi `t_end`. Bộ truy vấn SC6 chỉ xét dữ liệu trong `[t_start; t_end]`.
 
@@ -541,7 +541,7 @@ KPI: mọi dòng liên quan SC6; E2E-05 thêm SC5 (minh họa, số đo ở FI-1
 | Khách hủy khi đang chờ duyệt hoặc chưa thanh toán | Đã chốt (Q8, P6-09); thao tác ngắn, không cần TADSS | BE-IT-23, FE-09 |
 | Thanh toán thất bại, ân hạn 5 phút, hạn giữ chỗ tuyệt đối (P6-02, P6-03) | Thẻ lỗi kiểm ở biến thể của E2E-01; chờ hết ân hạn và bấm thanh toán lại liên tục tốn thời gian, kiểm ở mức BE | E2E-01 (biến thể), BE-UT-08, BE-IT-21, FE-11 |
 | Cọc 0 % và cọc dưới mức tối thiểu (Q4, P6-06) | Đã chốt; không qua VNPay nên không có gì thêm để quan sát ở UI ngoài trang kết quả | BE-IT-07, BE-IT-24, FE-05, FE-11 |
-| Tiền về sau khi đơn đã hủy (P6-07) | Cần VNPay sandbox trả thành công sau khi đơn hết hạn, không tạo ổn định được | BE-IT-22 |
+| Tiền về sau khi đơn đã hủy (P6-07) | Trước P6-27 tái hiện được bằng tay (mở trang VNPay, chờ Job-01 hủy rồi trả trong khoảng 15 phút trang còn sống; đã làm 28/10, spec 10.1 bước 2) nhưng tốn khoảng 12 phút mỗi lần; từ 6A-6 link có hạn nên ca này chỉ còn xảy ra khi IPN về muộn hơn khoảng đệm | BE-IT-22 |
 
 ---
 

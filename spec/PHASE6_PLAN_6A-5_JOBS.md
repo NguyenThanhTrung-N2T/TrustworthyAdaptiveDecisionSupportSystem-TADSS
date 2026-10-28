@@ -10,7 +10,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit`. Nền: 6A-4 đã commit (`f554fad`).
 
-**Trạng thái:** **✅ đã code và kiểm (27/10), chưa commit** — kết quả ở mục "Kết quả thực hiện" cuối plan. Plan bản 5 (27/10). Bản 5 thêm B7 (Job-02), B8 (hạn duyệt lúc nhận), timeout outcome (C8) và chốt phần ngoài phạm vi (mục 0.6); spec, INTEGRATION_SPEC, use case, sơ đồ tuần tự 4 và methodology đã đồng bộ ở mức thiết kế ngày 27/10. Lịch sử: bản 3 (25/10) giữ phạm vi spec; bản 4 (26/10) sau một vòng review ngoài và rà lại với mã thật: chốt B1…B6, C1…C7 (mục 0.2); thêm kiểm tính nhất quán của nhãn (C1), sửa Job-04 (B6), giải thích nguồn gốc các cột dùng trong gói (mục 0.3), bảng trạng thái booking / hóa đơn / Payment (C7), bảo đảm slot lock (C5), so với cách các hệ thống khác vận hành (C3). B5 (API doc 2.1) đã sửa ngày 26/10.
+**Trạng thái:** **✅ đã code và kiểm (27/10), commit BE `fd29a51`** — kết quả ở mục "Kết quả thực hiện" cuối plan. Plan bản 5 (27/10). Bản 5 thêm B7 (Job-02), B8 (hạn duyệt lúc nhận), timeout outcome (C8) và chốt phần ngoài phạm vi (mục 0.6); spec, INTEGRATION_SPEC, use case, sơ đồ tuần tự 4 và methodology đã đồng bộ ở mức thiết kế ngày 27/10. Lịch sử: bản 3 (25/10) giữ phạm vi spec; bản 4 (26/10) sau một vòng review ngoài và rà lại với mã thật: chốt B1…B6, C1…C7 (mục 0.2); thêm kiểm tính nhất quán của nhãn (C1), sửa Job-04 (B6), giải thích nguồn gốc các cột dùng trong gói (mục 0.3), bảng trạng thái booking / hóa đơn / Payment (C7), bảo đảm slot lock (C5), so với cách các hệ thống khác vận hành (C3). B5 (API doc 2.1) đã sửa ngày 26/10.
 
 **Cách đọc mỗi task:** *Vấn đề* (chuyện xảy ra ngoài đời, không chỉ tên hàm) → *Giải pháp* → *Vì sao* (kèm phương án đã cân nhắc) → *Ảnh hưởng* (thứ gì đổi với người dùng, dữ liệu, mã khác) → *Kiểm*.
 
@@ -574,7 +574,9 @@ Toàn bộ suite **2232 xanh, 3 lần liên tiếp** sau vòng rà soát (cuối
 - *Test bổ sung (22):* luật `PaymentExpiryReason` dạng hàm thuần (6 ca); đơn chờ duyệt không có hóa đơn; mọi cột của đơn hết hạn ghi cùng một mốc dù đồng hồ trôi; Job-04 thua một đơn vẫn đánh đơn sau, đơn không có sân bị bỏ; Job-02 đơn không có sân, đơn nhiều sân chờ giờ kết thúc muộn nhất; mọi tác vụ của `BookingJob` có `[DisableConcurrentExecution]` (5 ca); job outcome gặp đơn không có quyết định; trên host thật: slot lock hết hạn còn sót không chặn đơn mới và Job-01 không còn xóa thay Job-03 (C5), sân vẫn `IN_USE` khi đơn khác cùng sân đang chơi (B6), job hết hạn duyệt thua lệnh hủy của nhân viên có điểm chặn (ma trận 0.4), 409 `OUTCOME_ALREADY_RECORDED` được đánh dấu kèm Warning. Đột biến cho `ExpiryBatch` (bỏ bắt lỗi từng đơn, đếm sai "bỏ qua") đều bị bắt.
 - *Đã xét, không thêm:* hai instance BE chạy cùng job (khóa phân tán của Hangfire, đánh dấu outcome có điều kiện đã kiểm ở repository); log tổng và log "job thua" mức Information trên host thật (bộ ghi log của host test chỉ giữ từ Warning; đã kiểm ở unit test).
 
-**Còn lại:** gói 6A-6 (hạn link VNPay P6-27, cần thử sandbox; bộ test theo danh mục, k6). Bật cờ `EnableTadssDecision` là quyết định của người dùng. FE (6B): trang `/bookings/new` đọc tham số slot (spec 8.2), xử lý `PendingApprovalQueueChanged` `REMOVED`/`EXPIRED`.
+**Chạy thật với VNPay sandbox (28/10, chi tiết spec 10.1 bước 2):** BE chạy Docker từ mã gói này trên `tadss-dev`; Job-01 hủy đúng 5 đơn quá hạn (log "1 ứng viên: đã hủy 1, bỏ qua 0, lỗi 0"); khoản tiền về sau khi Job-01 hủy được ghi chờ hoàn 100 %; IPN thất bại rút hạn và job hủy khi hết ân hạn với `PAYMENT_EXPIRED`. Không thấy lỗi của gói này. Phát hiện cho gói sau: khe hở P6-27 có thật, N-36 (`vnpay/confirm` báo thành công theo mã VNPay).
+
+**Còn lại:** gói 6A-6 (hạn link VNPay P6-27 kèm T-5, số liệu sandbox đã có; N-36; bộ test theo danh mục, k6). Bật cờ `EnableTadssDecision` là quyết định của người dùng. FE (6B): trang `/bookings/new` đọc tham số slot (spec 8.2), xử lý `PendingApprovalQueueChanged` `REMOVED`/`EXPIRED`.
 
 ## Ràng buộc chung
 
