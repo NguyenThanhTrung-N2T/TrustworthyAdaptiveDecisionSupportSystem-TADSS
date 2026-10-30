@@ -10,7 +10,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit` (nền `8cd53b8`); `TADSS-Runtime` `develop` (k6 LT-04, tài liệu). TADSS không đổi mã nguồn `src/`.
 
-**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅ (30/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
+**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅ (30/10); Task 8a, 8b thêm 30/10 (T-15, T-16); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
 
 **Cách đọc mỗi task:** *Vấn đề* → *Giải pháp* → *Vì sao* (kèm phương án đã cân nhắc) → *Ảnh hưởng* → *Kiểm*.
 
@@ -318,6 +318,22 @@ public sealed record GatewayPaymentRequest(
 
 **Kiểm (BE-IT-25 phần T-11):** HTTP `GET /api/customers/{id}/loyalty-transactions?fromDate=2026-11-20&toDate=2026-11-20` (vai trò được phép theo controller) ⇒ 200; giao dịch lúc 23:30 VN 20/11 có, lúc 00:10 VN 21/11 không, lúc 23:50 VN 19/11 không.
 
+### Task 8a — Giờ tạo đơn trong hàng việc của dashboard (T-15, thêm 30/10)
+
+**Vấn đề.** `ToManagerDashboardActionItem` trả `CreatedAt = booking.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")`: mốc UTC không offset, trong khi `StartTime`, `EndTime` của cùng DTO là giờ tường VN. FE `ActionQueueItem` hiện "Tạo lúc" sớm 7 giờ.
+
+**Giải pháp.** `DateTimeHelper.ToVietnamTime(booking.CreatedAt).ToString(...)`; giữ định dạng (wire không đổi).
+
+**Kiểm (BE-IT-25 phần T-15):** đơn `PENDING_PAYMENT` tạo lúc 13:58 UTC (20:58 VN) ⇒ `createdAt = "…T20:58:00"`; đơn tạo 17:30 UTC ngày 19 (00:30 VN ngày 20) ⇒ đúng ngày 20; `startTime`/`endTime` không đổi.
+
+### Task 8b — Kỳ so sánh của dashboard (T-16, thêm 30/10)
+
+**Vấn đề.** `ReportService.GetComparisonPeriods` tính số ngày bằng `(ToDate 23:59:59.9999999 − FromDate 00:00).TotalDays + 1` ⇒ kỳ trước dài hơn một ngày (1 so với 2, 7 so với 8, 30 so với 31) nên % thay đổi bị kéo xuống; đọc `filter.FromDate!.Value`, `filter.ToDate!.Value` thay khoảng đã chuẩn hóa ⇒ gọi chỉ với một trong hai ngày là 500.
+
+**Giải pháp.** Hàm thuần nhận `(fromDate, toDate)` đã qua `ValidateDateRange`; `n = toDate.DayNumber − fromDate.DayNumber + 1`; kỳ trước `[fromDate − n; fromDate − 1]`, tính hoàn toàn bằng `DateOnly`. Dùng cho cả dashboard Owner và Manager.
+
+**Kiểm:** unit test hàm (1, 7, 30, 365 ngày; qua tháng, năm, 29/02; kỳ trước liền kề và cùng độ dài); unit test service với repository giả: kỳ trước truyền vào repository đúng, chỉ `fromDate` hoặc chỉ `toDate` ⇒ không ném và so với kỳ đã chuẩn hóa; HTTP dashboard chỉ `toDate` ⇒ 200.
+
 ---
 
 ## Phần D — Bộ kiểm SC6 (BE-IT-20, P6-29)
@@ -612,6 +628,86 @@ Test cũ `Approve_Deposit_AnnouncesAfterCommitAndEmailsTheDepositDeadline` khẳ
 
 **FE hiện tại (develop, trước 6B):** vẫn chạy được với BE mới vì mọi thay đổi API là thêm trường; việc 6B phải làm ghi ở spec 8.2 dòng "Tác động của 6A-6 lên FE". Ghi nhận không sửa: tiêu đề trang kết quả FE theo `isSuccess` nên ca tiền về sau khi hủy vẫn có tiêu đề "Thanh toán thành công!" (câu `message` bên dưới đã đúng) cho tới 6B.
 
+### Task 16 — Thử sandbox với BE thật (30/10/2026, 20:58–21:14 giờ VN) ✅
+
+BE Docker từ commit `9945121` (Phần A, B và sửa email) trên DB dev, cờ TADSS tắt nên mọi đơn cọc 100 %; IPN qua ngrok (cùng URL đã khai với terminal); đồng hồ máy và container khớp. Đơn thử BK-20261030-000154 (A), 000155 (B), 000156 (C), ghi chú "TEST VNPAY 6A-6"; tạo 20:58:17–20:58:23, hạn thanh toán 10', hạn giữ chỗ 15'. Kết quả `confirm` lấy bằng cách gửi lại đúng query của lần callback (log BE) tới `POST /api/payments/vnpay/confirm`, vì callback chuyển trình duyệt sang FE trên Vercel.
+
+| Ca (plan) | Quan sát | Kết luận |
+| :--- | :--- | :--- |
+| URL do mã C# sinh | Ba link: `vnp_CreateDate` giờ VN (20261030205819…), `vnp_ExpireDate` = hạn thanh toán − 2' (21:06:17, 21:06:20, 21:06:22), `vnp_TxnRef` GUID 32 hex, `vnp_Amount` × 100 | Đúng thiết kế P6-27, T-5 |
+| (1) A trả ngay | Trả bằng thẻ NCB lúc 21:05:39; IPN `00` tới 21:05:41, chữ ký đúng; đơn `PAID_ONLINE`, hóa đơn `PARTIALLY_PAID` | **Đạt.** Link tự dựng của BE thật được VNPay nhận (mức 3 của D3) |
+| (4) `confirm` của A | `isSuccess = true`, `bookingStatus = PAID_ONLINE`, "Thanh toán thành công! Đặt sân của bạn đã được xác nhận." | **Đạt** (P6-28) |
+| (3) B mở trước hạn link, trả sau hạn | Mở 21:05:54 (còn 26 giây), trả tiếp sau 21:06:20 ⇒ VNPay báo quá thời gian, chuyển về 21:06:26 với mã `15`; **không có IPN** (cả buổi chỉ 1 IPN, của A; kiểm tới 21:14:44, 8 phút sau); `confirm` ⇒ `isSuccess = false`, `bookingStatus = PENDING`, câu riêng của mã 15 | **Đạt.** Trùng S2; link quá hạn không sinh IPN nên BE không đi nhánh thất bại P6-03, đơn giữ hạn cũ |
+| (2) Job-01 hủy đúng hạn | B: hạn 21:08:20, hủy 21:09:17 (`PAYMENT_EXPIRED`, hóa đơn `EXPIRED`); C: hạn 21:13:22, hủy 21:14:06 | **Đạt** (chu kỳ job khoảng 1') |
+| Thêm: thanh toán lại (C, không mở link đầu) | 21:08:07 (còn 15 giây tới hạn thanh toán): 200, hạn = hạn giữ chỗ 21:13:22, link mới hết hạn 21:11:22. 21:10:27 (còn 2'55" tới hạn giữ chỗ): **400 `PAYMENT_HOLD_EXPIRED`** "Không còn đủ thời gian thanh toán, vui lòng đặt lại", đơn không đổi (`updatedAt` vẫn 21:08:07) | **Đạt** (Task 3+4 trên BE thật) |
+
+**Khác plan:** ca (2) "đợi qua hạn link rồi mới mở" không làm riêng: người dùng mở link B lúc còn 26 giây và trả sau hạn, tức ca (3). Hành vi mở link đã quá hạn đã quan sát ngày 28/10 (trang lỗi mã 15 ngay khi mở, spec 10.1 bước 2), không đổi vì cùng tham số `vnp_ExpireDate`.
+
+**Ghi nhận ngoài phạm vi:** lúc khởi động, Job-04 đánh `NO_SHOW` 3 đơn thử ngày 28/10 (đã trả, giờ chơi sáng 30/10): đúng thiết kế 6A-5. Đơn A (`PAID_ONLINE`, sân 08:00 ngày 31/10) cũng sẽ bị Job-04 đánh `NO_SHOW` nếu để nguyên; giữ hay xử lý đơn thử trên DB dev do người dùng quyết.
+
+### Task 6 — Khách mới theo ngày VN (T-9) (30/10/2026) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| Hàm private `VietnamDaysToUtcRange(fromDate, toDate)` ⇒ nửa khoảng `[ToUtcFromVietnam(fromDate, 00:00); ToUtcFromVietnam(toDate + 1, 00:00))`; ba chỗ đếm khách mới (`GetDashboardSummaryAsync`, `GetCustomerStatisticsReportAsync`, `GetCustomerAcquisitionTrendAsync`) dùng `>=` và `<` thay `ToDateTime(..., DateTimeKind.Utc)` với `<=` | `Repositories/ReportRepository.cs` |
+| Xu hướng khách mới đọc `CreatedAt` rồi nhóm trong bộ nhớ theo `DateOnly.FromDateTime(DateTimeHelper.ToVietnamTime(createdAt))` (trước: `CreatedAt.Date` theo UTC) | `Repositories/ReportRepository.cs` |
+| `toDate` mặc định = `DateTimeHelper.GetTodayInVietnam()` (trước: ngày UTC; 00:00–06:59 VN báo cáo mặc định thiếu hôm nay) | `Services/ReportService.cs` |
+
+Nhánh lọc theo chi nhánh đếm theo `BookingDate` (`DateOnly`, đã là ngày VN) nên không đổi. Không đổi DTO, route hay câu trả về.
+
+**Test (TDD, đỏ đúng lý do trên mã cũ: đếm 3 thay 2, xu hướng gộp vào một ngày):** `Integration/ReportTimeZoneTests.cs` 4 ca trên schema thật, khách tạo lúc 23:59:59 VN ngày 19, 00:00 và 23:59:59,999999 VN ngày 20, 00:00 và 06:00 VN ngày 21:
+
+- dashboard và thống kê khách, khoảng 20/11–20/11 ⇒ 2;
+- xu hướng 20–21/11 ⇒ `2020-11-20` = 2, `2020-11-21` = 2;
+- khoảng nhiều ngày 19–20/11 ⇒ 3, xu hướng 19 = 1, 20 = 2.
+
+**Khác plan:** mốc dùng năm 2020 thay 2026 để không trùng khách mà test khác tạo bằng đồng hồ thật; dữ liệu thêm khách 06:00 VN ngày 21 vì với bộ mốc của plan mã cũ cũng đếm ra đúng 2 (trùng hợp), test không đỏ. `ReportService` không test được (đồng hồ hệ thống, 7.14): kiểm bằng review.
+
+Đột biến 5/5 bị bắt: dashboard `<=` biên cuối, thống kê `<=` biên cuối, xu hướng nhóm theo ngày UTC, helper bỏ "+1 ngày", helper biên đầu theo UTC. Build Release 0 warning; toàn bộ BE **2337/2337** xanh (2333 + 4, 3 phút 24 giây).
+
+**Rà lại toàn BE sau Task 6 (người dùng yêu cầu, 30/10).** Quét mọi chỗ đổi `DateOnly`/`TimeOnly`/`DateTime`, lấy "hôm nay", định dạng mốc thời gian ra chuỗi, lọc cột timestamptz theo tham số. Đúng: mọi "hôm nay" dùng `GetTodayInVietnam`; Job-04, check-in tính bằng mốc ngày giờ đầy đủ; các nhóm số liệu khác của báo cáo theo `BookingDate` (đã là ngày VN); dự báo lấp đầy dùng giờ tường VN cả hai phía. Hai lỗi thật mới, người dùng chốt sửa trong gói: **T-15** (Task 8a), **T-16** (Task 8b). Thấy nhưng không phải lỗi: `bookingDate` ra `"dd/MM/yyyy 07:00:00"` do converter coi `DateTime` không Kind là UTC (FE chỉ lấy phần ngày của trường này); log IPN in chuỗi ký (không có HashSecret). Ba gợi ý của một bản review ngoài (file tài nguyên đa ngôn ngữ cho câu VNPay, số liệu tỉ lệ link hết hạn, circuit breaker cho VNPay) không làm: BE chưa có hạ tầng đa ngôn ngữ và số liệu, tỉ lệ đơn không trả kịp đọc được từ DB (`cancel_reason = PAYMENT_EXPIRED`), và BE không gọi mạng tới VNPay (URL ký tại chỗ, IPN là chiều vào, hoàn tiền mặt) nên không có lời gọi để bọc.
+
+### Task 7 — "Sắp bắt đầu" và "nguy cơ không đến" qua nửa đêm (T-10) (30/10/2026) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| Hằng `UPCOMING_WINDOW_MINUTES = 30`, `NoShowRiskWindow = 15'`; hàm private `UpcomingLimit(now)`: `now + 30'` sang ngày sau ⇒ `TimeOnly.MaxValue`; KPI (`GetManagerDashboardKpisAsync`) và thẻ sân (`GetManagerDashboardLiveCourtsAsync`) dùng chung | `Repositories/ReportRepository.cs` |
+| Thẻ "nguy cơ không đến": `nowTime − StartTime ≤ 15'` (khi `StartTime ≤ nowTime`) thay `StartTime.AddMinutes(15) ≥ nowTime` | `Repositories/ReportRepository.cs` |
+
+**Khác plan, có lý do:** plan chỉ nêu hai chỗ `now + 30'`. Đọc mã thấy chỗ thứ ba cùng lỗi: `StartTime.AddMinutes(15)` quay về 00:xx nên đơn bắt đầu sau 23:45 không bao giờ hiện thẻ "nguy cơ không đến"; sửa cùng task. Đã kiểm các chỗ còn lại dùng giờ: Job-04 (`NO_SHOW`) và check-in tính bằng mốc UTC đầy đủ nên không có lỗi này; danh sách "sắp tới" không có giới hạn trên nên không quay vòng. Test để ở file riêng `ManagerDashboardMidnightTests.cs` (khác bộ dữ liệu với T-9) thay vì chung `ReportTimeZoneTests.cs`.
+
+**Test** (`Integration/ManagerDashboardMidnightTests.cs`, 27 ca trên schema thật, mỗi test một chi nhánh riêng, "now" là giờ tường VN truyền vào):
+
+- sắp bắt đầu, đơn 23:50–23:59 lúc 23:30:00 / 23:30:01 / 23:45 / 23:49:59 ⇒ có trong KPI và thẻ `UPCOMING_CHECK_IN`;
+- cửa sổ 30' (hồi quy, so cả KPI lẫn thẻ): 10:20 / đúng 10:30 có, 10:31 không, đã tới giờ không, 23:20 ⇒ 23:50 có, 23:19:59 không, đầu ngày 00:00 ⇒ 00:30 có, 00:31 không;
+- sau 23:30 vẫn bỏ đơn đã check-in và đơn đã hủy;
+- nguy cơ không đến, đơn 23:50 lúc 23:50 / 23:55 / 23:59, đơn 23:45 lúc 23:59 ⇒ `NO_SHOW_RISK`;
+- cửa sổ 15' (hồi quy): đúng giờ bắt đầu và đúng 15' có, 15'01" không, trước giờ bắt đầu không, đầu ngày 00:00 ⇒ 00:15 có, 00:15:01 không; đơn đã check-in không.
+
+TDD: 9 ca đỏ trên mã cũ (đúng các ca quay vòng), 18 ca hồi quy xanh trước và sau.
+
+### Task 8 — Lọc giao dịch điểm theo ngày (T-11) (30/10/2026) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| `StartOfVietnamDayUtc(date)`, `EndOfVietnamDayUtcExclusive(date)` (ngày cuối của lịch ⇒ `DateTime.MaxValue` UTC, không tràn) | `Helpers/DateTimeHelper.cs` |
+| Lọc `[StartOfVietnamDayUtc(FromDate); EndOfVietnamDayUtcExclusive(ToDate))` theo phần ngày của tham số, mỗi biên độc lập | `Repositories/CustomerManagementRepository.cs` |
+| T-9 (Task 6) chuyển sang hai hàm trên: một nguồn biên ngày VN | `Repositories/ReportRepository.cs` |
+| Comment tham số: ngày theo giờ VN, bỏ phần giờ, `ToDate` tính hết ngày (wire không đổi) | `DTOs/CustomerManagement/LoyaltyTransactionDto.cs` |
+
+**Lỗi do Task 6 gây ra, phát hiện và sửa trong Task 8:** biên trên của Task 6 là `toDate.AddDays(1)`, tràn với `toDate = 9999-12-31` (khoảng hợp lệ ≤ 365 ngày vẫn chạm được) ⇒ báo cáo khách hàng từ 200 thành 500. Thấy khi thêm ca ngày cực trị cho T-11; sửa bằng `EndOfVietnamDayUtcExclusive`, thêm test cho cả báo cáo.
+
+**Test:**
+
+- `Integration/LoyaltyTransactionDateFilterTests.cs` 11 ca (schema thật; giao dịch 23:50 VN ngày 19, 00:00 / 23:30 / 23:59:59,999999 ngày 20, 00:00 / 00:10 ngày 21): một ngày ⇒ đúng 3 giao dịch của ngày 20; chỉ `FromDate` ⇒ từ 00:00 ngày 20; chỉ `ToDate` ⇒ tới hết ngày 20; không lọc ⇒ đủ; phần giờ và `Kind` của tham số không đổi kết quả (Unspecified 00:00 / 15:00, Utc 00:00 / 23:00, Local); khoảng ngược ⇒ rỗng; không lẫn giao dịch của khách khác.
+- `Integration/Http/LoyaltyTransactionFilterHttpTests.cs` 6 ca qua model binding thật (OWNER): `?fromDate=2020-11-20&toDate=2020-11-20` ⇒ 200, đúng giao dịch, `createdAt` trả `"20/11/2020 23:30:00"`; chỉ `toDate` ⇒ gồm ngày cuối; không lọc; ngày cực trị `0001-01-01` / `9999-12-31` ⇒ 200 (mã trước khi sửa: 500).
+- `Unit/Helpers/VietnamTimeZoneTests.cs` thêm 5 ca: hai biên là hai nửa đêm VN theo UTC, `Kind = Utc`, dài đúng một ngày, liền nhau (thường, qua năm, 29/02); ngày cuối của lịch không tràn; ngày đầu của lịch kẹp về `DateTime.MinValue`.
+- `ReportTimeZoneTests` thêm 1 ca: khoảng chạm ngày cuối của lịch không tràn ở dashboard và thống kê khách.
+
+TDD: 12/14 ca T-11 đỏ trên mã cũ đúng lý do (Npgsql từ chối `Kind = Unspecified`/`Local`, HTTP 500, `Kind = Utc` lọc lệch ngày).
+
+**Đột biến Task 7 + 8: 12/12 bị bắt:** bỏ kiểm sang ngày sau, `>` thành `>=`, cửa sổ 31', KPI hoặc thẻ sân quay lại công thức cũ (từng chỗ), "nguy cơ không đến" công thức cũ, `<=` thành `<`; T-11 cận trên `<=`, cận dưới `>`, cận trên không cộng ngày; helper bỏ chặn ngày cuối lịch, helper đầu ngày theo UTC. Build Release 0 warning; toàn bộ BE **2387/2387** xanh (2337 + 50, 3 phút 9 giây).
+
 ---
 
 ## Ràng buộc chung
@@ -643,15 +739,15 @@ Test cũ `Approve_Deposit_AnnouncesAfterCommitAndEmailsTheDepositDeadline` khẳ
 
 ## Thứ tự và ước lượng
 
-Thứ tự làm: **Task 0** ⇒ (S1 đạt) **Task 1–4** + chạy lại toàn bộ test IPN ⇒ **Task 5** ⇒ **Task 16** (sandbox với mã C#) ⇒ **Task 6–8** ⇒ **Task 9–11** ⇒ **Task 12–14** ⇒ **Task 15**. LT-04 chạy thử chỉ sau khi Phần A đã qua Task 16 và bộ kiểm SC6 đã xong.
+Thứ tự làm: **Task 0** ⇒ (S1 đạt) **Task 1–4** + chạy lại toàn bộ test IPN ⇒ **Task 5** ⇒ **Task 16** (sandbox với mã C#) ⇒ **Task 6–8** ⇒ **Task 8a, 8b** ⇒ **Task 9–11** ⇒ **Task 12–14** ⇒ **Task 15**. LT-04 chạy thử chỉ sau khi Phần A đã qua Task 16 và bộ kiểm SC6 đã xong.
 
 | Phần | Task | Ước lượng | Rủi ro |
 | :--- | :--- | :---: | :--- |
 | A | 0–4 | 2 ngày | Cao: phụ thuộc sandbox, đổi chữ ký cổng, hồi quy IPN |
 | B + sandbox | 5, 16 | 1 ngày | Thấp–trung bình |
-| C | 6–8 | 1 ngày | Trung bình: biên ngày giờ trên schema thật |
+| C | 6–8, 8a, 8b | 1,5 ngày | Trung bình: biên ngày giờ trên schema thật |
 | D | 9–11 | 2,5 ngày | Cao: có thể lộ lỗi dữ liệu và test cũ |
 | E | 12–14 | 1,5 ngày | Trung bình–cao: môi trường, OTP qua Mailpit |
 | F | 15 | 1 ngày | Trung bình: phụ thuộc số lỗi phát hiện |
 
-Tổng khoảng 9 ngày (ước lượng kỹ thuật; không cắt test để giữ mốc). Phụ thuộc: Task 0 trước 2–4; Task 1 trước 4; Task 2 trước 3 trước 4; Task 4 và 5 trước 16; Task 4 trước 14 (LT-04 kiểm `paymentLinkExpiresAt`); Task 9 trước 10, 11; Task 12 trước 13, 14; Task 11 trước phần kiểm SC6 của Task 14; Task 6–8 độc lập.
+Tổng khoảng 9 ngày (ước lượng kỹ thuật; không cắt test để giữ mốc). Phụ thuộc: Task 0 trước 2–4; Task 1 trước 4; Task 2 trước 3 trước 4; Task 4 và 5 trước 16; Task 4 trước 14 (LT-04 kiểm `paymentLinkExpiresAt`); Task 9 trước 10, 11; Task 12 trước 13, 14; Task 11 trước phần kiểm SC6 của Task 14; Task 6–8, 8a, 8b độc lập (8a, 8b thêm 30/10 sau khi rà lại ngày giờ toàn BE).

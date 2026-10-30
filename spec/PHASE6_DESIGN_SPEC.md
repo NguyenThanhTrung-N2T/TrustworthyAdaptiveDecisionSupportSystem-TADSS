@@ -233,6 +233,8 @@ Luồng đặt sân, lịch sử đơn, hạn thanh toán, time grid, check-in, 
 | T-12 | Thấp | Giờ tường VN ở FE được hiểu theo múi giờ trình duyệt (`parseBackendDate`, `CourtTrack`, `calculateHoursUntil`, `canCheckIn`) | Máy đặt múi giờ khác VN ⇒ đếm ngược, ô quá giờ, xem trước hoàn tiền lệch | Không phải lỗi (giả định người dùng ở VN) ⇒ để nguyên; chỉ đồng hồ đếm ngược **mới** tính bằng `+07:00` (R-6); Mục 11 |
 | T-13 | Thấp | Chiều vào của BE đọc `DateTime` bằng `DateTime.TryParse` theo culture máy chủ | FE gửi lại chính chuỗi `dd/MM/yyyy` BE trả ra sẽ bị đọc sai. Hiện FE không làm vậy; body mới của Phase 6 (duyệt, từ chối) không có trường thời gian | Không phải lỗi ⇒ để nguyên; quy tắc FE ở P6-22 cho mã mới |
 | T-14 | TB | **Nguồn đồng hồ** (câu hỏi của người dùng 19/10, chi tiết dưới bảng): mốc UTC do máy chạy BE cấp (`DateTime.UtcNow`), không do Neon; Neon chỉ cấp `now()` cho cột mà mã không gán; TADSS, VNPay, trình duyệt mỗi bên một đồng hồ | Đồng hồ máy chạy BE sai (Docker trên WSL2 trôi giờ sau khi máy ngủ) ⇒ hạn giữ chỗ, hạn duyệt, % hoàn, no-show lệch theo; lệch giữa các máy ⇒ hạn hiển thị và hạn kiểm khác nhau vài giây tới vài phút | Kiểm ở 10.1 bước 3 và ca 9.4; mã mới dùng `TimeProvider` (7.14) để test được |
+| T-15 | TB | Hàng việc cần xử lý của dashboard Manager/Staff trả `createdAt = booking.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")` (`ReportRepository.ToManagerDashboardActionItem`): mốc UTC nhưng không có offset, trong khi mọi giờ khác của cùng DTO là giờ tường VN (tìm thấy khi rà ngày giờ 30/10) | FE (`ActionQueueItem`, `formatDateTime`) đọc chuỗi không offset theo giờ máy ⇒ "Tạo lúc" **sớm 7 giờ** (đơn tạo 20:58 hiện 13:58) | Lỗi thật ⇒ sửa (plan 6A-6 Task 8a), giữ wire |
+| T-16 | TB | So sánh với kỳ trước của dashboard Owner/Manager (`ReportService.GetComparisonPeriods`): độ dài kỳ tính bằng `(ToDate 23:59:59.9999999 − FromDate 00:00).TotalDays + 1` nên kỳ trước dài hơn một ngày; dùng `filter.FromDate!.Value`/`ToDate!.Value` thay khoảng đã chuẩn hóa (tìm thấy khi rà ngày giờ 30/10) | % thay đổi doanh thu, số đơn, tỉ lệ lấp đầy so với kỳ dài hơn (1 ngày so với 2, 7 so với 8, 30 so với 31); gọi API chỉ với một trong hai ngày ⇒ `InvalidOperationException` ⇒ 500 | Lỗi thật ⇒ sửa (plan 6A-6 Task 8b), giữ wire |
 
 **T-14 — giờ "hiện tại" lấy từ đâu (đã kiểm 19/10):**
 
@@ -806,8 +808,10 @@ Test BE-UT-11: mỗi giá trị của `BookingStatus` phải nằm trong ít nh�
 | # | Chỗ sửa | Cách sửa |
 | :---: | :--- | :--- |
 | T-9 | `ReportRepository` (khách mới, xu hướng khách mới), `ReportService.cs:45` | Biên `[ToUtcFromVietnam(fromDate, 00:00), ToUtcFromVietnam(toDate + 1 ngày, 00:00))`; nhóm theo ngày VN của `created_at` (đổi `ToVietnamTime` trước khi lấy ngày); `toDate` mặc định `GetTodayInVietnam()` |
-| T-10 | `ReportRepository.cs:277, 344` | Nếu `now + 30'` sang ngày hôm sau thì giới hạn là cuối ngày (`TimeOnly.MaxValue`) |
-| T-11 | `CustomerManagementRepository.GetLoyaltyTransactionsAsync` | Lấy phần ngày của `FromDate`/`ToDate`, đổi thành biên UTC theo giờ VN như T-9 (`ToDate` tính hết ngày) |
+| T-10 | `ReportRepository` (KPI, thẻ sân) | Nếu `now + 30'` sang ngày hôm sau thì giới hạn là cuối ngày (`TimeOnly.MaxValue`), một hàm `UpcomingLimit` cho hai chỗ; thẻ "nguy cơ không đến" so `nowTime − StartTime ≤ 15'` thay `StartTime.AddMinutes(15) ≥ nowTime` (cùng lỗi quay vòng, tìm thấy khi làm Task 7) |
+| T-11 | `CustomerManagementRepository.GetLoyaltyTransactionsAsync` | Lấy phần ngày của `FromDate`/`ToDate`, biên `[DateTimeHelper.StartOfVietnamDayUtc(from); EndOfVietnamDayUtcExclusive(to))` (dùng chung với T-9; ngày cuối của lịch không tràn) |
+| T-15 | `ReportRepository.ToManagerDashboardActionItem` | `createdAt` đổi sang giờ VN (`DateTimeHelper.ToVietnamTime`) trước khi định dạng, như các giờ khác của DTO |
+| T-16 | `ReportService.GetComparisonPeriods` | Nhận khoảng đã chuẩn hóa (`fromDate`, `toDate` từ `ValidateDateRange`); kỳ trước = cùng số ngày, liền trước: `[fromDate − n; fromDate − 1]` với `n = toDate − fromDate + 1` (tính bằng `DateOnly`) |
 
 ---
 
@@ -936,7 +940,7 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 ### 10.1. Xác minh trước khi bắt đầu 6A-1
 
 1. Truy vấn 6.1 trên `staging`: `chk_bookings_cancelled_at`, `uq_slot_locks_booking` có thật không (quyết định cách viết câu lệnh hủy và slot lock). **Đã làm 19/10/2026:** cả hai có thật (kết quả ở 6.1).
-2. VNPay sandbox (đầu 6A-4): mức tiền tối thiểu; IPN có được gọi khi khách bấm "Hủy giao dịch" không; URL IPN công khai trỏ vào BE (N-16); trang VNPay có báo hết hạn hoặc từ chối vì `vnp_CreateDate` theo UTC không (T-5). **Đã làm 28/10/2026** (kết quả dưới danh sách này); mức tiền tối thiểu và hạn link kiểm thêm 30/10 (plan 6A-6 Task 0).
+2. VNPay sandbox (đầu 6A-4): mức tiền tối thiểu; IPN có được gọi khi khách bấm "Hủy giao dịch" không; URL IPN công khai trỏ vào BE (N-16); trang VNPay có báo hết hạn hoặc từ chối vì `vnp_CreateDate` theo UTC không (T-5). **Đã làm 28/10/2026** (kết quả dưới danh sách này); mức tiền tối thiểu và hạn link kiểm thêm 30/10 (plan 6A-6 Task 0), rồi thử lại với BE thật sau khi code (Task 16, cùng ngày).
 3. Đồng hồ (T-14), trước mỗi đợt E2E và sau khi máy ngủ dậy: so giờ UTC của Windows (`date -u`), của container BE (`docker exec <container> date -u`), của Neon (`SELECT now()` trên `staging`) và của TADSS (`evaluatedAt` trong response) với giờ chuẩn. Lệch > 5 giây ⇒ đồng bộ (`w32tm /resync` trên Windows; `wsl --shutdown` rồi mở lại Docker Desktop cho container) rồi mới chạy.
 
 **Kết quả bước 2, thử VNPay sandbox 28/10/2026.** BE chạy Docker từ mã 6A-5 (`fd29a51`) trên `tadss-dev`, cờ TADSS tắt nên mọi đơn cọc 100 %; IPN đi qua ngrok; giờ dưới đây là giờ VN; đơn thử BK-20261028-000146…000153 (ghi chú "TEST VNPAY").
@@ -954,7 +958,8 @@ Bộ truy vấn bất biến (methodology Mục 5) giữ 5 điều; điều 1 hi
 | Mức tiền tối thiểu (30/10, Task 0 S3, S4) | Link 5.000 đ và 4.000 đ đều mở được trang chọn phương thức; trả 4.000 đ qua NCB bị từ chối ở bước nhập thẻ: "Số tiền giao dịch không hợp lệ… hạn mức tối thiểu và tối đa của từng ngân hàng" | VNPay không chặn lúc mở link mà chặn lúc trả; `MinOnlinePaymentAmount` giữ 5.000 đ (đơn dưới mức này đi nhánh a′, không có link) |
 | Link tự ký có `vnp_ExpireDate`, hai mốc GMT+7 (30/10, Task 0 S1) | Tạo 00:04:16, hạn 00:19:16 (qua nửa đêm giờ VN); trả 50.000 đ bằng thẻ NCB thành công; URL VNPay chuyển về có `vnp_ResponseCode = 00`, `vnp_TransactionStatus = 00`, đúng số tiền và `vnp_TxnRef`, chữ ký của VNPay kiểm đúng bằng HashSecret (BE tắt nên trang đích là lỗi của ngrok, không ảnh hưởng kết quả) | Cách tự dựng URL thanh toán được thật; gỡ rủi ro của commit `2c26ef7` |
 | Đồng hồ trang VNPay khi có `vnp_ExpireDate` (30/10, Task 0 S4) | "Giao dịch hết hạn sau" đếm đúng tới `vnp_ExpireDate` của link (6 phút 25 giây lúc 00:12:51 cho hạn 00:19:16), không còn ~15 phút kể từ lúc mở như khi không gửi | VNPay dùng hạn của link làm hạn của trang |
-| Mở trước hạn link, trả sau hạn (30/10, Task 0 S2) | Link tạo 00:13:20, hạn 00:16:20; khách mở ngay, dừng ở trang nhập thẻ, tiếp tục sau hạn ⇒ trang "Giao dịch đã quá thời gian chờ thanh toán. Quý khách vui lòng thực hiện lại giao dịch" (00:16:52); VNPay chuyển về `ReturnUrl` với `vnp_ResponseCode = 15`, `vnp_TransactionStatus = 02`, chữ ký đúng; không trừ tiền | **VNPay chặn cả lúc trả**, không chỉ lúc mở: khoảng đệm P6-27 có tác dụng đầy đủ với khe hở "trang đã mở". Còn lại chỉ rủi ro IPN trễ hơn khoảng đệm (P6-07 giữ). IPN mã 15 có được gửi không chưa kiểm (BE tắt): kiểm ở Task 16 |
+| Mở trước hạn link, trả sau hạn (30/10, Task 0 S2) | Link tạo 00:13:20, hạn 00:16:20; khách mở ngay, dừng ở trang nhập thẻ, tiếp tục sau hạn ⇒ trang "Giao dịch đã quá thời gian chờ thanh toán. Quý khách vui lòng thực hiện lại giao dịch" (00:16:52); VNPay chuyển về `ReturnUrl` với `vnp_ResponseCode = 15`, `vnp_TransactionStatus = 02`, chữ ký đúng; không trừ tiền | **VNPay chặn cả lúc trả**, không chỉ lúc mở: khoảng đệm P6-27 có tác dụng đầy đủ với khe hở "trang đã mở". Còn lại chỉ rủi ro IPN trễ hơn khoảng đệm (P6-07 giữ). IPN mã 15: không gửi (dòng dưới) |
+| BE thật sau 6A-6 (30/10, plan 6A-6 Task 16; BE `9945121`, đơn BK-20261030-000154…000156, ghi chú "TEST VNPAY 6A-6") | Link do BE tạo: `vnp_ExpireDate` = hạn thanh toán − 2', hai mốc giờ VN, `vnp_TxnRef` GUID. Đơn A trả ngay ⇒ IPN `00` sau 2 giây, `PAID_ONLINE`, `confirm` ⇒ `bookingStatus = PAID_ONLINE`. Đơn B mở lúc link còn 26 giây, trả sau hạn ⇒ mã `15`, **không có IPN** (theo dõi 8 phút), `confirm` ⇒ `isSuccess = false`, `bookingStatus = PENDING`; Job-01 hủy B, C khoảng 1' sau hạn. `retry-payment` khi còn 2'55" tới hạn giữ chỗ ⇒ 400 `PAYMENT_HOLD_EXPIRED`, đơn không đổi | P6-27, P6-28 đạt trên BE thật. Link quá hạn không sinh IPN nên đơn giữ hạn cũ tới Job-01 (không qua nhánh thất bại P6-03) |
 
 Môi trường (ghi lại để lần sau chạy nhanh):
 
@@ -1069,6 +1074,7 @@ Tắt cờ: đơn mới về cọc 100 %, đơn đang chờ vẫn duyệt đư�
 | T-7 "hôm nay" ở FE theo UTC | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
 | T-8 FE đảo ngày/tháng | P6-22, 8.1, 8.2 | 6B-1, 6B-2 |
 | T-9, T-10, T-11 báo cáo, dashboard, lọc điểm | P6-22, 7.14 | 6A-6 |
+| T-15 giờ tạo đơn trong hàng việc lệch 7 giờ; T-16 kỳ so sánh dài hơn một ngày, 500 khi thiếu một ngày | 3.3, 7.14 | 6A-6 |
 | T-12 múi giờ trình duyệt | Để nguyên (không phải lỗi); Mục 11 | — |
 | T-13 BE đọc `DateTime` theo culture | Để nguyên (không phải lỗi); quy tắc FE ở P6-22 | — |
 | T-14 nguồn đồng hồ | 3.3, 7.14, 10.1 bước 3, Mục 11 | 6A-1 (`TimeProvider`), Phase 7 (đo) |
