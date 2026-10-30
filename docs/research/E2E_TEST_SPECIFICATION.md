@@ -153,7 +153,7 @@ Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số đi
 | **K-NODEC** | `decision_executions` không có dòng nào với `reservation_id = bookingId` |
 | **K-OVR(n)** | `decision_overrides` có đúng `n` dòng với `decision_id` của booking (n = 0 hoặc 1); khi n = 1 kiểm `action`, `deposit_rate`, `deposit_amount`, `actor_id` (= `userId` của Manager), `idempotency_key` (= `{decisionId}:APPROVE` hoặc `:REJECT`) |
 | **K-OUT(v)** | Sau chu kỳ của job outcome: `decision_outcomes` có đúng một dòng với `decision_id` của booking, `outcome = v` |
-| **K-SC6** | Bộ truy vấn bất biến booking (methodology Mục 5, điều 1–5) trong `[t_start; t_end]`: 0 vi phạm |
+| **K-SC6** | Bộ truy vấn bất biến booking (methodology Mục 5, điều 1–6) trong `[t_start; t_end]`: 0 vi phạm |
 
 ### 4.4. Minh chứng chung
 

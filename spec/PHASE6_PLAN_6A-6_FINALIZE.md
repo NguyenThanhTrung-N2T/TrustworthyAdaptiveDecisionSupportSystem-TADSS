@@ -10,7 +10,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit` (nền `8cd53b8`); `TADSS-Runtime` `develop` (k6 LT-04, tài liệu). TADSS không đổi mã nguồn `src/`.
 
-**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅ (30/10); Task 8a, 8b thêm 30/10 (T-15, T-16); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
+**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅, Task 8a ✅, Task 8b ✅ (30/10; 8a, 8b thêm cùng ngày cho T-15, T-16), Task 9 ✅ (31/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
 
 **Cách đọc mỗi task:** *Vấn đề* → *Giải pháp* → *Vì sao* (kèm phương án đã cân nhắc) → *Ảnh hưởng* → *Kiểm*.
 
@@ -370,7 +370,7 @@ Phạm vi theo thời gian (staging) lấy đơn có `created_at` **hoặc** `up
 | SC6-3 | Đơn thuộc `GetCancelledStatuses()` ⇒ không có slot lock `ExpiresAt > now` và không có dòng `booking_courts` `IsActive = true` | |
 | SC6-4a | Đơn thuộc `GetActiveStatuses()` trừ `CourtsReleasedWhileActive` ⇒ mọi dòng `booking_courts` của đơn `IsActive = true` | Dòng sân bị tắt sai thì DB không còn chặn đơn khác đặt trùng (`excl_booking_courts_no_overlap` chỉ áp dòng `is_active`) |
 | SC6-4b | Không có hai đơn khác nhau có dòng **đang giữ sân** cùng sân, cùng `date`, giờ chồng nhau theo nửa khoảng (`a.Start < b.End && b.Start < a.End`, nên 10:00–11:00 và 11:00–12:00 không chồng); ít nhất một đơn trong phạm vi; mỗi cặp báo một lần | Dòng đang giữ sân không lọc `IsActive` (trừ ngoại lệ `PENDING_PAYMENT` ở trên), nên bắt được hậu quả của SC6-4a; hai dòng `is_active` chồng nhau thì DB đã chặn |
-| Phụ-1 | Đơn thuộc `GetCancelledStatuses()` có `CancelReason` | DB đã chặn bằng `chk_bookings_cancel_reason` ⇒ kiểm ràng buộc |
+| **SC6-6** (trước là Phụ-1; nâng 31/10, spec N-37) | Đơn thuộc `GetCancelledStatuses()` có `CancelReason` | **Kiểm trong C#**: `chk_bookings_cancel_reason` chỉ cấm lý do ở đơn chưa hủy, không bắt buộc đơn hủy có lý do. Là điều chính vì lý do hủy là đầu vào của TADSS; mô tả ghi mức ảnh hưởng và `cancel_source` |
 | Phụ-2 | Đơn `PENDING` ⇒ `invoice.HoldDeadline != null` | Phạm vi theo thời gian loại dữ liệu trước Phase 6 |
 
 **Kiểm (BE-IT-20, `Integration/Invariants/BookingInvariantCheckerTests.cs`, `IntegrationTestBase`, mỗi test rollback):**
@@ -382,7 +382,7 @@ Phạm vi theo thời gian (staging) lấy đơn có `created_at` **hoặc** `up
 - Snapshot: phần mở transaction tách thành `internal static Task<T> InSnapshotAsync<T>(SmashCourtContext db, Func<Task<T>> read)`; test gọi với `read` kiểm `db.Database.CurrentTransaction!.GetDbTransaction().IsolationLevel == IsolationLevel.RepeatableRead` khi context chưa có transaction, và kiểm không mở transaction mới khi context đã có (cùng đối tượng transaction).
 - Biên SC6-2: `ApprovalExpiresAt = now − 1s` + slot lock hết hạn ⇒ 0 vi phạm; `now + 1s` + thiếu slot lock ⇒ vi phạm.
 - Phạm vi: đơn vi phạm ngoài danh sách id / ngoài khoảng thời gian ⇒ không báo.
-- Ràng buộc DB: chèn `PENDING_APPROVAL` thiếu `tadss_decision_id` ⇒ `PostgresException` tên `chk_bookings_pending_approval`; đơn hủy thiếu `cancel_reason` ⇒ `chk_bookings_cancel_reason`; hai dòng `is_active` chồng giờ ⇒ `excl_booking_courts_no_overlap`.
+- Ràng buộc DB: chèn `PENDING_APPROVAL` thiếu `tadss_decision_id` ⇒ `PostgresException` tên `chk_bookings_pending_approval`; đơn **chưa hủy** có `cancel_reason` ⇒ `chk_bookings_cancel_reason` (đơn hủy thiếu lý do thì DB nhận, xem Phụ-1); hai dòng `is_active` chồng giờ ⇒ `excl_booking_courts_no_overlap`.
 
 ### Task 10 — Tự kiểm SC6 sau mỗi test HTTP
 
@@ -707,6 +707,83 @@ TDD: 9 ca đỏ trên mã cũ (đúng các ca quay vòng), 18 ca hồi quy xanh 
 TDD: 12/14 ca T-11 đỏ trên mã cũ đúng lý do (Npgsql từ chối `Kind = Unspecified`/`Local`, HTTP 500, `Kind = Utc` lọc lệch ngày).
 
 **Đột biến Task 7 + 8: 12/12 bị bắt:** bỏ kiểm sang ngày sau, `>` thành `>=`, cửa sổ 31', KPI hoặc thẻ sân quay lại công thức cũ (từng chỗ), "nguy cơ không đến" công thức cũ, `<=` thành `<`; T-11 cận trên `<=`, cận dưới `>`, cận trên không cộng ngày; helper bỏ chặn ngày cuối lịch, helper đầu ngày theo UTC. Build Release 0 warning; toàn bộ BE **2387/2387** xanh (2337 + 50, 3 phút 9 giây).
+
+### Task 8a — Giờ tạo đơn trong hàng việc của dashboard (T-15) (30/10/2026) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| `CreatedAt = DateTimeHelper.ToVietnamTime(booking.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss")` (giờ tường VN như `StartTime`, `EndTime`; định dạng không đổi) | `Repositories/ReportRepository.cs` |
+
+Rà lại mọi chỗ định dạng mốc thời gian ra chuỗi trong BE: đây là chỗ duy nhất định dạng một mốc UTC thành chuỗi không offset; các chuỗi khác là giờ chơi (giờ tường VN) hoặc ngày.
+
+**Test** (`Integration/ManagerDashboardActionQueueTimeTests.cs`, 4 ca trên schema thật; mỗi ca kiểm luôn `startTime`/`endTime` không đổi): đơn `PENDING_PAYMENT` và `CANCELLED_PENDING_REFUND` tạo 13:58:07 UTC ⇒ `2020-11-20T20:58:07`; tạo 17:30 UTC ngày 19 ⇒ `2020-11-20T00:30:00` (đúng ngày VN); tạo 20:15 UTC ngày 19 cho đơn chơi hôm trước ⇒ `2020-11-20T03:15:00`. TDD: 4/4 đỏ trên mã cũ, lệch đúng 7 giờ.
+
+### Task 8b — Kỳ so sánh của dashboard (T-16) (30/10/2026) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| Bỏ `GetComparisonPeriods(filter)`; hàm private `TryGetPreviousPeriod(fromDate, toDate, out previousFrom, out previousTo)` trên khoảng đã chuẩn hóa: `n = toDate.DayNumber − fromDate.DayNumber + 1`, kỳ trước `[fromDate − n; fromDate − 1]`; trước `fromDate` không đủ `n` ngày ⇒ false, không so sánh (`*ChangePercent` để null) | `Services/ReportService.cs` |
+| Dashboard Owner và dashboard phân tích Manager (cũng là dữ liệu cho AI) dùng chung | `Services/ReportService.cs` |
+
+**Khác plan, có lý do:**
+
+1. Hàm để private, kiểm qua service với repository giả (khoảng truyền xuống repository là hành vi nhìn thấy được); không mở hàm ra ngoài chỉ để test.
+2. Thêm luật "không đủ ngày trước khoảng ⇒ không so sánh": thấy khi viết test biên, mã cũ (và bản sửa chưa có chặn) tràn kiểu với khoảng bắt đầu sát `0001-01-01` ⇒ 500.
+
+**Test:**
+
+- `Unit/Services/ReportServiceComparisonPeriodTests.cs` 21 ca cho cả hai dashboard: 1 / 7 / 30 ngày, cả tháng 3 (⇒ 29/01–28/02), năm nhuận, qua năm, khoảng tối đa 366 ngày ⇒ kỳ trước cùng độ dài, kết thúc ngày liền trước; chỉ `toDate` ⇒ so với kỳ trước của `[toDate − 30; toDate]`; chỉ `fromDate` ⇒ cùng độ dài, liền kề (kiểm quan hệ vì `toDate` theo đồng hồ thật); toàn thời gian ⇒ không so sánh; sát ngày đầu của lịch ⇒ không so sánh, không lỗi; `0001-01-02` ⇒ so với `0001-01-01`; % tính trên số liệu của đúng kỳ trước (+50 %, −25 %, 0 %).
+- `Integration/Http/DashboardComparisonHttpTests.cs` 4 ca `GET /api/dashboard/owner`: chỉ `toDate`, chỉ `fromDate`, đủ hai ngày ⇒ 200 có `revenueChangePercent`; `0001-01-01…0001-01-31` ⇒ 200, `revenueChangePercent = null`.
+
+TDD: 19/21 unit đỏ trên mã cũ (kỳ trước dài hơn một ngày, `InvalidOperationException`, tràn `DateTime`, % so sai kỳ); HTTP chạy trên `ReportService` cũ (lấy bằng `git show HEAD:`, trả lại ngay): 3/4 ra 500, ca đủ hai ngày xanh cả trước và sau (hồi quy).
+
+**Đột biến 8a + 8b: 6/6 bị bắt:** bỏ đổi giờ VN; số ngày thiếu +1, +2; kỳ trước kết thúc tại `fromDate`; chặn `<` thành `<=`; bỏ chặn đầu lịch. Build Release 0 warning; toàn bộ BE **2416/2416** xanh (2387 + 29, 3 phút 23 giây).
+
+### Task 9 — `BookingInvariantChecker` (31/10/2026) ✅
+
+| File (project test, `Integration/Invariants/`) | Nội dung |
+| :--- | :--- |
+| `InvariantViolation.cs` | `InvariantViolation(Rule, BookingId, Detail)`; `InvariantRules` (tên điều: `SC6-1`, `SC6-2`, `SC6-3`, `SC6-4a`, `SC6-4b`, `SC6-6`, `PHU-2`, dùng cho báo cáo JSON của Task 11) |
+| `BookingScope.cs` | Phạm vi theo id (`Of`) hoặc theo khoảng thời gian (`Between`: `created_at` **hoặc** `updated_at` trong khoảng đóng) |
+| `BookingInvariantChecker.cs` | `CheckAsync(db, scope, nowUtc)`: 5 câu đọc LINQ `AsNoTracking` (đơn, hóa đơn kèm tổng Payment `SUCCESS` của chính hóa đơn, dòng sân, slot lock, dòng đang giữ sân cùng sân và ngày) trong `InSnapshotAsync` (REPEATABLE READ, rollback; dùng lại transaction có sẵn); tập trạng thái lấy từ `BookingStatusTransition`; `CourtsReleasedWhileActive = [PENDING_PAYMENT]`; kết quả sắp xếp ổn định (điều, đơn, mô tả). Kiểm đầu vào: phạm vi thiếu, `from > to`, mốc không UTC ⇒ `ArgumentException` |
+| `InvariantTestBase.cs` | Dựng đơn hợp lệ theo trạng thái (cọc kèm Payment, đã hủy đúng thiết kế, một dòng sân không slot lock cho ca chồng giờ) |
+
+**Khác plan, có lý do:**
+
+1. **Đơn hủy có lý do kiểm trong C#, không phải ca DB (sau đó nâng thành SC6-6, mục cuối của Task 9).** Plan và spec ghi `chk_bookings_cancel_reason` chặn đơn hủy thiếu lý do; schema thật chỉ cấm lý do ở đơn **chưa** hủy (`cancel_reason IS NULL OR status ∈ hủy`), DB nhận đơn hủy không lý do (test `Phu1_CancelledWithoutReason_Violation` lưu được rồi mới kiểm). Mọi đường hủy hiện tại đều ghi lý do (tham số `BookingCancelReason` không null ở `CancelWithStatusCheckAsync` và `BookingCancellationService`), nên điều này có nghĩa với dữ liệu thật. Ca DB đổi thành "đơn chưa hủy có lý do ⇒ `chk_bookings_cancel_reason`". Đã sửa spec mục 4.2 (P6-29) và bảng kiểm 6A-6.
+2. SC6-2 báo theo **từng dòng sân** thiếu slot lock (mô tả có id sân), không gộp theo đơn: đơn hai sân thiếu một lock ⇒ một vi phạm chỉ đúng sân đó.
+3. SC6-4b gắn vi phạm cho đơn trong phạm vi; cả hai đơn trong phạm vi thì gắn cho đơn có id nhỏ hơn (báo một lần mỗi cặp dòng).
+4. Bộ kiểm viết trước test (là dụng cụ đo trong project test); bù lại bằng đột biến đầy đủ trên từng điều (dưới).
+
+**Test** (67 ca, schema thật, rollback):
+
+- `BookingInvariantCheckerTests.cs` (31): tập ngoại lệ ⊂ `GetActiveStatuses()`; đơn hợp lệ ở mọi trạng thái ⇒ 0. SC6-1: Payment `SUCCESS` đúng, dư, hai link cộng lại ⇒ 0; thiếu 1 đ ⇒ vi phạm; chỉ `PENDING`/`FAILED`/`REFUNDED` ⇒ vi phạm; `SUCCESS` của hóa đơn khác không tính; cọc 0 và đơn tại quầy không xét; `PENDING`, `IN_PROGRESS`, `COMPLETED` không xét (mỗi ca cho cả `CONFIRMED` và `PAID_ONLINE`). SC6-2: hai sân đủ lock ⇒ 0; thiếu lock một sân ⇒ đúng một vi phạm của sân đó; lock hết hạn đúng `now` ⇒ vi phạm; lock khác giờ ⇒ vi phạm; hạn duyệt `now − 1s` / đúng `now` ⇒ không xét, `now + 1s` ⇒ vi phạm. SC6-3 (ba trạng thái hủy): giải phóng đúng ⇒ 0; lock hạn `now + 1s` ⇒ vi phạm; dòng sân còn bật ⇒ vi phạm. Phụ-1, Phụ-2 (thiếu `hold_deadline`, thiếu hóa đơn).
+- `BookingInvariantCheckerCourtTests.cs` (21, đủ 9 ca của plan): (1) không chồng ⇒ 0; (2) chồng qua dòng tắt sai ⇒ SC6-4a cho đơn đó + SC6-4b một lần cho cặp; (3) khác sân ⇒ 0; (4) đơn hủy / chờ hoàn / hoàn thành chồng giờ ⇒ 0; (5) đơn hiệu lực (5 trạng thái) có dòng tắt ⇒ chỉ SC6-4a; (6) `PENDING_PAYMENT` đã nhả sân ⇒ 0, nhưng `PENDING_PAYMENT` **còn** giữ sân bị chồng ⇒ SC6-4b; (7) nửa khoảng: liền kề hai phía ⇒ 0, chồng 1 phút hai phía và nằm trọn ⇒ 1; (8) cùng giờ hai ngày ⇒ 0; (9) một đơn ngoài phạm vi ⇒ báo cho đơn trong phạm vi, cả hai ngoài ⇒ không báo; ba đơn cùng slot ⇒ 3 cặp.
+- `BookingInvariantCheckerScopeTests.cs` (15): ngoài danh sách id ⇒ không báo; danh sách rỗng; khoảng thời gian gồm đơn tạo hoặc sửa trong khoảng, loại đơn trước và sau; **mỗi mốc (`created_at`, `updated_at`) ở mỗi biên** riêng; đầu vào sai; snapshot: context chưa có transaction ⇒ đọc trong REPEATABLE READ rồi đóng, context có transaction ⇒ dùng lại đúng đối tượng; chạy trên context không transaction; DB chặn `PENDING_APPROVAL` thiếu quyết định, hai dòng bật chồng giờ, lý do ở đơn chưa hủy (đúng tên ràng buộc).
+
+**Đột biến 26/26 bị bắt** (bỏ hoặc nới từng điều: SC6-1 bỏ điều / tính mọi Payment / `<=` / chỉ `PAID_ONLINE`; SC6-2 hạn duyệt `>=` / lock `>=` / không so giờ; SC6-3 lock `>=` / bỏ dòng bật; Phụ-1, Phụ-2 bỏ; SC6-4a bỏ ngoại lệ; "giữ sân" gồm mọi dòng / chỉ dòng bật; chồng giờ đóng; báo cặp ngoài phạm vi; bỏ nhóm theo ngày; phạm vi bỏ `updated_at`, bỏ `created_at`, mở từng biên của từng mốc; snapshot `ReadCommitted`, luôn mở transaction; bỏ kiểm `from > to`). Lượt đầu 1 đột biến sống (biên trên của `created_at`: ca cũ có cả hai mốc ở biên nên nhánh `updated_at` che) ⇒ thêm 4 ca tách hai mốc ở hai biên, chạy lại thì bị bắt. Build Release 0 warning; toàn bộ BE **2483/2483** xanh (2416 + 67, 3 phút 53 giây).
+
+**Bổ sung 31/10: "đơn hủy có lý do" thành điều chính SC6-6 (người dùng chốt, spec N-37).** Người dùng hỏi mức nghiêm trọng của đơn hủy thiếu lý do. Rà mọi nơi đọc `cancel_reason`:
+
+| Nơi đọc | Khi thiếu lý do | Mức |
+| :--- | :--- | :--- |
+| `CustomerHistoryCalculator` (lịch sử khách gửi kèm request TADSS) | Lần hủy không được đếm; đúng là các lần khách tự hủy và hết hạn thanh toán, tức hai loại TADSS dùng chấm độ tin cậy ⇒ khách trông đáng tin hơn, có thể bị đòi cọc thấp hơn | HIGH, mọi đơn có khách (lịch sử đọc cả đơn đặt khi cờ tắt) |
+| `TadssOutcomeMapper` (job `TadssOutcomeJob`, chỉ đơn có `tadss_decision_id`) | `Invalid`: outcome không bao giờ gửi, log `[Outcome]` Error mỗi chu kỳ ⇒ mất nhãn đánh giá | CRITICAL |
+| `ApprovalConflictResolver` | Duyệt đơn đã hết hạn ra 409 mã chung thay `APPROVAL_EXPIRED` | Thấp |
+| `BookingDto.CancelReason` (FE) | Không hiện lý do | Thấp |
+
+Kết luận: mức nghiêm trọng phụ thuộc đơn có quyết định TADSS hay có khách, không phụ thuộc ai hủy (khách tự hủy thiếu lý do lại là ca làm sai lịch sử). Hiện không xảy ra: mọi đường hủy nhận lý do không null, đơn cũ đã backfill theo quy tắc Phase 5 (đơn cũ thiếu cả `cancel_source` cố ý không tính, như export Phase 5), DB dev 31/10 có **0/103** đơn hủy thiếu lý do (đếm chỉ đọc). Kẽ hở: DB không chặn.
+
+Đã làm:
+
+- `InvariantRules.CancelledHasReason = "SC6-6"` (điều chính, vi phạm làm SC6 không đạt).
+- Mô tả vi phạm ghi `cancel_source` của chính đơn (đọc từ `bookings`, đúng cả khi đơn không có hóa đơn) và mức ảnh hưởng qua hàm `CancelReasonImpact(hasDecision, hasCustomer)`: CRITICAL (có quyết định; kèm lịch sử nếu có khách), HIGH (có khách), LOW (khách vãng lai).
+- Test thay ca cũ: 4 ca theo (có quyết định, có khách) kiểm đúng mức và `cancel_source`; đơn không có hóa đơn và đơn thiếu cả `cancel_source`; 7 lý do hủy đều không vi phạm (kể cả `SYSTEM_CLEANUP`). Đột biến 4/4 bị bắt (bỏ điều, đảo hai cờ, bỏ cờ quyết định, không ghi `cancel_source`).
+- Tài liệu: spec N-37 (3.x), P6-29 (điều 6), bảng kiểm 6A-6 dòng 4a, Mục 11 (rủi ro + **việc để lại**), Mục 12 (truy vết); methodology Mục 5 điều 6 và BE-IT-20; E2E K-SC6 "điều 1–6".
+
+**Việc để lại (không làm trong 6A-6 vì plan không đổi schema; ghi ở spec Mục 11):** ràng buộc DB `chk_bookings_cancelled_has_reason` bằng script `docs/database/phase6_*.sql`, đếm lại trước khi chạy (phải 0), cập nhật bản dump schema và bản sao trong BE.
+
+Trong lúc làm, ba file của bộ kiểm bị một trình sửa bên ngoài phiên đổi rồi trả lại (00:51, người dùng xác nhận đã dừng); bản cuối do phiên này viết lại toàn bộ phần SC6-6 sau khi kiểm file ổn định. Build Release 0 warning; toàn bộ BE **2494/2494** xanh (2483 + 11, 4 phút 7 giây).
 
 ---
 
