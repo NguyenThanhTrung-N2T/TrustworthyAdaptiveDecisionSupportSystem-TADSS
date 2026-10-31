@@ -200,7 +200,7 @@ flowchart LR
 4. Hệ thống dựng yêu cầu quyết định: từng sân và giá, tổng tiền sau giảm giá, hạng thành viên đã ánh xạ, lịch sử của khách theo lý do hủy (số lần hoàn tất, không đến, tự hủy, hết hạn thanh toán; không tính hết hạn duyệt, bị từ chối, nhân viên hủy), mức lấp đầy của khung giờ.
 5. Hệ thống gửi yêu cầu tới TADSS với khóa idempotency là mã booking.
 6. TADSS trả `APPROVED` kèm tỷ lệ và số tiền cọc.
-7. Hệ thống lưu mức cọc, nguồn `TADSS` và mã quyết định lên booking/hóa đơn; tạo giao dịch VNPay đúng **số tiền cọc**, hạn thanh toán 10 phút, hạn giữ chỗ tối đa 15 phút.
+7. Hệ thống lưu mức cọc, nguồn `TADSS` và mã quyết định lên booking/hóa đơn; tạo giao dịch VNPay đúng **số tiền cọc**, hạn thanh toán 10 phút, hạn giữ chỗ tối đa 15 phút; link VNPay hết hạn trước hạn thanh toán 2 phút (P6-27).
 8. Hệ thống phát sự kiện `BookingCreated` (time grid thấy slot bị giữ).
 9. Hệ thống hiển thị trang kết quả: tổng tiền, tiền cọc, phần còn lại thu tại quầy, đồng hồ tới hạn thanh toán; khách bấm "Thanh toán cọc" để sang VNPay (tiếp tục ở UC-DEPOSIT-02).
 
@@ -261,9 +261,11 @@ flowchart LR
 
 #### Luồng thay thế
 
-- **(a) Thanh toán lại** (`retry-payment`): chỉ cho booking `PENDING` chưa quá hạn; số tiền vẫn là `depositAmount`; hạn được gia hạn nhưng không vượt **hạn giữ chỗ tuyệt đối** (15 phút từ lúc đặt hoặc lúc duyệt). Booking `PENDING_APPROVAL` gọi chức năng này nhận lỗi "Chỉ có thể thanh toán lại cho đơn đang chờ thanh toán".
+- **(a) Thanh toán lại** (`retry-payment`): chỉ cho booking `PENDING` chưa quá hạn; số tiền vẫn là `depositAmount`; hạn được gia hạn nhưng không vượt **hạn giữ chỗ tuyệt đối** (15 phút từ lúc đặt hoặc lúc duyệt); link mới hết hạn trước hạn thanh toán 2 phút. Còn dưới 3 phút ⇒ hệ thống từ chối "Không còn đủ thời gian thanh toán, vui lòng đặt lại" (`PAYMENT_HOLD_EXPIRED`), không gia hạn, không tạo link (P6-27). Booking `PENDING_APPROVAL` gọi chức năng này nhận lỗi "Chỉ có thể thanh toán lại cho đơn đang chờ thanh toán".
 - **(b) Thanh toán sau khi được duyệt**: hạn thanh toán là 15 phút sau khi duyệt (cấu hình `TadssConfig:ApprovedPaymentWindowMinutes`), không vượt giờ chơi (Q2); link VNPay sinh khi khách bấm "Thanh toán cọc".
 - **(c) Thanh toán thất bại** (thẻ lỗi, khách hủy trên VNPay): booking vẫn chờ thanh toán thêm tối đa 5 phút; trang kết quả cho "Thanh toán lại" hoặc "Hủy đơn".
+- **(d) Link quá hạn** (khách để trang VNPay quá lâu): VNPay báo hết thời gian chờ thanh toán (mã `15`), không trừ tiền và không gửi IPN; đơn giữ hạn cũ; trang kết quả báo link quá hạn, khách bấm "Thanh toán lại" nếu còn thời gian (a), không thì job hủy khi hết hạn.
+- **Trang kết quả** đọc `bookingStatus` do hệ thống trả (P6-28): tiêu đề theo trạng thái đơn, không theo riêng kết quả của VNPay; tiền về sau khi đơn đã hủy hiển thị đơn đã hủy kèm hoàn tiền tại chi nhánh.
 
 **Luồng ngoại lệ.** Hết hạn thanh toán: job hủy booking `PENDING` và nhả slot, lý do hủy `PAYMENT_EXPIRED`. Tiền về sau khi đơn đã hủy: hệ thống tạo yêu cầu hoàn 100 %, nhân viên xử lý ở hàng "Chờ hoàn tiền".
 

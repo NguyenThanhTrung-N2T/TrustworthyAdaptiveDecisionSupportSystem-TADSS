@@ -1,0 +1,151 @@
+{
+  "_comment": "Dữ liệu giả cho LT04_DRY_RESPONSE (plan 6A-6 Task 14): mỗi ca là một response đặt sân và kết luận mong đợi của bộ kiểm mức cọc (ok | sai | dừng). Không gọi BE.",
+  "cases": [
+    {
+      "name": "tadss đúng rate 0.3, làm tròn xa số 0 (228.000 × 0,3 = 68.400)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.3",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 228000,
+        "depositRate": 0.3,
+        "depositAmount": 68400,
+        "depositSource": "TADSS"
+      },
+      "expect": "ok"
+    },
+    {
+      "name": "tadss làm tròn nửa đồng lên (100.005 × 0,3 = 30.001,5 ⇒ 30.002)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.3",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 100005,
+        "depositRate": 0.3,
+        "depositAmount": 30002,
+        "depositSource": "TADSS"
+      },
+      "expect": "ok"
+    },
+    {
+      "name": "tadss làm tròn chính xác (1.450 × 0,29 = 420,5 ⇒ 421; số thực của JS ra 420,49999…)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.29",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 1450,
+        "depositRate": 0.29,
+        "depositAmount": 421,
+        "depositSource": "TADSS"
+      },
+      "expect": "ok"
+    },
+    {
+      "name": "tadss mức cọc quá 4 chữ số thập phân (TADSS MaxRateDecimals = 4)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.12345",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 100000,
+        "depositRate": 0.12345,
+        "depositAmount": 12345,
+        "depositSource": "TADSS"
+      },
+      "expect": "dừng"
+    },
+    {
+      "name": "tadss sai rate (response 0.5, kỳ vọng 0.3)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.3",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 228000,
+        "depositRate": 0.5,
+        "depositAmount": 114000,
+        "depositSource": "TADSS"
+      },
+      "expect": "sai"
+    },
+    {
+      "name": "tadss nhưng BE fallback (cờ tắt hoặc TADSS lỗi)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.3",
+        "LT04_STRATEGY": "DefaultDecisionStrategy 2.1.0",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 228000,
+        "depositRate": 1,
+        "depositAmount": 228000,
+        "depositSource": "FULL_PAYMENT_FALLBACK"
+      },
+      "expect": "sai"
+    },
+    {
+      "name": "tadss thiếu LT04_STRATEGY (nguồn gốc giá trị kỳ vọng, R29)",
+      "env": {
+        "LT04_EXPECT": "tadss",
+        "LT04_EXPECTED_RATE": "0.3",
+        "LT04_EXPECTED_RATE_SOURCE": "appsettings.json@commit StandardDepositRate"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 228000,
+        "depositRate": 0.3,
+        "depositAmount": 68400,
+        "depositSource": "TADSS"
+      },
+      "expect": "dừng"
+    },
+    {
+      "name": "fallback đúng (cọc 100 %)",
+      "env": {
+        "LT04_EXPECT": "fallback"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 120000,
+        "depositRate": 1,
+        "depositAmount": 120000,
+        "depositSource": "FULL_PAYMENT_FALLBACK"
+      },
+      "expect": "ok"
+    },
+    {
+      "name": "fallback nhưng số tiền cọc khác tổng",
+      "env": {
+        "LT04_EXPECT": "fallback"
+      },
+      "booking": {
+        "status": "PENDING",
+        "finalTotal": 120000,
+        "depositRate": 1,
+        "depositAmount": 119000,
+        "depositSource": "FULL_PAYMENT_FALLBACK"
+      },
+      "expect": "sai"
+    }
+  ]
+}

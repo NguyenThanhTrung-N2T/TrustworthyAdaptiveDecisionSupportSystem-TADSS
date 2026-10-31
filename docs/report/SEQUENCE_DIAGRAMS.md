@@ -257,13 +257,14 @@ sequenceDiagram
 
     C->>FE: Bấm Thanh toán cọc (sau khi đặt hoặc sau khi được duyệt)
     FE->>BE: POST /api/me/bookings/{id}/retry-payment
-    alt Đã tới hạn giữ chỗ tuyệt đối
+    alt Đã tới hạn giữ chỗ tuyệt đối, hoặc còn dưới 3 phút (khoảng đệm 2' + link sống ≥ 1')
         BE-->>FE: 400 PAYMENT_HOLD_EXPIRED
-        FE->>C: Hết thời gian giữ chỗ, mời đặt lại
+        FE->>C: Không còn đủ thời gian thanh toán, mời đặt lại
     else Còn hạn
         BE->>DB: Payment cũ đang chờ ⇒ FAILED, tạo Payment mới = depositAmount,<br/>hạn = min(hạn tuyệt đối, max(hạn hiện tại, now + 10'))
-        BE-->>FE: paymentUrl
+        BE-->>FE: paymentUrl (link VNPay hết hạn = hạn thanh toán − 2', paymentLinkExpiresAt)
         FE->>V: Chuyển khách tới VNPay
+        Note over V: Quá hạn link: VNPay báo hết thời gian (mã 15), không trừ tiền, không gửi IPN
         V->>BE: GET /api/payments/vnpay/ipn
         alt Thành công, đơn còn PENDING
             BE->>DB: PENDING → PAID_ONLINE (có điều kiện), Payment SUCCESS,<br/>hóa đơn PARTIALLY_PAID, xóa slot lock
@@ -271,7 +272,7 @@ sequenceDiagram
         else Thất bại (thẻ lỗi, khách hủy giao dịch)
             BE->>DB: Payment đang chờ ⇒ FAILED, đơn giữ PENDING,<br/>hạn rút về min(hạn, now + 5')
             BE-)H: PaymentFailed (kèm time grid)
-        else Thành công nhưng đơn đã bị hủy (phiên VNPay còn sống sau khi hết hạn)
+        else Thành công nhưng đơn đã bị hủy (IPN về trễ hơn khoảng đệm, trước 6A-6 còn do phiên VNPay không có hạn)
             BE->>DB: Payment SUCCESS, Refund 100 % PENDING (hoàn tiền mặt tại chi nhánh),<br/>CANCELLED → CANCELLED_PENDING_REFUND
             BE-)H: BookingCancelled (nhân viên thấy đơn chờ hoàn)
         else Thành công cho đơn đã được trả bằng link khác
@@ -280,10 +281,13 @@ sequenceDiagram
         end
         V->>FE: Chuyển về /payment/result
         FE->>BE: POST /api/payments/vnpay/confirm (chỉ đọc)
-        alt Thất bại
+        BE-->>FE: isSuccess (kết quả cổng), bookingStatus (trạng thái đơn), message
+        alt Cổng thất bại (kể cả mã 15 link quá hạn)
             FE->>C: Hai nút: Thanh toán lại (về bước 1) / Hủy đơn (Mục 6)
-        else Thành công
+        else Thành công và bookingStatus đã xác nhận
             FE->>C: Đã cọc, phần còn lại thu tại quầy
+        else Thành công nhưng bookingStatus đã hủy
+            FE->>C: Đơn đã hủy, hoàn tiền tại chi nhánh nếu khoản này đã ghi nhận
         end
     end
     Note over BE,DB: Không thanh toán trước hạn ⇒ job hủy đơn, lý do PAYMENT_EXPIRED

@@ -403,7 +403,7 @@ sequenceDiagram
     alt Không có hoặc là bản SHADOW
         OS-->>BE: 404 DECISION_NOT_FOUND
     else Có bản PRIMARY
-        OS->>OS: ValidateAgainstOrder (amount ≤ totalPrice, số chữ số thập phân; 400)
+        OS->>OS: ValidateAgainstOrder (amount ≤ totalPrice, số chữ số thập phân, lỗi 400)
         alt Đã có override
             alt Cùng key và cùng nội dung
                 OS-->>BE: 200 bản đã lưu (replay)
