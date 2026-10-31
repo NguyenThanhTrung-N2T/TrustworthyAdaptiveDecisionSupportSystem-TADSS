@@ -125,6 +125,10 @@ Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số đi
 3. TADSS `GET /health/ready` trả 200; `EnableTadssDecision = true`; URL ngrok của BE đã cập nhật vào `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL`. **VNPay chỉ gọi IPN URL khai ở trang "VNPAYGW SIT Testing" của đúng terminal** (biến `VNPAY_IPN_URL` không gửi sang VNPay): kiểm dòng của terminal đang dùng trỏ `https://<ngrok BE>/api/payments/vnpay/ipn`; mở thử một link do BE tạo phải tới trang chọn phương thức thanh toán (terminal bị khóa ⇒ trang lỗi mã 71). Mã terminal và HashSecret trong `.env` của BE phải khớp `appsettings.Development.json`. Ghi chú môi trường đầy đủ: [spec Phase 6 Mục 10.1](../../spec/PHASE6_DESIGN_SPEC.md#101-xác-minh-trước-khi-bắt-đầu-6a-1) (thử sandbox 28/10/2026).
 4. Kiểm giới hạn tốc độ `booking` của BE (vượt ngưỡng trả 429 `OTP_LIMIT_EXCEEDED`, DEPOSIT_APPROVAL_API 3.1) đủ cho số booking của đợt chạy.
 5. Ghi mốc bắt đầu `t_start` của đợt; cuối đợt ghi `t_end`. Bộ truy vấn SC6 chỉ xét dữ liệu trong `[t_start; t_end]`.
+6. **Chạy bộ kiểm SC6 (K-SC6) sau đợt** (BE-IT-20; plan 6A-6 Task 11): trong `SmashCourt-BE`, đặt biến môi trường rồi chạy `dotnet test SmashCourt-BE.Tests --filter "Category=Staging"`.
+   - `SC6_CONNECTION_STRING`: chuỗi kết nối Npgsql tới nhánh `staging`, nên dùng role chỉ đọc. Cần quyền đọc `public` của BE; quyền đọc `tadss.decision_executions` chỉ phục vụ phần chẩn đoán "quyết định mồ côi", thiếu quyền thì báo cáo ghi `orphanCheckError` và các điều SC6 vẫn được kiểm.
+   - `SC6_FROM_UTC = t_start`, `SC6_TO_UTC = t_end` (ISO 8601, bắt buộc, `t_end` phải trước lúc chạy kiểm để tập dữ liệu cố định); `TADSS_BASE_URL`, `TADSS_API_KEY` (điều 5); `SC6_OUTPUT` (đường dẫn file JSON vào Evidence Pack).
+   - Đọc trường `status` của file JSON: `PASS` (0 vi phạm và 0 mục không kết luận được, test đạt), `FAIL` (có vi phạm, xem `violations`, `violationsByRule`), `INCONCLUSIVE` (lỗi gọi TADSS, lỗi DB hoặc lượt bị dừng, xem `inconclusiveChecks`, `abortReason`: chạy lại sau khi sửa môi trường, không tính là đạt). `orphanDecisions` chỉ để chẩn đoán, không ảnh hưởng kết luận.
 
 ---
 

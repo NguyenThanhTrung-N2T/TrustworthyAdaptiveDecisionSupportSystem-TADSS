@@ -970,6 +970,8 @@ Môi trường (ghi lại để lần sau chạy nhanh):
 - `docker-compose.yml` của BE truyền mã terminal và HashSecret từ `.env`, đè lên `appsettings.Development.json`; hai nơi phải cùng giá trị (lệch ⇒ VNPay báo sai chữ ký).
 - Ngrok bản miễn phí chèn trang cảnh báo khi **trình duyệt** quay về callback (bấm "Visit Site" một lần); IPN của VNPay (User-Agent `VNPAY GATEWAY/2.0`) đi thẳng.
 - `FrontendBaseUrl` trong cấu hình Development đang trỏ FE trên Vercel, nên callback đưa khách sang bản deploy; thử với FE local thì đổi thành `http://localhost:3000`.
+- **SMTP trong container (31/10, plan 6A-6 Task 13):** mạng Docker không có IPv6 (`/proc/net/if_inet6` chỉ `::1`, không route IPv6) mà `smtp.gmail.com` có AAAA; mở TCP 587 qua IPv6 ra `Network unreachable` (đúng lỗi 28/10), qua IPv4 thành công. Đối chứng tầng .NET: trỏ SMTP tạm sang máy chủ chỉ có IPv6, `DOTNET_SYSTEM_NET_DISABLEIPV6=0` ⇒ `SocketException (101) Network unreachable`, `=1` ⇒ .NET không dùng IPv6. Đã thêm `DOTNET_SYSTEM_NET_DISABLEIPV6=1` vào `environment` của `smashcourt-be` (`docker-compose.yml` của BE); sau sửa 10/10 OTP liên tiếp qua Mailpit đạt. Chưa thử lại bằng thư thật qua Gmail (cần người dùng cho phép và địa chỉ nhận); vì sao lần 28/10 không tự lùi về IPv4 chưa chứng minh (thứ tự địa chỉ DNS hoặc IPv4 lỗi tạm rồi báo lỗi IPv6 cuối cùng).
+- **Mailpit (31/10, Task 12):** `docker compose -f docker-compose.yml -f docker-compose.mailpit.yml up -d --build`; image `axllent/mailpit:v1.27.10`; thư ở `http://localhost:8025`. `Smtp:EnableSsl` vắng ⇒ `true` (Gmail, production không đổi).
 - Một lần gửi email trong container BE lỗi `Network unreachable` (SMTP), các lần sau không thấy lỗi; dữ liệu không ảnh hưởng vì bước email tự bắt lỗi. Chưa tìm nguyên nhân.
 
 ### 10.2. Thứ tự (P6-17)

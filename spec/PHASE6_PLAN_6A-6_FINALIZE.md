@@ -10,7 +10,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit` (nền `8cd53b8`); `TADSS-Runtime` `develop` (k6 LT-04, tài liệu). TADSS không đổi mã nguồn `src/`.
 
-**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅, Task 8a ✅, Task 8b ✅ (30/10; 8a, 8b thêm cùng ngày cho T-15, T-16), Task 9 ✅, Task 10 ✅ (31/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
+**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅, Task 8a ✅, Task 8b ✅ (30/10; 8a, 8b thêm cùng ngày cho T-15, T-16), Task 9 ✅, Task 10 ✅, Task 11 ✅, Task 12 ✅, Task 13 ✅ (31/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
 
 **Cách đọc mỗi task:** *Vấn đề* → *Giải pháp* → *Vì sao* (kèm phương án đã cân nhắc) → *Ảnh hưởng* → *Kiểm*.
 
@@ -805,6 +805,60 @@ Trong lúc làm, ba file của bộ kiểm bị một trình sửa bên ngoài p
 **Rà `updated_at` (R30), không có lỗi thật:** mọi câu `ExecuteUpdateAsync` đổi trạng thái hoặc dữ liệu giữ sân của `bookings` (`BookingRepository`, `BookingRepository.Jobs`) đều ghi `UpdatedAt`; phép gán trạng thái trên entity ở service (`BookingService` check-in, check-out, xác nhận hoàn; `PaymentResultService`; `BookingJob` Job-04; `BookingCancellationService`) chỉ đồng bộ đối tượng trong bộ nhớ sau câu lệnh repository đã ghi. Không ghi `updated_at`, có lý do: `RejectByPolicyAsync` ghi `tadss_decision_id` ngay sau câu hủy đã ghi trong cùng transaction; `LockAsync` chỉ khóa dòng; `MarkOutcomeReportedAsync` cố ý không đổi để không đảo thứ tự hàng chờ outcome (sắp theo `updated_at`); `UpdateCourtActiveStatusAsync`, `SetActualEndPlayTimeAsync` sửa `booking_courts` và luôn đi sau câu đổi trạng thái đơn có `updated_at` (hủy, check-out, Job-02, từ chối); khoản tiền thứ hai về đơn đã `CANCELLED_PENDING_REFUND` chỉ thêm Payment, Refund, trạng thái đơn không đổi.
 
 **Test** (`Integration/Http/InvariantSelfCheckTests.cs`, 10 ca): vi phạm do test để lại ⇒ `CheckTouchedBookingsAsync` báo đúng điều, đúng đơn và `DisposeAsync` của nền ném `InvariantViolationException` `[SC6]`; R11 (a) đơn có sẵn bị test hủy mà còn slot lock ⇒ bị bắt; R11 (b) đơn có sẵn có vi phạm nhưng không bị đụng ⇒ ngoài phạm vi; bảy đường ghi đưa đơn có sẵn vào phạm vi và không kéo đơn khác: khách hủy, nhân viên hủy, IPN thành công, Quản lý duyệt, Job-01, check-out, xác nhận hoàn. Đột biến 4/4 bị bắt (chỉ đơn mới, chỉ đơn đổi `updated_at`, không ném khi có vi phạm, mặc định bỏ qua). Build Release 0 warning; toàn bộ BE **2504/2504** xanh (2494 + 10, 4 phút 7 giây), mọi test HTTP chạy kèm tự kiểm.
+
+**Cách làm Task 11–13 (người dùng cho làm song song các task không phụ thuộc nhau):** phiên chính làm Task 11 (chỉ mã test); một agent nhánh làm Task 12 rồi 13 (Docker, `EmailService`, compose) với ranh giới: không sửa `SmashCourt-BE.Tests/` hay tài liệu TADSS, không chạy `dotnet build/test` trên máy (tránh khóa thư mục build của phiên chính; kiểm biên dịch bằng Docker build), không gửi thư thật ra ngoài. Phiên chính review diff của nhánh và ghi tài liệu cho cả hai luồng.
+
+### Task 11 — Bộ kiểm SC6 trên staging (31/10/2026) ✅
+
+| File (project test, `Integration/Invariants/Staging/`) | Nội dung |
+| :--- | :--- |
+| `TadssDecisionProbe.cs` | SC6-5: `GET api/v2/decisions/{id}` qua `HttpClient` do caller dựng, tối đa 8 request đồng thời (`SemaphoreSlim`), timeout 5 giây mỗi request; kết quả mỗi task trả về rồi gộp (`Task.WhenAll`, không collection dùng chung). 200 đúng `decisionId` ⇒ có; 404 `application/problem+json` (kể cả có `charset`) `code = DECISION_NOT_FOUND` ⇒ vi phạm; còn lại (200 sai id hoặc không đọc được, 404 khác dạng, 401, 429, 5xx, timeout, lỗi mạng) ⇒ không kết luận được kèm lý do |
+| `StagingRunOptions.cs` | Đọc `SC6_CONNECTION_STRING`, `SC6_FROM_UTC`, `SC6_TO_UTC` (ISO 8601, quy về UTC, bắt buộc), `TADSS_BASE_URL` (tự thêm `/`), `TADSS_API_KEY`, `SC6_OUTPUT`; thiếu hoặc sai ⇒ dừng kèm tên biến |
+| `StagingInvariantRunner.cs` | Kiểm khoảng (UTC, `from ≤ to`, `to ≤` lúc bắt đầu; sai ⇒ không chạy, không ghi file); một snapshot REPEATABLE READ: SC6-1…4, 6 (now = lúc bắt đầu), tập đơn, `decisionId`, rồi chẩn đoán quyết định mồ côi (câu cuối: lỗi đọc bảng TADSS chỉ ghi `orphanCheckError`); sau snapshot mới gọi TADSS trên đúng danh sách đó; mọi lỗi giữa chừng (kể cả hủy) ⇒ báo cáo `INCONCLUSIVE` kèm `abortReason`. Một `NpgsqlDataSource` cho mỗi chuỗi kết nối, dùng lại giữa các lượt |
+| `StagingInvariantReport.cs` | `PASS` chỉ khi 0 vi phạm và 0 mục không kết luận được; `FAIL` khi có vi phạm; `INCONCLUSIVE` khi còn mục không kết luận được hoặc lượt dừng; `violationsByRule`; quyết định mồ côi không tính vào trạng thái; ghi JSON một lần qua file tạm rồi đổi tên |
+| `StagingFactAttribute.cs`, `StagingInvariantTests.cs` | `[StagingFact]` (Skip khi thiếu `SC6_CONNECTION_STRING`), `Trait Category=Staging`, `Catalog=BE-IT-20`; test chỉ đạt khi `PASS`, in JSON ra output |
+| `InvariantRules.DecisionExistsInTadss = "SC6-5"`; `ResolveScopeAsync` thành `internal` để lấy đúng tập đơn trong snapshot | `Invariants/InvariantViolation.cs`, `Invariants/BookingInvariantChecker.cs` |
+
+Lệnh chạy và cách đọc kết quả ghi ở E2E_TEST_SPECIFICATION 3.6 bước 6.
+
+**Khác plan, có lý do:**
+
+1. Lần "chạy thử với `SC6_CONNECTION_STRING` trỏ DB Testcontainers" thay bằng test tích hợp `StagingInvariantRunnerTests` chạy đúng đường của lượt staging (dựng context từ chuỗi kết nối, snapshot, gọi TADSS giả, ghi JSON) trên database riêng có schema BE và bảng `tadss.decision_executions` tối thiểu: tự động, lặp lại được, có kiểm kết quả.
+2. Chẩn đoán quyết định mồ côi lỗi (thiếu quyền hoặc thiếu bảng `tadss`) không làm dừng lượt kiểm: ghi `orphanCheckError`, các điều SC6 vẫn được kết luận (plan không nói rõ trường hợp này).
+3. Các test phân loại phản hồi đặt timeout rộng (30 giây): lượt chạy đầu, khi agent nhánh đang build Docker, một ca 404 trả "quá 5 giây" thay vì "404". Chỉ ca kiểm timeout đặt timeout ngắn có chủ đích; giá trị mặc định 5 giây có test riêng.
+
+**Lỗi do chính test của Task 11 gây ra, phát hiện khi chạy toàn bộ, đã sửa:** bản đầu tạo một database riêng (một data source) cho mỗi test và bộ chạy tạo data source mới mỗi lượt; EF Core dựng một service provider nội bộ cho mỗi data source và ném `ManyServiceProvidersCreatedWarning` khi quá 20 trong một tiến trình (bộ nhớ đệm dùng chung) ⇒ 449 test chạy sau trong cùng lượt hỏng theo. Chạy riêng nhóm Task 11 thì xanh nên không thấy. Sửa gốc, không tắt cảnh báo: bộ chạy dùng lại một data source cho mỗi chuỗi kết nối (`DataSourceFor`, test seed dữ liệu bằng chính nó); test dùng chung một database cho cả lớp, mỗi test một khoảng ngày riêng cách 5 ngày; riêng test "không đọc được bảng TADSS" dùng database riêng không có schema `tadss`.
+
+**Test** (43 ca, 1 Skipped là `StagingInvariantTests` trong lượt chạy thường):
+
+- `TadssDecisionProbeTests` (19): 200 đúng id; 200 sai id, thiếu id, không phải JSON, mảng; 404 problem+json `DECISION_NOT_FOUND` (có và không `charset`); 404 thân trống, HTML, `application/json` đúng mã, problem+json mã khác; 401, 429, 500, 503; chậm quá timeout; lỗi mạng (cổng đóng); giá trị mặc định 5 giây và 8 request; 30 quyết định với giới hạn 8 ⇒ đo phía client số request đang bay cùng lúc trong [2; 8], đủ 30 kết quả đúng cặp đơn–quyết định.
+- `StagingInvariantReportTests` (6): luật trạng thái; quyết định mồ côi không đổi trạng thái; lượt dừng không bao giờ `PASS`; đếm theo điều; JSON đủ trường; ghi đè qua file tạm, không để lại file tạm.
+- `StagingRunOptionsTests` (6): đọc đủ biến, quy offset về UTC, thêm `/`; thiếu hoặc sai từng biến ⇒ báo đúng tên; `[StagingFact]` Skip khi thiếu chuỗi kết nối, chạy khi có.
+- `StagingInvariantRunnerTests` (11, DB thật + WireMock): mọi thứ khớp ⇒ `PASS`, file JSON, đủ `X-Api-Key`, chỉ gọi TADSS cho đơn có quyết định; một quyết định 404 ⇒ `FAIL` SC6-5 đúng đơn; TADSS 503 ⇒ `INCONCLUSIVE`; thiếu `TADSS_BASE_URL` ⇒ `INCONCLUSIVE` (không có quyết định thì vẫn `PASS`); vi phạm trong khoảng ⇒ `FAIL`, dữ liệu cũ ngoài khoảng bỏ qua; khoảng chưa kết thúc hoặc ngược ⇒ không chạy, không file; đơn tạo trong lúc đang gọi TADSS không được thêm vào tập kiểm (R28); sai database ⇒ file `INCONCLUSIVE` kèm lý do; lượt bị hủy ⇒ `INCONCLUSIVE`; quyết định mồ côi (đơn lưu quyết định khác, đơn không lưu, BE không có đơn; bỏ `SHADOW` và ngoài khoảng) liệt kê đúng mà không đổi trạng thái; không đọc được bảng TADSS ⇒ `orphanCheckError`, SC6 vẫn `FAIL` đúng vi phạm.
+
+**Đột biến 15/15 bị bắt:** probe (200 không kiểm id; mã khác coi là có; timeout coi là có; bỏ giới hạn đồng thời; 404 bỏ kiểm media type; 404 bỏ kiểm mã lỗi), báo cáo (không kết luận được thành `PASS`; lượt dừng thành `PASS`), bộ chạy (cho khoảng chưa kết thúc; lỗi giữa chừng không ghi báo cáo; lỗi bảng TADSS làm hỏng cả lượt; thiếu quyết định coi là không kết luận; không gửi `X-Api-Key`; mồ côi gồm cả `SHADOW`; đọc lại danh sách đơn sau khi gọi TADSS). Ba đột biến đầu viết sai cú pháp (không build) được viết lại; các đột biến của bộ chạy chạy lại sau khi sửa lỗi service provider. Build Release 0 warning; toàn bộ BE **2546 đạt + 1 Skipped / 2547** (2504 + 43, 3 phút 57 giây), gồm thay đổi `EmailService` của Task 12.
+
+### Task 12 — `Smtp:EnableSsl` và compose phụ Mailpit (31/10/2026, agent nhánh) ✅
+
+| Thay đổi | File |
+| :--- | :--- |
+| `EnableSsl = _config.GetValue("Smtp:EnableSsl", true)` (vắng khóa ⇒ `true`; `appsettings*.json` không có khóa nên Gmail, production giữ SSL) | `SmashCourt-BE/Services/EmailService.cs` |
+| Compose phụ: service `mailpit` (`axllent/mailpit:v1.27.10`, `MP_SMTP_AUTH_ACCEPT_ANY=1`, `MP_SMTP_AUTH_ALLOW_INSECURE=1`, `127.0.0.1:8025`, mạng `smashcourt-network`); `smashcourt-be` đè `Smtp__Host=mailpit`, `Smtp__Port=1025`, `Smtp__EnableSsl=false`, `depends_on: mailpit` | `SmashCourt-BE/docker-compose.mailpit.yml` (mới) |
+| Lệnh compose kèm Mailpit | `SmashCourt-BE/CLAUDE.md`; MASTER_EXECUTION_PLAN mục E-STAGING (phiên chính) |
+
+**Khác plan, có lý do:** file phụ đè thêm `Smtp__Username`, `Smtp__Password`, `Smtp__From` bằng giá trị giả: nếu không, mật khẩu ứng dụng Gmail thật trong cấu hình Development bị gửi dạng rõ sang Mailpit (Mailpit nhận mọi tài khoản).
+
+**Kiểm (chạy thật):** có file phụ ⇒ build qua Dockerfile đạt, `POST /api/auth/register` cho `mailpit-check-202610311249@lt04.test` 200, API Mailpit có đúng một thư "Xác thực tài khoản SmashCourt" tới đúng địa chỉ, có mã 6 số; không có file phụ ⇒ container không có biến `Smtp__*`, máy chủ là `smtp.gmail.com`, `EnableSsl` vắng nên `true` (không gửi thư).
+
+### Task 13 — Lỗi `Network unreachable` của SMTP trong container (31/10/2026, agent nhánh) ✅
+
+Tái hiện được, nguyên nhân IPv6, đã sửa bằng `DOTNET_SYSTEM_NET_DISABLEIPV6=1` trong `environment` của `smashcourt-be` (`SmashCourt-BE/docker-compose.yml`). Bằng chứng từng bước ghi ở spec 10.1 (ghi chú môi trường): AAAA có, container không có IPv6; TCP 587 qua IPv6 `Network unreachable`, qua IPv4 mở được; đối chứng tầng .NET bằng máy chủ chỉ có IPv6 (công tắc 0 ⇒ lỗi 101, 1 ⇒ không dùng IPv6); sau sửa 10/10 OTP liên tiếp qua Mailpit đạt.
+
+**Khác plan:** bước "10 lần gửi OTP" chạy qua Mailpit, không qua Gmail, vì không gửi thư thật ra ngoài khi chưa được người dùng cho phép; phần chứng minh nguyên nhân làm ở tầng mạng và tầng .NET, không cần thư thật. **Còn để lại:** một lượt gửi thật qua Gmail sau khi sửa (cần người dùng cho phép và địa chỉ nhận). Công tắc áp cho cả container BE (Neon, Redis Cloud, VNPay, TADSS đều đi IPv4 như trước).
+
+**Dữ liệu thử trên DB dev** (chưa xác thực; job dọn tài khoản chưa xác thực tự xóa): `mailpit-check-202610311249@lt04.test`, `mailpit-check-202610311252-ipv6probe0@lt04.test`, `mailpit-check-202610311253-ipv6probe1@lt04.test` (đăng ký trả 500 vì lỗi gửi OTP có chủ đích), `mailpit-check-202610311255-otp1…otp10@lt04.test`.
+
+**Ghi nhận, không phải lỗi:** đăng ký khi gửi OTP lỗi trả 500 nhưng có thể để lại người dùng chưa xác thực; không chặn người dùng vì đăng ký lại cùng email chưa xác thực sẽ gửi lại OTP (`AuthService.RegisterAsync`), job dọn tài khoản chưa xác thực xóa bản ghi. `docker-compose.yml` có cảnh báo `version` lỗi thời từ trước.
 
 ---
 
