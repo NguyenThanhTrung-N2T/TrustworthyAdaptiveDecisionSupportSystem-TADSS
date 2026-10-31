@@ -322,8 +322,8 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | NG-1 | `docker compose config --quiet` của `docker-compose.yml` (file compose duy nhất) hợp lệ (với `NGROK_AUTHTOKEN` giả) và `config --services` liệt kê đủ `tadss-runtime`, `ngrok`, `grafana` (không profile); môi trường `Development`, không mount file, compose không chứa biến chuỗi kết nối/khóa; `ApplyMigrationsOnStartup` là literal `"false"` | tự động | P5 |
 | NG-2 | Container thăm dò trong cùng network gọi `http://tadss-runtime:8080`: `/health/ready` 200; `POST /api/v2/decisions` không có key → 401, có key → 200; app **không khởi động** khi thiếu API key ở `Staging` (Swagger được phục vụ ở Development nên không kiểm 404) | tự động | P5 |
 | NG-3 | Truy cập database: sau POST, `GET /api/v2/decisions/{id}` trả đúng quyết định vừa ghi (chứng minh đường ghi và đọc DB), và đếm bản ghi bằng `psql` trong container PostgreSQL tạm của `verify-expose.sh`. `/health/ready` kiểm tra kết nối DB nên lỗi kết nối hiện ngay khi khởi động | tự động (PostgreSQL tạm); với Neon thật do người dùng chạy ở NG-4 | P5 |
-| NG-4 | Qua tunnel thật: `curl https://<domain>/health/ready` 200; POST và GET với `X-Api-Key`; thấy request trong `127.0.0.1:4040` | **người dùng** (cần `NGROK_AUTHTOKEN`) | P5 |
-| NG-5 | Mọi cổng host của `docker-compose.yml` (`tadss-runtime`, giao diện ngrok `4040`, Grafana `3001` và OTLP `4317`/`4318`) chỉ bind `127.0.0.1` (kiểm cả cấu hình render ra và `docker compose ps`); không có cổng nào bind `0.0.0.0` | tự động | P5 |
+| NG-4 | Qua tunnel thật: `curl https://<domain>/health/ready` 200; POST và GET với `X-Api-Key`; thấy request trong `127.0.0.1:4042` | **người dùng** (cần `NGROK_AUTHTOKEN`) | P5 |
+| NG-5 | Mọi cổng host của `docker-compose.yml` (`tadss-runtime`, giao diện ngrok `4042`, Grafana `3001` và OTLP `4317`/`4318`) chỉ bind `127.0.0.1` (kiểm cả cấu hình render ra và `docker compose ps`); không có cổng nào bind `0.0.0.0` | tự động | P5 |
 
 ### 4.13. SCALE — Nhiều instance (gói 5.4)
 

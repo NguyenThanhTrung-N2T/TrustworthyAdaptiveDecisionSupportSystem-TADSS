@@ -149,7 +149,7 @@ else
 fi
 
 # ── NG-5 (tĩnh): mọi cổng trong cấu hình render ra đều bind 127.0.0.1 ──
-rendered="$rendered_main"  # gồm cổng 4040 của ngrok và cổng Grafana/OTLP
+rendered="$rendered_main"  # gồm cổng 4042 của ngrok và cổng Grafana/OTLP
 cfg_published="$(printf '%s' "$rendered" | grep -c '"published" *:')"
 cfg_loopback="$(printf '%s' "$rendered" | grep -c '"host_ip" *: *"127\.0\.0\.1"')"
 cfg_ports="FAIL"

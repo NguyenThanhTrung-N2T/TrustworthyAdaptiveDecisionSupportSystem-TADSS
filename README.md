@@ -247,7 +247,7 @@ Chỉ **một lệnh** `docker compose up -d --build` chạy TADSS, ngrok và Gr
 2. Tạo mạng dùng chung với SmashCourt-BE/FE (một lần): `docker network create smashcourt-network`.
 3. Tạo `.env` từ `.env.example` (không commit) và điền `NGROK_AUTHTOKEN` (lấy ở dashboard.ngrok.com). Biến `TADSS_API_KEY_*` trong `.env` do `tools/security/hash_api_key.py` ghi (key gốc cho BE), compose không dùng.
 4. Chạy tất cả: `docker compose up -d --build`. TADSS ở `http://localhost:8081`, Grafana ở `http://localhost:3001`. Mỗi lần đổi `appsettings.Development.json` phải build lại image (`--build`).
-5. Lấy URL công khai của ngrok: mở `http://localhost:4040` hoặc chạy `docker compose logs ngrok`. URL **đổi mỗi lần khởi động lại** ngrok, nên phải cập nhật `Tadss:BaseUrl` của SmashCourt-BE mỗi lần. Muốn URL cố định, lấy domain tĩnh miễn phí ở dashboard ngrok rồi thêm `--url=<domain>` vào cuối dòng `command` của service `ngrok` trong `docker-compose.yml` (sửa một dòng).
+5. Lấy URL công khai của ngrok: mở `http://127.0.0.1:4042` (cổng host 4042 vì ngrok của SmashCourt-BE dùng 4040, của SmashCourt-AI dùng 4041) hoặc chạy `docker compose logs ngrok`. Gói miễn phí của ngrok cấp cho mỗi tài khoản một domain dev cố định, nên URL giữ nguyên qua các lần khởi động lại; TADSS dùng tài khoản ngrok riêng (không chung token với BE). SmashCourt-BE gọi TADSS qua URL này: đặt vào `TADSS_BASE_URL` trong `.env` của BE (compose BE truyền thành `TadssConfig:BaseUrl`).
 6. Grafana: mở `http://localhost:3001`. Image `grafana/otel-lgtm` bật sẵn truy cập ẩn danh với quyền Admin nên vào thẳng không cần đăng nhập; nếu cần đăng nhập thì mặc định là `admin` / `admin` (đây là mặc định công khai của Grafana, không phải secret của dự án). Cổng OTLP `4317` (gRPC) và `4318` (HTTP) chỉ bind `127.0.0.1`. TADSS gửi trace, metric và log tới Grafana qua OTLP: dashboard **TADSS Runtime** (thư mục "TADSS", uid `tadss-runtime`, nạp sẵn từ `docker/grafana/dashboards`, chỉ đọc) có số liệu sau vài request. Kiểm tự động: `bash tools/observability/verify-observability.sh` (cần Docker; lần đầu tải image ~3,7 GB).
 7. Dừng tất cả (gồm stack đánh giá): `docker compose down`.
 
@@ -287,7 +287,7 @@ Chạy trong thư mục `TADSS-Runtime/`.
 - **Container expose chạy `Development`.** Swagger (`/swagger`) công khai qua URL ngrok và validator `Tadss:Security` ở chế độ nới lỏng, nên API key trong file phải là khóa riêng thật; tuyệt đối không dùng `tadss-local-dev-key` khi expose.
 
 Lưu ý khác:
-- Trang theo dõi của ngrok ở `http://127.0.0.1:4040` hiển thị header của mọi request, kể cả `X-Api-Key`, và cho phép phát lại request. Chỉ dùng khi thử và dừng stack ngay sau đó.
+- Trang theo dõi của ngrok ở `http://127.0.0.1:4042` hiển thị header của mọi request, kể cả `X-Api-Key`, và cho phép phát lại request. Chỉ dùng khi thử và dừng stack ngay sau đó.
 - Nâng phiên bản ngrok hoặc Grafana bằng cách sửa tag của `image` trong `docker-compose.yml`.
 - Cần Docker Compose >= 2.24.4 (`tools/expose/verify-expose.sh` kiểm tra).
 
@@ -299,7 +299,7 @@ Lưu ý khác:
 | `dotnet run` trên máy host | Compose | `http://localhost:8081` |
 | `dotnet run` trên máy host | `dotnet run` (không container) | `http://localhost:5296` |
 | Trong Docker | `dotnet run` trên máy host | `http://host.docker.internal:5296` |
-| Máy khác / demo | Compose (service ngrok) | URL ngrok hiện tại, xem `http://localhost:4040`; đổi mỗi lần khởi động lại (xem NG-4) |
+| Máy khác / demo | Compose (service ngrok) | URL ngrok của TADSS (domain dev cố định của tài khoản), xem `http://127.0.0.1:4042` (xem NG-4) |
 
 ### Cấu hình và biến
 
@@ -331,7 +331,7 @@ Script dựng project compose riêng `tadss-expose-check` (không đụng projec
 
 1. Sinh khóa và mã băm (mục Bảo mật) rồi đặt mã băm vào `appsettings.Development.json` (`Tadss:Security:ApiKeys`, ClientId `smashcourt-be`; cùng file có chuỗi kết nối Neon/Redis). Tạo `.env` từ `.env.example`, điền `NGROK_AUTHTOKEN`. Đảm bảo schema `tadss` trên Neon đã migrate.
 2. Tạo mạng nếu chưa có (`docker network create smashcourt-network`) rồi chạy `docker compose up -d --build`; chờ `tadss-runtime` healthy.
-3. Lấy URL công khai: `curl -s http://127.0.0.1:4040/api/tunnels` hoặc mở `http://127.0.0.1:4040` (giao diện kiểm tra của ngrok, chỉ loopback), hoặc `docker compose logs ngrok`. **Lưu ý bảo mật:** giao diện này lưu header của mọi request đi qua tunnel, kể cả `X-Api-Key`, ở dạng chữ thường (đọc được qua `http://127.0.0.1:4040/api/requests/http`) và cho phép phát lại request; vì vậy chỉ nghe loopback, và nên dừng stack ngay sau khi thử NG-4 (bước 5).
+3. Lấy URL công khai: `curl -s http://127.0.0.1:4042/api/tunnels` hoặc mở `http://127.0.0.1:4042` (giao diện kiểm tra của ngrok, chỉ loopback), hoặc `docker compose logs ngrok`. **Lưu ý bảo mật:** giao diện này lưu header của mọi request đi qua tunnel, kể cả `X-Api-Key`, ở dạng chữ thường (đọc được qua `http://127.0.0.1:4040/api/requests/http`) và cho phép phát lại request; vì vậy chỉ nghe loopback, và nên dừng stack ngay sau khi thử NG-4 (bước 5).
 4. Thử:
 
 ```bash
@@ -350,7 +350,7 @@ curl -sS -X POST "$URL/api/v2/decisions" -H "Content-Type: application/json" -H 
 curl -sS -X POST "$URL/api/v2/decisions" -H "Content-Type: application/json" -d "$body"   # 401 UNAUTHORIZED
 ```
 
-   Rồi `GET $URL/api/v2/decisions/<decisionId>` với `X-Api-Key` (200) và kiểm tra request xuất hiện ở `http://127.0.0.1:4040`.
+   Rồi `GET $URL/api/v2/decisions/<decisionId>` với `X-Api-Key` (200) và kiểm tra request xuất hiện ở `http://127.0.0.1:4042`.
 5. Dừng: `docker compose down`.
 
 Phía SmashCourt-BE: ghi chú triển khai ở [`docs/contracts/INTEGRATION_SPEC.md`](docs/contracts/INTEGRATION_SPEC.md) mục 4.5.

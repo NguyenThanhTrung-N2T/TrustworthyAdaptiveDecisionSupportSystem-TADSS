@@ -1,5 +1,5 @@
 # MỘT lệnh `docker compose up -d --build` chạy cả hai phần:
-#   1. Vận hành: TADSS (localhost:8081) + ngrok (URL công khai xem ở http://localhost:4040, đổi mỗi lần khởi động lại) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
+#   1. Vận hành: TADSS (localhost:8081) + ngrok (URL công khai xem ở http://127.0.0.1:4042; domain dev của tài khoản ngrok, cố định qua các lần khởi động) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
 #   2. Đánh giá (D-14): stack cô lập (các service eval-*) và evaluator tự chạy một lượt các bước a…f (bản nhanh ~30 phút; bản đầy đủ: EVAL_MODE=full), xong thì evaluator dừng.
 #      Theo dõi: docker compose logs -f evaluator   — kết quả: evidence/<run_id>/report.html; Grafana của stack đánh giá: localhost:3002.
 # Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
@@ -33,7 +33,7 @@ services:
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     ports:
-      - "127.0.0.1:4040:4040"   # trang theo dõi của ngrok
+      - "127.0.0.1:4042:4040"   # trang theo dõi của ngrok; cổng host 4042 vì ngrok của SmashCourt-BE dùng 4040, của SmashCourt-AI dùng 4041
     depends_on:
       tadss-runtime:
         # Chỉ chờ khởi động, KHÔNG chờ khỏe: app vận hành lỗi cấu hình (ví dụ API key sai) thì `up` vẫn chạy tiếp lượt đánh giá (D-14); ngrok trả 502 tới khi app lên
