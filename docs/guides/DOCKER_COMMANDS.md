@@ -1,6 +1,31 @@
 # Lệnh Docker hằng ngày (BE, TADSS, AI)
 
-Cập nhật 01/11/2026 (Epic 6C). CI build sẵn image và đẩy lên GHCR, nên trên máy chỉ cần **kéo về rồi chạy**, không phải build lại. Khi có CD tự động (gói 6C-2b), runner sẽ tự làm việc này.
+Cập nhật 01/11/2026 (Epic 6C). CI build sẵn image và đẩy lên GHCR, nên trên máy chỉ cần **kéo về rồi chạy**, không phải build lại. Mục 0 là môi trường deploy chạy thường trực; mục 1–3 là cách chạy tay bằng compose ở gốc từng repo (khi cần thử riêng).
+
+## 0. Bản deploy (chạy thường trực)
+
+Một bản deploy của cả hệ thống trên máy: BE + TADSS + AI + PostgreSQL + Redis + ngrok của BE (FE trên Vercel gọi BE qua ngrok). Push `develop` hoặc `master` đều triển khai vào bản này (lần push gần nhất thắng; bình thường là `develop`). Dữ liệu BE chép từ Neon DB test `tadss-dev`; DB gốc không bị đụng tới.
+
+Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả hệ thống), `deploy.sh`, `seed-db.sh`, `init-db.sql`, `.env.example`. Bí mật: **một** file `~/.smashcourt-deploy/.env` (ngoài repo, mẫu là `.env.example`).
+
+| Việc | Lệnh (trong `SmashCourt-BE/`) |
+| :--- | :--- |
+| Cập nhật một service lên bản mới nhất | `bash deploy/deploy.sh be` · `bash deploy/deploy.sh tadss` · `bash deploy/deploy.sh ai` |
+| Bật cả hệ thống (lần đầu, hoặc sau khi tắt hẳn) | `bash deploy/deploy.sh all` |
+| Chạy bản của `master` hoặc quay về bản cũ | `bash deploy/deploy.sh be master` · `bash deploy/deploy.sh be sha-xxxxxxx` |
+| Nạp lại dữ liệu BE từ `tadss-dev` (**xóa sạch** dữ liệu của bản deploy rồi chép mới; gõ `smashcourt` để xác nhận) | `bash deploy/seed-db.sh` |
+| Xem log | `docker logs -f smashcourt-be` · `docker logs -f tadss-runtime` · `docker logs -f smashcourt-ai` |
+
+| Container | Địa chỉ | Ghi chú |
+| :--- | :--- | :--- |
+| `smashcourt-be` | http://localhost:8080/health/ready | Công khai qua `smashcourt-ngrok` (trang ngrok http://localhost:4040) |
+| `tadss-runtime` | http://localhost:8081/health/ready | Chỉ BE gọi |
+| `smashcourt-ai` | http://localhost:8000/health | |
+| `smashcourt-postgres` | `127.0.0.1:15432` (DBeaver…) | Database `smashcourt`, `tadss`; tài khoản trong `.env` |
+| `smashcourt-redis` | | Cache của TADSS |
+
+- Bản deploy và cách chạy tay ở mục 2 dùng chung cổng, tên container và tài khoản ngrok của BE. **Chỉ chạy một trong hai**: muốn chạy tay thì `docker stop smashcourt-be smashcourt-ngrok tadss-runtime smashcourt-ai` trước, xong thì `bash deploy/deploy.sh all`.
+- Khi có CD tự động (gói 6C-2b), push sẽ tự chạy `deploy.sh` của service vừa push.
 
 ## 1. Chạy bản nào? Biến `IMAGE_TAG` trong `.env`
 
