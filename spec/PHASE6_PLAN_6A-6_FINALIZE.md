@@ -10,7 +10,7 @@
 
 **Nhánh:** `SmashCourt-BE` `feat/phase-6-deposit` (nền `8cd53b8`); `TADSS-Runtime` `develop` (k6 LT-04, tài liệu). TADSS không đổi mã nguồn `src/`.
 
-**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅, Task 8a ✅, Task 8b ✅ (30/10; 8a, 8b thêm cùng ngày cho T-15, T-16), Task 9 ✅ (31/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
+**Trạng thái:** plan bản 3 (29/10/2026). Đang làm: Task 0 ✅, Task 1 ✅, Task 2 ✅, Task 3 + 4 ✅, Task 5 ✅, Task 16 ✅, Task 6 ✅, Task 7 ✅, Task 8 ✅, Task 8a ✅, Task 8b ✅ (30/10; 8a, 8b thêm cùng ngày cho T-15, T-16), Task 9 ✅, Task 10 ✅ (31/10); kết quả ở mục "Kết quả thực hiện". Bản 3 thêm bốn tiêu chí nghiệm thu từ vòng review thứ hai (mục 0.6, R26–R31): cách xác nhận S1 không phụ thuộc BE, hành vi khi cổng không hỗ trợ hạn link, tập dữ liệu và báo cáo cố định của SC6 staging, nguồn gốc giá trị kỳ vọng của LT-04; rà `updated_at` cho phạm vi tự kiểm. Bản 2 sửa theo hai bản review ngoài cùng ngày (kết quả từng điểm ở mục 0.6): tiêu chí đối chứng URL ba mức, câu hoàn tiền của N-36 dựa trên Payment của chính giao dịch, SC6-4 tách hai điều, bộ kiểm đọc trong một snapshot, phạm vi tự kiểm gồm cả đơn bị sửa, kết quả staging có trạng thái "không kết luận được", LT-04 có mức cọc kỳ vọng độc lập, ca T-10 theo ràng buộc `end_time > start_time`, thứ tự làm và ước lượng.
 
 **Cách đọc mỗi task:** *Vấn đề* → *Giải pháp* → *Vì sao* (kèm phương án đã cân nhắc) → *Ảnh hưởng* → *Kiểm*.
 
@@ -784,6 +784,27 @@ Kết luận: mức nghiêm trọng phụ thuộc đơn có quyết định TADS
 **Việc để lại (không làm trong 6A-6 vì plan không đổi schema; ghi ở spec Mục 11):** ràng buộc DB `chk_bookings_cancelled_has_reason` bằng script `docs/database/phase6_*.sql`, đếm lại trước khi chạy (phải 0), cập nhật bản dump schema và bản sao trong BE.
 
 Trong lúc làm, ba file của bộ kiểm bị một trình sửa bên ngoài phiên đổi rồi trả lại (00:51, người dùng xác nhận đã dừng); bản cuối do phiên này viết lại toàn bộ phần SC6-6 sau khi kiểm file ổn định. Build Release 0 warning; toàn bộ BE **2494/2494** xanh (2483 + 11, 4 phút 7 giây).
+
+### Task 10 — Tự kiểm SC6 sau mỗi test HTTP (31/10/2026) ✅
+
+| Thay đổi (project test) | File |
+| :--- | :--- |
+| `HttpTestBase : IAsyncLifetime` (`virtual`): `InitializeAsync` chụp `(id, updated_at)` của mọi đơn; `DisposeAsync` chạy `BookingInvariantChecker` trên phạm vi = đơn mới ∪ đơn có sẵn mà `updated_at` **khác** lúc đầu, `now` = đồng hồ hệ thống (như host); có vi phạm ⇒ ném `InvariantViolationException` (tiền tố `[SC6]`, kèm danh sách). `SkipInvariantCheckReason` (mặc định null), `TouchedBookingIdsAsync`, `CheckTouchedBookingsAsync`, `RestartInvariantScopeAsync` (chỉ để test chính bộ tự kiểm) | `Integration/Http/HttpTestBase.cs`, `Integration/Invariants/InvariantViolationException.cs` |
+
+**Khác plan, có lý do:** plan lấy đơn có `updated_at ≥ lúc bắt đầu − 1 giây`. Chạy thử thì khoảng lùi 1 giây kéo đơn của test **trước** (chạy cách < 1 giây) vào phạm vi test sau: lượt đầu 42 test đỏ, phần lớn là "vạ lây" (ví dụ ba test dashboard không chạm đơn nào). Đổi sang so ảnh chụp `(id, updated_at)`: chính xác, không phụ thuộc đồng hồ; điều kiện vẫn là mọi đường ghi phải đổi `updated_at` (rà R30 dưới). Các lớp HTTP vẫn tuần tự trong một collection (fixture collection được tiêm), không phải chạy song song.
+
+**Phân loại vi phạm lộ ra (sau khi bỏ vạ lây: 15 test, 0 lỗi mã sản phẩm, 0 test phải bỏ qua tự kiểm):**
+
+| Test | Vi phạm | Loại | Xử lý |
+| :--- | :--- | :--- | :--- |
+| `HttpTadssIntegrationTests` (11 ca) | Phụ-2 | Dữ liệu test: tự chèn đơn `PENDING` bằng `NewInvoice` không có `hold_deadline` (transaction 1 thật luôn ghi) | Seed như transaction 1: `ExpiresAt = +10'`, `HoldDeadline = +15'` |
+| `PaymentLockOrderTests.PaymentResultArrivingWhileACancelHoldsTheBooking…`, `ExpiryConcurrencyTests.Job04_LosesToAStaffCancellationWithRefund`, `ExpiryConcurrencyTests.ApprovalExpiry_LosesToAStaffCancellationThatJustCommitted`, `ApprovalConcurrencyTests.BookingChangesWhileTadssAnswers…(cancelled)` | SC6-3 | Dữ liệu test: giả lập "nhân viên đang hủy" chỉ bằng câu cập nhật có điều kiện (để giữ khóa), bỏ phần nhả sân, slot lock mà `BookingCancellationService` luôn làm | Giả lập thêm đúng hai lệnh của dịch vụ hủy (`UpdateCourtActiveStatusAsync(false)`, `SlotLockRepository.DeleteByBookingIdAsync`) trong cùng transaction, sau câu điều kiện; thứ tự khóa và ý nghĩa test không đổi |
+
+**Không che lỗi gốc:** test tạm (thân test ném `InvalidOperationException` và để lại đơn vi phạm Phụ-2) cho `AggregateException` chứa **cả hai** lỗi (lỗi thân test trước, `[SC6]` sau); đã xóa test tạm.
+
+**Rà `updated_at` (R30), không có lỗi thật:** mọi câu `ExecuteUpdateAsync` đổi trạng thái hoặc dữ liệu giữ sân của `bookings` (`BookingRepository`, `BookingRepository.Jobs`) đều ghi `UpdatedAt`; phép gán trạng thái trên entity ở service (`BookingService` check-in, check-out, xác nhận hoàn; `PaymentResultService`; `BookingJob` Job-04; `BookingCancellationService`) chỉ đồng bộ đối tượng trong bộ nhớ sau câu lệnh repository đã ghi. Không ghi `updated_at`, có lý do: `RejectByPolicyAsync` ghi `tadss_decision_id` ngay sau câu hủy đã ghi trong cùng transaction; `LockAsync` chỉ khóa dòng; `MarkOutcomeReportedAsync` cố ý không đổi để không đảo thứ tự hàng chờ outcome (sắp theo `updated_at`); `UpdateCourtActiveStatusAsync`, `SetActualEndPlayTimeAsync` sửa `booking_courts` và luôn đi sau câu đổi trạng thái đơn có `updated_at` (hủy, check-out, Job-02, từ chối); khoản tiền thứ hai về đơn đã `CANCELLED_PENDING_REFUND` chỉ thêm Payment, Refund, trạng thái đơn không đổi.
+
+**Test** (`Integration/Http/InvariantSelfCheckTests.cs`, 10 ca): vi phạm do test để lại ⇒ `CheckTouchedBookingsAsync` báo đúng điều, đúng đơn và `DisposeAsync` của nền ném `InvariantViolationException` `[SC6]`; R11 (a) đơn có sẵn bị test hủy mà còn slot lock ⇒ bị bắt; R11 (b) đơn có sẵn có vi phạm nhưng không bị đụng ⇒ ngoài phạm vi; bảy đường ghi đưa đơn có sẵn vào phạm vi và không kéo đơn khác: khách hủy, nhân viên hủy, IPN thành công, Quản lý duyệt, Job-01, check-out, xác nhận hoàn. Đột biến 4/4 bị bắt (chỉ đơn mới, chỉ đơn đổi `updated_at`, không ném khi có vi phạm, mặc định bỏ qua). Build Release 0 warning; toàn bộ BE **2504/2504** xanh (2494 + 10, 4 phút 7 giây), mọi test HTTP chạy kèm tự kiểm.
 
 ---
 
