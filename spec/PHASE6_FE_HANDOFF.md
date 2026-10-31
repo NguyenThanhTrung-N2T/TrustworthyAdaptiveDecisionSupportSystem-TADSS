@@ -52,7 +52,7 @@ docker compose -f docker-compose.yml -f docker-compose.mailpit.yml down   # tắ
 
 | Việc | Đặt thế nào |
 | :--- | :--- |
-| FE trỏ tới BE | `.env.local` của FE: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`. **Bẫy:** `.env.example` của FE đang ghi `NEXT_PUBLIC_API_URL` (dòng không comment), còn mã đọc `NEXT_PUBLIC_API_BASE_URL` |
+| FE trỏ tới BE | `.env` của FE: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` (BE chạy Docker) hoặc `http://localhost:5179` (`dotnet run`). Một biến duy nhất cho cả REST lẫn SignalR hub; `NEXT_PUBLIC_API_URL` đã bỏ (31/10) |
 | Cổng FE | Phải là `3000`: CORS của BE chỉ cho `http://localhost:3000` và tên miền Vercel |
 | VNPay quay về FE local | `FrontendBaseUrl` của BE = `http://localhost:3000` (trong `appsettings.Development.json` hoặc biến môi trường `FrontendBaseUrl`). VNPay gọi URL ngrok của BE; lần đầu ngrok hiện trang cảnh báo, bấm "Visit Site"; BE chuyển tiếp tới `FrontendBaseUrl/payment/result?vnp_...` |
 | Thẻ thử VNPay sandbox | Lấy ở trang hướng dẫn sandbox của VNPay (NCB); không ghi số thẻ hay OTP vào repo |
@@ -75,7 +75,7 @@ FE lệch BE là bình thường: BE đã đổi nhiều qua 6A-1…6A-6 và P6-
 | A6 | (chưa có) | Không có type, hàm API nào cho hàng chờ duyệt | Tạo `src/features/booking-approval/shared/types/booking-approval.types.ts` và `src/api/booking-approval.api.ts` (`fetchPendingApprovals`, `approveBooking`, `rejectBooking`) | API 4.1–4.3; spec 8.1 |
 | A7 | `src/lib/signalr-events.ts`, `src/features/notifications/NotificationDispatcher.tsx` | Không có 3 sự kiện duyệt cọc | Thêm `BOOKING_PENDING_APPROVAL`, `BOOKING_APPROVAL_RESOLVED`, `PENDING_APPROVAL_QUEUE_CHANGED` (giá trị trùng tên, khớp `SignalREvents.cs`); đăng ký toast và tải lại. `BookingCancelled`, `BookingExpired` không mang dữ liệu hủy: nhận thì tải lại đơn | API Mục 6; spec 8.1 |
 | A8 | `src/shared/utils/date.ts`, `dateFormatter.ts` và 17 file dùng `toISOString().split("T")[0]` | "Hôm nay" theo UTC; `dateFormatter.ts` tự đọc chuỗi | Thêm `getTodayVN()`, `parseBackendDateVN()`; thay ở: `AnalyticsSummaryPanel`, `PricingSuggestionsPanel`, `PromotionSuggestionsPanel`, `StrategicInsightsPanel`, `CourtAndTimeSelectionStep`, `useBookingForm`, `BookingCalendarView`, `BookingFilterToolbar`, `WalkInBookingWorkspace`, `useBookingSchedule`, `BookingManagementBase`, `filter.types.ts`, `walkinBooking.types.ts`, `CourtManagementBase`, `CourtFilters`, `useCourtManagement`, `dateFormatter.ts`. `dateFormatter.ts` chuyển sang gọi `parseBackendDate` | Spec 8.1 (T-7, T-8) |
-| A9 | `.env.example` | Dòng không comment là `NEXT_PUBLIC_API_URL` | Mã đọc `NEXT_PUBLIC_API_BASE_URL`: sửa tên biến trong file mẫu | — |
+| A9 | `.env.example`, `src/lib/signalr-client.ts` | **Đã làm 31/10.** Trước đó REST đọc `NEXT_PUBLIC_API_BASE_URL`, SignalR đọc `NEXT_PUBLIC_API_URL` (mặc định `localhost:5179`) | Gộp về `NEXT_PUBLIC_API_BASE_URL`: hub dựng bằng `toUrl("/hubs/notifications")` như REST; file mẫu, README sửa theo | — |
 | A10 | `package.json`, `.github/workflows/ci.yml` | Không có MSW, Playwright, bộ chạy unit test; CI chỉ `lint` + `build` | Cài MSW (6B-1), bộ chạy unit test cho FE-12 (6B-1), Playwright (6B-5); thêm bước `npx tsc --noEmit -p .` vào CI (FE-01) | Spec 8.5 |
 
 ### 4.2. Logic và màn hình (6B-2…6B-4)
@@ -137,7 +137,7 @@ Mỗi gói nên có plan riêng `spec/PHASE6_PLAN_6B-x_*.md` như các gói 6A (
 - `.github/workflows/ci.yml`: `npm ci` ⇒ `lint` ⇒ **`npx tsc --noEmit -p .`** (mới, FE-01) ⇒ `build` cho mọi push/pull request vào `master`, `develop`.
 - **Chỉ push `master`** (CI đạt) mới triển khai lên Vercel production (job `deploy-production`); `develop` chỉ chạy CI, không triển khai.
 - Việc của chủ repo FE (một lần): tạo Environment `production` trong Settings › Environments, thêm secrets `VERCEL_TOKEN` (Vercel › Account Settings › Tokens), `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (Vercel › Project Settings › General); trong Vercel tắt tự triển khai theo Git (Project Settings › Git) để chỉ còn đường qua CI. Chưa đặt secrets thì push `master` vẫn chạy CI, riêng bước triển khai báo lỗi.
-- Biến `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_API_URL` của bản production khai trong Vercel (Project Settings › Environment Variables), không lấy từ file `.env` trên máy.
+- Biến `NEXT_PUBLIC_API_BASE_URL` (địa chỉ gốc BE, không có `/api`) của bản production khai trong Vercel (Project Settings › Environment Variables, loại Config vì giá trị nằm trong bundle trình duyệt), không lấy từ file `.env` trên máy.
 - Khi FE trên Vercel gọi BE qua ngrok gói miễn phí: mọi request phải có header `ngrok-skip-browser-warning: true`, nếu không ngrok trả trang cảnh báo HTML thay cho JSON.
 - Chạy local: một file `.env` duy nhất, khối BE local đang bật, khối ngrok để dạng comment, tự đổi tay.
 

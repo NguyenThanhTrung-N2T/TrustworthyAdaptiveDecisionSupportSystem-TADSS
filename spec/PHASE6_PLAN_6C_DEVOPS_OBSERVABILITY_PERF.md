@@ -396,6 +396,15 @@ Quét bổ sung theo mẫu riêng: mọi kết quả là giá trị giả hoặc
 
 **Kết luận:** không có bí mật thật trong lịch sử của 4 repo ⇒ task 0.3 (đổi khóa) không cần làm; TADSS chuyển public được (task 0.4). Gợi ý khi public: thêm `.gitleaks.toml` để bỏ qua các báo nhầm đã xác minh ở trên (dataset, hằng stack đánh giá, khóa test) để lần quét sau và secret scanning của GitHub không báo lại.
 
+### Giai đoạn 1B — CI đẩy image (task 1.16–1.19, 1.49; 31/10/2026) — mã xong, chờ lượt CI đầu trên GitHub
+
+- **Một script cho 3 repo:** `tools/ci/build-image.sh <image> [--push]` (bản chép giống hệt ở BE, TADSS, AI): `docker build` một lần với `GIT_SHA`, `BUILD_VERSION=<nhánh>-<sha7>` ⇒ `check-image.sh` trên đúng image đó (OPS-01, OPS-02) ⇒ nhãn revision phải bằng sha đầy đủ ⇒ `--push` mới đẩy `sha-<7>` + tag nhánh. Chặn đẩy ngoài `master`/`develop`; `sha-<7>` đã có trên GHCR (chạy lại CI cùng commit) ⇒ không ghi đè (tag bất biến). Cache: kéo tag nhánh làm `--cache-from` (cache inline), không cần buildx. Digest ghi vào Summary của lượt chạy.
+- **Workflow:** mỗi repo thêm job `image` (`needs` job test/lint; quyền `packages: write` chỉ ở job này; đăng nhập GHCR bằng `GITHUB_TOKEN` chỉ khi `push`). `BRANCH`, `GIT_SHA` truyền qua `env` (không chèn thẳng `head_ref` vào lệnh). TADSS bỏ hai bước cũ "Verify Docker Image Packaging" + "non-root" (đã nằm trong `check-image.sh`).
+- **Quét lỗ hổng:** BE thêm `tools/ci/check-vulnerable-packages.sh` (chép SEC-7 của TADSS, đổi solution) sau restore (1.16). AI thêm `pytest` và `pip-audit==2.10.1 -r requirements-dev.txt` (1.49, SEC-AI-4); lượt quét đầu trên máy tìm thấy `python-dotenv 1.0.1` dính PYSEC-2026-2270 ⇒ nâng `1.2.2` (23/23 test xanh, ruff sạch, quét lại sạch).
+- **AI đẩy image cả `develop`:** người dùng chốt cuối 31/10 "AI / BE / TADSS: develop hoặc master đều chạy CI/CD"; image `develop` của AI có trên GHCR, còn môi trường nào chạy AI do `deploy.yml` (1D) quyết định.
+- **Đã kiểm trên máy:** actionlint 1.7.7 sạch cả 3 workflow; shellcheck sạch; 3 bản `build-image.sh` giống hệt; build thật image AI không đẩy ⇒ check-image đạt, revision = sha; `--push` trên nhánh `feat/...` ⇒ từ chối, thoát 1.
+- **Còn lại của 1B:** lượt CI đầu tiên trên GitHub (cổng 1B); người dùng đặt 3 package GHCR public (1.20) sau lần đẩy đầu.
+
 ## Phụ lục B — Thiết kế chi tiết (bản 2, giữ nguyên)
 
 Phụ lục này là phần thiết kế của bản 2 (đã sửa theo phản biện), giữ nguyên nội dung để tra cứu khi viết plan con từng gói. Số mục trong phụ lục mang tiền tố `B.`; các chỗ nhắc "Mục x" bên trong phụ lục là số mục của chính phụ lục. Phần nào khác với Mục 0–12 ở trên (vd bộ quan sát vận hành nay ở repo `smashcourt-deploy`, staging dùng PostgreSQL cục bộ, sha kiểm bằng nhãn image thay cho endpoint phiên bản, danh mục test nằm ở `tests/catalog.yaml`, môi trường `staging` của phụ lục nay tách thành `stable` ⇐ `master` và `preview` ⇐ `develop`, cảnh báo qua Gmail) thì theo Mục 0–12.
