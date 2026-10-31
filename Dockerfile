@@ -48,9 +48,19 @@ ENV ASPNETCORE_URLS=http://+:8080
 
 COPY --from=publish /app/publish .
 
-# Serilog File sink ghi vào logs/ (đường dẫn tương đối trong appsettings.Development.json): /app thuộc root nên phải tạo sẵn thư mục ghi được
+# Serilog File sink ghi vào logs/ (đường dẫn tương đối trong appsettings.Development.json, file này mount lúc chạy local): /app thuộc root nên phải tạo sẵn thư mục ghi được
 # cho user non-root, nếu không sink im lặng bỏ log. Đặt TRƯỚC USER vì mkdir/chown cần root.
 RUN mkdir -p /app/logs && chown $APP_UID /app/logs
+
+# Phiên bản của image (Epic 6C, P6-33): CI truyền --build-arg GIT_SHA=<sha> BUILD_VERSION=<tag>; CD so nhãn revision với sha cần triển khai
+ARG GIT_SHA=""
+ARG BUILD_VERSION="local"
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.source="https://github.com/NguyenThanhTrung-N2T/TrustworthyAdaptiveDecisionSupportSystem-TADSS" \
+      org.opencontainers.image.title="tadss-runtime"
+ENV APP_REVISION="${GIT_SHA}" \
+    APP_VERSION="${BUILD_VERSION}"
 
 # SEC-6: chạy bằng user non-root của image .NET 8 (APP_UID); đặt SAU apk add vì apk cần root
 USER $APP_UID

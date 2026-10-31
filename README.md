@@ -79,7 +79,7 @@ Cấu hình kết nối PostgreSQL/Redis và API key đặt trong user-secrets h
 
 Phát triển hằng ngày dùng `dotnet run` với `appsettings.Development.json` (PostgreSQL Neon + Redis Cloud, khóa API của bạn), **không dùng compose** (quyết định D-04). Schema `tadss` trên Neon do người dùng tự migrate bằng `dotnet ef database update` (quy tắc D-05); ứng dụng không tự migrate: `Tadss:Database:ApplyMigrationsOnStartup` mặc định `false`, chỉ bật cho database thử dùng một lần (Testcontainers, `tools/expose/verify-expose.sh`).
 
-`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được copy vào image local), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file, cũng không profile: các service `eval-*` và `evaluator` khởi động cùng ba service trên bằng một lệnh `docker compose up -d --build` (D-14), xem "Chế độ đánh giá một lệnh" bên dưới.
+`docker-compose.yml` là file compose **duy nhất**, chỉ dùng để chạy TADSS trong Docker và expose qua ngrok (`tadss-runtime` chạy ở `Development` như SmashCourt-BE, cùng `ngrok` và `grafana`, không profile: một lệnh `docker compose up -d --build` chạy cả ba; database Neon, Redis Cloud và API key đọc từ `appsettings.Development.json` được mount chỉ đọc vào container; file không nằm trong image), xem mục Chạy bằng Docker và expose qua ngrok. Chế độ đánh giá nằm cùng file, cũng không profile: các service `eval-*` và `evaluator` khởi động cùng ba service trên bằng một lệnh `docker compose up -d --build` (D-14), xem "Chế độ đánh giá một lệnh" bên dưới.
 
 **Ba chế độ chạy (D-12; D-14: chế độ vận hành và đánh giá chung một lệnh `up`):**
 
@@ -142,7 +142,7 @@ $key = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::Get
 Mã băm phải tính trên đúng chuỗi khóa client sẽ gửi (không thêm ký tự xuống dòng). Đặt vào:
 
 - `Development` (`dotnet run`): `appsettings.Development.json` (không commit) hoặc user-secrets, dạng `{ "Tadss": { "Security": { "ApiKeys": [ { "ClientId": "dev", "KeySha256": "<mã băm>" } ] } } }`; hoặc biến môi trường `Tadss__Security__ApiKeys__0__ClientId` và `Tadss__Security__ApiKeys__0__KeySha256`.
-- Docker/expose: cùng `appsettings.Development.json` ở trên (được copy vào image local, container chạy `Development` như SmashCourt-BE; xem mục Chạy bằng Docker và expose qua ngrok); khóa phải là khóa riêng, không dùng khóa local công khai.
+- Docker/expose: cùng `appsettings.Development.json` ở trên (compose mount chỉ đọc vào container, file không nằm trong image; container chạy `Development` như SmashCourt-BE; xem mục Chạy bằng Docker và expose qua ngrok); khóa phải là khóa riêng, không dùng khóa local công khai.
 
 Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằng cách xóa phần tử rồi khởi động lại.
 
@@ -157,7 +157,7 @@ Mỗi client một phần tử (chỉ số `0`, `1`, ...); thu hồi khóa bằn
 
 - Mọi project có `packages.lock.json` (`RestorePackagesWithLockFile` trong `Directory.Build.props`); CI và `Dockerfile` restore bằng `--locked-mode`, nên lock file lệch đồ thị phụ thuộc thì build đỏ. **Dependabot** (NuGet, GitHub Actions, Docker; mỗi tuần, nhánh `develop`) có thể mở PR nâng package mà không cập nhật `packages.lock.json`: khi đó CI đỏ ở bước restore cho tới khi chạy `dotnet restore --force-evaluate` rồi commit các `packages.lock.json` đã đổi vào PR.
 - CI chạy `tools/ci/check-vulnerable-packages.sh` (`dotnet list package --vulnerable --include-transitive` cho cả solution): mức High/Critical hoặc không quét được thì job đỏ. `System.Net.Http` 4.3.4 và `System.Text.RegularExpressions` 4.3.1 được ghim bắc cầu trong `Directory.Packages.props` (`CentralPackageTransitivePinningEnabled`) vì xunit 2.5.3 kéo bản 4.3.0 có lỗ hổng; chỉ ảnh hưởng project test, gỡ khi nâng xunit.
-- Image chạy bằng user non-root (`USER $APP_UID`); `.dockerignore` loại `.env`/khóa riêng (`appsettings.Development.json` vào image local như SmashCourt-BE, nên image không bao giờ được push); CI kiểm `Config.User` của image.
+- Image chạy bằng user non-root (`USER $APP_UID`); `.dockerignore` loại `.env`, khóa riêng và `appsettings.Development.json` (Epic 6C: image đẩy lên GHCR nên không chứa bí mật); `tools/ci/check-image.sh <image>` kiểm image không chứa file bí mật, không chạy root, có nhãn revision; CI kiểm `Config.User` của image.
 
 ---
 
@@ -283,7 +283,7 @@ Chạy trong thư mục `TADSS-Runtime/`.
 
 ### Lưu ý bảo mật
 
-- **Secret nằm trong image local.** `appsettings.Development.json` (chuỗi kết nối Neon, Redis Cloud, mã băm API key) được copy vào image `tadss-runtime`, giống cách SmashCourt-BE làm. Image này chỉ dùng trên máy bạn: **không bao giờ** `docker push` hay chia sẻ image/layer lên registry, và đừng tải nó lên CI.
+- **Secret không nằm trong image (Epic 6C).** `appsettings.Development.json` (chuỗi kết nối Neon, Redis Cloud, mã băm API key) được compose mount chỉ đọc vào container lúc chạy; image `ghcr.io/nguyenthanhtrung-n2t/tadss-runtime` không chứa file này nên đẩy lên registry được (kiểm bằng `bash tools/ci/check-image.sh <image>`). Image build trước Epic 6C (tên `tadss-tadss-runtime`) vẫn chứa file: xóa đi, không chia sẻ.
 - **Container expose chạy `Development`.** Swagger (`/swagger`) công khai qua URL ngrok và validator `Tadss:Security` ở chế độ nới lỏng, nên API key trong file phải là khóa riêng thật; tuyệt đối không dùng `tadss-local-dev-key` khi expose.
 
 Lưu ý khác:

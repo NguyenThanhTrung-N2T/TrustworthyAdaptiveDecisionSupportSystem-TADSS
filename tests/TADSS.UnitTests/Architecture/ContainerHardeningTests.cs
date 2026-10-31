@@ -6,7 +6,8 @@ namespace TADSS.UnitTests.Architecture;
 
 /// <summary>
 /// SEC-6 / SEC-7: khóa cấu hình container cứng bằng cách đọc thẳng <c>Dockerfile</c> và <c>.dockerignore</c> (không cần Docker):
-/// stage cuối chạy user non-root trên image ASP.NET, không đưa .env/khóa riêng vào build context (appsettings.Development.json được phép vào image local, như SmashCourt-BE),
+/// stage cuối chạy user non-root trên image ASP.NET, không đưa .env/khóa riêng và appsettings.Development.json vào build context (từ Epic 6C, P6-33: image đẩy lên GHCR
+/// nên không được chứa bí mật; khi chạy local, compose mount chỉ đọc file này vào container),
 /// restore ở chế độ locked-mode với đủ <c>Directory.Build.props</c> và <c>packages.lock.json</c>.
 /// Kiểm <c>Config.User</c> của image thật nằm ở bước CI <c>docker inspect</c>.
 /// </summary>
@@ -14,12 +15,13 @@ public class ContainerHardeningTests
 {
     private const string AspNetImagePrefix = "mcr.microsoft.com/dotnet/aspnet:";
 
-    /// <summary>Các mẫu file bí mật bắt buộc có trong <c>.dockerignore</c> (không gồm appsettings.Development.json: file này vào image local như BE).</summary>
+    /// <summary>Các mẫu file bí mật bắt buộc có trong <c>.dockerignore</c> (gồm appsettings.Development.json từ Epic 6C, P6-33).</summary>
     public static TheoryData<string> SecretPatterns => new()
     {
         ".env",
         ".env.*",
         "**/appsettings.*.local.json",
+        "**/appsettings.Development.json",
         "**/*.pfx"
     };
 

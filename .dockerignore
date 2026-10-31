@@ -12,10 +12,12 @@ docker/
 *.md
 *.user
 
-# SEC-6: .env/khóa riêng không vào build context. appsettings.Development.json CÓ vào image (như SmashCourt-BE): image chỉ dùng local, không push registry
+# SEC-6 + Epic 6C (P6-33): .env, khóa riêng và appsettings.Development.json không vào build context; image được đẩy lên GHCR nên không chứa bí mật.
+# Chạy local: compose mount chỉ đọc appsettings.Development.json vào container; triển khai: cấu hình truyền bằng biến môi trường.
 .env
 .env.*
 **/appsettings.*.local.json
+**/appsettings.Development.json
 **/*.pfx
 
 ## Minh chứng của chế độ đánh giá (evidence/<run_id>/)

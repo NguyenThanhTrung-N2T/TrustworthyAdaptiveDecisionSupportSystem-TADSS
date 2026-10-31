@@ -143,6 +143,27 @@ Chạy một image BE ba lần với ba bộ biến môi trường (giả `stabl
 | Non-root làm BE không ghi được file | Kiểm khởi động + một luồng có ghi (DataProtection) ở T1.6 |
 | Đổi NG-1 của TADSS | Nới đúng một mount chỉ đọc, sửa script + methodology cùng lúc, chạy lại NG-1…5 |
 
-## 5. Kết quả
+## 5. Kết quả (31/10/2026, đang làm)
 
-(ghi khi làm)
+| Task | Kết quả | Kiểm |
+| :--- | :--- | :--- |
+| T1.4, T1.5, 1.44 | `tools/ci/check-image.sh` (bản gốc TADSS, chép giống hệt sang BE, AI); `.dockerignore` BE và TADSS loại `appsettings.Development.json`, `appsettings.*.local.json` (AI đã loại `.env` từ trước); `.gitattributes` BE, AI giữ `*.sh` ở LF | Image BE cũ trượt 3/3 mục (file bí mật, root, không nhãn); image mới của BE, TADSS, AI đạt 3/3 |
+| T1.6 | BE `USER $APP_UID` | Container chạy `uid=1654(app)`, truy vấn DB và ghi khóa DataProtection bình thường |
+| T1.7 | Nhãn OCI `revision`, `version`, `source`, `title` + biến `APP_REVISION`, `APP_VERSION` ở cả ba Dockerfile | `docker inspect` thấy đúng sha |
+| T1.8 | `Configurations/RequiredConfiguration.cs`: chặn khởi động khi thiếu 5 khóa cốt lõi (kể cả còn giá trị mẫu `your-…`, `add-…`), cảnh báo 10 khóa tính năng phụ; gọi trong `Program.cs` | 15 unit test (OPS-03); image chạy không cấu hình ⇒ dừng, thông báo nêu đủ 5 khóa, không có giá trị |
+| T1.9, T1.10 | `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`, `Extensions/HealthCheckExtensions.cs`: `/health/live`, `/health/ready`, `/health/dependencies` (`up`/`down`/`not_configured`, timeout 3 giây, luôn 200); compose BE thêm healthcheck dùng `/health/ready` | 6 test HTTP + 1 unit test (DB không kết nối được ⇒ Unhealthy, không lộ host/mật khẩu) |
+| T1.13, T1.14, 1.48 | Compose BE, TADSS, AI dùng `ghcr.io/nguyenthanhtrung-n2t/<image>:${IMAGE_TAG:-local}` + `build:` (truyền `GIT_SHA`); BE, TADSS mount chỉ đọc `appsettings.Development.json` (K1); AI giữ `.env` + `ngrok-ai`, cổng 8000 chỉ bind `127.0.0.1` (SEC-AI-1) | Lệnh `docker compose up -d --build` hằng ngày chạy được ở cả ba repo; file mount chỉ đọc (container ghi vào ⇒ `Read-only file system`) |
+| K2 (TADSS) | Nới NG-1: đúng một bind mount chỉ đọc tới `/app/appsettings.Development.json`; file override của `verify-expose.sh`, `verify-observability.sh` thêm `volumes: !reset []` (máy CI không có file) và tên image riêng của lần kiểm; sửa `ContainerHardeningTests`, `ComposeFixtureAlignmentTests`, tài liệu (CLAUDE.md, README, methodology NG-1/SEC-6, PHASE5_SUMMARY) | Unit TADSS 1915/1915; compose test 25/25; NG-1…5, NG-2b, SEC-6, OB-2, OB-4 PASS; pytest evaluator 269/269; `check_docs` đạt |
+| T1.15 | Một image BE chạy ba cấu hình `stable`/`preview`/`perf` chỉ bằng biến môi trường (PostgreSQL tạm, ba database) | Cả ba `/health/ready` 200, không mount, mỗi container 1 dòng cảnh báo khóa phụ (OPS-06) |
+| 1.22, 1.23 (làm sớm từ 1B) | FE: CI thêm `npx tsc --noEmit`; job `deploy-production` (chỉ push `master`, Vercel CLI 65.9.0, `vercel pull/build/deploy --prebuilt`, Environment `production`); hướng dẫn FE Mục 7 | actionlint 1.7.7 đạt; `tsc` hiện tại 0 lỗi |
+
+**Khác plan:**
+- T1.11, T1.12 (`build_info`) **dời sang 6C-3**: BE chưa có exporter metric nào nên metric tạo lúc này không ai đọc được; làm cùng lúc gắn OpenTelemetry. CD kiểm phiên bản bằng nhãn OCI của image (K6), không phụ thuộc metric này.
+- Sự cố: lượt chạy `verify-expose.sh` đầu tiên sau khi compose có tên image GHCR đã build đè rồi xóa tag `local` của người dùng (`docker compose down --rmi local` của Compose v5 xóa cả image có tên riêng do compose build). Đã sửa: file override của hai script đặt tên image riêng (`tadss-expose-check-tadss-runtime`, `tadss-observability-check-tadss-runtime`); chạy lại, tag `local` giữ nguyên.
+- Đã xóa image cũ còn chứa file bí mật: `smashcourt-be-smashcourt-be:latest`, `tadss-tadss-runtime:latest`, `smashcourt-ai-ai`.
+
+| 1.45 | AI: `requirements-dev.txt` (pytest 9.2.0), `pytest.ini`, `tests/conftest.py` (LLM giả thay `llm_service._client` cho MỌI test), `test_llm_service.py`, `test_api.py` | 23 test (AI-UT-01 prompt, 02 đọc JSON 3 dạng, 03 429/quota ⇒ 503 và lỗi khác ⇒ 500, 04 schema + 422, 05 `/health`); ruff, compileall đạt |
+| 1.46 | `llm_service.build_client_kwargs`: `GEMINI_BASE_URL` có giá trị ⇒ `http_options.base_url`; mặc định vẫn gọi Google; model mặc định trong code không đổi (đổi trong `.env`, đã đặt `gemini-3.6-flash` sau khi kiểm model tồn tại) | 3 test |
+| 1.47 | `AiContractSyncTests` (BE, AI-CT-01): 6 lời gọi của `AIService` × (so trường request/response, kể cả kiểu lồng; path tồn tại ở router AI với đúng kiểu request/response); bỏ qua khi không có repo AI cạnh BE | 12 test; thử đổi tên `ChatResponse.reply` ⇒ test đỏ đúng trường, đã khôi phục |
+
+**6C-1 xong** (trừ `build_info` dời sang 6C-3).

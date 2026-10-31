@@ -3,7 +3,7 @@
 #   OB-2 : Grafana nạp dashboard "TADSS Runtime" (uid tadss-runtime, thư mục TADSS) từ thư mục provisioning mount chỉ đọc (API Grafana, không đăng nhập).
 #   OB-4 : sau vài request, Prometheus (qua proxy datasource của Grafana) có tadss_decisions_total > 0 trong 60 giây: tadss-runtime thật sự xuất metric tới Grafana.
 # Hermetic như verify-expose.sh: script sinh MỘT FILE OVERRIDE TẠM (thư mục tạm, xóa khi thoát, không nằm trong repo) thêm PostgreSQL/Redis dùng một lần, đặt biến môi trường
-# chuỗi kết nối + khóa API ngẫu nhiên (ghi đè appsettings.Development.json trong image, nên không bao giờ chạm Neon/Redis thật; script KHÔNG đọc file đó), và đưa tadss-runtime + grafana
+# chuỗi kết nối + khóa API ngẫu nhiên (thay cho appsettings.Development.json — từ Epic 6C file không nằm trong image và không được mount ở đây, nên không bao giờ chạm Neon/Redis thật; script KHÔNG đọc file đó), và đưa tadss-runtime + grafana
 # vào MỘT MẠNG RIÊNG của project thử (không dùng smashcourt-network, nên không đụng container của người dùng và không trùng tên DNS "grafana"); không publish cổng nào ra host.
 # Không khởi động ngrok. Chạy trong project compose riêng (tadss-observability-check) nên không đụng project `tadss` của người dùng. Image build ra bị xóa khi thoát.
 # Khóa API sinh ngẫu nhiên mỗi lần chạy, không bao giờ được in ra. Chạy được trên Git Bash (Windows) và Ubuntu. Lần đầu phải tải image otel-lgtm (~3,7 GB).
@@ -112,11 +112,15 @@ services:
       retries: 20
 
   tadss-runtime:
+    # Tên image riêng của lần kiểm (file đã commit dùng tên GHCR tag local của người dùng): không build đè image của người dùng; dọn bằng tên này khi thoát
+    image: !override tadss-observability-check-tadss-runtime
     ports: !override []
+    # Không mount appsettings.Development.json của máy (máy CI không có file này); cấu hình đặt bằng biến môi trường bên dưới (Epic 6C)
+    volumes: !reset []
     networks: !override
       - obs-net
     environment:
-      # Biến môi trường ghi đè appsettings.Development.json trong image (có thể chứa secret Neon/Redis thật): container thử CHỈ nối postgres/redis dùng một lần ở trên
+      # Biến môi trường thay cho appsettings.Development.json (file không nằm trong image, không được mount ở đây): container thử CHỈ nối postgres/redis dùng một lần ở trên
       # và chỉ nhận khóa ngẫu nhiên của lần chạy này.
       ConnectionStrings__DefaultConnection: "Host=obs-postgres;Port=5432;Database=tadss;Username=tadss;Password=tadss_check"
       Tadss__Cache__RedisConnectionString: "obs-redis:6379"

@@ -2,14 +2,14 @@
 # T5.30 / NG-1…NG-5, SEC-6: kiểm tra cấu hình expose của docker-compose.yml bằng Docker thật (không mở tunnel ngrok, không khởi động Grafana, không kết nối database ngoài).
 #   NG-1  : docker compose config hợp lệ (với NGROK_AUTHTOKEN giả) và `config --services` liệt kê đủ tadss-runtime, ngrok, grafana cùng 9 service của stack đánh giá
 #           (không profile nào: một lệnh `up` chạy cả hai, D-14);
-#           service tadss-runtime: môi trường Development (giống SmashCourt-BE), migration "false", không mount file, không biến ConnectionStrings/RedisConnectionString/ApiKeys,
+#           service tadss-runtime: môi trường Development (giống SmashCourt-BE), migration "false", chỉ mount đúng appsettings.Development.json chỉ đọc (Epic 6C, K2), không biến ConnectionStrings/RedisConnectionString/ApiKeys,
 #           gửi telemetry tới grafana; service grafana: đúng hai mount, đều chỉ đọc (dashboard + provisioning).
 #   NG-2a : (danh mục NG-2) /health/ready 200, POST /api/v2/decisions không khóa 401 và có khóa 200 (Swagger được phục vụ ở Development nên không kiểm 404).
 #   NG-2b : (danh mục NG-2) môi trường Staging không có khóa thì KHÔNG khởi động (thoát != 0 trong 30 giây, log nêu Tadss:Security, không lộ chuỗi kết nối).
 #   NG-3  : truy cập database: GET theo decisionId trả đúng quyết định vừa ghi, và psql đếm được bản ghi.
 #   NG-5  : mọi cổng host của file compose đã commit chỉ bind 127.0.0.1 (cấu hình render ra, và cổng đang publish thật).
 #   SEC-6 : image chạy bằng user non-root.
-# Hermetic: image dựng ra có thể chứa appsettings.Development.json thật của người dùng (secret Neon/Redis; file này được copy vào image như SmashCourt-BE) nhưng script
+# Hermetic: image dựng ra KHÔNG chứa appsettings.Development.json (Epic 6C) và container thử không mount file này; trước Epic 6C file được copy vào image như SmashCourt-BE, nhưng script
 # KHÔNG đọc nó. Script sinh MỘT FILE OVERRIDE TẠM (thư mục tạm, xóa khi thoát, không bao giờ nằm trong repo) thêm postgres/redis dùng một lần và đặt biến môi trường
 # ConnectionStrings__DefaultConnection, Tadss__Cache__RedisConnectionString, Tadss__Security__ApiKeys__0__ClientId/KeySha256 (mã băm của khóa ngẫu nhiên)
 # cho tadss-runtime: biến môi trường ghi đè file json nên container thử không bao giờ chạm Neon/Redis thật. Cổng publish đổi sang một cổng trống
@@ -78,7 +78,7 @@ cleanup() {
   if [ -f "$ENV_FILE" ] && [ -f "$OVERRIDE_FILE" ]; then
     dc down -v --rmi local --remove-orphans >/dev/null 2>&1
   fi
-  # Image build ra có thể chứa appsettings.Development.json thật (secret): xóa chắc chắn, kể cả khi `down` không tìm thấy (build dở, env-file chưa ghi).
+  # Xóa image của lần kiểm (tên đặt trong file override), kể cả khi `down` không tìm thấy (build dở, env-file chưa ghi).
   docker image rm -f "${PROJECT}-tadss-runtime" >/dev/null 2>&1
   # Mạng external không do compose quản lý; chỉ xóa nếu script này đã tạo (mạng có sẵn của người dùng được giữ nguyên).
   if [ "$NETWORK_CREATED" = yes ]; then docker network rm "$NETWORK" >/dev/null 2>&1; fi
@@ -123,7 +123,8 @@ services="$(dc_main "$FAKE_ENV_FILE" config --services 2>/dev/null | tr -d '\r' 
 svc="FAIL"
 if [ "$services" = "$EXPECTED_SERVICES" ]; then svc="PASS"; fi
 # Ràng buộc bảo mật áp cho RIÊNG service tadss-runtime (đọc từ cấu hình render dạng YAML, tách khối theo service): môi trường Development (giống SmashCourt-BE),
-# migration "false", không mount file, không biến chuỗi kết nối/Redis/ApiKeys. Grafana được mount dashboard chỉ đọc (không chứa secret) và tadss-runtime gửi telemetry tới nó.
+# migration "false", chỉ mount đúng appsettings.Development.json chỉ đọc (file của máy dev, không nằm trong image — Epic 6C, K2), không biến chuỗi kết nối/Redis/ApiKeys.
+# Grafana được mount dashboard chỉ đọc (không chứa secret) và tadss-runtime gửi telemetry tới nó.
 rendered_main="$(dc_main "$FAKE_ENV_FILE" config --format json 2>/dev/null)"
 service_block() { # $1 tên service; đọc YAML render từ stdin, in các dòng thuộc service đó
   awk -v svc="$1" '$0 == "  " svc ":" { in_block = 1; next } /^  [^ ]/ { in_block = 0 } /^[^ ]/ { in_block = 0 } in_block'
@@ -134,7 +135,12 @@ grafana_block="$(printf '%s\n' "$rendered_yaml" | service_block grafana)"
 env_bad=""
 printf '%s' "$runtime_block" | grep -q 'ASPNETCORE_ENVIRONMENT: Development' || env_bad="${env_bad}Development "
 printf '%s' "$runtime_block" | grep -q 'Tadss__Database__ApplyMigrationsOnStartup: "false"' || env_bad="${env_bad}migration "
-if printf '%s' "$runtime_block" | grep -q -e '^    volumes:' -e 'appsettings\.'; then env_bad="${env_bad}có-mount "; fi
+# Đúng một bind mount, chỉ đọc, đích /app/appsettings.Development.json; không biến môi trường nào nhắc appsettings
+runtime_mounts="$(printf '%s\n' "$runtime_block" | grep -c 'type: bind')"
+runtime_ro="$(printf '%s\n' "$runtime_block" | grep -c 'read_only: true')"
+runtime_target="$(printf '%s\n' "$runtime_block" | grep -c 'target: /app/appsettings.Development.json')"
+if [ "$runtime_mounts" != 1 ] || [ "$runtime_ro" != 1 ] || [ "$runtime_target" != 1 ]; then env_bad="${env_bad}mount(${runtime_mounts}/${runtime_ro}/${runtime_target}) "; fi
+if printf '%s' "$runtime_block" | grep -q -E '^      [A-Za-z_]+: .*appsettings\.'; then env_bad="${env_bad}biến-nhắc-appsettings "; fi
 if printf '%s' "$runtime_block" | grep -q -e 'ConnectionStrings__' -e 'RedisConnectionString' -e 'ApiKeys'; then env_bad="${env_bad}có-biến-secret "; fi
 printf '%s' "$runtime_block" | grep -q 'Tadss__Telemetry__OtlpEndpoint: http://grafana:4317' || env_bad="${env_bad}không-gửi-telemetry-tới-grafana "
 # Grafana: đúng hai mount, đều chỉ đọc
@@ -143,7 +149,7 @@ grafana_readonly="$(printf '%s\n' "$grafana_block" | grep -c 'read_only: true')"
 if [ "$grafana_mounts" != 2 ] || [ "$grafana_readonly" != 2 ]; then env_bad="${env_bad}grafana-mount(${grafana_mounts}/${grafana_readonly} chỉ-đọc) "; fi
 if [ -z "$runtime_block" ] || [ -z "$grafana_block" ]; then env_bad="${env_bad}không-tách-được-khối-service "; fi
 if [ "$cfg" = PASS ] && [ "$svc" = PASS ] && [ -z "$env_bad" ]; then
-  record "NG-1" PASS "config hợp lệ (NGROK_AUTHTOKEN giả); services: ${services}; tadss-runtime: Development, migration false, không mount, không biến secret, telemetry → grafana; grafana: 2 mount chỉ đọc"
+  record "NG-1" PASS "config hợp lệ (NGROK_AUTHTOKEN giả); services: ${services}; tadss-runtime: Development, migration false, chỉ mount appsettings.Development.json chỉ đọc, không biến secret, telemetry → grafana; grafana: 2 mount chỉ đọc"
 else
   record "NG-1" FAIL "config=${cfg} services=${svc} (${services}); môi-trường-sai: ${env_bad:-không}"
 fi
@@ -184,11 +190,15 @@ services:
       retries: 20
 
   tadss-runtime:
+    # Tên image riêng của lần kiểm (file đã commit dùng tên GHCR tag local của người dùng): không build đè image của người dùng; dọn bằng tên này khi thoát
+    image: !override tadss-expose-check-tadss-runtime
     # Cổng host trống thay cho 8081 cố định của file đã commit (không tranh cổng với TADSS đang chạy của người dùng); vẫn chỉ bind loopback.
     ports: !override
       - "127.0.0.1:${CHECK_HOST_PORT}:8080"
+    # Container thử không mount appsettings.Development.json của máy (máy CI không có file này; Docker sẽ tạo thư mục rỗng nếu mount đường dẫn không tồn tại)
+    volumes: !reset []
     environment:
-      # Biến môi trường ghi đè appsettings.Development.json trong image (có thể chứa secret Neon/Redis thật): container thử CHỈ nối postgres/redis dùng một lần ở trên
+      # Biến môi trường thay cho appsettings.Development.json (file không nằm trong image, không được mount ở đây): container thử CHỈ nối postgres/redis dùng một lần ở trên
       # và chỉ nhận khóa ngẫu nhiên của lần chạy này (ClientId smashcourt-be + mã băm, không phải khóa thật).
       ConnectionStrings__DefaultConnection: "Host=expose-postgres;Port=5432;Database=tadss;Username=tadss;Password=tadss_check"
       Tadss__Cache__RedisConnectionString: "expose-redis:6379"

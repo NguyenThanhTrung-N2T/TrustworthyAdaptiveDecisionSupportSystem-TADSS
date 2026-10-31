@@ -242,7 +242,7 @@ Service vận hành không `depends_on` service đánh giá. Evaluator mount `/v
 ### 4.3. Dữ liệu: Neon, Redis Cloud và stack cô lập
 
 - Dev và vận hành dùng Neon (chỉ schema `tadss`) và Redis Cloud; migration lên Neon chỉ chạy khi người dùng cho phép (D-05); `DecisionPersistenceV2` đã áp 10/10/2026.
-- `appsettings.Development.json` (chuỗi kết nối, mã băm API key) được copy vào image local như SmashCourt-BE, nên image **không bao giờ** được push (D-11).
+- `appsettings.Development.json` (chuỗi kết nối, mã băm API key) được copy vào image local như SmashCourt-BE, nên image **không bao giờ** được push (D-11). *Cập nhật Epic 6C (31/10/2026, P6-33): file không còn vào image, compose mount chỉ đọc lúc chạy; image đẩy lên GHCR.*
 - Stack đánh giá **không bao giờ chạm Neon**: khóa API cố định không bí mật, bản sao mã nguồn loại `appsettings.Development.json` và `.env*`; CSV SmashCourt thô ở `data/private/` (gitignore, mount chỉ đọc), định danh được băm trước khi vào `evidence/`.
 
 ### 4.4. CI (`.github/workflows/ci.yml`)

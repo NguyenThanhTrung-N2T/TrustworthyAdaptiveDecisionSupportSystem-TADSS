@@ -132,7 +132,16 @@ Mỗi gói nên có plan riêng `spec/PHASE6_PLAN_6B-x_*.md` như các gói 6A (
 | 15 | Hiện `depositAmount` là "đã cọc" cho đơn chưa trả | `remainingAmount = finalTotal − depositAmount` kể cả khi chưa trả; "đã cọc" chỉ khi `paymentStatus` khác `UNPAID` | API 2.2; A17 |
 | 16 | Sửa type FE theo trí nhớ hoặc theo response một lần gọi | Theo danh sách khóa ở API 2.2 / 3.1 / 3.6 (khóa `null` vẫn có mặt); test `HttpDepositDtoJsonTests` của BE khóa đúng danh sách này | API 2.2, 3.1, 3.6; FE-03 |
 
-## 7. Hỏi ai, sửa ở đâu
+## 7. CI/CD của FE (Epic 6C, từ 31/10/2026)
+
+- `.github/workflows/ci.yml`: `npm ci` ⇒ `lint` ⇒ **`npx tsc --noEmit -p .`** (mới, FE-01) ⇒ `build` cho mọi push/pull request vào `master`, `develop`.
+- **Chỉ push `master`** (CI đạt) mới triển khai lên Vercel production (job `deploy-production`); `develop` chỉ chạy CI, không triển khai.
+- Việc của chủ repo FE (một lần): tạo Environment `production` trong Settings › Environments, thêm secrets `VERCEL_TOKEN` (Vercel › Account Settings › Tokens), `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (Vercel › Project Settings › General); trong Vercel tắt tự triển khai theo Git (Project Settings › Git) để chỉ còn đường qua CI. Chưa đặt secrets thì push `master` vẫn chạy CI, riêng bước triển khai báo lỗi.
+- Biến `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_API_URL` của bản production khai trong Vercel (Project Settings › Environment Variables), không lấy từ file `.env` trên máy.
+- Khi FE trên Vercel gọi BE qua ngrok gói miễn phí: mọi request phải có header `ngrok-skip-browser-warning: true`, nếu không ngrok trả trang cảnh báo HTML thay cho JSON.
+- Chạy local: một file `.env` duy nhất, khối BE local đang bật, khối ngrok để dạng comment, tự đổi tay.
+
+## 8. Hỏi ai, sửa ở đâu
 
 - Hợp đồng API thiếu hoặc mơ hồ: hỏi người giữ BE; nếu phải đổi, sửa DEPOSIT_APPROVAL_API và code BE trước rồi FE theo sau (không tự đoán trường).
 - Quyết định nghiệp vụ mới trong lúc làm FE: ghi vào spec Phase 6 (mã P6-xx kế tiếp) để hai bên cùng thấy.

@@ -2,14 +2,22 @@
 #   1. Vận hành: TADSS (localhost:8081) + ngrok (URL công khai xem ở http://127.0.0.1:4042; domain dev của tài khoản ngrok, cố định qua các lần khởi động) + Grafana (localhost:3001, dashboard "TADSS Runtime" nạp sẵn; TADSS gửi trace/metric/log tới Grafana qua OTLP).
 #   2. Đánh giá (D-14): stack cô lập (các service eval-*) và evaluator tự chạy một lượt các bước a…f (bản nhanh ~30 phút; bản đầy đủ: EVAL_MODE=full), xong thì evaluator dừng.
 #      Theo dõi: docker compose logs -f evaluator   — kết quả: evidence/<run_id>/report.html; Grafana của stack đánh giá: localhost:3002.
-# Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được copy vào image, image chỉ dùng local, không push registry),
+# Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được mount chỉ đọc vào container, không nằm trong image — Epic 6C),
 #            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
 # Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok"; chạy đánh giá: docs/guides/EVALUATION_RUN_GUIDE.md.
 name: tadss
 
 services:
   tadss-runtime:
-    build: .
+    # Cùng tên image với CI (GHCR); `up --build` build tại chỗ thành tag `local`, `IMAGE_TAG=sha-xxxxxxx docker compose up tadss-runtime` chạy đúng bản CI đã đẩy (Epic 6C, P6-33)
+    image: ghcr.io/nguyenthanhtrung-n2t/tadss-runtime:${IMAGE_TAG:-local}
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+    # Image không chứa bí mật: appsettings.Development.json của máy dev mount chỉ đọc lúc chạy (gói 6C-1, K1/K2; NG-1 chỉ cho phép đúng mount này)
+    volumes:
+      - ./src/TADSS.Runtime.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
     restart: unless-stopped
     ports:
       - "127.0.0.1:8081:8080"   # chỉ máy này truy cập được

@@ -65,7 +65,7 @@ public class ComposeFixtureAlignmentTests
 
     /// <summary>
     /// <c>tadss-runtime</c>: <c>ApplyMigrationsOnStartup</c> là literal <c>"false"</c> (không đọc từ biến, không bao giờ tự migrate Neon) và môi trường là <c>Development</c>
-    /// (giống SmashCourt-BE: container nạp appsettings.Development.json đã copy vào image).
+    /// (giống SmashCourt-BE: container nạp appsettings.Development.json được mount chỉ đọc từ máy, file không nằm trong image — Epic 6C, P6-33).
     /// </summary>
     [Fact]
     [Trait("CatalogId", "NG-1")]
@@ -78,16 +78,18 @@ public class ComposeFixtureAlignmentTests
     }
 
     /// <summary>
-    /// <c>tadss-runtime</c> không mount file nào (cấu hình, kể cả secret, nằm trong appsettings.Development.json đã copy vào image) và không khai báo chuỗi kết nối, Redis hay API key
-    /// trong <c>environment</c> (secret không bị nhân đôi). Ràng buộc áp riêng cho service này: Grafana được mount dashboard (không chứa secret).
+    /// <c>tadss-runtime</c> chỉ mount đúng một file, chỉ đọc: appsettings.Development.json của máy dev (cấu hình, kể cả secret, không nằm trong image — gói 6C-1, K1/K2),
+    /// và không khai báo chuỗi kết nối, Redis hay API key trong <c>environment</c> (secret không bị nhân đôi). Ràng buộc áp riêng cho service này: Grafana được mount dashboard.
     /// </summary>
     [Fact]
     [Trait("CatalogId", "NG-1")]
-    public void Runtime_MountsNothingAndDeclaresNoSecretVariable()
+    public void Runtime_MountsOnlyDevelopmentSettingsReadOnlyAndDeclaresNoSecretVariable()
     {
         var runtime = Service(Runtime);
 
-        runtime.Should().NotContainKey("volumes", "tadss-runtime không được khai báo volumes/mount");
+        List(runtime, "volumes").Should().Equal(
+            new[] { "./src/TADSS.Runtime.Api/appsettings.Development.json:/app/appsettings.Development.json:ro" },
+            "tadss-runtime chỉ được mount appsettings.Development.json, chỉ đọc");
         var environment = Map(runtime, "environment");
         foreach (var fragment in SecretVariableFragments)
         {
@@ -166,7 +168,10 @@ public class ComposeFixtureAlignmentTests
         Map(ngrok, "environment").Keys.Should().NotContain("NGROK_DOMAIN");
     }
 
-    /// <summary>Image ngrok và Grafana ghim tag phiên bản cụ thể (không <c>latest</c>, không tên trần); tadss-runtime build từ Dockerfile.</summary>
+    /// <summary>
+    /// Image ngrok và Grafana ghim tag phiên bản cụ thể (không <c>latest</c>, không tên trần); tadss-runtime vẫn build từ Dockerfile nhưng mang tên image GHCR
+    /// (<c>ghcr.io/nguyenthanhtrung-n2t/tadss-runtime</c>, tag từ <c>IMAGE_TAG</c>, mặc định <c>local</c>) để chạy được cả bản build tại chỗ lẫn bản CI đã đẩy (Epic 6C, P6-33).
+    /// </summary>
     [Theory]
     [Trait("CatalogId", "NG-4")]
     [InlineData("ngrok", @"^ngrok/ngrok:\d[\w.\-]*$")]
@@ -176,8 +181,8 @@ public class ComposeFixtureAlignmentTests
         var image = Scalar(Service(service), "image");
 
         image.Should().MatchRegex(imagePattern, "image {0} phải có tag phiên bản cụ thể", service).And.NotContain("latest");
-        Service(Runtime).Should().NotContainKey("image", "tadss-runtime build từ Dockerfile");
-        Service(Runtime).Should().ContainKey("build");
+        Scalar(Service(Runtime), "image").Should().Be("ghcr.io/nguyenthanhtrung-n2t/tadss-runtime:${IMAGE_TAG:-local}", "tadss-runtime dùng tên image GHCR, tag mặc định local");
+        Service(Runtime).Should().ContainKey("build", "tadss-runtime vẫn build được từ Dockerfile");
     }
 
     /// <summary>
