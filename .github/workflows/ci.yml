@@ -109,6 +109,31 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: bash tools/ci/build-image.sh ghcr.io/nguyenthanhtrung-n2t/tadss-runtime ${{ github.event_name == 'push' && '--push' || '' }}
 
+  # Epic 6C (6C-2b): CD — push develop/master ⇒ runner trên máy deploy kéo đúng image sha-<7> vừa đẩy, kiểm (đúng commit, health, smoke
+  # chỉ đọc), hỏng thì tự quay về bản trước (SmashCourt-BE/deploy/cd.sh). Pull request không bao giờ chạy job này.
+  deploy:
+    name: Deploy (máy deploy)
+    if: github.event_name == 'push'
+    needs: image
+    runs-on: [self-hosted, smashcourt-deploy]
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-tadss
+      cancel-in-progress: false
+
+    steps:
+      - name: Get deploy kit (SmashCourt-BE/deploy, nhánh develop)
+        uses: actions/checkout@v4
+        with:
+          repository: NguyenThanhTrung-N2T/SmashCourt-BE
+          ref: develop
+          sparse-checkout: deploy
+
+      - name: Deploy, verify, roll back on failure
+        env:
+          SHA: ${{ github.sha }}
+        run: bash deploy/cd.sh tadss "$SHA"
+
   # T5.30 (NG-1, NG-2, NG-3, NG-5, SEC-6): dựng docker-compose.yml thật với khóa ngẫu nhiên + PostgreSQL/Redis tạm, không mở tunnel ngrok và không dùng database ngoài
   expose-check:
     name: Verify Expose Configuration (docker-compose.yml)

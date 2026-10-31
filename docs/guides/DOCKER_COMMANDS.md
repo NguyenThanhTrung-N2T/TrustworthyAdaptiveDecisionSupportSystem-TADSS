@@ -6,7 +6,7 @@ Cập nhật 01/11/2026 (Epic 6C). CI build sẵn image và đẩy lên GHCR, n�
 
 Một bản deploy của cả hệ thống trên máy: BE + TADSS + AI + PostgreSQL + Redis + ngrok của BE (FE trên Vercel gọi BE qua ngrok). Push `develop` hoặc `master` đều triển khai vào bản này (lần push gần nhất thắng; bình thường là `develop`). Dữ liệu BE chép từ Neon DB test `tadss-dev`; DB gốc không bị đụng tới.
 
-Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả hệ thống), `deploy.sh`, `seed-db.sh`, `init-db.sql`, `.env.example`. Bí mật: **một** file `~/.smashcourt-deploy/.env` (ngoài repo, mẫu là `.env.example`).
+Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả hệ thống), `deploy.sh`, `seed-db.sh`, `cd.sh` (dùng cho CD), `runner/` (runner trong Docker), `.env.example`. Bí mật: **một** file `~/.smashcourt-deploy/.env` (ngoài repo, mẫu là `.env.example`).
 
 | Việc | Lệnh (trong `SmashCourt-BE/`) |
 | :--- | :--- |
@@ -25,7 +25,23 @@ Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả h�
 | `smashcourt-redis` | | Cache của TADSS |
 
 - Bản deploy và cách chạy tay ở mục 2 dùng chung cổng, tên container và tài khoản ngrok của BE. **Chỉ chạy một trong hai**: muốn chạy tay thì `docker stop smashcourt-be smashcourt-ngrok tadss-runtime smashcourt-ai` trước, xong thì `bash deploy/deploy.sh all`.
-- Khi có CD tự động (gói 6C-2b), push sẽ tự chạy `deploy.sh` của service vừa push.
+
+### CD tự động (push ⇒ deploy)
+
+Push `develop` hoặc `master` của BE, TADSS, AI ⇒ CI (test, build, đẩy image `sha-<7>`) ⇒ job `deploy` cuối `ci.yml` chạy trên **runner của máy này** ⇒ `deploy/cd.sh <service> <sha>`: kéo đúng image của commit vừa push, kiểm container chạy đúng commit + health + smoke chỉ đọc (BE: `/api/cancel-policies`), hỏng thì **tự quay về bản đang chạy trước đó** và kiểm lại. Pull request không bao giờ deploy. Kết quả xem ở tab Actions của repo (job "Deploy (máy deploy)").
+
+| `cd.sh` thoát | Nghĩa |
+| :--- | :--- |
+| 0 | Bản mới chạy, kiểm đạt |
+| 1 | Bản mới hỏng, đã quay về bản trước (job đỏ để báo) |
+| 2 | **UNSAFE**: quay về cũng hỏng, cần người xử lý |
+| 3 | Từ chối, chưa đụng gì: sha sai hoặc image không có trên GHCR |
+
+- **Runner chạy trong Docker:** 3 container `smashcourt-runner-be`, `-tadss`, `-ai` (runner chính thức của GitHub + Docker Compose, `SmashCourt-BE/deploy/runner/`), `restart: unless-stopped` nên **tự chạy khi mở Docker Desktop**, không cài gì vào Windows. Mỗi runner chỉ thấy Docker của máy (để deploy) và `~/.smashcourt-deploy/.env` (chỉ đọc); chạy bằng user `runner`, không phải root. Runner tắt (Docker tắt) thì job deploy chờ tối đa 24 giờ, mở Docker là chạy.
+- **Lệnh runner** (trong `SmashCourt-BE/`): bật/cập nhật `docker compose -f deploy/runner/docker-compose.yml up -d --build`; xem log `docker logs -f smashcourt-runner-be`. Đăng ký lại một runner (mất volume `smashcourt-runner-*`): `export RUNNER_TOKEN=$(gh api -X POST repos/NguyenThanhTrung-N2T/<repo>/actions/runners/registration-token -q .token)` rồi `docker compose -f deploy/runner/docker-compose.yml run --rm -e RUNNER_TOKEN runner-be register` (mã đăng ký chỉ dùng một lần, không lưu lại).
+- **Dọn image:** mỗi lần deploy thành công, `cd.sh` chỉ giữ image đang chạy và bản ngay trước của service đó.
+- **Bảo mật:** repo public nên pull request từ fork của **mọi** người ngoài phải được duyệt mới chạy workflow (Settings › Actions › General, đã đặt `all_external_contributors`); job deploy chỉ chạy khi push.
+- **Quay về tay một bản cũ:** `bash deploy/cd.sh be <sha đầy đủ>` (có kiểm và tự quay về) hoặc `bash deploy/deploy.sh be sha-xxxxxxx` (chỉ chạy).
 
 ## 1. Chạy bản nào? Biến `IMAGE_TAG` trong `.env`
 
