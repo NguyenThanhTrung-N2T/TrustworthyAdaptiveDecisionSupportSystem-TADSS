@@ -20,21 +20,26 @@ class CiRepo:
     workflow: str
     artifact: str
     kind: str  # trx | junit
+    branch: str  # nhánh CI đẩy image và chạy test (AI dùng master)
 
 
 REPOS = {
-    "be": CiRepo("be", f"{OWNER}/SmashCourt-BE", "BE CI", "be-test-results", "trx"),
-    "tadss": CiRepo("tadss", f"{OWNER}/TrustworthyAdaptiveDecisionSupportSystem-TADSS", "TADSS Runtime CI", "test-results-and-coverage", "trx"),
-    "ai": CiRepo("ai", f"{OWNER}/SmashCourt-AI", "AI CI", "ai-test-results", "junit"),
+    "be": CiRepo("be", f"{OWNER}/SmashCourt-BE", "BE CI", "be-test-results", "trx", "develop"),
+    "tadss": CiRepo("tadss", f"{OWNER}/TrustworthyAdaptiveDecisionSupportSystem-TADSS", "TADSS Runtime CI", "test-results-and-coverage", "trx", "develop"),
+    "ai": CiRepo("ai", f"{OWNER}/SmashCourt-AI", "AI CI", "ai-test-results", "junit", "master"),
 }
 
 
 def _gh(*args: str) -> str:
-    return subprocess.run(["gh", *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout
+    try:
+        return subprocess.run(["gh", *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(f"gh {' '.join(args[:2])} lỗi: {(error.stderr or error.stdout or '').strip()}") from None
 
 
-def latest_run(repo: CiRepo, branch: str) -> dict:
-    """Lượt gần nhất đã chạy xong của workflow trên nhánh (kể cả đỏ: lượt đỏ chính là thứ cần thấy trên dashboard)."""
+def latest_run(repo: CiRepo, branch: str | None) -> dict:
+    """Lượt gần nhất đã chạy xong của workflow trên nhánh (mặc định nhánh CI của repo; kể cả đỏ: lượt đỏ chính là thứ cần thấy trên dashboard)."""
+    branch = branch or repo.branch
     runs = json.loads(_gh("run", "list", "-R", repo.repo, "-w", repo.workflow, "-b", branch, "--status", "completed", "-L", "1",
                           "--json", "databaseId,headSha,conclusion,url,createdAt"))
     if not runs:
@@ -42,7 +47,7 @@ def latest_run(repo: CiRepo, branch: str) -> dict:
     return runs[0]
 
 
-def download(repo: CiRepo, branch: str, known: set[str]) -> tuple[SourceResult, Path]:
+def download(repo: CiRepo, branch: str | None, known: set[str]) -> tuple[SourceResult, Path]:
     """Tải artifact của lượt gần nhất vào thư mục tạm và đọc; trả kết quả và thư mục (để lưu bản gốc vào perf/results)."""
     run = latest_run(repo, branch)
     target = Path(tempfile.mkdtemp(prefix=f"testboard-{repo.key}-"))

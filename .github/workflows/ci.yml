@@ -239,5 +239,5 @@ jobs:
       - name: Check catalog and dashboards
         run: python perf/board.py check
 
-      - name: Run testboard tests
-        run: python -m pytest -q perf/testboard
+      - name: Run testboard and perf stack tests
+        run: python -m pytest -q perf/testboard perf/stack

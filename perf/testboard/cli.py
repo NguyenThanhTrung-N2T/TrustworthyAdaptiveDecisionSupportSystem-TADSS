@@ -20,7 +20,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("push", help="đẩy lại bảng hiện có (sau khi Grafana khởi động lại)")
     ci_cmd = sub.add_parser("ci", help="tải kết quả test của lượt CI gần nhất từ GitHub (cần gh đã đăng nhập)")
     ci_cmd.add_argument("repo", choices=["be", "tadss", "ai", "all"])
-    ci_cmd.add_argument("--branch", default="develop")
+    ci_cmd.add_argument("--branch", help="mặc định: nhánh CI của từng repo (BE, TADSS develop; AI master)")
     trx = sub.add_parser("trx", help="nạp trx + catalog-index.*.json chạy trên máy (BE hoặc TADSS)")
     trx.add_argument("system", choices=["be", "tadss"])
     trx.add_argument("directory", type=Path)

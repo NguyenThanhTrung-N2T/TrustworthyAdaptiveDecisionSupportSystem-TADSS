@@ -1,0 +1,234 @@
+# Môi trường đo hiệu năng `perf` (Epic 6C, gói 6C-4, task 2.10, 2.11, 2.30; P6-41): BE, TADSS, AI chạy ĐÚNG image sha như bản deploy,
+# DB/Redis/email/LLM riêng, chỉ local. Không bao giờ chạy bằng tay lệnh compose này: dùng `bash perf/perf.sh up` (bật cả bộ quan sát
+# kiểm thử, đặt tag image, chờ healthy). Tách hẳn khỏi bản deploy: tên container perf-*, mạng smashcourt-test, không đọc file bí mật.
+#
+# Mọi khóa ở đây là HẰNG KHÔNG BÍ MẬT chỉ có hiệu lực trong stack này (JWT, OTP, VNPay giả để k6 tự ký IPN, khóa TADSS `tadss-perf-key`).
+# Không trỏ ra Neon, Gmail, VNPay hay Gemini thật: perf/stack/tests/test_compose.py chặn chuỗi kết nối/host ngoài stack.
+# Giới hạn CPU/RAM theo plan 6C Phụ lục B.6.3 (là trần, chỉnh sau lượt thử tải từng bậc, task 2.16).
+name: smashcourt-perf
+
+x-otel: &otel
+  # Đo chính thức: tắt trace (P6-40); lượt phân tích đặt PERF_TRACE_RATIO=1 (perf.sh up --trace)
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=perf
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    container_name: perf-postgres
+    environment:
+      POSTGRES_USER: smashcourt
+      POSTGRES_PASSWORD: smashcourt_perf
+      POSTGRES_DB: smashcourt
+    volumes:
+      # Thứ tự: vai trò chủ sở hữu của bản dump Neon ⇒ schema production (cùng file BE dùng cho test integration) ⇒ dữ liệu benchmark
+      - ./postgres/00-role.sql:/docker-entrypoint-initdb.d/00-role.sql:ro
+      - ../../docs/database/schema_smashcourt.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ./postgres/20-drop-hangfire.sql:/docker-entrypoint-initdb.d/20-drop-hangfire.sql:ro
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smashcourt -d smashcourt"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    cpus: 1
+    mem_limit: 1g
+
+  tadss-postgres:
+    image: postgres:16.15-alpine
+    container_name: perf-tadss-postgres
+    environment:
+      POSTGRES_USER: tadss
+      POSTGRES_PASSWORD: tadss_perf
+      POSTGRES_DB: tadss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tadss -d tadss"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    cpus: 0.5
+    mem_limit: 512m
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: perf-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]   # dữ liệu dùng một lần, xóa trước mỗi lượt
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    cpus: 0.25
+    mem_limit: 128m
+
+  mailpit:
+    image: axllent/mailpit:v1.27.10
+    container_name: perf-mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "5000"   # lượt soak gửi nhiều email; giữ 5000 thư mới nhất
+    ports:
+      - "127.0.0.1:18025:8025"
+    cpus: 0.25
+    mem_limit: 256m
+
+  fake-llm:
+    image: python:3.12.12-alpine
+    container_name: perf-fake-llm
+    command: ["python", "-u", "/app/fake_llm.py"]
+    environment:
+      FAKE_LLM_DELAY_MS: ${FAKE_LLM_DELAY_MS:-800}
+      FAKE_LLM_JITTER_MS: ${FAKE_LLM_JITTER_MS:-200}
+    volumes:
+      - ./fake_llm.py:/app/fake_llm.py:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    cpus: 0.5
+    mem_limit: 128m
+
+  tadss:
+    image: ghcr.io/nguyenthanhtrung-n2t/tadss-runtime:${TADSS_TAG:?perf.sh đặt tag}
+    container_name: perf-tadss
+    environment:
+      <<: *otel
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=tadss-postgres;Database=tadss;Username=tadss;Password=tadss_perf
+      Tadss__Database__ApplyMigrationsOnStartup: "true"   # database dùng một lần của perf
+      Tadss__Cache__RedisConnectionString: redis:6379
+      Tadss__Security__ApiKeys__0__ClientId: smashcourt-be
+      Tadss__Security__ApiKeys__0__KeySha256: "6ca013748a8c98db645173d7eb354376c2060f286a73add9ebe3d52a5b0f179a"   # SHA-256 của hằng `tadss-perf-key`
+      Tadss__Security__RateLimiting__PermitLimit: "100000"
+      Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
+      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__OtlpEndpoint: http://smashcourt-test-alloy:4317
+      Tadss__Telemetry__ServiceInstanceId: perf
+      Tadss__Telemetry__MetricExportIntervalMs: "5000"
+      Tadss__Telemetry__TraceSampleRatio: ${PERF_TRACE_RATIO:-0}
+      Serilog__MinimumLevel__Default: Warning
+    depends_on:
+      tadss-postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/ready"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+    cpus: 1.5
+    mem_limit: 768m
+
+  ai:
+    image: ghcr.io/nguyenthanhtrung-n2t/smashcourt-ai:${AI_TAG:?perf.sh đặt tag}
+    container_name: perf-ai
+    environment:
+      <<: *otel
+      APP_ENV: production
+      GEMINI_API_KEY: perf-fake-key   # LLM giả không kiểm khóa
+      GEMINI_MODEL: gemini-3.6-flash
+      GEMINI_BASE_URL: http://fake-llm:8080
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://smashcourt-test-alloy:4318
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: ${PERF_TRACE_RATIO:-0}
+    depends_on:
+      fake-llm: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    cpus: 1
+    mem_limit: 512m
+
+  be:
+    image: ghcr.io/nguyenthanhtrung-n2t/smashcourt-be:${BE_TAG:?perf.sh đặt tag}
+    container_name: perf-be
+    environment:
+      <<: *otel
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=smashcourt;Username=smashcourt;Password=smashcourt_perf;Maximum Pool Size=100
+      Jwt__Key: perf-jwt-signing-key-not-secret-0123456789abcdef
+      Jwt__Issuer: smashcourt-perf
+      Jwt__Audience: smashcourt-perf
+      Otp__HmacSecret: perf-otp-hmac-not-secret
+      Smtp__Host: mailpit
+      Smtp__Port: "1025"
+      Smtp__EnableSsl: "false"
+      Smtp__Username: perf@mailpit.local
+      Smtp__Password: mailpit
+      Smtp__From: no-reply@smashcourt.perf
+      # VNPay giả: BE dựng URL thanh toán (không ai mở), k6 ký IPN bằng đúng HashSecret này (task 2.11)
+      VnPay__TmnCode: PERFTEST
+      VnPay__HashSecret: PERFHASHSECRETNOTREAL0123456789AB
+      VnPay__BaseUrl: http://vnpay.invalid/paymentv2/vpcpay.html
+      VnPay__CallbackUrl: http://be.invalid/payment/result
+      VnPay__IpnUrl: http://be:8080/api/payments/vnpay/ipn
+      FrontendBaseUrl: http://fe.invalid
+      Cookie__Secure: "false"
+      Hangfire__Enabled: "true"   # job chạy như thật (hết hạn thanh toán, outcome); ảnh hưởng thấy ở soak
+      Hangfire__Dashboard: "false"
+      AIService__BaseUrl: http://ai:8000
+      TadssConfig__BaseUrl: http://tadss:8080
+      TadssConfig__ApiKey: tadss-perf-key
+      TadssConfig__EnableTadssDecision: ${PERF_TADSS_DECISION:-true}   # cặp bật/tắt của SP-06 (P6-43)
+      # Rate limit nâng: k6 đăng nhập và đặt sân từ một IP (giới hạn thật 5 lần đăng nhập/phút sẽ chặn bài đo)
+      RateLimiting__Login__PermitLimit: "1000000"
+      RateLimiting__Booking__PermitLimit: "1000000"
+      RateLimiting__Sensitive__PermitLimit: "1000000"
+      RateLimiting__AiPublic__PermitLimit: "1000000"
+      RateLimiting__AiUser__PermitLimit: "1000000"
+      RateLimiting__AiManagement__PermitLimit: "1000000"
+      IpRateLimiting__GeneralRules__0__Limit: "1000000"
+      IpRateLimitPolicies__ai-public__Rules__0__Limit: "1000000"
+      Telemetry__Enabled: "true"
+      Telemetry__OtlpEndpoint: http://smashcourt-test-alloy:4317
+      Telemetry__MetricExportIntervalMs: "5000"
+      Telemetry__TraceSampleRatio: ${PERF_TRACE_RATIO:-0}
+      Telemetry__ExportLogs: "false"
+      Logging__LogLevel__Default: Warning
+      Logging__LogLevel__Microsoft.EntityFrameworkCore: Warning
+    ports:
+      - "127.0.0.1:18080:8080"   # gọi thử từ máy; k6 gọi trong mạng (http://be:8080)
+    depends_on:
+      postgres: {condition: service_healthy}
+      tadss: {condition: service_healthy}
+      ai: {condition: service_healthy}
+      mailpit: {condition: service_started}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+    cpus: 2
+    mem_limit: 1g
+
+  # Chỉ chạy khi đo: `bash perf/perf.sh run <profile>` (compose run --rm k6 ...). Metric client đẩy OTLP về Alloy của bộ quan sát.
+  k6:
+    image: grafana/k6:2.3.0
+    container_name: perf-k6
+    profiles: ["k6"]
+    environment:
+      BASE_URL: http://be:8080
+      K6_OTEL_EXPORTER_TYPE: grpc
+      K6_OTEL_GRPC_EXPORTER_ENDPOINT: smashcourt-test-alloy:4317
+      K6_OTEL_GRPC_EXPORTER_INSECURE: "true"
+      K6_OTEL_METRIC_PREFIX: k6_
+      K6_OTEL_EXPORT_INTERVAL: 5s
+      K6_OTEL_FLUSH_INTERVAL: 1s
+      K6_OTEL_SERVICE_NAME: k6
+    volumes:
+      - ../k6:/scripts:ro
+      - ../results/k6:/results
+    cpus: 1.5
+    mem_limit: 1g
+
+networks:
+  default:
+    name: smashcourt-test
+    external: true   # do bộ quan sát kiểm thử (perf/docker-compose.yml) tạo; perf.sh bật bộ đó trước

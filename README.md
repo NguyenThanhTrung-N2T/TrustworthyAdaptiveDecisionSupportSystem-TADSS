@@ -415,6 +415,7 @@ Cột *File* ghi đường dẫn tính từ gốc repo. Bảng này do `tools/do
 | `docs/guides/EVALUATION_RUN_GUIDE.md` | hiện hành | Hướng dẫn chạy chế độ đánh giá từng bước, kèm kịch bản tải k6 (LT-01, LT-02, LT-05) |
 | `docs/guides/DOCKER_COMMANDS.md` | hiện hành | Lệnh Docker hằng ngày cho BE, TADSS, AI (Epic 6C): kéo image GHCR theo `IMAGE_TAG` và chạy, xem log/phiên bản, dừng, dọn image/container (kèm danh sách image không được xoá) |
 | `docs/guides/TEST_DASHBOARD.md` | hiện hành | Dashboard "Kiểm thử" (Epic 6C, gói 6C-3b): bật bộ quan sát test local (`perf/docker-compose.yml`), nạp kết quả CI ba repo, Evidence Pack, k6, SC6, Playwright bằng `python perf/board.py`, đọc 3 tầng; danh mục máy đọc `tests/catalog.yaml` sinh từ methodology |
+| `docs/guides/PERF_ENVIRONMENT.md` | hiện hành | Môi trường đo hiệu năng `perf` (Epic 6C, gói 6C-4): `bash perf/perf.sh up / seed / run / down`, BE, TADSS, AI theo image sha, DB và LLM giả riêng, dữ liệu benchmark tất định, k6 7 hành trình |
 | `docs/planning/MASTER_EXECUTION_PLAN.md` | hiện hành | Kế hoạch v2.1, nguồn duy nhất về lịch trình |
 | `docs/planning/BACKLOG_SPRINTS.md` | hiện hành | Backlog theo phase và trạng thái task |
 | `docs/planning/PROJECT_WBS_MAPPING.md` | hiện hành | WBS, phụ thuộc và rủi ro |

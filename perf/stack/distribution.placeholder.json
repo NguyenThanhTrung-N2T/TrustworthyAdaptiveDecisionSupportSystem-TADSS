@@ -1,0 +1,22 @@
+{
+  "_comment": "PLACEHOLDER (P6-42, plan 6C Phụ lục B.6.4): phân bố GIẢ LẬP để phát triển bộ sinh dữ liệu khi chưa có file thống kê rút từ 215 booking (task 2.17). Lượt đo chính thức phải dùng file thống kê tham chiếu đã xác minh; báo cáo ghi nguồn phân bố của từng lượt.",
+  "source": "PLACEHOLDER",
+  "branches": 3,
+  "courts_per_branch": {"standard": 6, "vip": 2},
+  "open_hours": [6, 22],
+  "staff_per_branch": 3,
+  "customer_profiles": [
+    {"name": "moi", "weight": 0.45, "completed": [0, 0], "no_show": [0, 0], "payment_expired": [0, 0]},
+    {"name": "quen", "weight": 0.30, "completed": [2, 10], "no_show": [0, 0], "payment_expired": [0, 1]},
+    {"name": "thinh_thoang_vang", "weight": 0.12, "completed": [1, 6], "no_show": [1, 1], "payment_expired": [0, 1]},
+    {"name": "hay_bo_thanh_toan", "weight": 0.08, "completed": [0, 3], "no_show": [0, 0], "payment_expired": [2, 3]},
+    {"name": "rui_ro", "weight": 0.05, "completed": [0, 2], "no_show": [2, 4], "payment_expired": [0, 2]}
+  ],
+  "history_days": 180,
+  "hour_weights": {"6": 2, "7": 2, "8": 1, "9": 1, "10": 1, "11": 1, "12": 1, "13": 1, "14": 1, "15": 2, "16": 3, "17": 5, "18": 6, "19": 6, "20": 5, "21": 3},
+  "duration_hours_weights": {"1": 0.55, "2": 0.4, "3": 0.05},
+  "two_courts_share": 0.1,
+  "future_days": 14,
+  "future_occupancy": 0.3,
+  "lead_time_days_weights": {"0": 0.1, "1": 0.25, "2": 0.2, "3": 0.15, "5": 0.12, "7": 0.1, "10": 0.05, "14": 0.03}
+}

@@ -36,7 +36,7 @@ Mở <http://127.0.0.1:3003> (không cần đăng nhập) ⇒ Dashboards ⇒ **S
 
 | Nguồn | Lệnh (trong `TADSS-Runtime/`) | Mã được cập nhật |
 | :--- | :--- | :--- |
-| CI gần nhất trên GitHub (cần `gh` đã đăng nhập) | `python perf/board.py ci all` (hoặc `be`, `tadss`, `ai`; `--branch master`) | BE-UT, BE-IT, UT, IT, CT, OPS-03/04, OB-BE-1/2, AI-UT, OB-AI-1, AI-CT-01… |
+| CI gần nhất trên GitHub (cần `gh` đã đăng nhập) | `python perf/board.py ci all` (hoặc `be`, `tadss`, `ai`; mặc định nhánh CI của từng repo: BE, TADSS `develop`, AI `master`; đổi bằng `--branch`) | BE-UT, BE-IT, UT, IT, CT, OPS-03/04, OB-BE-1/2, AI-UT, OB-AI-1, AI-CT-01… |
 | Test chạy trên máy | BE/TADSS: chạy `dotnet test ... --logger trx --results-directory <dir>` với `SMASHCOURT_CATALOG_INDEX_DIR=<dir>` (BE) hoặc `TADSS_CATALOG_INDEX_DIR=<dir>` (TADSS), rồi `python perf/board.py trx be <dir>`; AI: `pytest --junitxml=<file>` rồi `python perf/board.py junit <file>` | như CI |
 | Evidence Pack của evaluator | `python perf/board.py evidence evidence/<run_id>` | MT, FI, LT, RP, PT, SEC, NG, SCALE, OB, DOC + KPI SC1–SC8 |
 | Một lượt k6 | `python perf/board.py k6 SP-01 <summary.json>`; lượt `INFRA_LIMITED`/`ABORTED` thêm `--limited "lý do"` (vàng, không tính đạt, P6-47) | SP-xx |
@@ -66,6 +66,6 @@ Mọi panel có ⓘ với mô tả 6 ý (đo gì, đơn vị, cách đọc, ngư
 - Bản gốc mỗi lần nạp nằm ở `perf/results/<thời điểm>-<nguồn>/` (`summary.json` + file gốc): chép thư mục cần dùng ra ngoài trước khi xóa.
 - Số liệu Prometheus giữ 365 ngày trong volume `smashcourt-test-prometheus-data`. Không lưu ảnh dashboard (quy ước dự án); cần bảng thì dùng panel ⇒ Inspect ⇒ Data ⇒ tải CSV.
 
-## 6. Còn lại (gói 6C-4, 6C-5)
+## 6. Môi trường đo
 
-Môi trường `perf` (BE, TADSS, AI theo image `sha-…`, DB riêng, LLM giả) nối vào mạng `smashcourt-test` và gửi OTLP tới `alloy:4317`; exporter PostgreSQL/Redis và Tempo (trace cho lượt phân tích) thêm khi làm môi trường đó.
+Môi trường `perf` (BE, TADSS, AI theo image `sha-…`, DB riêng, LLM giả, k6) nối vào mạng `smashcourt-test` và gửi OTLP tới Alloy của bộ này: [PERF_ENVIRONMENT.md](PERF_ENVIRONMENT.md). Exporter PostgreSQL/Redis và Tempo (trace cho lượt phân tích) còn lại của gói 6C-4.
