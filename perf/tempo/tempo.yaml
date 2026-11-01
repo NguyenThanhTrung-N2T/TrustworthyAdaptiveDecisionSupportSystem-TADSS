@@ -1,0 +1,22 @@
+# Tempo của bộ quan sát kiểm thử (Epic 6C, gói 6C-4): giữ trace của lượt phân tích nút cổ chai (perf.sh up --trace; P6-40, task 2.27).
+# Một tiến trình, lưu trên đĩa cục bộ (volume smashcourt-test-tempo-data), giữ 30 ngày. Nhận OTLP gRPC từ Alloy.
+stream_over_http_enabled: true
+server:
+  http_listen_port: 3200
+  log_level: warn
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+compactor:
+  compaction:
+    block_retention: 720h

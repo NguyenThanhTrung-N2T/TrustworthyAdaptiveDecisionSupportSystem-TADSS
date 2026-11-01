@@ -155,6 +155,9 @@ services:
       Jwt__Key: perf-jwt-signing-key-not-secret-0123456789abcdef
       Jwt__Issuer: smashcourt-perf
       Jwt__Audience: smashcourt-perf
+      # Token sống 4 giờ: k6 đăng nhập sẵn một nhóm tài khoản trong setup, lượt soak không sinh bão đăng nhập khi token hết hạn đồng loạt;
+      # chi phí đăng nhập (BCrypt) đo riêng ở hành trình J2
+      Jwt__AccessTokenExpirationMinutes: "240"
       Otp__HmacSecret: perf-otp-hmac-not-secret
       Smtp__Host: mailpit
       Smtp__Port: "1025"
@@ -224,6 +227,7 @@ services:
       K6_OTEL_SERVICE_NAME: k6
     volumes:
       - ../k6:/scripts:ro
+      - ./:/stack:ro   # file phân bố (thời gian đặt trước, thời lượng) dùng chung với datagen
       - ../results/k6:/results
     cpus: 1.5
     mem_limit: 1g

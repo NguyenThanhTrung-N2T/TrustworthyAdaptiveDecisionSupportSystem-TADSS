@@ -1,5 +1,6 @@
 // Alloy của bộ quan sát kiểm thử (perf/docker-compose.yml): cổng OTLP duy nhất cho k6 và app của môi trường perf (P6-38),
-// đo CPU/RAM từng container bằng cAdvisor; tất cả đẩy vào Prometheus qua OTLP. Exporter PostgreSQL/Redis thêm ở gói 6C-4 khi có DB perf.
+// đo CPU/RAM từng container bằng cAdvisor, PostgreSQL và Redis của môi trường perf bằng exporter có sẵn trong Alloy; metric ⇒ Prometheus,
+// trace (chỉ lượt phân tích, perf.sh up --trace, P6-40) ⇒ Tempo. Môi trường perf tắt thì exporter báo pg_up / redis_up = 0, không lỗi.
 
 otelcol.receiver.otlp "apps" {
   grpc {
@@ -10,7 +11,72 @@ otelcol.receiver.otlp "apps" {
   }
   output {
     metrics = [otelcol.processor.batch.local.input]
+    traces  = [otelcol.processor.batch.traces.input]
   }
+}
+
+otelcol.processor.batch "traces" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// PostgreSQL / Redis của môi trường perf (perf/stack/docker-compose.yml). Mật khẩu là hằng không bí mật của stack perf.
+// Kết nối vào database `postgres` (số liệu vẫn có nhãn datname): perf.sh seed/reset xóa và chép database smashcourt/tadss từ mẫu,
+// PostgreSQL từ chối khi còn phiên nào đang mở trong database nguồn/đích.
+prometheus.exporter.postgres "smashcourt" {
+  data_source_names = ["postgresql://smashcourt:smashcourt_perf@perf-postgres:5432/postgres?sslmode=disable"]
+}
+
+prometheus.exporter.postgres "tadss" {
+  data_source_names = ["postgresql://tadss:tadss_perf@perf-tadss-postgres:5432/postgres?sslmode=disable"]
+}
+
+prometheus.exporter.redis "tadss" {
+  redis_addr = "perf-redis:6379"
+}
+
+prometheus.scrape "postgres_smashcourt" {
+  targets         = prometheus.exporter.postgres.smashcourt.targets
+  job_name        = "perf-postgres"
+  scrape_interval = "5s"
+  scrape_timeout  = "4s"
+  forward_to      = [prometheus.relabel.databases.receiver]
+}
+
+prometheus.scrape "postgres_tadss" {
+  targets         = prometheus.exporter.postgres.tadss.targets
+  job_name        = "perf-tadss-postgres"
+  scrape_interval = "5s"
+  scrape_timeout  = "4s"
+  forward_to      = [prometheus.relabel.databases.receiver]
+}
+
+prometheus.scrape "redis" {
+  targets         = prometheus.exporter.redis.tadss.targets
+  job_name        = "perf-redis"
+  scrape_interval = "5s"
+  scrape_timeout  = "4s"
+  forward_to      = [prometheus.relabel.databases.receiver]
+}
+
+// Chỉ giữ metric dùng để tìm nút cổ chai (kết nối, giao dịch, khóa, cache hit; lệnh và bộ nhớ Redis)
+prometheus.relabel "databases" {
+  rule {
+    source_labels = ["__name__"]
+    regex         = "pg_up|pg_stat_activity_count|pg_stat_activity_max_tx_duration|pg_stat_database_(xact_commit|xact_rollback|blks_read|blks_hit|deadlocks|numbackends)|pg_locks_count|pg_settings_max_connections|redis_up|redis_connected_clients|redis_memory_used_bytes|redis_commands_processed_total|redis_keyspace_(hits|misses)_total"
+    action        = "keep"
+  }
+  forward_to = [otelcol.receiver.prometheus.containers.receiver]
 }
 
 prometheus.exporter.cadvisor "docker" {

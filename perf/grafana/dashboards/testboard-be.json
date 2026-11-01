@@ -888,6 +888,176 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL smashcourt: kết nối theo trạng thái",
+      "description": "**Đo gì:** Số kết nối tới database smashcourt theo trạng thái (active đang chạy truy vấn, idle trong pool, idle in transaction).\n**Đơn vị:** Kết nối.\n**Cách đọc:** active sát trần pool trong khi độ trễ tăng ⇒ nghẽn pool kết nối; idle in transaction kéo dài ⇒ giao dịch giữ khóa lâu.\n**Ngưỡng:** Trần pool BE 100 (Maximum Pool Size trong compose perf); max_connections của PostgreSQL perf 200.\n**Nguồn:** pg_stat_activity_count (exporter PostgreSQL trong Alloy (perf/alloy.alloy))\n**Mã test:** SP-01…09",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (state) (pg_stat_activity_count{datname=\"smashcourt\"})",
+          "legendFormat": "{{state}}",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Chưa có lượt đo (môi trường perf, gói 6C-4)",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL smashcourt: giao dịch mỗi giây",
+      "description": "**Đo gì:** Số giao dịch commit và rollback mỗi giây của database smashcourt.\n**Đơn vị:** Giao dịch/giây.\n**Cách đọc:** Commit đi ngang khi tải tăng ⇒ DB đã bão hòa; rollback tăng ⇒ xung đột (trùng sân, cập nhật có điều kiện thua).\n**Ngưỡng:** Không có ngưỡng cố định; so với số request/giây cùng lúc.\n**Nguồn:** pg_stat_database_xact_commit, pg_stat_database_xact_rollback (exporter PostgreSQL trong Alloy (perf/alloy.alloy))\n**Mã test:** SP-01…09",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_database_xact_commit{datname=\"smashcourt\"}[$__rate_interval]))",
+          "legendFormat": "commit",
+          "instant": false,
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_database_xact_rollback{datname=\"smashcourt\"}[$__rate_interval]))",
+          "legendFormat": "rollback",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 46,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Chưa có lượt đo (môi trường perf, gói 6C-4)",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL smashcourt: khóa đang giữ",
+      "description": "**Đo gì:** Số khóa đang giữ trong database smashcourt theo loại khóa.\n**Đơn vị:** Khóa.\n**Cách đọc:** ExclusiveLock / RowExclusiveLock tăng vọt cùng lúc độ trễ đặt sân tăng ⇒ tranh chấp khóa sân khi nhiều người đặt cùng giờ.\n**Ngưỡng:** Không có ngưỡng cố định; đọc cùng panel giao dịch.\n**Nguồn:** pg_locks_count (exporter PostgreSQL trong Alloy (perf/alloy.alloy))\n**Mã test:** SP-01…09",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (mode) (pg_locks_count{datname=\"smashcourt\"}) > 0",
+          "legendFormat": "{{mode}}",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 46,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Chưa có lượt đo (môi trường perf, gói 6C-4)",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }

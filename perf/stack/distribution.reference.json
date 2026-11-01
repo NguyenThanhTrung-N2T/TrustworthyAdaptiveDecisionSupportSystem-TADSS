@@ -1,0 +1,156 @@
+{
+  "_comment": "SINH TỰ ĐỘNG bởi perf/stack/reference_stats.py từ CSV booking SmashCourt (data/private, không vào repo). Chỉ phân bố tổng hợp; phần cấu trúc giữ của distribution.placeholder.json (xem derived).",
+  "source": "REFERENCE (215 booking)",
+  "sample": {
+    "bookings": 215,
+    "online_share": 0.6233,
+    "final_status": {
+      "CANCELLED": 82,
+      "CANCELLED_PENDING_REFUND": 9,
+      "CANCELLED_REFUNDED": 5,
+      "COMPLETED": 40,
+      "NO_SHOW": 78,
+      "PENDING_PAYMENT": 1
+    }
+  },
+  "derived": [
+    "customer_profiles",
+    "hour_weights",
+    "duration_hours_weights",
+    "two_courts_share",
+    "lead_time_days_weights"
+  ],
+  "branches": 3,
+  "courts_per_branch": {
+    "standard": 6,
+    "vip": 2
+  },
+  "open_hours": [
+    6,
+    22
+  ],
+  "staff_per_branch": 3,
+  "history_days": 180,
+  "future_days": 14,
+  "future_occupancy": 0.3,
+  "customer_profiles": [
+    {
+      "name": "moi",
+      "weight": 0.4651,
+      "completed": [
+        0,
+        0
+      ],
+      "no_show": [
+        0,
+        0
+      ],
+      "payment_expired": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "quen",
+      "weight": 0.0186,
+      "completed": [
+        1,
+        1
+      ],
+      "no_show": [
+        0,
+        0
+      ],
+      "payment_expired": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "thinh_thoang_vang",
+      "weight": 0.093,
+      "completed": [
+        0,
+        1
+      ],
+      "no_show": [
+        1,
+        1
+      ],
+      "payment_expired": [
+        0,
+        27
+      ]
+    },
+    {
+      "name": "hay_bo_thanh_toan",
+      "weight": 0.2465,
+      "completed": [
+        0,
+        3
+      ],
+      "no_show": [
+        0,
+        0
+      ],
+      "payment_expired": [
+        2,
+        27
+      ]
+    },
+    {
+      "name": "rui_ro",
+      "weight": 0.1767,
+      "completed": [
+        0,
+        2
+      ],
+      "no_show": [
+        2,
+        11
+      ],
+      "payment_expired": [
+        0,
+        29
+      ]
+    }
+  ],
+  "hour_weights": {
+    "6": 49,
+    "7": 30,
+    "8": 16,
+    "9": 5,
+    "10": 6,
+    "11": 11,
+    "12": 7,
+    "13": 8,
+    "14": 8,
+    "15": 15,
+    "16": 8,
+    "17": 11,
+    "18": 20,
+    "19": 6,
+    "20": 8,
+    "21": 1,
+    "22": 6
+  },
+  "duration_hours_weights": {
+    "1": 164,
+    "2": 31,
+    "3": 9,
+    "4": 6,
+    "5": 1,
+    "7": 1,
+    "9": 1,
+    "11": 2
+  },
+  "two_courts_share": 0.1302,
+  "lead_time_days_weights": {
+    "0": 131,
+    "1": 65,
+    "2": 14,
+    "3": 3,
+    "4": 1,
+    "5": 1
+  }
+}

@@ -88,7 +88,9 @@ case "$cmd" in
     ;;
   seed)
     # Dựng database mẫu một lần (sau `up`): SmashCourt = schema production + dữ liệu benchmark; TADSS = database đã migrate, chưa có quyết định
-    seed=42; customers=2000; distribution="$root/stack/distribution.placeholder.json"
+    # Mặc định phân bố tham chiếu rút từ 215 booking (task 2.17); placeholder chỉ khi chưa có file đó
+    distribution="$root/stack/distribution.reference.json"; [ -f "$distribution" ] || distribution="$root/stack/distribution.placeholder.json"
+    seed=42; customers=2000
     while [ $# -gt 0 ]; do
       case "$1" in
         --seed) seed="${2:?}"; shift 2 ;;
@@ -144,6 +146,7 @@ case "$cmd" in
         --duration) k6_env+=(-e "DURATION=${2:?}"); shift 2 ;;
         --warmup) k6_env+=(-e "WARMUP=${2:?}"); shift 2 ;;
         --vus) k6_env+=(-e "VUS=${2:?}"); shift 2 ;;
+        --max-vus) k6_env+=(-e "MAX_VUS=${2:?}"); shift 2 ;;
         --think) k6_env+=(-e "THINK_SCALE=${2:?}"); shift 2 ;;
         --seed) k6_env+=(-e "SEED=${2:?}"); shift 2 ;;
         --code) code="${2:?}"; shift 2 ;;
@@ -173,10 +176,13 @@ case "$cmd" in
     echo "perf.sh: lượt ${run_id} (kết quả: perf/results/k6/${run_id}/)"
     set +e
     BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps "${k6_env[@]}" -e "RUN_ID=$run_id" \
-      -e "CUSTOMERS=${customers:-2000}" k6 run --quiet --out opentelemetry /scripts/mix.js
+      -e "CUSTOMERS=${customers:-2000}" -e "DISTRIBUTION=$(grep -o '"distribution": "[^"]*"' "$seed_meta" | cut -d'"' -f4)" k6 run --quiet --out opentelemetry /scripts/mix.js
     k6_exit=$?
     set -e
     echo "perf.sh: k6 thoát ${k6_exit} (0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng)"
+    # Bảng tài nguyên theo phút + resources.json (đợi lần đẩy số liệu cuối 5 giây của app/k6 tới Prometheus)
+    sleep 10
+    [ -f "$out/summary.json" ] && { python "$root/stack/analyze.py" "$out" || echo "perf.sh: không phân tích được lượt (Prometheus?)" >&2; }
     if [ -n "$code" ]; then
       python "$root/board.py" k6 "$code" "$out/summary.json" ${limited:+--limited "$limited"}
     fi

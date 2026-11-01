@@ -68,4 +68,4 @@ Mọi panel có ⓘ với mô tả 6 ý (đo gì, đơn vị, cách đọc, ngư
 
 ## 6. Môi trường đo
 
-Môi trường `perf` (BE, TADSS, AI theo image `sha-…`, DB riêng, LLM giả, k6) nối vào mạng `smashcourt-test` và gửi OTLP tới Alloy của bộ này: [PERF_ENVIRONMENT.md](PERF_ENVIRONMENT.md). Exporter PostgreSQL/Redis và Tempo (trace cho lượt phân tích) còn lại của gói 6C-4.
+Môi trường `perf` (BE, TADSS, AI theo image `sha-…`, DB riêng, LLM giả, k6) nối vào mạng `smashcourt-test` và gửi OTLP tới Alloy của bộ này: [PERF_ENVIRONMENT.md](PERF_ENVIRONMENT.md). Bộ quan sát có thêm Tempo (trace của lượt phân tích) và exporter PostgreSQL/Redis của môi trường perf (chạy trong Alloy).

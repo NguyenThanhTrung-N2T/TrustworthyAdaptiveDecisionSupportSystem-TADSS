@@ -33,6 +33,13 @@ def test_check_reports_missing_description_part_and_unknown_metric(monkeypatch):
     assert any("Ngưỡng" in error for error in errors) and any("khong_ton_tai_total" in error for error in errors)
 
 
+def test_metric_names_ending_in_count_are_not_mistaken_for_histogram_suffix():
+    # pg_stat_activity_count là gauge của exporter, không phải đuôi _count của histogram pg_stat_activity
+    assert dashboards.metric_names('sum by (state) (pg_stat_activity_count{datname="x"})') == {"pg_stat_activity_count"}
+    assert dashboards.metric_names("rate(http_server_request_duration_seconds_bucket{job=\"be\"}[1m])") == {"http_server_request_duration_seconds"}
+    assert dashboards.metric_names("rate(khong_ton_tai_count[1m])") == {"khong_ton_tai_count"}
+
+
 @pytest.mark.parametrize("system", ["BE", "TADSS", "AI"])
 def test_tier_one_and_two_are_filtered_to_the_tab_system(system):
     board = dashboards.build(system)

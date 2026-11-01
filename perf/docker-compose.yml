@@ -1,6 +1,6 @@
 # Bộ quan sát kiểm thử (Epic 6C, gói 6C-3b, task 2.2; P6-37): chạy local, tách khỏi bản deploy và Grafana Cloud.
 #   Bật:  docker compose -f perf/docker-compose.yml up -d        Tắt: docker compose -f perf/docker-compose.yml down   (giữ dữ liệu)
-#   Grafana "Kiểm thử": http://127.0.0.1:3003 · Prometheus: http://127.0.0.1:9095 · Pushgateway: http://127.0.0.1:9096
+#   Grafana "Kiểm thử": http://127.0.0.1:3003 (Explore ⇒ Tempo cho trace) · Prometheus: http://127.0.0.1:9095 · Pushgateway: http://127.0.0.1:9096
 #   Nạp kết quả test: python perf/board.py ... (docs/guides/TEST_DASHBOARD.md)
 # Luồng: k6 + app của môi trường perf ──OTLP──► alloy ──► Prometheus ◄── Pushgateway ◄── perf/board.py (kết quả CI, evidence, k6, SC6)
 #        alloy còn đo CPU/RAM từng container (cAdvisor). Môi trường perf (gói 6C-4) nối vào mạng smashcourt-test.
@@ -47,7 +47,18 @@ services:
       - "127.0.0.1:14317:4317"   # OTLP gRPC cho k6/app chạy ngoài mạng Docker
       - "127.0.0.1:14318:4318"   # OTLP HTTP
       - "127.0.0.1:12346:12345"  # giao diện Alloy
-    depends_on: [prometheus]
+    depends_on: [prometheus, tempo]
+    restart: unless-stopped
+
+  # Trace của lượt phân tích nút cổ chai (task 2.27, P6-40); bản 2.10 vì Tempo 3.x chưa có tag phát hành trên Docker Hub
+  tempo:
+    image: grafana/tempo:2.10.10
+    container_name: smashcourt-test-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    user: "0"   # volume mới tạo thuộc root; Tempo chỉ chạy trong mạng smashcourt-test, không mở cổng ra máy
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
     restart: unless-stopped
 
   grafana:
@@ -67,7 +78,7 @@ services:
       - grafana-data:/var/lib/grafana
     ports:
       - "127.0.0.1:3003:3000"
-    depends_on: [prometheus]
+    depends_on: [prometheus, tempo]
     restart: unless-stopped
 
 networks:
@@ -81,3 +92,5 @@ volumes:
     name: smashcourt-test-pushgateway-data
   grafana-data:
     name: smashcourt-test-grafana-data
+  tempo-data:
+    name: smashcourt-test-tempo-data

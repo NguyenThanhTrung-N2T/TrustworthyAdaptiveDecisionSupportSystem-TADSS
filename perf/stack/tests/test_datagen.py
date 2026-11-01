@@ -87,3 +87,14 @@ def test_sql_escapes_quotes_and_has_no_personal_data():
     sql = datagen.generate(7, 30, ANCHOR)
     emails = set(re.findall(r"'([^']+@[^']+)'", sql))
     assert emails and all(email.endswith("@smashcourt.perf") for email in emails)
+
+
+def test_start_hours_outside_opening_hours_are_never_generated():
+    # Dữ liệu tham chiếu có đơn bắt đầu đúng giờ đóng cửa (22 giờ): không được sinh đơn dài 0 giờ hay vượt giờ đóng cửa
+    distribution = datagen.json.loads(datagen.PLACEHOLDER.read_text(encoding="utf-8"))
+    distribution["hour_weights"] = {"5": 3, "21": 1, "22": 5}
+    generator = datagen.Generator(7, 60, ANCHOR, distribution)
+    generator.build()
+    columns, rows = generator.sql.tables["booking_courts"]
+    start, end = columns.index("start_time"), columns.index("end_time")
+    assert rows and all(6 <= row[start].hour < row[end].hour <= 22 for row in rows)

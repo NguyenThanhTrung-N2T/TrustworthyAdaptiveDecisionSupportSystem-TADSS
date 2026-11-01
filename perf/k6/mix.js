@@ -8,7 +8,8 @@
 //   closed      closed (ramping-vus) VUS người dùng có think time giữa hai hành trình: góc nhìn trải nghiệm
 // Warm-up 2 phút (WARMUP) gắn tag phase=warmup và bị loại khỏi threshold; số liệu chính thức chỉ lấy phase=steady (plan 6C B.7.3).
 // Mô hình open đo theo nhịp hành trình đến, không phụ thuộc hệ thống chậm (tránh coordinated omission của closed model).
-import { JOURNEY_WEIGHTS, bookingOutcomes, journeys, loadCatalog, pickWeighted, reseed, runJourney, thinkBetweenJourneys } from './lib/journeys.js';
+import { JOURNEY_WEIGHTS, bookingOutcomes, journeys, loadCatalog, loginPool, pickWeighted, reseed, runJourney, thinkBetweenJourneys, usePool }
+  from './lib/journeys.js';
 
 const PROFILE = __ENV.PROFILE || 'smoke';
 const RATE = Number(__ENV.RATE || 5);                 // hành trình/giây ở mức danh nghĩa
@@ -32,8 +33,12 @@ function scenarios() {
   const after = WARMUP;
   switch (PROFILE) {
     case 'smoke':
-      return { smoke: { executor: 'per-vu-iterations', vus: Number(__ENV.VUS || 6), iterations: SMOKE_ORDER.length * 2, exec: 'roundRobin',
-        maxDuration: '10m', tags: { phase: 'steady' } } };
+      // Warm-up 30 s: ngay sau reset BE/TADSS nguội, lời gọi TADSS đầu tiên quá TimeoutMs 800 ms ⇒ đường lùi / 503 khi duyệt (lượt 02/11)
+      return {
+        warmup: openScenario('constant-arrival-rate', { rate: 2, duration: __ENV.WARMUP || '30s' }, 'warmup', '0s'),
+        smoke: { executor: 'per-vu-iterations', vus: Number(__ENV.VUS || 6), iterations: SMOKE_ORDER.length * 2, exec: 'roundRobin',
+          maxDuration: '10m', startTime: __ENV.WARMUP || '30s', tags: { phase: 'steady' } },
+      };
     case 'load':
     case 'soak':
       return { warmup, steady: openScenario('constant-arrival-rate', { rate: RATE, duration: DURATION }, 'steady', after) };
@@ -61,7 +66,7 @@ export const options = {
   // Mẫu endpoint có id đã gom bằng tag name; không lưu nhãn url thô để Prometheus không bùng nhãn
   systemTags: ['status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'scenario', 'expected_response'],
   summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max', 'count'],
-  setupTimeout: '2m',
+  setupTimeout: '5m',
   thresholds: {
     // Lượt dừng giữa chừng hoặc hỏng đường đi không được ra "đạt": tỷ lệ lỗi (5xx + timeout, không gồm 4xx nghiệp vụ) phải dưới 0,5 %
     // (SLO đề xuất B.7.2; ngưỡng latency theo nhóm thêm ở gói 6C-5 sau khi người dùng chốt SLO, task 2.18)
@@ -73,15 +78,17 @@ export const options = {
 };
 
 export function setup() {
-  return { catalog: loadCatalog() };
+  return { catalog: loadCatalog(), pool: loginPool(Number(__ENV.CUSTOMERS || 2000), Number(__ENV.POOL_CUSTOMERS || 300)) };
 }
 
 export function mixed(context) {
+  usePool(context.pool);
   reseed(__VU, __ITER);
   runJourney(pickWeighted(JOURNEY_WEIGHTS), context.catalog);
 }
 
 export function roundRobin(context) {
+  usePool(context.pool);
   reseed(__VU, __ITER);
   runJourney(SMOKE_ORDER[__ITER % SMOKE_ORDER.length], context.catalog);
 }

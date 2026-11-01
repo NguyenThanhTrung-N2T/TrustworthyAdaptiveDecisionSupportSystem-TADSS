@@ -19,8 +19,13 @@ KNOWN_METRICS = {
     "k6_http_reqs_total", "k6_http_req_duration_milliseconds", "k6_vus",
     "http_server_request_duration_seconds", "tadss_decision_duration_milliseconds",
     "container_cpu_usage_seconds_total", "container_memory_working_set_bytes",
+    # PostgreSQL / Redis của môi trường perf (exporter trong Alloy, perf/alloy.alloy)
+    "pg_stat_activity_count", "pg_stat_database_xact_commit", "pg_stat_database_xact_rollback", "pg_locks_count",
+    "redis_commands_processed_total", "redis_keyspace_hits_total", "redis_keyspace_misses_total",
 }
-_METRIC = re.compile(r"\b([a-z][a-z0-9_]*?)(?:_bucket|_count|_sum)?\s*[{\[]")
+_METRIC = re.compile(r"\b([a-z][a-z0-9_]*)\s*[{\[]")
+_HISTOGRAM_SUFFIX = re.compile(r"_(bucket|count|sum)$")
+_PROMQL_WORDS = {"by", "sum", "max", "rate", "avg"}
 _STATE_MAPPING = [{"type": "value", "options": {
     str(PASSED): {"text": "ĐẠT", "color": "green"},
     str(UNTESTED): {"text": "CHƯA CHẠY", "color": "#5a5f6b"},
@@ -77,6 +82,41 @@ def _timeseries(title: str, description: str, targets: list[dict], pos: tuple[in
                                             "custom": {"lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "spanNulls": True, "axisSoftMin": 0}},
                                "overrides": []},
                   options={"legend": {"displayMode": "list", "placement": "bottom", "showLegend": True}, "tooltip": {"mode": "multi", "sort": "desc"}})
+
+
+_DATABASE = {"BE": "smashcourt", "TADSS": "tadss"}
+
+
+def _database_panels(system: str, tests: str) -> list[dict]:
+    """DB (và Redis của TADSS) của môi trường perf trong lượt đo: kết nối, giao dịch, khóa / cache (giả thuyết nút cổ chai B.7.7)."""
+    db = _DATABASE[system]
+    source = "exporter PostgreSQL trong Alloy (perf/alloy.alloy)"
+    panels = [_timeseries(f"PostgreSQL {db}: kết nối theo trạng thái", describe(
+        f"Số kết nối tới database {db} theo trạng thái (active đang chạy truy vấn, idle trong pool, idle in transaction).", "Kết nối.",
+        "active sát trần pool trong khi độ trễ tăng ⇒ nghẽn pool kết nối; idle in transaction kéo dài ⇒ giao dịch giữ khóa lâu.",
+        "Trần pool BE 100 (Maximum Pool Size trong compose perf); max_connections của PostgreSQL perf 200.", f"pg_stat_activity_count ({source})", tests),
+        [_target(f'sum by (state) (pg_stat_activity_count{{datname="{db}"}})', "{{state}}")], (0, 46, 8, 8), "short"),
+        _timeseries(f"PostgreSQL {db}: giao dịch mỗi giây", describe(
+        f"Số giao dịch commit và rollback mỗi giây của database {db}.", "Giao dịch/giây.",
+        "Commit đi ngang khi tải tăng ⇒ DB đã bão hòa; rollback tăng ⇒ xung đột (trùng sân, cập nhật có điều kiện thua).",
+        "Không có ngưỡng cố định; so với số request/giây cùng lúc.", f"pg_stat_database_xact_commit, pg_stat_database_xact_rollback ({source})", tests),
+        [_target(f'sum(rate(pg_stat_database_xact_commit{{datname="{db}"}}[$__rate_interval]))', "commit"),
+         _target(f'sum(rate(pg_stat_database_xact_rollback{{datname="{db}"}}[$__rate_interval]))', "rollback", ref="B")], (8, 46, 8, 8), "short")]
+    if system == "BE":
+        panels.append(_timeseries("PostgreSQL smashcourt: khóa đang giữ", describe(
+            "Số khóa đang giữ trong database smashcourt theo loại khóa.", "Khóa.",
+            "ExclusiveLock / RowExclusiveLock tăng vọt cùng lúc độ trễ đặt sân tăng ⇒ tranh chấp khóa sân khi nhiều người đặt cùng giờ.",
+            "Không có ngưỡng cố định; đọc cùng panel giao dịch.", f"pg_locks_count ({source})", tests),
+            [_target('sum by (mode) (pg_locks_count{datname="smashcourt"}) > 0', "{{mode}}")], (16, 46, 8, 8), "short"))
+    else:
+        panels.append(_timeseries("Redis TADSS: lệnh mỗi giây và tỉ lệ cache hit", describe(
+            "Số lệnh Redis mỗi giây và tỉ lệ đọc trúng cache quyết định của TADSS.", "Lệnh/giây; tỉ lệ (0–1).",
+            "Hit thấp ⇒ mỗi request đều chạy lại strategy; lệnh tăng mà độ trễ TADSS tăng ⇒ xem Redis.",
+            "Không có ngưỡng cố định.", "redis_commands_processed_total, redis_keyspace_hits_total, redis_keyspace_misses_total (exporter Redis trong Alloy)", tests),
+            [_target("sum(rate(redis_commands_processed_total[$__rate_interval]))", "lệnh/giây"),
+             _target("sum(rate(redis_keyspace_hits_total[$__rate_interval])) / (sum(rate(redis_keyspace_hits_total[$__rate_interval])) + "
+                     "sum(rate(redis_keyspace_misses_total[$__rate_interval])))", "tỉ lệ hit", ref="B")], (16, 46, 8, 8), "short"))
+    return panels
 
 
 def build(system: str) -> dict:
@@ -172,6 +212,8 @@ def build(system: str) -> dict:
         "Giới hạn từng container ghi trong compose perf.", "container_memory_working_set_bytes (cAdvisor qua Alloy)", tests),
         [_target('max by (name) (container_memory_working_set_bytes{container_label_com_docker_compose_project="smashcourt-perf"})', "{{name}}")],
         (12, 38, 12, 8), "bytes"))
+    if system in _DATABASE:
+        panels.extend(_database_panels(system, tests))
 
     return {
         "uid": uid, "title": f"SmashCourt Kiểm thử - {system}", "tags": [TAG], "timezone": "browser", "schemaVersion": 39,
@@ -189,6 +231,15 @@ def build(system: str) -> dict:
     }
 
 
+def metric_names(expr: str) -> set[str]:
+    """Tên metric trong PromQL: tên đầy đủ nếu đã khai (gauge `pg_stat_activity_count`), không thì bỏ đuôi histogram `_bucket/_count/_sum`."""
+    names = set()
+    for raw in set(_METRIC.findall(expr)) - _PROMQL_WORDS:
+        base = _HISTOGRAM_SUFFIX.sub("", raw)
+        names.add(raw if raw in KNOWN_METRICS or base not in KNOWN_METRICS else base)
+    return names
+
+
 def check() -> list[str]:
     """Panel nào cũng có mô tả đủ 6 ý và mã test; PromQL chỉ dùng metric trong KNOWN_METRICS (task 2.9)."""
     errors = []
@@ -204,7 +255,7 @@ def check() -> list[str]:
             if not re.search(r"(SC\d|[A-Z]+-\d)", description.split("**Mã test:**")[-1]):
                 errors.append(f"{where}: thiếu mã test")
             for target in panel["targets"]:
-                for name in set(_METRIC.findall(target["expr"])) - KNOWN_METRICS - {"by", "sum", "max", "rate", "avg"}:
+                for name in metric_names(target["expr"]) - KNOWN_METRICS:
                     errors.append(f"{where}: metric '{name}' không có trong KNOWN_METRICS")
     return errors
 

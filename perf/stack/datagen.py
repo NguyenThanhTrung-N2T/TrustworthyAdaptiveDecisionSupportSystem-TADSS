@@ -193,7 +193,8 @@ class Generator:
     def pick_slot(self, day: date, branch: uuid.UUID | None = None) -> tuple[list[tuple[uuid.UUID, uuid.UUID, str]], int, int] | None:
         """Chọn sân + giờ bắt đầu + số giờ còn trống (không chồng lên dòng booking_courts đang hoạt động)."""
         open_hour, close_hour = self.dist["open_hours"]
-        hours = {int(h): w for h, w in self.dist["hour_weights"].items()}
+        # Chỉ giờ bắt đầu trong giờ mở cửa (dữ liệu tham chiếu có đơn bắt đầu đúng giờ đóng cửa)
+        hours = {int(h): w for h, w in self.dist["hour_weights"].items() if open_hour <= int(h) < close_hour}
         durations = {int(d): w for d, w in self.dist["duration_hours_weights"].items()}
         for _ in range(20):
             start = self.rng.choices(list(hours), list(hours.values()))[0]

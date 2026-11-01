@@ -4,9 +4,10 @@
 //   J6 nhân viên: danh sách, lịch, tổng quan, check-in/check-out  J7 quản lý: hàng chờ duyệt, duyệt cọc
 // Tỷ lệ hành trình (người dùng chốt Q4, 31/10): J1 55 %, J5 15 %, J3+J4 15 %, J2 5 %, J6 7 %, J7 3 %.
 // Ngẫu nhiên có seed theo (SEED, VU, lượt): cùng seed ⇒ cùng chuỗi lựa chọn của từng VU, không phụ thuộc tốc độ máy.
+import http from 'k6/http';
 import { sleep } from 'k6';
 import { Counter } from 'k6/metrics';
-import { data, get, post, queryParam, signedIpnQuery, tagWithJourney } from './client.js';
+import { BASE_URL, data, get, post, queryParam, signedIpnQuery, tagWithJourney } from './client.js';
 
 export const JOURNEY_WEIGHTS = { J1: 55, J5: 15, J3: 15, J2: 5, J6: 7, J7: 3 };
 const CUSTOMERS = Number(__ENV.CUSTOMERS || 2000);
@@ -18,7 +19,7 @@ const PASSWORD = 'Perf@12345';                         // mật khẩu thử chu
 const DOMAIN = 'smashcourt.perf';
 const OPEN_HOUR = 6;
 const CLOSE_HOUR = 22;
-const TOKEN_MAX_AGE_MS = 13 * 60 * 1000;               // access token sống 15 phút: lấy lại trước khi hết
+const TOKEN_MAX_AGE_MS = Number(__ENV.TOKEN_MAX_AGE_MIN || 230) * 60 * 1000;   // token perf sống 240 phút (compose perf)
 
 export const journeys = new Counter('journeys');
 export const bookingOutcomes = new Counter('booking_outcomes');
@@ -62,12 +63,23 @@ function vnDate(offsetDays) {
 }
 const vnHourNow = () => new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
 const hh = (hour) => `${String(hour).padStart(2, '0')}:00:00`;
-// Thời gian đặt trước (B.6.4, theo distribution.placeholder.json cho tới khi có file thống kê thật)
-const LEAD_DAYS = { 0: 10, 1: 25, 2: 20, 3: 15, 5: 12, 7: 10, 10: 5, 14: 3 };
-const DURATION_HOURS = { 1: 55, 2: 40, 3: 5 };
+// Thời gian đặt trước và thời lượng (B.6.4): cùng file phân bố với datagen (perf.sh truyền tên file đã seed)
+const DISTRIBUTION = JSON.parse(open(`/stack/${__ENV.DISTRIBUTION || 'distribution.placeholder.json'}`));
+const LEAD_DAYS = DISTRIBUTION.lead_time_days_weights;
+const DURATION_HOURS = DISTRIBUTION.duration_hours_weights;
 
 // ── phiên đăng nhập của VU (mỗi VU một khách, một nhân viên, một quản lý cố định) ──
+// Token lấy từ nhóm tài khoản setup() đã đăng nhập sẵn: open model sinh thêm VU khi hệ thống chậm, nếu mỗi VU mới tự đăng nhập thì
+// BCrypt dồn lại thành bão đăng nhập không có ở người dùng thật (thấy ở lượt thử tài nguyên 01/11). Đăng nhập đo riêng ở J2.
 const sessions = {};
+let pool = null;
+export function usePool(tokens) {
+  pool = tokens;
+}
+function pooled(role) {
+  const list = pool ? pool[role] : null;
+  return list && list.length > 0 ? list[(__VU - 1) % list.length] : null;
+}
 function account(role) {
   const branch = ((__VU - 1) % BRANCHES) + 1;
   if (role === 'customer') {
@@ -88,7 +100,44 @@ function login(role) {
 }
 function token(role) {
   const session = sessions[role];
-  return session && Date.now() - session.at < TOKEN_MAX_AGE_MS ? session.token : login(role);
+  if (session && Date.now() - session.at < TOKEN_MAX_AGE_MS) {
+    return session.token;
+  }
+  const shared = pooled(role);
+  if (shared && Date.now() - pool.at < TOKEN_MAX_AGE_MS) {
+    return shared;
+  }
+  return login(role);
+}
+
+// Đăng nhập sẵn (setup, chạy một lần): POOL_CUSTOMERS khách rải đều trên tập khách, mọi nhân viên và quản lý; 10 request song song
+export function loginPool(customers, poolSize) {
+  tagWithJourney('setup');
+  const accounts = { customer: [], staff: [], manager: [] };
+  const step = Math.max(1, Math.floor(customers / poolSize));
+  for (let i = 1; i <= customers && accounts.customer.length < poolSize; i += step) {
+    accounts.customer.push(`perf-customer-${String(i).padStart(4, '0')}@${DOMAIN}`);
+  }
+  for (let b = 1; b <= BRANCHES; b++) {
+    accounts.manager.push(`perf-manager-${b}@${DOMAIN}`);
+    for (let s = 1; s <= STAFF_PER_BRANCH; s++) {
+      accounts.staff.push(`perf-staff-${b}-${s}@${DOMAIN}`);
+    }
+  }
+  const tokens = { at: Date.now(), customer: [], staff: [], manager: [] };
+  for (const role of Object.keys(accounts)) {
+    for (let i = 0; i < accounts[role].length; i += 10) {
+      const batch = accounts[role].slice(i, i + 10).map((email) => ['POST', `${BASE_URL}/api/auth/login`, JSON.stringify({ email, password: PASSWORD }),
+        { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/auth/login', slo: 'login', journey: 'setup' } }]);
+      for (const res of http.batch(batch)) {
+        const body = data(res);
+        if (body && body.accessToken) {
+          tokens[role].push(body.accessToken);
+        }
+      }
+    }
+  }
+  return tokens;
 }
 
 // ── dữ liệu nền đọc một lần (setup) ───────────────────────────────────────
