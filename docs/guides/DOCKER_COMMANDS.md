@@ -23,6 +23,7 @@ Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả h�
 | `smashcourt-ai` | http://localhost:8000/health | |
 | `smashcourt-postgres` | `127.0.0.1:15432` (DBeaver…) | Database `smashcourt`, `tadss`; tài khoản trong `.env` |
 | `smashcourt-redis` | | Cache của TADSS |
+| `smashcourt-alloy` | http://localhost:12345 | Gom số liệu đẩy lên Grafana Cloud; bật riêng bằng `bash deploy/deploy.sh obs` (mục "Quan sát" bên dưới) |
 
 - Bản deploy và cách chạy tay ở mục 2 dùng chung cổng, tên container và tài khoản ngrok của BE. **Chỉ chạy một trong hai**: muốn chạy tay thì `docker stop smashcourt-be smashcourt-ngrok tadss-runtime smashcourt-ai` trước, xong thì `bash deploy/deploy.sh all`.
 
@@ -42,6 +43,48 @@ Push `develop` hoặc `master` của BE, TADSS, AI ⇒ CI (test, build, đẩy i
 - **Dọn image:** mỗi lần deploy thành công, `cd.sh` chỉ giữ image đang chạy và bản ngay trước của service đó.
 - **Bảo mật:** repo public nên pull request từ fork của **mọi** người ngoài phải được duyệt mới chạy workflow (Settings › Actions › General, đã đặt `all_external_contributors`); job deploy chỉ chạy khi push.
 - **Quay về tay một bản cũ:** `bash deploy/cd.sh be <sha đầy đủ>` (có kiểm và tự quay về) hoặc `bash deploy/deploy.sh be sha-xxxxxxx` (chỉ chạy).
+
+### Quan sát: Grafana Cloud (dashboard "Vận hành" + cảnh báo email)
+
+Grafana nằm trên Grafana Cloud (gói Free, có link `https://<stack>.grafana.net` mở ở đâu cũng được); máy deploy chỉ chạy thêm **một** container nhỏ `smashcourt-alloy` gom số liệu rồi đẩy lên:
+
+```text
+smashcourt-be ─┐  OTLP (metric, trace, log; 60 giây/lần)
+tadss-runtime ─┼──────────────► smashcourt-alloy ──► Grafana Cloud (Prometheus + Loki + Tempo + Grafana)
+smashcourt-ai ─┘                 │ + CPU/RAM, image đang chạy của từng container (cAdvisor)        │
+                                 └ + gọi health 3 service mỗi 60 giây (blackbox)          dashboard + email cảnh báo
+```
+
+- **Prometheus** lưu số liệu dạng chuỗi theo thời gian (request/giây, độ trễ, lỗi, CPU…); **Loki** lưu log; **Tempo** lưu trace (một request đi qua BE ⇒ DB ⇒ TADSS); **Grafana** là giao diện vẽ dashboard và gửi cảnh báo, đọc từ ba kho trên. Trên Grafana Cloud cả bốn có sẵn, không phải chạy trên máy.
+- **Alloy** là bộ gom: nhận OTLP từ 3 service, tự đo thêm container và health, rồi đẩy hết lên Grafana Cloud. Alloy dừng hoặc máy tắt thì app vẫn chạy bình thường, chỉ mất số liệu (và cảnh báo "không sẵn sàng" sẽ gửi email).
+
+**Cài một lần** (bạn tự làm; dán giá trị vào `~/.smashcourt-deploy/.env`, không dán vào chat):
+
+1. Đăng ký <https://grafana.com> (gói Free, không cần thẻ), tạo stack, ví dụ tên `smashcourt`, vùng gần nhất (Singapore).
+2. grafana.com › **My Account** › stack › ô **OpenTelemetry** › **Configure**: chép *OTLP Endpoint* vào `GRAFANA_CLOUD_OTLP_ENDPOINT`, *Instance ID* vào `GRAFANA_CLOUD_INSTANCE_ID`; bấm **Generate now** tạo token (quyền ghi metric, log, trace) và chép vào `GRAFANA_CLOUD_API_TOKEN`.
+3. Mở Grafana của stack (`https://<stack>.grafana.net`) › **Administration › Users and access › Service accounts** › tạo service account vai trò **Admin** (cần để tạo điểm nhận email và luật cảnh báo) › **Add token**: chép vào `GRAFANA_SA_TOKEN`; `GRAFANA_URL=https://<stack>.grafana.net`.
+4. `ALERT_EMAIL_TO=` địa chỉ nhận cảnh báo (nhiều địa chỉ: phân cách bằng `;`). Email do Grafana Cloud gửi, không cần Gmail hay mật khẩu ứng dụng.
+5. Chạy (trong `SmashCourt-BE/`): `bash deploy/deploy.sh obs` (bật Alloy) rồi `python deploy/grafana/grafana_cloud.py push` (tạo thư mục "SmashCourt - Vận hành", 3 dashboard, điểm nhận email, 5 luật cảnh báo).
+
+| Việc | Lệnh / nơi xem |
+| :--- | :--- |
+| Xem dashboard | Grafana › Dashboards › **SmashCourt - Vận hành** › BE / TADSS / AI (hàng nút đầu trang chuyển giữa 3 tab) |
+| Đọc log của một service | Panel "Log Warning / Error" cuối mỗi tab; toàn bộ log: Explore › Loki › `service_name` = `smashcourt-be` / `tadss-runtime` / `smashcourt-ai` |
+| Xem trace một request | Explore › Tempo › Search, Service Name = `smashcourt-be` |
+| Sửa dashboard / cảnh báo | Sửa `SmashCourt-BE/deploy/grafana/dashboards.py` (hoặc `alert_rules` trong `grafana_cloud.py`), chạy `python deploy/grafana/grafana_cloud.py check` rồi `push` (ghi đè bản trên Grafana) |
+| Alloy có lỗi không | <http://127.0.0.1:12345> (mọi thành phần phải "healthy"); `docker logs smashcourt-alloy` |
+| Đổi token Grafana Cloud | Sửa `.env` rồi `bash deploy/deploy.sh obs` |
+
+| Cảnh báo (email) | Khi nào |
+| :--- | :--- |
+| Service không sẵn sàng | Health của BE, TADSS hoặc AI không trả 2xx trong 2 phút; **hoặc mất số liệu** (máy deploy tắt, mất mạng, Alloy dừng) |
+| BE / AI lỗi 5xx > 5 % | Trong 5 phút |
+| TADSS đường lùi > 20 % | Trong 10 phút (chỉ có khi BE bật `TadssConfig:EnableTadssDecision`) |
+| Gemini bị giới hạn (429) liên tục | 10 phút |
+| CD thất bại / `UNSAFE` | Không qua Grafana: GitHub tự gửi email khi job "Deploy (máy deploy)" đỏ |
+
+- **Giới hạn gói Free** (kiểm trên trang giá khi đăng ký): khoảng 10.000 chuỗi metric, 50 GB log, 50 GB trace, giữ 14 ngày. Để nằm trong giới hạn: gửi 60 giây/lần, histogram ít bucket, Alloy chỉ giữ metric container mà dashboard dùng. Xem mức dùng: Grafana › Administration › **Usage insights** (hoặc grafana.com › Billing).
+- Số liệu cho báo cáo: số liệu chỉ giữ 14 ngày, nên xuất ngay (panel › Inspect › Data / Panel JSON). Bộ test hiệu năng có Grafana riêng chạy local, lưu kết quả lâu dài (không dùng Grafana Cloud).
 
 ## 1. Chạy bản nào? Biến `IMAGE_TAG` trong `.env`
 
