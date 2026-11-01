@@ -1,0 +1,15 @@
+# Prometheus của bộ quan sát kiểm thử (perf/docker-compose.yml). Metric OTLP (k6, app, cAdvisor qua alloy) đẩy vào /api/v1/otlp;
+# kết quả test (perf/board.py) nằm ở Pushgateway và được kéo về đây.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+otlp:
+  # Giữ nhãn của resource để lọc theo môi trường và service (service.name ⇒ job vẫn tự có)
+  promote_resource_attributes: [deployment.environment.name, service.version]
+
+scrape_configs:
+  - job_name: pushgateway
+    honor_labels: true   # giữ nhãn job=testboard do perf/board.py đặt
+    static_configs:
+      - targets: ["pushgateway:9091"]

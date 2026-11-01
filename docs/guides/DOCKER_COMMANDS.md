@@ -6,7 +6,7 @@ Cập nhật 01/11/2026 (Epic 6C). CI build sẵn image và đẩy lên GHCR, n�
 
 Một bản deploy của cả hệ thống trên máy: BE + TADSS + AI + PostgreSQL + Redis + ngrok của BE (FE trên Vercel gọi BE qua ngrok). Push `develop` hoặc `master` đều triển khai vào bản này (lần push gần nhất thắng; bình thường là `develop`). Dữ liệu BE chép từ Neon DB test `tadss-dev`; DB gốc không bị đụng tới.
 
-Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả hệ thống), `deploy.sh`, `seed-db.sh`, `cd.sh` (dùng cho CD), `runner/` (runner trong Docker), `.env.example`. Bí mật: **một** file `~/.smashcourt-deploy/.env` (ngoài repo, mẫu là `.env.example`).
+Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả hệ thống), `deploy.sh`, `seed-db.sh`, `cd.sh` (dùng cho CD), `runner/` (runner trong Docker), `.env.example`. Bí mật: **một** file `smashcourt-deploy.env` ở thư mục gốc workspace (`D:\SINH VIEN\HK6\DA1\SmashCourt\`, cạnh 4 repo; thư mục này không phải git repo nên file không bao giờ bị commit; mẫu là `.env.example`). Mở: `notepad smashcourt-deploy.env` từ thư mục gốc. Script tìm file theo `deploy/env-file.sh` (đặt `SMASHCOURT_ENV_FILE` nếu muốn để chỗ khác).
 
 | Việc | Lệnh (trong `SmashCourt-BE/`) |
 | :--- | :--- |
@@ -38,7 +38,7 @@ Push `develop` hoặc `master` của BE, TADSS, AI ⇒ CI (test, build, đẩy i
 | 2 | **UNSAFE**: quay về cũng hỏng, cần người xử lý |
 | 3 | Từ chối, chưa đụng gì: sha sai hoặc image không có trên GHCR |
 
-- **Runner chạy trong Docker:** 3 container `smashcourt-runner-be`, `-tadss`, `-ai` (runner chính thức của GitHub + Docker Compose, `SmashCourt-BE/deploy/runner/`), `restart: unless-stopped` nên **tự chạy khi mở Docker Desktop**, không cài gì vào Windows. Mỗi runner chỉ thấy Docker của máy (để deploy) và `~/.smashcourt-deploy/.env` (chỉ đọc); chạy bằng user `runner`, không phải root. Runner tắt (Docker tắt) thì job deploy chờ tối đa 24 giờ, mở Docker là chạy.
+- **Runner chạy trong Docker:** 3 container `smashcourt-runner-be`, `-tadss`, `-ai` (runner chính thức của GitHub + Docker Compose, `SmashCourt-BE/deploy/runner/`), `restart: unless-stopped` nên **tự chạy khi mở Docker Desktop**, không cài gì vào Windows. Mỗi runner chỉ thấy Docker của máy (để deploy) và `smashcourt-deploy.env` (gắn chỉ đọc vào `~/.smashcourt-deploy/.env` trong container); chạy bằng user `runner`, không phải root. Runner tắt (Docker tắt) thì job deploy chờ tối đa 24 giờ, mở Docker là chạy.
 - **Lệnh runner** (trong `SmashCourt-BE/`): bật/cập nhật `docker compose -f deploy/runner/docker-compose.yml up -d --build`; xem log `docker logs -f smashcourt-runner-be`. Đăng ký lại một runner (mất volume `smashcourt-runner-*`): `export RUNNER_TOKEN=$(gh api -X POST repos/NguyenThanhTrung-N2T/<repo>/actions/runners/registration-token -q .token)` rồi `docker compose -f deploy/runner/docker-compose.yml run --rm -e RUNNER_TOKEN runner-be register` (mã đăng ký chỉ dùng một lần, không lưu lại).
 - **Dọn image:** mỗi lần deploy thành công, `cd.sh` chỉ giữ image đang chạy và bản ngay trước của service đó.
 - **Bảo mật:** repo public nên pull request từ fork của **mọi** người ngoài phải được duyệt mới chạy workflow (Settings › Actions › General, đã đặt `all_external_contributors`); job deploy chỉ chạy khi push.
@@ -58,7 +58,7 @@ smashcourt-ai ─┘                 │ + CPU/RAM, image đang chạy của t�
 - **Prometheus** lưu số liệu dạng chuỗi theo thời gian (request/giây, độ trễ, lỗi, CPU…); **Loki** lưu log; **Tempo** lưu trace (một request đi qua BE ⇒ DB ⇒ TADSS); **Grafana** là giao diện vẽ dashboard và gửi cảnh báo, đọc từ ba kho trên. Trên Grafana Cloud cả bốn có sẵn, không phải chạy trên máy.
 - **Alloy** là bộ gom: nhận OTLP từ 3 service, tự đo thêm container và health, rồi đẩy hết lên Grafana Cloud. Alloy dừng hoặc máy tắt thì app vẫn chạy bình thường, chỉ mất số liệu (và cảnh báo "không sẵn sàng" sẽ gửi email).
 
-**Cài một lần** (bạn tự làm; dán giá trị vào `~/.smashcourt-deploy/.env`, không dán vào chat):
+**Cài một lần** (bạn tự làm; dán giá trị vào `smashcourt-deploy.env` ở thư mục gốc workspace, không dán vào chat):
 
 1. Đăng ký <https://grafana.com> (gói Free, không cần thẻ), tạo stack, ví dụ tên `smashcourt`, vùng gần nhất (Singapore).
 2. grafana.com › **My Account** › stack › ô **OpenTelemetry** › **Configure**: chép *OTLP Endpoint* vào `GRAFANA_CLOUD_OTLP_ENDPOINT`, *Instance ID* vào `GRAFANA_CLOUD_INSTANCE_ID`; bấm **Generate now** tạo token (quyền ghi metric, log, trace) và chép vào `GRAFANA_CLOUD_API_TOKEN`.

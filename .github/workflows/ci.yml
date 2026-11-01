@@ -39,8 +39,10 @@ jobs:
       - name: Build Solution
         run: dotnet build --no-restore --configuration Release --warnaserror
 
-      # 5a. Unit test (không cần Docker)
+      # 5a. Unit test (không cần Docker). TADSS_CATALOG_INDEX_DIR: xuất chỉ mục test → mã vào artifact cho dashboard "Kiểm thử" (perf/board.py ci tadss)
       - name: Run Unit Tests
+        env:
+          TADSS_CATALOG_INDEX_DIR: ${{ github.workspace }}/TestResults
         run: >
           dotnet test tests/TADSS.UnitTests/TADSS.UnitTests.csproj
           --no-build
@@ -53,6 +55,8 @@ jobs:
 
       # 5b. Integration test trên PostgreSQL/Redis/Toxiproxy thật (Testcontainers dùng Docker có sẵn của runner)
       - name: Run Integration Tests (Testcontainers)
+        env:
+          TADSS_CATALOG_INDEX_DIR: ${{ github.workspace }}/TestResults
         run: >
           dotnet test tests/TADSS.IntegrationTests/TADSS.IntegrationTests.csproj
           --no-build
@@ -213,3 +217,27 @@ jobs:
 
       - name: Run Docs Tool Tests
         run: python -m pytest -q tools/docs
+
+  # Epic 6C (gói 6C-3b, task 2.1–2.9): tests/catalog.yaml khớp methodology, 3 dashboard "Kiểm thử" khớp nguồn và mọi panel có mô tả 6 ý,
+  # bộ nạp kết quả (trx, JUnit, Evidence Pack, k6, SC6, Playwright) đúng — không cần Docker.
+  testboard:
+    name: Testboard (catalog + dashboard Kiểm thử)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r perf/requirements.txt
+
+      - name: Check catalog and dashboards
+        run: python perf/board.py check
+
+      - name: Run testboard tests
+        run: python -m pytest -q perf/testboard

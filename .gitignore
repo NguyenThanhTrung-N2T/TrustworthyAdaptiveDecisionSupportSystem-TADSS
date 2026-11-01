@@ -41,3 +41,6 @@ __pycache__/
 
 ## Môi trường ảo Python của người chạy hướng dẫn (docs/guides/EVALUATION_RUN_GUIDE.md)
 .venv/
+
+## Kết quả nạp vào dashboard "Kiểm thử" (perf/board.py): bản gốc + state.json, chỉ để trên máy (đưa vào báo cáo thì chép ra)
+/perf/results/

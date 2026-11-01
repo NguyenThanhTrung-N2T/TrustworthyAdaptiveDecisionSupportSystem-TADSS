@@ -1,0 +1,3 @@
+# Phụ thuộc Python của perf/testboard (dashboard "Kiểm thử"); cài: pip install -r perf/requirements.txt
+pyyaml==6.0.3
+pytest==9.1.1

@@ -1,0 +1,10 @@
+# Nạp 3 dashboard "Kiểm thử" sinh bởi perf/board.py dashboards (sửa ở perf/testboard/dashboards.py, không sửa trên giao diện)
+apiVersion: 1
+providers:
+  - name: testboard
+    folder: SmashCourt - Kiểm thử
+    type: file
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

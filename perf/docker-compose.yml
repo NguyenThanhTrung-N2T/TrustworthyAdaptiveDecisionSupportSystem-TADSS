@@ -1,0 +1,83 @@
+# Bộ quan sát kiểm thử (Epic 6C, gói 6C-3b, task 2.2; P6-37): chạy local, tách khỏi bản deploy và Grafana Cloud.
+#   Bật:  docker compose -f perf/docker-compose.yml up -d        Tắt: docker compose -f perf/docker-compose.yml down   (giữ dữ liệu)
+#   Grafana "Kiểm thử": http://127.0.0.1:3003 · Prometheus: http://127.0.0.1:9095 · Pushgateway: http://127.0.0.1:9096
+#   Nạp kết quả test: python perf/board.py ... (docs/guides/TEST_DASHBOARD.md)
+# Luồng: k6 + app của môi trường perf ──OTLP──► alloy ──► Prometheus ◄── Pushgateway ◄── perf/board.py (kết quả CI, evidence, k6, SC6)
+#        alloy còn đo CPU/RAM từng container (cAdvisor). Môi trường perf (gói 6C-4) nối vào mạng smashcourt-test.
+name: smashcourt-test-obs
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: smashcourt-test-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=365d   # giữ số liệu các lượt đo cho báo cáo
+      - --web.enable-otlp-receiver           # alloy đẩy OTLP vào /api/v1/otlp
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9095:9090"
+    restart: unless-stopped
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.5
+    container_name: smashcourt-test-pushgateway
+    command: ["--persistence.file=/data/pushgateway.db", "--persistence.interval=1m"]
+    volumes:
+      - pushgateway-data:/data
+    ports:
+      - "127.0.0.1:9096:9091"
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: smashcourt-test-alloy
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./alloy.alloy:/etc/alloy/config.alloy:ro
+      # cAdvisor đọc cgroup và Docker của máy (chỉ đọc), như alloy của bản deploy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    ports:
+      - "127.0.0.1:14317:4317"   # OTLP gRPC cho k6/app chạy ngoài mạng Docker
+      - "127.0.0.1:14318:4318"   # OTLP HTTP
+      - "127.0.0.1:12346:12345"  # giao diện Alloy
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    container_name: smashcourt-test-grafana
+    environment:
+      # Chỉ nghe 127.0.0.1 trên máy: cho vào thẳng, không cần đăng nhập
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer   # Grafana 13 chỉ hỗ trợ Viewer cho khách; dashboard do provisioning quản lý
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/testboard-tadss.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3003:3000"
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+networks:
+  default:
+    name: smashcourt-test
+
+volumes:
+  prometheus-data:
+    name: smashcourt-test-prometheus-data
+  pushgateway-data:
+    name: smashcourt-test-pushgateway-data
+  grafana-data:
+    name: smashcourt-test-grafana-data

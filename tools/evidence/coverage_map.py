@@ -13,6 +13,7 @@ NOT_IN_SCOPE = (
     (re.compile(r"^FI-1[1-4]$"), "kịch bản E2E với SmashCourt-BE, Phase 6"),
     (re.compile(r"^(RP|PT)-"), "dữ liệu replay/khách sạn (bước e, gói 5.6) chưa chạy hoặc thiếu dữ liệu trong lượt này"),
     (re.compile(r"^NG-4$"), "do người dùng chạy bằng token ngrok của mình"),
+    (re.compile(r"^(OPS|OB-BE|OB-AI|SEC-BE|SEC-AI|AI-UT|AI-CT|SP)-"), "Epic 6C: cả hệ thống BE + TADSS + AI (CI ba repo, CD, môi trường perf), xem dashboard Kiểm thử"),
 )
 
 

@@ -352,6 +352,73 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 | DOC-3 | Mọi link nội bộ tương đối trong markdown của repo trỏ tới file tồn tại; `#anchor` khớp tiêu đề (slug GitHub); link ra ngoài repo và link http không kiểm | tự động (như DOC-1) | P5 |
 | DOC-4 | Bảng `docs/guides/CONFIGURATION_REFERENCE.md` khớp hai chiều với các `Options` có `SectionName` `Tadss:*` trong mã | tự động (unit test) | P5 |
 
+### 4.16. Epic 6C — đóng gói, CD, quan sát, bảo mật và hiệu năng cả hệ thống (Phase 6)
+
+Các mã của [plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) (Mục 4). Phạm vi là SmashCourt-BE, TADSS-Runtime và SmashCourt-AI chạy cùng nhau, không thuộc lượt đánh giá TADSS đơn lẻ. Danh mục máy đọc sinh từ các bảng của Mục 4: [`tests/catalog.yaml`](../../tests/catalog.yaml); kết quả xem ở dashboard "Kiểm thử" (`perf/`).
+
+**OPS — Đóng gói và CD**
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| OPS-01 | Image BE, TADSS, AI không chứa file bí mật (`appsettings.Development.json`, `.env`, khóa): liệt kê file trong image | CI (`tools/ci/check-image.sh` mỗi repo) | P6 |
+| OPS-02 | Container chạy bằng user không phải root | CI (`check-image.sh`) | P6 |
+| OPS-03 | BE thiếu cấu hình bắt buộc (DB, JWT, OTP) thì dừng lúc khởi động và chỉ nêu tên khóa | tự động (BE test) | P6 |
+| OPS-04 | `/health/live`, `/health/ready` (DB mất ⇒ 503, live vẫn 200) và `/health/dependencies` của BE (TADSS hoặc AI dừng ⇒ báo lỗi, ready vẫn 200) | tự động (BE test) | P6 |
+| OPS-05 | Biết chính xác image đang chạy: nhãn OCI `revision` = sha của commit, hiện trên dashboard "Vận hành" | CI + dashboard | P6 |
+| OPS-06 | Cùng một image chạy được các cấu hình khác nhau (deploy, perf) chỉ bằng biến môi trường | thủ công (compose) | P6 |
+| OPS-07 | FE: `lint` ⇒ `tsc` ⇒ `build`; chỉ `master` triển khai Vercel production; lỗi `tsc` ⇒ không triển khai | CI FE | P6 |
+| OPS-08 | CD từ chối khi sha sai dạng, image `sha-<7>` không có trên GHCR hoặc nhãn revision lệch sha | CD (`deploy/cd.sh`, thoát 3) | P6 |
+| OPS-09 | CD triển khai đúng service vừa push (service khác không khởi động lại), kiểm health + smoke chỉ đọc | CD | P6 |
+| OPS-10 | Bản mới hỏng ⇒ tự quay về bản trước và kiểm lại (thoát 1); quay về cũng hỏng ⇒ `UNSAFE` (thoát 2) | CD (diễn tập) | P6 |
+
+**OB-BE, OB-AI — Quan sát BE và AI**
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| OB-BE-1 | BE xuất metric OTLP (ASP.NET Core, HttpClient, Npgsql, runtime) đúng tên/nhãn; tắt mặc định, cấu hình sai thì dừng lúc khởi động | tự động (BE test) | P6 |
+| OB-BE-2 | Trace bắt đầu từ request vào BE đi tiếp sang TADSS/AI chung `trace_id`; trace nền (Hangfire) bị bỏ | tự động (BE test) + kiểm trên Tempo | P6 |
+| OB-BE-3 | Dashboard "Vận hành": mọi panel có mô tả 6 ý, mã test và chỉ dùng metric có thật | CI BE (`deploy/grafana/grafana_cloud.py check`) | P6 |
+| OB-BE-4 | Cảnh báo email khi service không sẵn sàng (thử bằng sự cố giả: dừng một service) | thủ công | P6 |
+| OB-AI-1 | AI xuất metric FastAPI và lời gọi Gemini (độ trễ, kết quả ok/quota/error, token vào/ra) | tự động (AI pytest) | P6 |
+| OB-AI-2 | AI nhận `traceparent` từ BE: một trace chung BE ⇒ AI ⇒ Gemini | thủ công (Tempo) | P6 |
+| OB-AI-3 | Tab AI của dashboard "Vận hành" có dữ liệu thật | thủ công | P6 |
+
+**SEC-BE, SEC-AI — Bảo mật BE và AI** (SEC-BE-1…6 định nghĩa khi lập kế hoạch phần bảo mật BE, plan 6C Mục 10)
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| SEC-BE-7 | CI BE quét gói NuGet có lỗ hổng High/Critical (kể cả gói kéo theo); có ⇒ đỏ | CI BE | P6 |
+| SEC-AI-1 | AI không lộ ra ngoài: không ngrok, cổng host chỉ `127.0.0.1` | thủ công (compose) | P6 |
+| SEC-AI-2 | BE gọi AI phải có khóa xác thực | tự động (làm sau) | P6 |
+| SEC-AI-3 | Khóa Gemini không nằm trong image hay log | CI AI (`check-image.sh`) | P6 |
+| SEC-AI-4 | CI AI quét gói Python có lỗ hổng (`pip-audit`); có ⇒ đỏ | CI AI | P6 |
+
+**AI-UT, AI-CT — Kiểm thử SmashCourt-AI**
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| AI-UT-01 | Dựng prompt từ request đúng nội dung | tự động (AI pytest, LLM giả) | P6 |
+| AI-UT-02 | Đọc response của LLM (JSON thuần, khối markdown, chữ thừa) | tự động (AI pytest) | P6 |
+| AI-UT-03 | Lỗi, hết thời gian, 429 của Gemini ⇒ đúng mã lỗi trả về | tự động (AI pytest) | P6 |
+| AI-UT-04 | Schema vào/ra của các endpoint | tự động (AI pytest) | P6 |
+| AI-UT-05 | `/health` | tự động (AI pytest) | P6 |
+| AI-CT-01 | DTO AI của BE khớp schema của AI (snake_case, đủ trường) | tự động (BE test `AiContractSyncTests`) | P6 |
+
+**SP — Hiệu năng cả hệ thống** (môi trường `perf`, k6, LLM giả; plan 6C Phụ lục B.7)
+
+| ID | Kiểm chứng | Ai chạy | Xây dựng |
+| :--- | :--- | :--- | :--- |
+| SP-01 | Load: tải danh nghĩa 15 phút, ≥ 3 lượt (gộp LT-04) | k6 (`perf`) | P6 |
+| SP-02 | Stress: tăng bậc vượt danh nghĩa tới khi vượt SLO | k6 | P6 |
+| SP-03 | Spike: ×5 trong 1 phút rồi về, đo thời gian hồi phục | k6 | P6 |
+| SP-04 | Soak: tải danh nghĩa 90–120 phút, không rò rỉ bộ nhớ/kết nối | k6 | P6 |
+| SP-05 | Điểm gãy: mức tải thấp nhất mà p95 vượt SLO liên tục 1 phút, kèm trạng thái tài nguyên | k6 | P6 |
+| SP-06 | A/B TADSS: cờ bật và tắt cùng điều kiện (ABBA), TADSS cộng bao nhiêu vào p95/p99 | k6 | P6 |
+| SP-07 | A/A overhead: telemetry bật và tắt, phép đo không làm méo kết quả | k6 | P6 |
+| SP-08 | Baseline năng lực hiện tại | k6 | P6 |
+| SP-09 | Sự cố dưới tải (FI-11…14, Toxiproxy giữa BE và TADSS) + SC6 sau mỗi kịch bản | k6 + SQL | P6 |
+| SP-10 | Tải các endpoint AI qua BE với LLM giả (không gồm độ trễ Google) | k6 | P6 |
+
 ---
 
 ## 5. ĐỊNH NGHĨA KPI
