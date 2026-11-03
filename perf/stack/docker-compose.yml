@@ -159,7 +159,7 @@ services:
     environment:
       <<: *otel
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: Host=postgres;Database=smashcourt;Username=smashcourt;Password=smashcourt_perf;Maximum Pool Size=100
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=smashcourt;Username=smashcourt;Password=smashcourt_perf;Maximum Pool Size=${PERF_DB_POOL:-100}
       Jwt__Key: perf-jwt-signing-key-not-secret-0123456789abcdef
       Jwt__Issuer: smashcourt-perf
       Jwt__Audience: smashcourt-perf

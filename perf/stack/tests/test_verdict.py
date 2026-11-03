@@ -191,3 +191,22 @@ def test_read_raw_parses_k6_csv_gz_and_keeps_only_needed_metrics(tmp_path):
     assert raw.durations == [verdict.Sample(T0, "read", "GET x", "steady", 12.5)]
     assert raw.errors == [verdict.Sample(T0 + 1, "read", "GET x", "steady", 1.0)]
     assert raw.dropped == [T0 + 2]
+
+
+def test_stall_episodes_merge_bad_10_s_windows_within_30_s_and_skip_small_windows():
+    # Định nghĩa chốt 03/11 (plan 6C 2C): cửa sổ 10 s có p95 Đọc > 300 ms (≥ 100 mẫu); cửa sổ xấu cách nhau ≤ 30 s là một đợt
+    durations = []
+    for second in range(300):
+        slow = 20 <= second < 40 or 60 <= second < 70 or 200 <= second < 210
+        per_second = 1 if 250 <= second < 260 else 12   # cửa sổ 250–260 chỉ 10 mẫu: chậm nhưng không đủ mẫu, không tính
+        for _ in range(per_second):
+            durations.append((T0 + second, "read", "GET x", "steady", 900.0 if slow or 250 <= second < 260 else 40.0))
+    result = verdict.episodes(_raw(durations), SLO)
+    assert result["count"] == 2
+    assert [(e["start"] - T0, e["end"] - T0) for e in result["episodes"]] == [(20, 70), (200, 210)]
+    assert result["windowsInsufficient"] == 1
+
+
+def test_stall_episodes_ignore_warmup_and_settle_phases():
+    durations = [(T0 + s, "read", "GET x", "settle", 900.0) for s in range(30) for _ in range(12)]
+    assert verdict.episodes(_raw(durations), SLO)["count"] == 0

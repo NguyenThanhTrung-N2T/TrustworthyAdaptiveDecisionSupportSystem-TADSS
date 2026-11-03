@@ -33,12 +33,19 @@ otelcol.exporter.otlp "tempo" {
 // PostgreSQL / Redis của môi trường perf (perf/stack/docker-compose.yml). Mật khẩu là hằng không bí mật của stack perf.
 // Kết nối vào database `postgres` (số liệu vẫn có nhãn datname): perf.sh seed/reset xóa và chép database smashcourt/tadss từ mẫu,
 // PostgreSQL từ chối khi còn phiên nào đang mở trong database nguồn/đích.
+// Collector: đúng bộ mặc định của exporter TRỪ `locks`. `locks` đọc pg_locks mỗi lần scrape, mà đọc pg_locks phải khóa mọi phân vùng của
+// bộ quản lý khóa PostgreSQL: chính chỗ tranh chấp thấy ở SP-08 (46 phiên chờ LWLock LockManager). Từ 03/11 tắt trong mọi lượt chính thức
+// (plan 6C 2C); bật lại cho lượt đối chứng bằng `perf.sh up --pg-locks on` (PERF_PG_EXTRA_COLLECTORS = ["locks"]). SP-08 chạy khi còn bật.
 prometheus.exporter.postgres "smashcourt" {
-  data_source_names = ["postgresql://smashcourt:smashcourt_perf@perf-postgres:5432/postgres?sslmode=disable"]
+  data_source_names  = ["postgresql://smashcourt:smashcourt_perf@perf-postgres:5432/postgres?sslmode=disable"]
+  enabled_collectors = array.concat(["database", "replication", "replication_slot", "roles", "stat_bgwriter", "stat_database",
+    "stat_progress_vacuum", "stat_user_tables", "statio_user_tables", "wal"], encoding.from_json(coalesce(sys.env("PERF_PG_EXTRA_COLLECTORS"), "[]")))
 }
 
 prometheus.exporter.postgres "tadss" {
-  data_source_names = ["postgresql://tadss:tadss_perf@perf-tadss-postgres:5432/postgres?sslmode=disable"]
+  data_source_names  = ["postgresql://tadss:tadss_perf@perf-tadss-postgres:5432/postgres?sslmode=disable"]
+  enabled_collectors = array.concat(["database", "replication", "replication_slot", "roles", "stat_bgwriter", "stat_database",
+    "stat_progress_vacuum", "stat_user_tables", "statio_user_tables", "wal"], encoding.from_json(coalesce(sys.env("PERF_PG_EXTRA_COLLECTORS"), "[]")))
 }
 
 prometheus.exporter.redis "tadss" {

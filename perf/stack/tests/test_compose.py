@@ -15,7 +15,7 @@ SERVICES = COMPOSE["services"]
 ALLOWED_HOSTS = set(SERVICES) | {"smashcourt-test-alloy", "127.0.0.1", "localhost"}
 # Biến được phép truyền vào: tag image và núm chỉnh lượt đo; không biến nào mang bí mật
 ALLOWED_VARIABLES = {"BE_TAG", "TADSS_TAG", "AI_TAG", "PERF_TADSS_DECISION", "PERF_TRACE_RATIO", "FAKE_LLM_DELAY_MS", "FAKE_LLM_JITTER_MS",
-                     "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS"}
+                     "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS", "PERF_DB_POOL"}
 TEXT = (STACK / "docker-compose.yml").read_text(encoding="utf-8")
 
 
@@ -40,6 +40,11 @@ def test_system_and_load_generator_are_pinned_to_separate_cpu_sets(service):
     # B.7.2: k6 chạy cùng máy ⇒ cpuset tách CPU của hệ thống khỏi CPU của k6 + bộ quan sát (perf.sh tính theo số CPU của VM Docker)
     expected = "PERF_CPUSET_TOOLS" if service == "k6" else "PERF_CPUSET_SYSTEM"
     assert re.fullmatch(r"\$\{" + expected + r":-[0-9,-]+\}", str(SERVICES[service].get("cpuset", ""))), SERVICES[service].get("cpuset")
+
+
+def test_be_pool_size_is_a_knob_defaulting_to_the_size_sp08_ran_with():
+    # Thí nghiệm E3 (plan 6C 2C): chỉ đổi Maximum Pool Size; mặc định giữ 100 như SP-08 và SP-01
+    assert "Maximum Pool Size=${PERF_DB_POOL:-100}" in _environment("be")["ConnectionStrings__DefaultConnection"]
 
 
 def test_only_known_variables_are_interpolated_and_no_env_file_is_read():

@@ -238,6 +238,7 @@ def evaluate(run_dir: Path, query: Query = prometheus_query, slo: dict | None = 
         result.update(verdict.slo_verdict(raw, slo, selftest))
         if profile == "smoke":   # kiểm đường đi, không đo: chỉ chấm lỗi
             result["status"] = result["errors"]["status"]
+    result["episodes"] = verdict.episodes(raw, slo)   # đợt nghẽn: so lượt đối chứng / thí nghiệm (plan 6C 2C)
     (run_dir / "verdict.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
 
@@ -271,6 +272,10 @@ def describe(result: dict) -> str:
     if "breakRate" in result:
         lines.append(f"  điểm gãy: {result['breakRate']} hành trình/giây" if result["breakRate"] is not None
                      else "  điểm gãy: chưa tới ở bậc tối đa (tăng --max-rate)")
+    if "episodes" in result:
+        found = result["episodes"]
+        lines.append(f"  đợt nghẽn (cửa sổ 10 s p95 Đọc > 300 ms): {found['count']}"
+                     + "".join(f" · {e['windows']} cửa sổ, p95 tới {e['maxP95']} ms" for e in found["episodes"][:8]))
     if "recovery" in result:
         lines.append(f"  hồi phục sau spike: {result['recovery']['seconds']} s")
     for key in ("memory", "connections", "p95Drift"):

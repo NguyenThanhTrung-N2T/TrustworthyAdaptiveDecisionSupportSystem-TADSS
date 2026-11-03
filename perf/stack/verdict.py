@@ -209,6 +209,34 @@ def spike_recovery(raw: Raw, recovery_start: float, end: float, slo: dict) -> di
     return {"seconds": None, "status": NOT_RECOVERED, "windows": windows}
 
 
+def episodes(raw: Raw, slo: dict) -> dict:
+    """Đợt nghẽn (chốt 03/11, plan 6C 2C): cửa sổ `window` có p95 nhóm `group` vượt SLO (cửa sổ đủ mẫu p95); cửa sổ xấu bắt đầu cách
+    cửa sổ xấu trước ≤ `mergeGap` thuộc cùng một đợt. Chỉ pha steady. Dùng để so lượt đối chứng / thí nghiệm (E1–E3) và SP-01."""
+    cfg = slo["episodes"]
+    window, gap, group = seconds(cfg["window"]), seconds(cfg["mergeGap"]), cfg["group"]
+    limit, minimum = slo["groups"][group]["p95"], slo["minSamples"]["p95"]
+    buckets: dict[float, list[float]] = {}
+    for s in raw.durations:
+        if s.phase == "steady" and s.slo == group:
+            buckets.setdefault(s.t // window * window, []).append(s.value)
+    insufficient = sum(1 for values in buckets.values() if len(values) < minimum)
+    result: list[dict] = []
+    for start in sorted(buckets):
+        values = buckets[start]
+        if len(values) < minimum:
+            continue
+        p95 = percentile(values, 0.95)
+        if p95 <= limit:
+            continue
+        if result and start - result[-1]["lastStart"] <= gap:
+            current = result[-1]
+            current.update(end=start + window, lastStart=start, windows=current["windows"] + 1, maxP95=round(max(current["maxP95"], p95), 1))
+        else:
+            result.append({"start": start, "end": start + window, "lastStart": start, "windows": 1, "maxP95": round(p95, 1)})
+    return {"count": len(result), "episodes": result, "windowsChecked": len(buckets) - insufficient, "windowsInsufficient": insufficient,
+            "definition": cfg}
+
+
 def _growth(pair: tuple[float, float] | None, limit: float) -> dict:
     if not pair or pair[0] is None or pair[1] is None or pair[0] <= 0:
         return {"status": INSUFFICIENT}

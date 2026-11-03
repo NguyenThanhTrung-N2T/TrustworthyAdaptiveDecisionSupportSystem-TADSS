@@ -127,6 +127,7 @@ def test_evaluate_writes_verdict_json_with_status_per_group(tmp_path):
     saved = json.loads((run / "verdict.json").read_text(encoding="utf-8"))
     assert saved["validity"] == "OK" and saved["groups"]["read"]["n"] == 1200
     assert saved["groups"]["read"]["p99Status"] == "PASS" and result["status"] == "PASS"
+    assert saved["episodes"]["count"] == 0 and saved["episodes"]["windowsChecked"] == 12   # 120 s steady, cửa sổ 10 s
 
 
 def test_interrupted_or_short_run_is_incomplete_never_pass(tmp_path):

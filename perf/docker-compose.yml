@@ -36,6 +36,9 @@ services:
     image: grafana/alloy:v1.21.3
     container_name: smashcourt-test-alloy
     command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    environment:
+      # collector thêm cho exporter PostgreSQL (alloy.alloy): `["locks"]` chỉ cho lượt đối chứng, perf.sh up --pg-locks on
+      PERF_PG_EXTRA_COLLECTORS: "${PERF_PG_EXTRA_COLLECTORS:-[]}"
     volumes:
       - ./alloy.alloy:/etc/alloy/config.alloy:ro
       # cAdvisor đọc cgroup và Docker của máy (chỉ đọc), như alloy của bản deploy

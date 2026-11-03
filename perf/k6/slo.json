@@ -49,5 +49,6 @@
             "passWithinSeconds": 60},
   "soak": {"baselineFromMinute": 15, "baselineToMinute": 25, "tailMinutes": 10, "growthMax": 0.10, "p95Window": "10m",
            "p95GrowthFactorMax": 1.2},
-  "infra": {"k6CpuMax": 0.8, "k6MemoryMax": 0.9}
+  "infra": {"k6CpuMax": 0.8, "k6MemoryMax": 0.9},
+  "episodes": {"window": "10s", "mergeGap": "30s", "group": "read", "controlMin": 3, "confirmedMax": 1}
 }

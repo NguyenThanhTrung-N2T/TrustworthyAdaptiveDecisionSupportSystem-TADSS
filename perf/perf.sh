@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Một lệnh cho môi trường đo hiệu năng (Epic 6C, gói 6C-4). Chạy trong TADSS-Runtime/ (Git Bash trên Windows cũng được).
-#   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace]
+#   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace] [--pg-locks on|off] [--db-pool N]
 #       bật bộ quan sát kiểm thử (Grafana http://127.0.0.1:3003) + môi trường perf, chờ mọi service healthy.
 #       Tag mặc định = image sha đang chạy ở bản deploy (đo đúng bản đang chạy thật); chưa có bản deploy ⇒ develop/develop/master.
 #       --tadss-off: BE không gọi TADSS (cặp đối chứng SP-06). --trace: bật trace 100 % (lượt phân tích, không dùng để đo chính thức).
+#       --pg-locks on: bật lại collector pg_locks của Alloy (mặc định tắt từ 03/11, chỉ cho lượt đối chứng E1). --db-pool N: Maximum Pool Size
+#       của BE (mặc định 100; thí nghiệm E3). Mỗi lần up đặt lại cả hai về giá trị đã cho hoặc mặc định.
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
 #   bash perf/perf.sh reset      khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (trước mỗi lượt đo, P6-46)
 #   bash perf/perf.sh run <profile> [--rate N] [--duration 15m] ... [--code SP-xx] [--selftest]
 #       một lượt k6: khôi phục dữ liệu ⇒ k6 (mẫu thô raw.csv.gz) ⇒ analyze.py (resources.json + verdict.json theo SLO đã chốt, task 2.18).
 #       --selftest: ngưỡng p95 Đọc 1 ms để kiểm k6 + verdict báo KHÔNG ĐẠT đúng (chỉ load/soak/closed, không nạp lên dashboard)
+#       --pg-sample activity|locks: lấy mẫu PostgreSQL suốt lượt (stack/pgsampler.py; locks CHỈ cho lượt chẩn đoán). --tag TÊN: hậu tố mã lượt
+#       (diag, E1, E2, E3…)
 #   bash perf/perf.sh pool <lượt> <lượt> <lượt>   p95/p99 trên mẫu thô ghép của các lượt cùng cấu hình (SP-01 ×3)
 #   bash perf/perf.sh status     tag/commit từng service đang chạy
 #   bash perf/perf.sh down       tắt môi trường perf và xóa dữ liệu của nó (bộ quan sát giữ nguyên để xem lại kết quả)
@@ -82,7 +86,7 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
   up)
     BE_TAG="$(deployed_tag be)"; TADSS_TAG="$(deployed_tag tadss)"; AI_TAG="$(deployed_tag ai)"
-    PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0
+    PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0; PERF_PG_EXTRA_COLLECTORS='[]'; PERF_DB_POOL=100
     while [ $# -gt 0 ]; do
       case "$1" in
         --be) BE_TAG="${2:?--be cần tag}"; shift 2 ;;
@@ -90,16 +94,20 @@ case "$cmd" in
         --ai) AI_TAG="${2:?--ai cần tag}"; shift 2 ;;
         --tadss-off) PERF_TADSS_DECISION=false; shift ;;
         --trace) PERF_TRACE_RATIO=1; shift ;;
+        --pg-locks)
+          case "${2:-}" in on) PERF_PG_EXTRA_COLLECTORS='["locks"]' ;; off) PERF_PG_EXTRA_COLLECTORS='[]' ;;
+            *) echo "perf.sh: --pg-locks on|off" >&2; exit 2 ;; esac; shift 2 ;;
+        --db-pool) PERF_DB_POOL="${2:?--db-pool cần số}"; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
-    export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO
+    export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO PERF_PG_EXTRA_COLLECTORS PERF_DB_POOL
     set_cpusets
-    echo "perf.sh: bộ quan sát kiểm thử (CPU ${PERF_CPUSET_TOOLS}, dùng chung với k6)"
+    echo "perf.sh: bộ quan sát kiểm thử (CPU ${PERF_CPUSET_TOOLS}, dùng chung với k6; collector pg_locks $([ "$PERF_PG_EXTRA_COLLECTORS" = '[]' ] && echo tắt || echo bật))"
     docker compose -f "$obs" up -d --wait
     # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
     docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
-    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, CPU ${PERF_CPUSET_SYSTEM})"
+    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, CPU ${PERF_CPUSET_SYSTEM})"
     docker compose -f "$stack" pull --quiet be tadss ai
     docker compose -f "$stack" up -d --wait
     show_status
@@ -157,7 +165,7 @@ case "$cmd" in
   run)
     # Một lượt k6 (task 2.15; kịch bản SP ở gói 6C-5): khôi phục dữ liệu ⇒ ghi metadata ⇒ k6 ⇒ (có --code) nạp lên dashboard "Kiểm thử"
     profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset] [--selftest]}"; shift
-    code=""; limited=""; do_reset=1; selftest=0; k6_env=(-e "PROFILE=$profile")
+    code=""; limited=""; do_reset=1; selftest=0; pg_sample=""; tag=""; k6_env=(-e "PROFILE=$profile")
     while [ $# -gt 0 ]; do
       case "$1" in
         --rate) k6_env+=(-e "RATE=${2:?}"); shift 2 ;;
@@ -176,9 +184,14 @@ case "$cmd" in
         --code) code="${2:?}"; shift 2 ;;
         --limited) limited="${2:?}"; shift 2 ;;
         --no-reset) do_reset=0; shift ;;
+        --pg-sample)
+          case "${2:-}" in activity|locks) pg_sample="$2" ;; *) echo "perf.sh: --pg-sample activity|locks" >&2; exit 2 ;; esac; shift 2 ;;
+        --tag) tag="${2:?--tag cần tên}"; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
+    # Đọc pg_locks khóa chính bộ quản lý khóa (plan 6C 2C): không bao giờ trong lượt nạp dashboard
+    [ "$pg_sample" = locks ] && [ -n "$code" ] && { echo "perf.sh: --pg-sample locks chỉ cho lượt chẩn đoán, bỏ --code" >&2; exit 2; }
     if [ "$selftest" = 1 ]; then
       [ -z "$code" ] || { echo "perf.sh: lượt --selftest không nạp lên dashboard, bỏ --code" >&2; exit 2; }
       case "$profile" in load|soak|closed) ;; *) echo "perf.sh: --selftest chỉ cho load/soak/closed (profile có threshold SLO)" >&2; exit 2 ;; esac
@@ -186,7 +199,7 @@ case "$cmd" in
     [ "$profile" = smoke ] && k6_env+=(-e "THINK_SCALE=${THINK_SCALE:-0.05}")
     [ "$do_reset" = 1 ] && "$0" reset
     set_cpusets
-    suffix=""; [ "$selftest" = 1 ] && suffix="-selftest"
+    suffix="${tag:+-$tag}"; [ "$selftest" = 1 ] && suffix="${suffix}-selftest"
     run_id="$(date +%Y%m%d-%H%M%S)-${profile}${code:+-$code}${suffix}"
     out="$root/results/k6/$run_id"; mkdir -p "$out"
     customers="$(grep -o '"customers": [0-9]*' "$seed_meta" | grep -o '[0-9]*$')"
@@ -204,6 +217,10 @@ case "$cmd" in
       echo "  \"containers\": {$(for c in "${system_containers[@]}"; do docker inspect --format "\"$c\": {\"cpuset\": \"{{.HostConfig.CpusetCpus}}\", \"nanoCpus\": {{.HostConfig.NanoCpus}}, \"memoryBytes\": {{.HostConfig.Memory}}}" "$c"; done | paste -sd, -)},"
       echo "  \"tadssDecision\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__EnableTadssDecision=//p')\","
       echo "  \"traceRatio\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__TraceSampleRatio=//p')\","
+      # Yếu tố của thí nghiệm E1–E3 (plan 6C 2C): đọc từ container đang chạy, không từ tham số
+      echo "  \"tag\": \"${tag}\", \"pgSample\": \"${pg_sample:-none}\","
+      echo "  \"dbPool\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | grep -o 'Maximum Pool Size=[0-9]*' | cut -d= -f2)\","
+      echo "  \"pgLocksCollector\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' smashcourt-test-alloy | grep -q '^PERF_PG_EXTRA_COLLECTORS=.*locks' && echo on || echo off)\","
       echo "  \"seed\": $(cat "$seed_meta"),"
       echo "  \"host\": {\"cpus\": $(docker info --format '{{.NCPU}}'), \"memoryBytes\": $(docker info --format '{{.MemTotal}}')},"
       echo "  \"startedAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
@@ -211,12 +228,22 @@ case "$cmd" in
     } > "$out/metadata.json"
     echo "perf.sh: lượt ${run_id} (kết quả: perf/results/k6/${run_id}/)"
     docker rm -f perf-k6 >/dev/null 2>&1 || true   # container còn lại của lượt bị ngắt trước đó
+    sampler=""
+    if [ -n "$pg_sample" ]; then
+      python "$root/stack/pgsampler.py" "$out" --mode "$pg_sample" --cpuset "$PERF_CPUSET_TOOLS" &
+      sampler=$!
+      for _ in $(seq 1 60); do [ -f "$out/.pgsampler-ready" ] && break; sleep 1; done
+      [ -f "$out/.pgsampler-ready" ] || { echo "perf.sh: pgsampler không khởi động được" >&2; exit 1; }
+    fi
     set +e
     # --name perf-k6: cAdvisor ghi CPU/RAM của k6 theo tên cố định (kiểm k6 không thiếu tài nguyên, B.7.2); csv = mẫu thô để chấm SLO chính xác
     BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps --name perf-k6 "${k6_env[@]}" \
       -e "RUN_ID=$run_id" -e "CUSTOMERS=${customers:-2000}" -e "DISTRIBUTION=$(grep -o '"distribution": "[^"]*"' "$seed_meta" | cut -d'"' -f4)" \
       k6 run --quiet --out opentelemetry --out "csv=/results/$run_id/raw.csv.gz" /scripts/mix.js
     k6_exit=$?
+    if [ -n "$sampler" ]; then   # dừng bằng file (kill từ Git Bash không gửi tín hiệu êm cho tiến trình Windows)
+      touch "$out/.stop-pgsampler"; wait "$sampler" || echo "perf.sh: pgsampler thoát lỗi (xem pg-samples.jsonl)" >&2
+    fi
     set -e
     echo "$k6_exit" > "$out/k6-exit"
     echo "perf.sh: k6 thoát ${k6_exit} (0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng, khác = dừng giữa chừng ⇒ INCOMPLETE)"
@@ -238,5 +265,5 @@ case "$cmd" in
   status) show_status ;;
   # Tag chỉ cần cho up; compose vẫn đòi biến khi đọc file
   down) BE_TAG=- TADSS_TAG=- AI_TAG=- docker compose -f "$stack" down -v --remove-orphans ;;
-  *) sed -n '2,14p' "$0"; exit 2 ;;
+  *) sed -n '2,18p' "$0"; exit 2 ;;
 esac
