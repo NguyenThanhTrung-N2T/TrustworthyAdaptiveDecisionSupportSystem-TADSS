@@ -1,0 +1,53 @@
+{
+  "source": "plan 6C Phụ lục B.7.2–B.7.5, task 2.18, người dùng chốt 02/11/2026; không đổi sau khi có kết quả đo",
+  "groups": {
+    "read": {"p95": 300, "p99": 800},
+    "booking": {"p95": 1000, "p99": 2000},
+    "login": {"p95": 500, "p99": 1000},
+    "ipn": {"p95": 500, "p99": 1000},
+    "write": {"p95": 500, "p99": 1000}
+  },
+  "errorRateMax": 0.005,
+  "minSamples": {"p95": 100, "p99": 1000},
+  "timeout": "5s",
+  "transition": "10s",
+  "settle": "1m",
+  "journeySeconds": 8.35,
+  "vuHeadroom": 1.5,
+  "sloProfiles": ["load", "soak", "closed"],
+  "errorProfiles": ["smoke", "load", "soak", "closed"],
+  "writeEndpoints": [
+    "POST /api/me/bookings/{id}/cancel",
+    "POST /api/bookings/{id}/check-in",
+    "POST /api/bookings/{id}/checkout",
+    "POST /api/bookings/{id}/approve"
+  ],
+  "businessRejections": {
+    "POST /api/bookings/online": [
+      {"status": 400, "code": "BOOKING_REJECTED", "reason": "TADSS từ chối đơn (REPEATED_PAYMENT_EXPIRY)"},
+      {"status": 400, "code": "SLOT_UNAVAILABLE", "reason": "hai VU tranh cùng khung giờ giữa lúc xem lịch và lúc đặt"},
+      {"status": 400, "code": "SLOT_UNAVAILABLE_NOTIFY_REGISTERED", "reason": "như trên, khách đã đăng ký nhận báo khi sân trống"}
+    ],
+    "POST /api/bookings/{id}/check-in": [
+      {"status": 400, "code": "BAD_REQUEST", "reason": "k6 chọn đơn đầu danh sách trong ngày, chưa tới hoặc đã quá giờ check-in"},
+      {"status": 409, "code": "CONFLICT", "reason": "hai nhân viên ảo cùng xử lý một đơn"}
+    ],
+    "POST /api/bookings/{id}/checkout": [
+      {"status": 400, "code": "BAD_REQUEST", "reason": "đơn vừa bị nhân viên ảo khác check-out"},
+      {"status": 409, "code": "CONFLICT", "reason": "hai nhân viên ảo cùng check-out một đơn"}
+    ],
+    "POST /api/bookings/{id}/approve": [
+      {"status": 409, "code": "APPROVAL_ALREADY_RESOLVED", "reason": "nhiều VU dùng chung tài khoản quản lý tranh nhau duyệt"},
+      {"status": 409, "code": "BOOKING_NOT_PENDING_APPROVAL", "reason": "như trên, đơn vừa được VU khác duyệt"},
+      {"status": 409, "code": "APPROVAL_EXPIRED", "reason": "job hết hạn duyệt chạy theo chu kỳ, đơn trong hàng chờ vừa quá hạn"}
+    ]
+  },
+  "breakpoint": {"startFactor": 0.5, "stepFactor": 0.25, "maxFactor": 3, "hold": "3m", "discard": "30s", "window": "1m",
+                 "groups": ["read", "booking"], "droppedMax": 0.01},
+  "stress": {"factors": [1, 1.5, 2, 2.5], "hold": "3m", "recovery": "5m"},
+  "spike": {"factor": 5, "before": "3m", "hold": "1m", "after": "5m", "window": "10s", "consecutive": 3, "group": "read",
+            "passWithinSeconds": 60},
+  "soak": {"baselineFromMinute": 15, "baselineToMinute": 25, "tailMinutes": 10, "growthMax": 0.10, "p95Window": "10m",
+           "p95GrowthFactorMax": 1.2},
+  "infra": {"k6CpuMax": 0.8, "k6MemoryMax": 0.9}
+}

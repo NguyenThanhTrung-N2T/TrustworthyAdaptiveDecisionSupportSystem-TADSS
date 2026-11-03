@@ -93,6 +93,42 @@ def test_k6_summary_export_format_fails_on_crossed_threshold(tmp_path, known):
     assert "http_req_duration: p(95)<1000" in source.codes["SP-02"].detail
 
 
+def _k6_run_with_verdict(tmp_path: Path, verdict: dict) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    path = tmp_path / "summary.json"
+    path.write_text(json.dumps({"metrics": {"http_req_duration": {"values": {"p(95)": 120.4}, "thresholds": {"p(95)<300": {"ok": True}}}}}),
+                    encoding="utf-8")
+    (tmp_path / "verdict.json").write_text(json.dumps({"profile": "load", "selftest": False, "validity": "OK", "problems": [], **verdict}),
+                                           encoding="utf-8")
+    return path
+
+
+def test_k6_verdict_json_decides_over_thresholds(tmp_path, known):
+    # task 2.18: k6 chấm trên mọi mẫu; verdict.json còn biết thiếu mẫu, lượt dừng giữa chừng, máy đo thiếu tài nguyên
+    passed = read_k6(_k6_run_with_verdict(tmp_path / "a", {"status": "PASS"}), "SP-01", known, SourceResult("k6"))
+    insufficient = read_k6(_k6_run_with_verdict(tmp_path / "b", {"status": "INSUFFICIENT"}), "SP-01", known, SourceResult("k6"))
+    failed = read_k6(_k6_run_with_verdict(tmp_path / "c", {"status": "FAIL"}), "SP-01", known, SourceResult("k6"))
+    assert passed.codes["SP-01"].state == PASSED
+    assert insufficient.codes["SP-01"].state == LIMITED and "KHÔNG ĐỦ DỮ LIỆU" in insufficient.codes["SP-01"].detail
+    assert failed.codes["SP-01"].state == FAILED
+
+
+def test_k6_incomplete_or_infra_limited_run_is_never_pass_nor_fail(tmp_path, known):
+    incomplete = _k6_run_with_verdict(tmp_path / "a", {"status": "FAIL", "validity": "INCOMPLETE", "problems": ["k6 thoát 105"]})
+    source = read_k6(incomplete, "SP-01", known, SourceResult("k6"))
+    assert source.codes["SP-01"].state == LIMITED and "k6 thoát 105" in source.codes["SP-01"].detail
+
+
+def test_k6_selftest_run_cannot_be_loaded(tmp_path, known):
+    path = _k6_run_with_verdict(tmp_path, {"status": "FAIL", "selftest": True})
+    try:
+        read_k6(path, "SP-01", known, SourceResult("k6"))
+    except ValueError as error:
+        assert "tự kiểm" in str(error)
+    else:
+        raise AssertionError("lượt tự kiểm không được nạp")
+
+
 def test_limited_run_turns_passed_codes_into_limited():
     source = SourceResult("k6-SP-01")
     source.codes["SP-01"] = CodeResult(PASSED)

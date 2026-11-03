@@ -14,7 +14,8 @@ SERVICES = COMPOSE["services"]
 # Container ngoài stack được phép gọi: Alloy của bộ quan sát kiểm thử (cùng mạng smashcourt-test)
 ALLOWED_HOSTS = set(SERVICES) | {"smashcourt-test-alloy", "127.0.0.1", "localhost"}
 # Biến được phép truyền vào: tag image và núm chỉnh lượt đo; không biến nào mang bí mật
-ALLOWED_VARIABLES = {"BE_TAG", "TADSS_TAG", "AI_TAG", "PERF_TADSS_DECISION", "PERF_TRACE_RATIO", "FAKE_LLM_DELAY_MS", "FAKE_LLM_JITTER_MS"}
+ALLOWED_VARIABLES = {"BE_TAG", "TADSS_TAG", "AI_TAG", "PERF_TADSS_DECISION", "PERF_TRACE_RATIO", "FAKE_LLM_DELAY_MS", "FAKE_LLM_JITTER_MS",
+                     "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS"}
 TEXT = (STACK / "docker-compose.yml").read_text(encoding="utf-8")
 
 
@@ -32,6 +33,13 @@ def test_project_and_container_names_match_dashboard_filters():
 @pytest.mark.parametrize("service", sorted(SERVICES))
 def test_every_service_has_cpu_and_memory_ceiling(service):
     assert "cpus" in SERVICES[service] and "mem_limit" in SERVICES[service]
+
+
+@pytest.mark.parametrize("service", sorted(SERVICES))
+def test_system_and_load_generator_are_pinned_to_separate_cpu_sets(service):
+    # B.7.2: k6 chạy cùng máy ⇒ cpuset tách CPU của hệ thống khỏi CPU của k6 + bộ quan sát (perf.sh tính theo số CPU của VM Docker)
+    expected = "PERF_CPUSET_TOOLS" if service == "k6" else "PERF_CPUSET_SYSTEM"
+    assert re.fullmatch(r"\$\{" + expected + r":-[0-9,-]+\}", str(SERVICES[service].get("cpuset", ""))), SERVICES[service].get("cpuset")
 
 
 def test_only_known_variables_are_interpolated_and_no_env_file_is_read():

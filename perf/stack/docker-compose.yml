@@ -4,7 +4,8 @@
 #
 # Mọi khóa ở đây là HẰNG KHÔNG BÍ MẬT chỉ có hiệu lực trong stack này (JWT, OTP, VNPay giả để k6 tự ký IPN, khóa TADSS `tadss-perf-key`).
 # Không trỏ ra Neon, Gmail, VNPay hay Gemini thật: perf/stack/tests/test_compose.py chặn chuỗi kết nối/host ngoài stack.
-# Giới hạn CPU/RAM theo plan 6C Phụ lục B.6.3 (là trần, chỉnh sau lượt thử tải từng bậc, task 2.16).
+# Giới hạn CPU/RAM theo plan 6C Phụ lục B.6.3 (là trần, chỉnh sau lượt thử tải từng bậc, task 2.16). cpuset (B.7.2): k6 chạy cùng máy nên
+# hệ thống dùng các CPU đầu, k6 + bộ quan sát dùng 3 CPU cuối của VM Docker; perf.sh tính và đặt PERF_CPUSET_* (mặc định cho máy 8 CPU).
 name: smashcourt-perf
 
 x-otel: &otel
@@ -31,6 +32,7 @@ services:
       timeout: 3s
       retries: 40
     cpus: 1
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 1g
 
   tadss-postgres:
@@ -46,6 +48,7 @@ services:
       timeout: 3s
       retries: 40
     cpus: 0.5
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 512m
 
   redis:
@@ -58,6 +61,7 @@ services:
       timeout: 3s
       retries: 20
     cpus: 0.25
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 128m
 
   mailpit:
@@ -70,6 +74,7 @@ services:
     ports:
       - "127.0.0.1:18025:8025"
     cpus: 0.25
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 256m
 
   fake-llm:
@@ -87,6 +92,7 @@ services:
       timeout: 3s
       retries: 20
     cpus: 0.5
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 128m
 
   tadss:
@@ -118,6 +124,7 @@ services:
       retries: 40
       start_period: 10s
     cpus: 1.5
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 768m
 
   ai:
@@ -143,6 +150,7 @@ services:
       retries: 30
       start_period: 5s
     cpus: 1
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 512m
 
   be:
@@ -209,6 +217,7 @@ services:
       retries: 40
       start_period: 10s
     cpus: 2
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 1g
 
   # Chỉ chạy khi đo: `bash perf/perf.sh run <profile>` (compose run --rm k6 ...). Metric client đẩy OTLP về Alloy của bộ quan sát.
@@ -230,7 +239,8 @@ services:
       - ./:/stack:ro   # file phân bố (thời gian đặt trước, thời lượng) dùng chung với datagen
       - ../results/k6:/results
     cpus: 1.5
-    mem_limit: 1g
+    cpuset: "${PERF_CPUSET_TOOLS:-5-7}"
+    mem_limit: 2g   # trần VU = 1,5 × tốc độ đỉnh × thời lượng hành trình: spike ×5 ở mức danh nghĩa cần khoảng 1300 VU
 
 networks:
   default:

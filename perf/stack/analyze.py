@@ -1,10 +1,14 @@
-"""Phân tích một lượt k6 của môi trường perf theo từng phút từ Prometheus (Epic 6C, task 2.16; plan 6C Phụ lục B.7.5, B.7.7).
+"""Phân tích một lượt k6 của môi trường perf (Epic 6C, task 2.16, 2.18; plan 6C Phụ lục B.7.2–B.7.7).
 
-    python perf/stack/analyze.py perf/results/k6/<lượt>        (perf.sh run tự gọi sau mỗi lượt)
+    python perf/stack/analyze.py perf/results/k6/<lượt>             (perf.sh run tự gọi sau mỗi lượt)
+    python perf/stack/analyze.py pool <lượt 1> <lượt 2> <lượt 3>    p95/p99 trên mẫu thô ghép của các lượt cùng cấu hình (SP-01 ×3)
 
-Ghi `resources.json` vào thư mục lượt (bản số liệu cho báo cáo, không phụ thuộc Prometheus còn giữ dữ liệu) và in bảng: request/giây, VU,
-p95 phía client (k6) và phía server (BE), tỉ lệ lỗi, CPU từng container (đánh dấu * khi ≥ 90 % trần trong compose perf), RAM của BE.
-Khung thời gian lấy từ `metadata.json` (startedAt) và `summary.json` (testRunDurationMs). Percentile từ histogram là xấp xỉ theo bucket.
+1. `resources.json`: theo từng phút từ Prometheus (request/giây, VU, p95 client/server XẤP XỈ theo bucket, lỗi, CPU từng container, đánh dấu *
+   khi ≥ 90 % trần, RAM BE); lượt `INFRA_LIMITED` khi có phút mất số liệu hoặc k6 chạm trần CPU/RAM của nó (P6-47, B.7.2).
+2. `verdict.json`: chấm theo SLO từ mẫu thô `raw.csv.gz` (verdict.py, phân vị chính xác) theo profile: load/soak/closed (SLO toàn pha steady),
+   breakpoint/stress (bậc tải + tài nguyên tại bậc gãy), spike (thời gian hồi phục), soak (RAM, kết nối DB, trôi p95); `INCOMPLETE` khi k6 dừng
+   giữa chừng hoặc pha steady ngắn hơn lịch.
+Khung thời gian lấy từ `metadata.json` (startedAt) và `summary.json` (testRunDurationMs); lịch tải từ `schedule.json` (mix.js ghi).
 """
 from __future__ import annotations
 
@@ -19,9 +23,11 @@ from pathlib import Path
 
 import yaml
 
+import verdict
+
 PROMETHEUS = "http://127.0.0.1:9095"
 COMPOSE = Path(__file__).with_name("docker-compose.yml")
-CONTAINERS = ["perf-be", "perf-postgres", "perf-tadss", "perf-tadss-postgres", "perf-redis", "perf-ai", "perf-fake-llm"]
+CONTAINERS = ["perf-be", "perf-postgres", "perf-tadss", "perf-tadss-postgres", "perf-redis", "perf-ai", "perf-fake-llm", "perf-k6"]
 _SELECTOR = 'container_label_com_docker_compose_project="smashcourt-perf"'
 _AT_LIMIT = 0.9
 Query = Callable[[str, int], list[dict]]
@@ -46,6 +52,26 @@ def prometheus_query(expr: str, at: int) -> list[dict]:
 def limits_from_compose(path: Path = COMPOSE) -> dict[str, float]:
     services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
     return {s["container_name"]: float(s["cpus"]) for s in services.values() if "cpus" in s}
+
+
+def memory_limits_from_compose(path: Path = COMPOSE) -> dict[str, float]:
+    services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
+    units = {"g": 1024, "m": 1}
+    return {s["container_name"]: float(str(s["mem_limit"])[:-1]) * units[str(s["mem_limit"])[-1].lower()]
+            for s in services.values() if "mem_limit" in s}
+
+
+def infra_problems(rows: list[dict], cpu_limits: dict[str, float], memory_limits: dict[str, float]) -> list[str]:
+    """Phút mất số liệu (máy đo / VM đứng) và k6 chạm trần CPU/RAM của nó (B.7.2): lượt không dùng để kết luận năng lực."""
+    infra = verdict.load_slo()["infra"]
+    problems = [f"phút {row['minute']}: không có số liệu từ mọi nguồn" for row in rows if row["rps"] is None and not row["cpu"]]
+    for row in rows:
+        cpu, memory = row["cpu"].get("perf-k6"), row["memory_mb"].get("perf-k6")
+        if cpu is not None and "perf-k6" in cpu_limits and cpu >= infra["k6CpuMax"] * cpu_limits["perf-k6"]:
+            problems.append(f"phút {row['minute']}: perf-k6 dùng {cpu:.2f}/{cpu_limits['perf-k6']} lõi")
+        if memory is not None and "perf-k6" in memory_limits and memory >= infra["k6MemoryMax"] * memory_limits["perf-k6"]:
+            problems.append(f"phút {row['minute']}: perf-k6 dùng {memory}/{memory_limits['perf-k6']:.0f} MB")
+    return problems
 
 
 def window(run_dir: Path) -> tuple[int, int]:
@@ -83,32 +109,206 @@ def _fmt(value: float | None, digits: int = 2, width: int = 6) -> str:
     return f"{'-':>{width}}" if value is None else f"{value:{width}.{digits}f}"
 
 
-def report(run_dir: Path, query: Query = prometheus_query, limits: dict[str, float] | None = None) -> str:
+def report(run_dir: Path, query: Query = prometheus_query, limits: dict[str, float] | None = None,
+           memory_limits: dict[str, float] | None = None) -> str:
     limits = limits_from_compose() if limits is None else limits
+    memory_limits = memory_limits_from_compose() if memory_limits is None else memory_limits
     start, end = window(run_dir)
     rows = minutes(start, end, query, limits)
     # Phút không có mẫu nào của k6 lẫn cAdvisor = máy đo / VM Docker đứng (không phải ứng dụng chậm) ⇒ lượt INFRA_LIMITED (P6-47)
     gaps = [row["minute"] for row in rows if row["rps"] is None and not row["cpu"]]
-    validity = "INFRA_LIMITED" if gaps else "OK"
+    infra = infra_problems(rows, limits, memory_limits)
+    validity = "INFRA_LIMITED" if infra else "OK"
     (run_dir / "resources.json").write_text(json.dumps({"runId": run_dir.name, "start": start, "end": end, "cpuLimits": limits,
-                                                        "gapMinutes": gaps, "validity": validity, "minutes": rows},
+                                                        "memoryLimitsMb": memory_limits, "gapMinutes": gaps, "infra": infra,
+                                                        "validity": validity, "minutes": rows},
                                                        ensure_ascii=False, indent=2), encoding="utf-8")
     shown = [c for c in CONTAINERS if any(c in row["cpu"] for row in rows)] or sorted({n for row in rows for n in row["cpu"]})
     head = f"{'phút':>4} {'req/s':>6} {'VU':>5} {'p95 k6':>6} {'p95 BE':>6} {'lỗi %':>6} {'DB act':>6} " + " ".join(f"{c[5:]:>10}" for c in shown) + " BE MB"
-    lines = [f"Tài nguyên theo phút của lượt {run_dir.name} (CPU: lõi, * = ≥ 90 % trần trong compose perf; p95: giây)", head]
+    lines = [f"Tài nguyên theo phút của lượt {run_dir.name} (CPU: lõi, * = ≥ 90 % trần trong compose perf; p95: giây, xấp xỉ theo bucket)", head]
     for row in rows:
         cpu = " ".join(f"{row['cpu'].get(c, 0):9.2f}{'*' if c in row['cpu_at_limit'] else ' '}" for c in shown)
         lines.append(f"{row['minute']:4d} {_fmt(row['rps'], 1)} {_fmt(row['vus'], 0, 5)} {_fmt(row['client_p95_s'])} {_fmt(row['server_be_p95_s'])} "
                      f"{_fmt(row['error_pct'])} {_fmt(row['be_db_active'], 0)} {cpu} {row['memory_mb'].get('perf-be', 0):5d}")
-    if gaps:
-        lines.append(f"CẢNH BÁO INFRA_LIMITED: phút {', '.join(map(str, gaps))} không có số liệu từ mọi nguồn (máy đo / VM Docker đứng); "
-                     "lượt này không dùng để kết luận năng lực (P6-47), nạp lên dashboard thì thêm --limited")
+    if infra:
+        lines.append(f"CẢNH BÁO INFRA_LIMITED: {'; '.join(infra[:5])}{' …' if len(infra) > 5 else ''} (máy đo / VM Docker đứng hoặc k6 thiếu "
+                     "tài nguyên); lượt này không dùng để kết luận năng lực (P6-47), dashboard ghi là hạn chế")
     return "\n".join(lines)
+
+
+# ── chấm theo SLO (verdict.json) ──────────────────────────────────────────────────────────────────────────────────────────────
+
+_BE = 'job="smashcourt-be",deployment_environment_name="perf"'
+
+
+def _resource_queries(seconds: float) -> dict[str, str]:
+    """Truy vấn cố định ghi lại tài nguyên trong một khoảng (bậc tải) kết thúc tại thời điểm truy vấn (B.7.5)."""
+    r = f"{max(int(seconds), 15)}s"
+    return {
+        "cpu": f"sum by (name) (rate(container_cpu_usage_seconds_total{{{_SELECTOR}}}[{r}]))",
+        "memoryMaxMb": f"max by (name) (max_over_time(container_memory_working_set_bytes{{{_SELECTOR}}}[{r}])) / 1048576",
+        "gcPerSecond": f"sum by (generation) (rate(process_runtime_dotnet_gc_collections_count_total{{{_BE}}}[{r}]))",
+        "threadPoolQueueMax": f"max(max_over_time(process_runtime_dotnet_thread_pool_queue_length{{{_BE}}}[{r}]))",
+        "threadPoolThreadsMax": f"max(max_over_time(process_runtime_dotnet_thread_pool_threads_count{{{_BE}}}[{r}]))",
+        "npgsqlConnectionsMax": f"max by (state) (max_over_time(db_client_connections_usage{{{_BE}}}[{r}]))",
+        # chuỗi chỉ xuất hiện khi có request chờ pool / có quyết định đường lùi: không có = 0
+        "npgsqlPendingMax": f"max(max_over_time(db_client_connections_pending_requests{{{_BE}}}[{r}])) or vector(0)",
+        "npgsqlPoolMax": f"max(db_client_connections_max{{{_BE}}})",
+        "postgresConnectionsByStateMax": f'max by (state) (max_over_time(pg_stat_activity_count{{datname="smashcourt"}}[{r}]))',
+        "postgresLocksMax": f'max(max_over_time(pg_locks_count{{datname="smashcourt"}}[{r}]))',
+        "tadssFallbackShare": f'(sum(increase(tadss_decisions_total{{instance="perf",execution_type="FALLBACK"}}[{r}])) or vector(0)) '
+                              f'/ sum(increase(tadss_decisions_total{{instance="perf"}}[{r}]))',
+    }
+
+
+def resources_between(query: Query, start: float, end: float) -> dict:
+    queries = _resource_queries(end - start)
+    snapshot: dict = {"from": start, "to": end, "queries": queries}
+    for key, expr in queries.items():
+        try:
+            snapshot[key] = [{"labels": r["metric"], "value": r["value"][1]} for r in query(expr, int(end))]
+        except OSError as error:   # Prometheus không trả lời: vẫn ghi verdict, đánh dấu thiếu
+            snapshot[key] = f"lỗi truy vấn: {error}"
+    return snapshot
+
+
+def _average(query: Query, expr: str, at: float) -> float | None:
+    result = query(expr, int(at))
+    return float(result[0]["value"][1]) if result else None
+
+
+def _soak_pairs(query: Query, steady_start: float, steady_end: float, slo: dict) -> tuple[tuple, tuple]:
+    """Trung bình phút 15–25 của pha steady và trung bình 10 phút cuối: RAM BE, số kết nối PostgreSQL của BE (B.7.4)."""
+    cfg = slo["soak"]
+    span = (cfg["baselineToMinute"] - cfg["baselineFromMinute"]) * 60
+    baseline_end, tail = steady_start + cfg["baselineToMinute"] * 60, cfg["tailMinutes"] * 60
+    memory = 'avg_over_time(container_memory_working_set_bytes{name="perf-be"}[%ds])'
+    connections = 'avg_over_time(sum(pg_stat_activity_count{datname="smashcourt"})[%ds:15s])'
+    return ((_average(query, memory % span, baseline_end), _average(query, memory % tail, steady_end)),
+            (_average(query, connections % span, baseline_end), _average(query, connections % tail, steady_end)))
+
+
+def _validity(run_dir: Path, raw: verdict.Raw, schedule: dict, resources: dict) -> tuple[str, list[str], int | None, float, float]:
+    exit_file = run_dir / "k6-exit"
+    k6_exit = int(exit_file.read_text(encoding="utf-8").strip()) if exit_file.exists() else None
+    problems = []
+    if k6_exit not in (0, 99):   # 0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng; mã khác = dừng giữa chừng / lỗi script
+        problems.append(f"k6 thoát {k6_exit}")
+    steady = [s.t for s in raw.durations if s.phase == "steady"]
+    start, end = (min(steady), max(steady)) if steady else (0.0, 0.0)
+    expected = schedule.get("steadySeconds")
+    if not steady:
+        problems.append("không có mẫu pha steady")
+    elif expected and end - start < expected - 30:
+        problems.append(f"pha steady {end - start:.0f} s, lịch {expected} s")
+    return ("INCOMPLETE" if problems else resources.get("validity", "OK")), problems, k6_exit, start, end
+
+
+def evaluate(run_dir: Path, query: Query = prometheus_query, slo: dict | None = None) -> dict:
+    slo = slo or verdict.load_slo()
+    schedule = json.loads((run_dir / "schedule.json").read_text(encoding="utf-8"))
+    resources_file = run_dir / "resources.json"
+    resources = json.loads(resources_file.read_text(encoding="utf-8")) if resources_file.exists() else {}
+    raw = verdict.read_raw(run_dir / "raw.csv.gz")
+    profile, selftest = schedule["profile"], bool(schedule.get("selftest"))
+    validity, problems, k6_exit, start, end = _validity(run_dir, raw, schedule, resources)
+    result: dict = {"runId": run_dir.name, "profile": profile, "selftest": selftest, "k6Exit": k6_exit, "problems": problems,
+                    "validity": validity, "infra": resources.get("infra", []), "steadyStart": start, "steadyEnd": end}
+
+    if profile in ("breakpoint", "stress"):
+        steps = verdict.step_verdict(raw, start, schedule["steps"], slo)
+        result.update(steps)
+        index = steps["breakStep"]
+        if index is not None:
+            at = steps["steps"][index]
+            result["resourcesAtBreak"] = {"break": resources_between(query, at["holdStart"], at["holdEnd"])}
+            if index > 0:
+                before = steps["steps"][index - 1]
+                result["resourcesAtBreak"]["before"] = resources_between(query, before["holdStart"], before["holdEnd"])
+        # breakpoint chưa tới điểm gãy ở bậc tối đa ⇒ chưa trả lời được câu hỏi; stress là mô tả: lượt hợp lệ là đủ, đọc từng bậc
+        result["status"] = verdict.PASS if profile == "stress" or index is not None else verdict.INSUFFICIENT
+    elif profile == "spike":
+        recovery_start = start + schedule["recoveryOffset"]
+        result["recovery"] = verdict.spike_recovery(raw, recovery_start, recovery_start + schedule["recoverySeconds"], slo)
+        result["status"] = result["recovery"]["status"]
+    elif profile == "soak":
+        memory, connections = _soak_pairs(query, start, end, slo)
+        result.update(verdict.soak_verdict(raw, start, end, slo, memory, connections))
+    else:
+        result.update(verdict.slo_verdict(raw, slo, selftest))
+        if profile == "smoke":   # kiểm đường đi, không đo: chỉ chấm lỗi
+            result["status"] = result["errors"]["status"]
+    (run_dir / "verdict.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return result
+
+
+def _group_lines(result: dict) -> list[str]:
+    lines = []
+    for name, group in (result.get("groups") or (result.get("slo") or {}).get("groups") or {}).items():
+        lines.append(f"  {name:8} n={group['n']:6d}  p95 {group.get('p95')} ms (< {group.get('p95Limit')}): "
+                     f"{verdict.LABELS[group['p95Status']]:16}  p99 {group.get('p99')} ms (< {group.get('p99Limit')}): "
+                     f"{verdict.LABELS[group['p99Status']]}")
+    errors = result.get("errors") or (result.get("slo") or {}).get("errors")
+    if errors and errors["n"]:
+        lines.append(f"  lỗi     n={errors['n']:6d}  {errors['rate'] * 100:.3f} % (< {errors['limit'] * 100:.1f} %): "
+                     f"{verdict.LABELS[errors['status']]}")
+    for name, endpoint in (result.get("endpoints") or {}).items():
+        if endpoint["slo"] == "write":
+            lines.append(f"    {name}: n={endpoint['n']} p95 {endpoint.get('p95')} ms: {verdict.LABELS[endpoint['p95Status']]}")
+    return lines
+
+
+def describe(result: dict) -> str:
+    label = verdict.LABELS.get(result.get("status", ""), result.get("status", "-"))
+    problems = f" ({'; '.join(result['problems'])})" if result.get("problems") else ""
+    lines = [f"Kết luận lượt {result['runId']} ({result['profile']}{', TỰ KIỂM' if result.get('selftest') else ''}): {label}"
+             f" · hợp lệ: {result.get('validity')}{problems}", *_group_lines(result)]
+    for step in result.get("steps", []):
+        windows = ", ".join(f"Đọc p95 {w['groups'].get('read', {}).get('p95')} ms (n={w['groups'].get('read', {}).get('n', 0)}) "
+                            f"lỗi {(w['errors']['rate'] or 0) * 100:.2f} % bỏ {(w['dropped']['share'] or 0) * 100:.2f} %" for w in step["windows"])
+        mark = f" ⇒ VI PHẠM {', '.join(step['violations'])}" if step["violations"] else ""
+        lines.append(f"  bậc {step['rate']:>4} hành trình/s: {windows}{mark}")
+    if "breakRate" in result:
+        lines.append(f"  điểm gãy: {result['breakRate']} hành trình/giây" if result["breakRate"] is not None
+                     else "  điểm gãy: chưa tới ở bậc tối đa (tăng --max-rate)")
+    if "recovery" in result:
+        lines.append(f"  hồi phục sau spike: {result['recovery']['seconds']} s")
+    for key in ("memory", "connections", "p95Drift"):
+        if key in result:
+            lines.append(f"  {key}: {json.dumps({k: v for k, v in result[key].items() if k != 'windows'}, ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
+def _signature(run_dir: Path) -> tuple:
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    return (metadata.get("profile"), metadata.get("args"), (metadata.get("seed") or {}).get("dbChecksum"),
+            *((metadata.get(s) or {}).get("image") for s in ("be", "tadss", "ai")))
+
+
+def pool(run_dirs: list[Path], slo: dict | None = None) -> dict:
+    """p95/p99 trên mẫu thô ghép của các lượt cùng profile, tham số, dữ liệu và image (B.7.2): không lấy trung bình các p99."""
+    signatures = {_signature(run) for run in run_dirs}
+    if len(signatures) != 1:
+        raise ValueError(f"các lượt khác cấu hình, không gộp được: {sorted(map(str, signatures))}")
+    result = verdict.pool([verdict.read_raw(run / "raw.csv.gz") for run in run_dirs], slo or verdict.load_slo())
+    result["runs"] = [run.name for run in run_dirs]
+    return result
 
 
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
-    print(report(Path(argv[1])))
+    if len(argv) > 1 and argv[1] == "pool":
+        runs = [Path(a) for a in argv[2:]]
+        result = pool(runs)
+        target = runs[0].parent / f"pooled-{runs[0].name}-{len(runs)}runs.json"
+        target.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(describe({**result, "runId": " + ".join(result["runs"]), "profile": "gộp", "validity": "OK"}))
+        print(f"Ghi {target}")
+        return 0
+    run_dir = Path(argv[1])
+    print(report(run_dir))
+    if (run_dir / "raw.csv.gz").exists() and (run_dir / "schedule.json").exists():
+        print(describe(evaluate(run_dir)))
     return 0
 
 

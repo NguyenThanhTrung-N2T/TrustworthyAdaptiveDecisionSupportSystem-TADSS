@@ -101,7 +101,27 @@ def read_k6(path: Path, code: str, known: set[str], source: SourceResult) -> Sou
         parts.append(f"lỗi {error_rate * 100:.2f} %")
     summary = ", ".join(part for part in parts if part)
     source.codes[code] = CodeResult(FAILED if failed else PASSED, detail=("vượt ngưỡng: " + "; ".join(failed[:_DETAIL_MAX]) + " · " if failed else "") + summary)
+    verdict_file = path.parent / "verdict.json"
+    if verdict_file.exists():
+        _apply_k6_verdict(json.loads(verdict_file.read_text(encoding="utf-8")), source.codes[code], summary)
     return source
+
+
+# Kết luận của perf/stack/verdict.py (task 2.18) quyết định thay threshold k6: k6 không biết thiếu mẫu, lượt dừng giữa chừng hay máy đo thiếu tài nguyên
+_VERDICT_STATE = {"PASS": PASSED, "FAIL": FAILED, "NOT_RECOVERED": FAILED, "INSUFFICIENT": LIMITED}
+_VERDICT_LABEL = {"PASS": "ĐẠT", "FAIL": "KHÔNG ĐẠT", "NOT_RECOVERED": "KHÔNG HỒI PHỤC", "INSUFFICIENT": "KHÔNG ĐỦ DỮ LIỆU"}
+
+
+def _apply_k6_verdict(verdict: dict, result: CodeResult, summary: str) -> None:
+    if verdict.get("selftest"):
+        raise ValueError("lượt tự kiểm (--selftest) chỉ để kiểm threshold, không nạp lên dashboard")
+    status = str(verdict.get("status", ""))
+    detail = f"verdict {_VERDICT_LABEL.get(status, status)}" + (f" · {summary}" if summary else "")
+    if verdict.get("validity", "OK") != "OK":   # INCOMPLETE / INFRA_LIMITED (P6-47): không kết luận đạt hay hỏng
+        result.state = LIMITED
+        result.detail = f"{verdict['validity']}: {'; '.join(verdict.get('problems') or verdict.get('infra') or [])[:120]} · {detail}"
+        return
+    result.state, result.detail = _VERDICT_STATE.get(status, LIMITED), detail
 
 
 def read_sc6(path: Path, known: set[str], source: SourceResult) -> SourceResult:

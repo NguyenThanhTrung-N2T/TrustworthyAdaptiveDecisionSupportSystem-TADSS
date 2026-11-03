@@ -6,6 +6,10 @@
 #       --tadss-off: BE không gọi TADSS (cặp đối chứng SP-06). --trace: bật trace 100 % (lượt phân tích, không dùng để đo chính thức).
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
 #   bash perf/perf.sh reset      khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (trước mỗi lượt đo, P6-46)
+#   bash perf/perf.sh run <profile> [--rate N] [--duration 15m] ... [--code SP-xx] [--selftest]
+#       một lượt k6: khôi phục dữ liệu ⇒ k6 (mẫu thô raw.csv.gz) ⇒ analyze.py (resources.json + verdict.json theo SLO đã chốt, task 2.18).
+#       --selftest: ngưỡng p95 Đọc 1 ms để kiểm k6 + verdict báo KHÔNG ĐẠT đúng (chỉ load/soak/closed, không nạp lên dashboard)
+#   bash perf/perf.sh pool <lượt> <lượt> <lượt>   p95/p99 trên mẫu thô ghép của các lượt cùng cấu hình (SP-01 ×3)
 #   bash perf/perf.sh status     tag/commit từng service đang chạy
 #   bash perf/perf.sh down       tắt môi trường perf và xóa dữ liệu của nó (bộ quan sát giữ nguyên để xem lại kết quả)
 set -euo pipefail
@@ -58,6 +62,18 @@ wait_healthy() {  # <container>, tối đa 120 giây
   done
   echo "perf.sh: $1 không healthy sau 120 giây (docker logs $1)" >&2; return 1
 }
+# B.7.2: k6 chạy cùng máy ⇒ tách CPU của VM Docker: hệ thống dùng các CPU đầu, k6 + bộ quan sát dùng 3 CPU cuối (compose đọc PERF_CPUSET_*)
+set_cpusets() {
+  local n; n="$(docker info --format '{{.NCPU}}')"
+  if [ "$n" -ge 6 ]; then
+    PERF_CPUSET_SYSTEM="0-$((n - 4))"; PERF_CPUSET_TOOLS="$((n - 3))-$((n - 1))"
+  else
+    PERF_CPUSET_SYSTEM="0-$((n - 1))"; PERF_CPUSET_TOOLS="$PERF_CPUSET_SYSTEM"
+    echo "perf.sh: VM Docker chỉ có $n CPU, không tách được CPU hệ thống / k6 (ghi ở metadata)" >&2
+  fi
+  export PERF_CPUSET_SYSTEM PERF_CPUSET_TOOLS
+}
+system_containers=(perf-be perf-tadss perf-ai perf-postgres perf-tadss-postgres perf-redis perf-mailpit perf-fake-llm)
 stop_apps() { docker stop perf-be perf-tadss >/dev/null; }
 start_apps() { docker start perf-tadss >/dev/null; wait_healthy perf-tadss; docker start perf-be >/dev/null; wait_healthy perf-be; }
 seed_meta="$root/results/perf-seed.json"
@@ -78,9 +94,12 @@ case "$cmd" in
       esac
     done
     export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO
-    echo "perf.sh: bộ quan sát kiểm thử"
+    set_cpusets
+    echo "perf.sh: bộ quan sát kiểm thử (CPU ${PERF_CPUSET_TOOLS}, dùng chung với k6)"
     docker compose -f "$obs" up -d --wait
-    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO})"
+    # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
+    docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
+    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, CPU ${PERF_CPUSET_SYSTEM})"
     docker compose -f "$stack" pull --quiet be tadss ai
     docker compose -f "$stack" up -d --wait
     show_status
@@ -137,8 +156,8 @@ case "$cmd" in
     ;;
   run)
     # Một lượt k6 (task 2.15; kịch bản SP ở gói 6C-5): khôi phục dữ liệu ⇒ ghi metadata ⇒ k6 ⇒ (có --code) nạp lên dashboard "Kiểm thử"
-    profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset]}"; shift
-    code=""; limited=""; do_reset=1; k6_env=(-e "PROFILE=$profile")
+    profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset] [--selftest]}"; shift
+    code=""; limited=""; do_reset=1; selftest=0; k6_env=(-e "PROFILE=$profile")
     while [ $# -gt 0 ]; do
       case "$1" in
         --rate) k6_env+=(-e "RATE=${2:?}"); shift 2 ;;
@@ -147,6 +166,11 @@ case "$cmd" in
         --warmup) k6_env+=(-e "WARMUP=${2:?}"); shift 2 ;;
         --vus) k6_env+=(-e "VUS=${2:?}"); shift 2 ;;
         --max-vus) k6_env+=(-e "MAX_VUS=${2:?}"); shift 2 ;;
+        --start-rate) k6_env+=(-e "START_RATE=${2:?}"); shift 2 ;;
+        --step-rate) k6_env+=(-e "STEP_RATE=${2:?}"); shift 2 ;;
+        --step) k6_env+=(-e "STEP=${2:?}"); shift 2 ;;
+        --journey-seconds) k6_env+=(-e "JOURNEY_SECONDS=${2:?}"); shift 2 ;;
+        --selftest) selftest=1; k6_env+=(-e "SLO_SELFTEST=1"); shift ;;
         --think) k6_env+=(-e "THINK_SCALE=${2:?}"); shift 2 ;;
         --seed) k6_env+=(-e "SEED=${2:?}"); shift 2 ;;
         --code) code="${2:?}"; shift 2 ;;
@@ -155,17 +179,29 @@ case "$cmd" in
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
+    if [ "$selftest" = 1 ]; then
+      [ -z "$code" ] || { echo "perf.sh: lượt --selftest không nạp lên dashboard, bỏ --code" >&2; exit 2; }
+      case "$profile" in load|soak|closed) ;; *) echo "perf.sh: --selftest chỉ cho load/soak/closed (profile có threshold SLO)" >&2; exit 2 ;; esac
+    fi
     [ "$profile" = smoke ] && k6_env+=(-e "THINK_SCALE=${THINK_SCALE:-0.05}")
     [ "$do_reset" = 1 ] && "$0" reset
-    run_id="$(date +%Y%m%d-%H%M%S)-${profile}${code:+-$code}"
+    set_cpusets
+    suffix=""; [ "$selftest" = 1 ] && suffix="-selftest"
+    run_id="$(date +%Y%m%d-%H%M%S)-${profile}${code:+-$code}${suffix}"
     out="$root/results/k6/$run_id"; mkdir -p "$out"
     customers="$(grep -o '"customers": [0-9]*' "$seed_meta" | grep -o '[0-9]*$')"
+    repo="$(cd "$root/.." && pwd)"
     {
       echo "{"
-      echo "  \"runId\": \"$run_id\", \"profile\": \"$profile\", \"code\": \"${code}\", \"args\": \"${k6_env[*]}\","
+      echo "  \"runId\": \"$run_id\", \"profile\": \"$profile\", \"code\": \"${code}\", \"selftest\": $([ "$selftest" = 1 ] && echo true || echo false), \"args\": \"${k6_env[*]}\","
       for s in "${services[@]}"; do
         echo "  \"$s\": {\"image\": \"$(docker inspect --format '{{.Config.Image}}' "perf-$s")\", \"revision\": \"$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "perf-$s")\"},"
       done
+      # Tái lập (B.7.2): commit + trạng thái sửa dở của script đo, SHA-256 script k6 / slo.json / compose, CPU và trần từng container
+      echo "  \"tadssRuntime\": {\"commit\": \"$(git -C "$repo" rev-parse HEAD 2>/dev/null)\", \"dirty\": $([ -n "$(git -C "$repo" status --porcelain -- perf 2>/dev/null)" ] && echo true || echo false)},"
+      echo "  \"sha256\": {\"k6\": \"$(cat "$root"/k6/mix.js "$root"/k6/lib/*.js "$root"/k6/slo.json | sha256sum | cut -d' ' -f1)\", \"sloJson\": \"$(sha256sum "$root/k6/slo.json" | cut -d' ' -f1)\", \"compose\": \"$(sha256sum "$root/stack/docker-compose.yml" | cut -d' ' -f1)\"},"
+      echo "  \"cpuset\": {\"system\": \"$PERF_CPUSET_SYSTEM\", \"tools\": \"$PERF_CPUSET_TOOLS\"},"
+      echo "  \"containers\": {$(for c in "${system_containers[@]}"; do docker inspect --format "\"$c\": {\"cpuset\": \"{{.HostConfig.CpusetCpus}}\", \"nanoCpus\": {{.HostConfig.NanoCpus}}, \"memoryBytes\": {{.HostConfig.Memory}}}" "$c"; done | paste -sd, -)},"
       echo "  \"tadssDecision\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__EnableTadssDecision=//p')\","
       echo "  \"traceRatio\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__TraceSampleRatio=//p')\","
       echo "  \"seed\": $(cat "$seed_meta"),"
@@ -174,13 +210,17 @@ case "$cmd" in
       echo "}"
     } > "$out/metadata.json"
     echo "perf.sh: lượt ${run_id} (kết quả: perf/results/k6/${run_id}/)"
+    docker rm -f perf-k6 >/dev/null 2>&1 || true   # container còn lại của lượt bị ngắt trước đó
     set +e
-    BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps "${k6_env[@]}" -e "RUN_ID=$run_id" \
-      -e "CUSTOMERS=${customers:-2000}" -e "DISTRIBUTION=$(grep -o '"distribution": "[^"]*"' "$seed_meta" | cut -d'"' -f4)" k6 run --quiet --out opentelemetry /scripts/mix.js
+    # --name perf-k6: cAdvisor ghi CPU/RAM của k6 theo tên cố định (kiểm k6 không thiếu tài nguyên, B.7.2); csv = mẫu thô để chấm SLO chính xác
+    BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps --name perf-k6 "${k6_env[@]}" \
+      -e "RUN_ID=$run_id" -e "CUSTOMERS=${customers:-2000}" -e "DISTRIBUTION=$(grep -o '"distribution": "[^"]*"' "$seed_meta" | cut -d'"' -f4)" \
+      k6 run --quiet --out opentelemetry --out "csv=/results/$run_id/raw.csv.gz" /scripts/mix.js
     k6_exit=$?
     set -e
-    echo "perf.sh: k6 thoát ${k6_exit} (0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng)"
-    # Bảng tài nguyên theo phút + resources.json (đợi lần đẩy số liệu cuối 5 giây của app/k6 tới Prometheus)
+    echo "$k6_exit" > "$out/k6-exit"
+    echo "perf.sh: k6 thoát ${k6_exit} (0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng, khác = dừng giữa chừng ⇒ INCOMPLETE)"
+    # Bảng tài nguyên theo phút + resources.json, rồi verdict.json (đợi lần đẩy số liệu cuối 5 giây của app/k6 tới Prometheus)
     sleep 10
     [ -f "$out/summary.json" ] && { python "$root/stack/analyze.py" "$out" || echo "perf.sh: không phân tích được lượt (Prometheus?)" >&2; }
     if [ -n "$code" ]; then
@@ -188,8 +228,15 @@ case "$cmd" in
     fi
     exit "$k6_exit"
     ;;
+  pool)
+    # Mẫu thô ghép của các lượt cùng cấu hình (B.7.2): nhận mã lượt hoặc đường dẫn
+    runs=()
+    for run in "$@"; do [ -d "$run" ] && runs+=("$run") || runs+=("$root/results/k6/$run"); done
+    [ "${#runs[@]}" -ge 2 ] || { echo "perf.sh: pool cần ít nhất 2 lượt" >&2; exit 2; }
+    python "$root/stack/analyze.py" pool "${runs[@]}"
+    ;;
   status) show_status ;;
   # Tag chỉ cần cho up; compose vẫn đòi biến khi đọc file
   down) BE_TAG=- TADSS_TAG=- AI_TAG=- docker compose -f "$stack" down -v --remove-orphans ;;
-  *) sed -n '2,11p' "$0"; exit 2 ;;
+  *) sed -n '2,14p' "$0"; exit 2 ;;
 esac

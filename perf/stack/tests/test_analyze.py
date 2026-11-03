@@ -11,7 +11,7 @@ import analyze  # noqa: E402
 
 def _run_dir(tmp_path: Path) -> Path:
     run = tmp_path / "20261102-000000-load"
-    run.mkdir()
+    run.mkdir(parents=True)
     (run / "metadata.json").write_text(json.dumps({"runId": run.name, "startedAt": "2026-11-01T17:00:00Z"}), encoding="utf-8")
     (run / "summary.json").write_text(json.dumps({"state": {"testRunDurationMs": 185_000}}), encoding="utf-8")
     return run
@@ -70,3 +70,107 @@ def test_minutes_without_any_sample_are_reported_as_infra_gaps(tmp_path):
     saved = json.loads((run / "resources.json").read_text(encoding="utf-8"))
     assert saved["gapMinutes"] == [2] and saved["validity"] == "INFRA_LIMITED"
     assert "INFRA_LIMITED" in text
+
+
+# ── task 2.18: giới hạn máy đo, verdict.json từ mẫu thô ─────────────────────────────────────────────────────────────────────────
+
+def test_memory_limits_are_read_from_compose_in_megabytes():
+    memory = analyze.memory_limits_from_compose()
+    assert memory["perf-be"] == 1024 and memory["perf-k6"] == 2048 and memory["perf-redis"] == 128
+
+
+def test_k6_near_its_cpu_or_memory_ceiling_makes_the_run_infra_limited(tmp_path):
+    run = _run_dir(tmp_path)
+
+    def fake_query(expr: str, at: int) -> list[dict]:
+        if "container_cpu_usage_seconds_total" in expr:
+            return [{"metric": {"name": "perf-be"}, "value": [at, "1"]}, {"metric": {"name": "perf-k6"}, "value": [at, "1.3"]}]
+        if "container_memory" in expr:
+            return [{"metric": {"name": "perf-k6"}, "value": [at, str(500 * 2**20)]}]
+        return [{"metric": {}, "value": [at, "1"]}]
+
+    text = analyze.report(run, fake_query, {"perf-be": 2.0, "perf-k6": 1.5}, {"perf-k6": 2048})
+
+    saved = json.loads((run / "resources.json").read_text(encoding="utf-8"))
+    assert saved["validity"] == "INFRA_LIMITED" and any("perf-k6" in p for p in saved["infra"])
+    assert "INFRA_LIMITED" in text
+
+
+def _raw_csv(run: Path, rows: list[tuple]) -> None:
+    import csv
+    import gzip
+    with gzip.open(run / "raw.csv.gz", "wt", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["metric_name", "timestamp", "metric_value", "name", "extra_tags"])
+        for metric, t, value, name, tags in rows:
+            writer.writerow([metric, t, value, name, tags])
+
+
+def _load_run(tmp_path: Path, k6_exit: int = 0, seconds: int = 120, profile: str = "load") -> Path:
+    run = _run_dir(tmp_path)
+    (run / "schedule.json").write_text(json.dumps({"profile": profile, "selftest": False, "steadySeconds": 120, "steps": []}), encoding="utf-8")
+    (run / "k6-exit").write_text(str(k6_exit), encoding="utf-8")
+    rows = []
+    for second in range(seconds):
+        for _ in range(10):
+            rows.append(("http_req_duration", 1000 + second, 50, "GET x", "phase=steady&slo=read"))
+            rows.append(("request_errors", 1000 + second, 0, "GET x", "phase=steady&slo=read"))
+    _raw_csv(run, rows)
+    return run
+
+
+def test_evaluate_writes_verdict_json_with_status_per_group(tmp_path):
+    run = _load_run(tmp_path)
+
+    result = analyze.evaluate(run, lambda expr, at: [])
+
+    saved = json.loads((run / "verdict.json").read_text(encoding="utf-8"))
+    assert saved["validity"] == "OK" and saved["groups"]["read"]["n"] == 1200
+    assert saved["groups"]["read"]["p99Status"] == "PASS" and result["status"] == "PASS"
+
+
+def test_interrupted_or_short_run_is_incomplete_never_pass(tmp_path):
+    interrupted = analyze.evaluate(_load_run(tmp_path / "a", k6_exit=105), lambda expr, at: [])
+    short = analyze.evaluate(_load_run(tmp_path / "b", seconds=60), lambda expr, at: [])
+    assert interrupted["validity"] == "INCOMPLETE" and "k6 thoát 105" in interrupted["problems"][0]
+    assert short["validity"] == "INCOMPLETE"
+
+
+def test_breakpoint_records_resources_at_the_break_step_and_the_one_before(tmp_path):
+    run = _run_dir(tmp_path)
+    steps = [{"rate": 10, "transition": 10, "hold": 180}, {"rate": 15, "transition": 10, "hold": 180}]
+    (run / "schedule.json").write_text(json.dumps({"profile": "breakpoint", "selftest": False, "steadySeconds": 380, "steps": steps}),
+                                       encoding="utf-8")
+    (run / "k6-exit").write_text("0", encoding="utf-8")
+    rows = []
+    for second in range(381):
+        value = 900 if second >= 240 else 50
+        for _ in range(3):
+            rows.append(("http_req_duration", 1000 + second, value, "GET x", "phase=steady&slo=read"))
+            rows.append(("request_errors", 1000 + second, 0, "GET x", "phase=steady&slo=read"))
+    _raw_csv(run, rows)
+    asked: list[tuple[str, int]] = []
+
+    def fake_query(expr: str, at: int) -> list[dict]:
+        asked.append((expr, at))
+        return [{"metric": {"name": "perf-be"}, "value": [at, "1.9"]}]
+
+    result = analyze.evaluate(run, fake_query)
+
+    assert result["breakRate"] == 15 and result["status"] == "PASS"
+    assert set(result["resourcesAtBreak"]) == {"break", "before"}
+    assert result["resourcesAtBreak"]["break"]["cpu"][0]["value"] == "1.9"
+    assert any("db_client_connections_usage" in expr for expr, _ in asked)
+
+
+def test_pool_refuses_runs_with_different_configuration(tmp_path):
+    first, second = _load_run(tmp_path / "a"), _load_run(tmp_path / "b")
+    for run, rate in ((first, "RATE=20"), (second, "RATE=25")):
+        (run / "metadata.json").write_text(json.dumps({"runId": run.name, "profile": "load", "args": f"-e PROFILE=load -e {rate}",
+                                                       "seed": {"dbChecksum": "x"}, "be": {"image": "i"}}), encoding="utf-8")
+    try:
+        analyze.pool([first, second])
+    except ValueError as error:
+        assert "khác cấu hình" in str(error)
+    else:
+        raise AssertionError("phải từ chối gộp")

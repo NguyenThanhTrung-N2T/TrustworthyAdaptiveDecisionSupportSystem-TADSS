@@ -198,8 +198,8 @@ export function j3(catalog) {
   const res = post('/api/bookings/online', {
     bookingDate: choice.date,
     courts: [{ courtId: choice.court, startTime: hh(start), endTime: hh(start + hours) }],
-  }, 'POST /api/bookings/online', 'booking', auth, [400, 409]);
-  const booking = data(res, [400, 409]);
+  }, 'POST /api/bookings/online', 'booking', auth);
+  const booking = data(res);
   if (!booking) {
     bookingOutcomes.add(1, { outcome: `http_${res.status}` });
     journeys.add(1, { journey: 'J3', result: 'rejected' });
@@ -222,7 +222,7 @@ function j4(auth, booking) {
     get(`/api/payments/vnpay/ipn?${query}`, 'GET /api/payments/vnpay/ipn', 'ipn');
     journeys.add(1, { journey: 'J4', result: 'paid' });
   } else if (roll < 0.9) {
-    post(`/api/me/bookings/${booking.bookingId}/cancel`, null, 'POST /api/me/bookings/{id}/cancel', 'write', auth, [400, 409]);
+    post(`/api/me/bookings/${booking.bookingId}/cancel`, null, 'POST /api/me/bookings/{id}/cancel', 'write', auth);
     journeys.add(1, { journey: 'J4', result: 'cancelled' });
   } else {
     journeys.add(1, { journey: 'J4', result: 'abandoned' });
@@ -258,9 +258,9 @@ export function j6(catalog) {
   const toCheckIn = items.find((b) => b.status === 'CONFIRMED' || b.status === 'PAID_ONLINE');
   const toCheckOut = items.find((b) => b.status === 'IN_PROGRESS');
   if (toCheckIn && rng() < 0.5) {
-    post(`/api/bookings/${toCheckIn.id}/check-in`, null, 'POST /api/bookings/{id}/check-in', 'write', auth, [400, 409]);
+    post(`/api/bookings/${toCheckIn.id}/check-in`, null, 'POST /api/bookings/{id}/check-in', 'write', auth);
   } else if (toCheckOut) {
-    post(`/api/bookings/${toCheckOut.id}/checkout`, null, 'POST /api/bookings/{id}/checkout', 'write', auth, [400, 409]);
+    post(`/api/bookings/${toCheckOut.id}/checkout`, null, 'POST /api/bookings/{id}/checkout', 'write', auth);
   }
   journeys.add(1, { journey: 'J6' });
 }
@@ -279,7 +279,7 @@ export function j7(catalog) {
   thinkPage();
   if (items.length > 0) {
     post(`/api/bookings/${items[0].bookingId || items[0].id}/approve`, { depositRate: 0.3, reason: 'Duyệt trong lượt đo perf' },
-      'POST /api/bookings/{id}/approve', 'write', auth, [400, 409]);
+      'POST /api/bookings/{id}/approve', 'write', auth);
     journeys.add(1, { journey: 'J7', result: 'approved' });
   } else {
     journeys.add(1, { journey: 'J7', result: 'empty' });

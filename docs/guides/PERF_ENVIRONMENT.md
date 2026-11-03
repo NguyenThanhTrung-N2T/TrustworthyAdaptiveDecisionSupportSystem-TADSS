@@ -1,6 +1,6 @@
 # Môi trường đo hiệu năng `perf` (Epic 6C, gói 6C-4)
 
-Cập nhật 01/11/2026. Chạy BE, TADSS, AI **đúng image `sha-…` của bản deploy** cùng DB, Redis, email và LLM riêng, chỉ trên máy; k6 đóng vai người dùng theo 7 hành trình; số liệu xem trên dashboard "Kiểm thử" ([TEST_DASHBOARD.md](TEST_DASHBOARD.md)). Kế hoạch: [plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) task 2.10–2.17, 2.30, thiết kế Phụ lục B.6.
+Cập nhật 02/11/2026 (SLO và quy tắc đo chốt, task 2.18). Chạy BE, TADSS, AI **đúng image `sha-…` của bản deploy** cùng DB, Redis, email và LLM riêng, chỉ trên máy; k6 đóng vai người dùng theo 7 hành trình; số liệu xem trên dashboard "Kiểm thử" ([TEST_DASHBOARD.md](TEST_DASHBOARD.md)). Kế hoạch: [plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) task 2.10–2.17, 2.30, thiết kế Phụ lục B.6.
 
 ## 1. Bốn lệnh
 
@@ -18,10 +18,13 @@ bash perf/perf.sh down        # tắt perf, xóa dữ liệu của nó (bộ qua
 | `up` | `--be TAG --tadss TAG --ai TAG` (đo bản khác bản deploy), `--tadss-off` (BE không gọi TADSS, cặp đối chứng SP-06), `--trace` (trace 100 %, chỉ cho lượt phân tích) |
 | `seed` | `--seed N`, `--customers N`, `--distribution FILE` (mặc định `distribution.reference.json` rút từ 215 booking thật, xem Mục 3) |
 | `reset` | khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (`run` tự gọi; khoảng 20 giây) |
-| `run <profile>` | `--rate N` (hành trình/giây), `--max-rate N` (breakpoint), `--duration 15m`, `--warmup 2m`, `--vus N`, `--max-vus N`, `--code SP-xx` (nạp lên dashboard), `--limited "lý do"` (lượt không dùng để kết luận, P6-47), `--no-reset` |
+| `run <profile>` | `--rate N` (hành trình/giây, mức danh nghĩa), `--duration 15m`, `--warmup 2m`, `--vus N` (closed), `--code SP-xx` (nạp lên dashboard), `--limited "lý do"` (lượt không dùng để kết luận, P6-47), `--no-reset`, `--selftest` (ngưỡng p95 Đọc 1 ms: kiểm k6 + verdict báo KHÔNG ĐẠT đúng; chỉ load/soak/closed, không nạp dashboard). Breakpoint: `--start-rate`, `--step-rate`, `--max-rate`, `--step 3m` (mặc định 50 % / 25 % / 300 % của `--rate`, giữ 3 phút). Trần VU: `--max-vus N` hoặc `--journey-seconds S` (mặc định 1,5 × tốc độ đỉnh × `journeySeconds` của `slo.json`) |
+| `pool <lượt> <lượt> …` | p95/p99 trên mẫu thô **ghép** của các lượt cùng profile, tham số, seed, image (SP-01 ×3, nhóm thiếu mẫu p99); từ chối khi khác cấu hình |
 | `status` | tag, commit, trạng thái từng service |
 
-Profile k6 (`perf/k6/mix.js`): `smoke` (kiểm đường đi, đủ 7 hành trình), `load`, `stress`, `spike`, `soak`, `breakpoint` (open model, có warm-up gắn `phase=warmup` bị loại khỏi thống kê), `closed` (người dùng cố định có think time). Thông số chính thức của từng kịch bản SP chốt ở gói 6C-5.
+Profile k6 (`perf/k6/mix.js`): `smoke` (kiểm đường đi, đủ 7 hành trình, chỉ chấm lỗi), `load` (SP-01), `stress` (SP-02), `spike` (SP-03), `soak` (SP-04), `breakpoint` (SP-05) đều open model một scenario: warm-up tăng 25 ⇒ 75 % (`phase=warmup`) ⇒ chuyển 10 s + 1 phút `phase=settle` ⇒ `phase=steady` (nhãn theo thời điểm gửi request); `closed` (người dùng cố định có think time). Lịch, ngưỡng và tiêu chí từng kịch bản: plan 6C B.7.2–B.7.5, số máy đọc ở `perf/k6/slo.json`.
+
+**Lượt chính thức** (SP-xx): tắt bản deploy + runner trước (tranh CPU làm sai số liệu và làm VM đứng, 2.16). `perf.sh` ghim CPU: container hệ thống dùng các CPU đầu, k6 + bộ quan sát dùng 3 CPU cuối của VM Docker (máy 8 CPU: `0-4` / `5-7`), ghi ở `metadata.json`.
 
 ## 2. Thành phần
 
@@ -46,10 +49,21 @@ Cấu hình đo: rate limit nâng (k6 đăng nhập từ một IP), VNPay khóa 
 
 Token: `setup()` đăng nhập sẵn 300 khách (rải đều), mọi nhân viên và quản lý, các VU dùng chung; token của perf sống 4 giờ (`Jwt__AccessTokenExpirationMinutes`). Lý do: open model sinh thêm VU khi hệ thống chậm, nếu VU mới tự đăng nhập thì BCrypt dồn thành bão đăng nhập không có ở người dùng thật (thấy ở lượt thử 01/11, đăng nhập từ 5 % lên 14 % request). Chi phí đăng nhập đo riêng ở J2.
 
-J1 xem chi nhánh, sân, lịch trống (55 %) · J2 đăng nhập (5 %) · J3 đặt sân ⇒ J4 trả cọc qua IPN 80 % / hủy 10 % / bỏ dở 10 % (15 %) · J5 lịch sử (15 %) · J6 nhân viên: danh sách, lịch, tổng quan, check-in/check-out (7 %) · J7 quản lý: hàng chờ, duyệt cọc (3 %). Mỗi request có tag `name` (mẫu endpoint), `slo` (read, booking, login, ipn, write), `journey`; 4xx nghiệp vụ (409 trùng sân, 400 hết chỗ) không tính lỗi mà đếm ở `business_rejections`.
+J1 xem chi nhánh, sân, lịch trống (55 %) · J2 đăng nhập (5 %) · J3 đặt sân ⇒ J4 trả cọc qua IPN 80 % / hủy 10 % / bỏ dở 10 % (15 %) · J5 lịch sử (15 %) · J6 nhân viên: danh sách, lịch, tổng quan, check-in/check-out (7 %) · J7 quản lý: hàng chờ, duyệt cọc (3 %). Mỗi request có tag `name` (mẫu endpoint), `slo` (read, booking, login, ipn, write), `journey`, `phase`; timeout 5 s. Lỗi (`request_errors`) = 5xx + timeout + 4xx **ngoài** danh sách cặp (status, `code`) hợp lệ của endpoint trong `slo.json` (`businessRejections`, mỗi cặp có lý do: TADSS từ chối, tranh khung giờ, nhân viên/quản lý ảo tranh cùng đơn); cặp hợp lệ đếm ở `business_rejections` theo `code`.
 
 ## 5. Kết quả
 
-`perf/results/k6/<lượt>/`: `metadata.json` (image, commit, cờ TADSS, trace, seed + checksum, CPU/RAM máy), `summary.json` (k6), `resources.json` + bảng in ra màn hình (`perf/stack/analyze.py`, tự chạy sau mỗi lượt): theo từng phút request/giây, VU, p95 k6 và BE, lỗi, kết nối DB đang chạy, CPU từng container (đánh dấu khi ≥ 90 % trần), RAM BE.
+`perf/results/k6/<lượt>/`:
+
+| File | Nội dung |
+| :--- | :--- |
+| `metadata.json` | image + commit 3 hệ, commit TADSS-Runtime + trạng thái sửa dở, SHA-256 script k6 / `slo.json` / compose, cờ TADSS, trace, seed + checksum, CPU/RAM máy, `cpuset` và trần từng container |
+| `schedule.json` | lịch tải thực dùng (pha, bậc tải, điểm hồi phục spike, trần VU) do `mix.js` ghi |
+| `summary.json`, `k6-exit` | summary k6 (threshold theo nhóm SLO), mã thoát (0 đạt, 99 vượt ngưỡng, khác = dừng giữa chừng) |
+| `raw.csv.gz` | mẫu thô từng request (khoảng 8 MB cho 15 phút ở 50 request/giây): nguồn chấm SLO chính xác |
+| `resources.json` + bảng in | theo phút từ Prometheus: request/giây, VU, p95 k6 và BE (xấp xỉ theo bucket), lỗi, kết nối DB, CPU từng container gồm k6 (đánh dấu khi ≥ 90 % trần), RAM BE; `INFRA_LIMITED` khi có phút mất số liệu hoặc k6 chạm 80 % CPU / 90 % RAM trần |
+| `verdict.json` + bảng in | **kết luận** (`perf/stack/verdict.py`): ĐẠT / KHÔNG ĐẠT / KHÔNG ĐỦ DỮ LIỆU theo nhóm (p95 ≥ 100 mẫu, p99 ≥ 1000 mẫu), lỗi, p95 từng endpoint; breakpoint/stress: từng bậc, điểm gãy + tài nguyên tại bậc gãy và bậc trước (CPU/RAM, GC, thread pool, pool Npgsql, kết nối và khóa PostgreSQL, tỷ lệ đường lùi TADSS); spike: thời gian hồi phục; soak: RAM, kết nối DB, trôi p95. `INCOMPLETE` khi k6 dừng giữa chừng. Dashboard đọc file này: thiếu mẫu hoặc lượt không hợp lệ hiện là hạn chế, không phải đạt |
+
+Threshold k6 chấm trên mọi mẫu nên có thể "vượt" ở nhóm chỉ vài chục mẫu (thoát 99): kết luận theo `verdict.json`.
 
 Trace (lượt phân tích, `up --trace`): Grafana <http://127.0.0.1:3003> ⇒ Explore ⇒ Tempo, tìm theo `service.name`. Hàng "Hiệu năng" có thêm panel PostgreSQL (kết nối, giao dịch, khóa) và Redis (lệnh, cache hit) từ exporter trong Alloy. `--code SP-xx` nạp vào dashboard; xem biểu đồ ở hàng "Hiệu năng" (chỉnh khung thời gian về lượt đo).

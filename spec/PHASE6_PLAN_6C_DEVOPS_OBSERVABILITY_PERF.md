@@ -45,7 +45,7 @@ Chi phí tiền: **0 đồng** (Mục 2).
 | P6-49 | Dashboard Grafana 13.x, mỗi bộ **3 tab BE / TADSS / AI** (bản 5: thêm AI); dashboard vận hành có biến lọc môi trường (`stable`, `preview`); cảnh báo gửi qua **Gmail** (SMTP Gmail, mật khẩu ứng dụng lưu ở secrets); mọi panel có mô tả 6 ý, có test CI chặn panel thiếu mô tả; dự phòng hai dashboard liên kết nếu tab chưa ổn | Đã chốt |
 | P6-50 | Danh mục test: **một nguồn chi tiết** là `tests/catalog.yaml` (máy đọc, khớp methodology); plan và dashboard chỉ hiện tổng hợp theo nhóm; chi tiết chỉ mở khi có lỗi (Mục 5); chỉ thêm không bỏ, trùng thì gộp (LT-04 ⇒ SP-01) | Đã chốt |
 | **P6-51** | **SmashCourt-AI và ba tài khoản ngrok** (cập nhật 31/10 theo người dùng): mỗi service có tài khoản ngrok riêng — BE, TADSS (token mới, người dùng tự đặt), AI (giữ `ngrok-ai`); BE gọi TADSS và AI bằng URL đặt trong `.env` của BE (`TADSS_BASE_URL` + `TADSS_API_KEY`; `AIService:BaseUrl`), đổi URL không phải sửa code. AI vẫn chưa có xác thực giữa BE và AI nên URL ngrok của AI cho phép người ngoài dùng quota Gemini ⇒ **SEC-AI-2 (khóa xác thực BE ⇒ AI) đưa lên làm sớm**; smoke của AI chỉ gọi `/health`; bài đo dùng LLM giả qua `GEMINI_BASE_URL`; model đổi chỉ trong `.env` (đã đổi sang `gemini-3.6-flash` 31/10, kiểm model tồn tại) | Đã chốt |
-| **P6-52** | **SLO tách theo hệ** (người dùng chốt 31/10): bảng SLO ở task 2.18 là của **BE** (trải nghiệm người dùng gọi qua BE); **TADSS giữ SLO riêng đã có**: SC1 (quyết định bình thường p95 < 150 ms), SC2 (khi strategy lỗi p99 ≤ 700 ms, ngân sách pipeline 500 ms); **AI** đề xuất p95 < 300 ms cho phần xử lý của AI (không gồm độ trễ LLM giả), lỗi < 0,5 %, chốt ở 2.18. Tab nào chấm theo SLO của hệ đó | Đã chốt (AI chờ 2.18) |
+| **P6-52** | **SLO tách theo hệ** (người dùng chốt 31/10): bảng SLO ở task 2.18 là của **BE** (trải nghiệm người dùng gọi qua BE); **TADSS giữ SLO riêng đã có**: SC1 (quyết định bình thường p95 < 150 ms), SC2 (khi strategy lỗi p99 ≤ 700 ms, ngân sách pipeline 500 ms); **AI** p95 < 300 ms cho phần xử lý của AI (không gồm độ trễ LLM giả), lỗi < 0,5 %, chốt ở 2.18 (02/11, cách đo SP-10A/B: B.7.4). Tab nào chấm theo SLO của hệ đó | Đã chốt |
 
 ---
 
@@ -294,7 +294,7 @@ Quy ước: **A** = agent (Claude) làm; **N** = người dùng làm; **A+N** = 
 
 | # | Task | Ai | Cần trước | Giờ | Xong khi |
 | :---: | :--- | :---: | :--- | ---: | :--- |
-| 2.18 | Chốt SLO trước khi đo, **theo từng hệ** (P6-52): BE (Phụ lục B.7.2), TADSS (SC1, SC2 đã có), AI (đề xuất p95 < 300 ms phần xử lý AI, lỗi < 0,5 %) + tải danh nghĩa | N | — | 0,5 | Ghi vào plan, không đổi sau khi có kết quả |
+| 2.18 | Chốt SLO trước khi đo, **theo từng hệ** (P6-52): BE (Phụ lục B.7.2), TADSS (SC1, SC2 đã có), AI (p95 < 300 ms phần xử lý AI, lỗi < 0,5 %, SP-10A/B ở B.7.4) + tải danh nghĩa + quy tắc đo. **Xong 02/11** (người dùng chốt; threshold k6 + `verdict.py` theo `perf/k6/slo.json`) | N | — | 0,5 | Ghi vào plan, không đổi sau khi có kết quả |
 | 2.19 | SP-08 baseline năng lực | A | 2.16, 2.18 | 2 | Biết năng lực hiện tại |
 | 2.20 | SP-01 Load ×3 (gồm LT-04) | A | 2.19 | 3 | 3 lượt hợp lệ |
 | 2.21 | SP-06 A/B TADSS (ABBA, khôi phục dữ liệu mỗi lượt) | A | 2.20 | 4 | Chênh lệch có khoảng dao động |
@@ -620,37 +620,65 @@ Dựng `perf` từ đầu bằng một lệnh, hai lần cùng seed ra dữ li�
 #### B.7.1. Mục tiêu và phạm vi
 Đo năng lực **cả hệ thống** SmashCourt-BE + TADSS cho các hành trình 6.5; cổng thanh toán không chạy thật (k6 ký IPN), email vào Mailpit. Không thay các bài đo riêng TADSS (LT-01…05 trong evaluator, E-EVAL) mà bổ sung tầng hệ thống. Không thay E2E (đúng/sai nghiệp vụ trên giao diện, E-STAGING).
 
-#### B.7.2. SLO (đề xuất, cần duyệt)
+#### B.7.2. SLO và quy tắc đo (task 2.18, **người dùng chốt 02/11/2026**, không đổi sau khi có kết quả)
 
-Phân biệt bốn thứ: **SLO mục tiêu** (bảng dưới, chốt và ghi lại **trước** khi có kết quả); **baseline thực nghiệm** (mức hệ thống đạt được hiện tại, đo bằng một lượt tăng tải ban đầu, gồm kiểm mức 50 request/giây có khả thi trên máy này không); **kết quả đo** (từng lượt); **kết luận** (đạt hay không, bằng chứng mạnh tới đâu). Nếu máy không đạt được mức danh nghĩa thì báo cáo đó là giới hạn hạ tầng và điều chỉnh phạm vi có giải thích; **không hạ ngưỡng sau khi đã thấy kết quả**.
+Phân biệt bốn thứ: **SLO mục tiêu** (bảng dưới, chốt và ghi lại **trước** khi có kết quả); **baseline thực nghiệm** (mức hệ thống đạt được hiện tại, đo bằng một lượt tăng tải ban đầu, gồm kiểm mức 50 request/giây có khả thi trên máy này không); **kết quả đo** (từng lượt); **kết luận** (đạt hay không, bằng chứng mạnh tới đâu). Nếu máy không đạt được mức danh nghĩa thì báo cáo đó là giới hạn hạ tầng và điều chỉnh phạm vi có giải thích; **không hạ ngưỡng sau khi đã thấy kết quả**: lượt chính thức không đạt thì báo cáo là không đạt và phân tích nguyên nhân. Các ngưỡng 31/10 soạn trước mọi lượt đo; các lượt thử 2.16 (p95 chung ≤ 0,1 s tới 84 request/giây trên máy sạch) **không** dùng để siết ngưỡng. Nguồn máy đọc duy nhất của các con số dưới đây: `perf/k6/slo.json` (k6 dựng threshold, `perf/stack/verdict.py` chấm).
 
-| Nhóm | p95 | p99 | Ghi chú |
+**SLO của BE** (phía client k6, chỉ pha `steady`, theo nhãn `slo` của request):
+
+| Nhóm | p95 | p99 | Gồm |
 | :--- | ---: | ---: | :--- |
-| Đọc (J1, J5, J6 danh sách) | < 300 ms | < 800 ms | |
-| Đặt sân (J3, gồm gọi TADSS) | < 1000 ms | < 2000 ms | p95 trùng ngưỡng SC1 của E2E đã có |
-| Đăng nhập (J2) | < 500 ms | < 1000 ms | BCrypt cố ý chậm, tốn CPU |
-| IPN (J4) | < 500 ms | < 1000 ms | |
-| TADSS phía server trong hệ thống | < 150 ms | — | Ngưỡng SC1 của TADSS |
-| Lỗi (5xx + timeout) | < 0,5 % | | 4xx nghiệp vụ dự kiến (409 trùng sân, 400 hết hạn) đếm riêng, không tính lỗi |
-| Throughput danh nghĩa | ≥ 50 request/giây hỗn hợp | | Đề xuất: bằng mức tải danh nghĩa LT-01 của TADSS; cần duyệt |
+| Đọc `read` | < 300 ms | < 800 ms | xem chi nhánh, sân, lịch trống, lịch sử, chi tiết đơn, danh sách/lịch/tổng quan của nhân viên, hàng chờ duyệt |
+| Đặt sân `booking` | < 1000 ms | < 2000 ms | `POST /api/bookings/online`, gồm gọi TADSS (p95 trùng ngưỡng SC1 của E2E) |
+| Đăng nhập `login` | < 500 ms | < 1000 ms | BCrypt cố ý chậm, tốn CPU |
+| IPN `ipn` | < 500 ms | < 1000 ms | |
+| Ghi `write` (thêm 02/11) | < 500 ms | < 1000 ms | hủy đơn, check-in, check-out, duyệt cọc; chấm trên cả nhóm, báo cáo thêm p95 **từng endpoint** khi đủ mẫu (thêm lúc chưa xem số liệu riêng của nhóm: `analyze.py` 2.16 chỉ in p95 chung) |
+| Lỗi | < 0,5 % | | xem quy tắc lỗi dưới |
+| Tải danh nghĩa | ≥ 50 request/giây hỗn hợp | | khoảng 20 hành trình/giây; hệ số đổi chốt bằng SP-08 (2.19) |
+
+**TADSS** giữ SLO riêng (P6-52): SC1 p95 < 150 ms phía server (`tadss_decision_duration`) trong mọi lượt có TADSS; SC2 p99 ≤ 700 ms khi strategy lỗi, chấm ở SP-09. **AI**: SP-10, Mục B.7.4.
+
+**Quy tắc đo chung**
+
+- **Timeout** 5 s mỗi request (`slo.json` `timeout`); request timeout là lỗi và vẫn nằm trong mẫu số.
+- **Tỷ lệ lỗi** = (5xx + timeout/lỗi mạng + 4xx **ngoài** danh sách hợp lệ) / tổng request của nhóm (metric k6 `request_errors`). Mỗi endpoint có danh sách cặp (status, `code` của envelope) hợp lệ, mỗi cặp ghi lý do (`slo.json` `businessRejections`); cặp hợp lệ đếm riêng ở `business_rejections` theo `code`. Bằng chứng 02/11: các lượt trước không có 409 nào, 4xx nghiệp vụ chỉ ở J3 (`400 BOOKING_REJECTED`, `400 SLOT_UNAVAILABLE_NOTIFY_REGISTERED`).
+
+  | Endpoint | Cặp hợp lệ | Lý do |
+  | :--- | :--- | :--- |
+  | `POST /api/bookings/online` | 400 `BOOKING_REJECTED`, `SLOT_UNAVAILABLE`, `SLOT_UNAVAILABLE_NOTIFY_REGISTERED` | TADSS từ chối (`REPEATED_PAYMENT_EXPIRY`); hai VU tranh cùng khung giờ giữa lúc xem lịch và lúc đặt |
+  | `POST /api/bookings/{id}/check-in` | 400 `BAD_REQUEST`, 409 `CONFLICT` | k6 chọn đơn đầu danh sách trong ngày, chưa tới hoặc đã quá giờ check-in; hai nhân viên ảo cùng xử lý một đơn |
+  | `POST /api/bookings/{id}/checkout` | 400 `BAD_REQUEST`, 409 `CONFLICT` | đơn vừa bị nhân viên ảo khác check-out |
+  | `POST /api/bookings/{id}/approve` | 409 `APPROVAL_ALREADY_RESOLVED`, `BOOKING_NOT_PENDING_APPROVAL`, `APPROVAL_EXPIRED` | nhiều VU dùng chung tài khoản quản lý một chi nhánh tranh nhau duyệt; job hết hạn duyệt chạy theo chu kỳ |
+  | Hủy đơn, IPN, mọi endpoint đọc, đăng nhập | không có | gặp 4xx là lỗi (vd hủy ngay sau khi đặt phải thành công) |
+
+- **Pha**: warm-up `WARMUP` (2 phút) tăng dần 25 % ⇒ 75 % mức danh nghĩa (`phase=warmup`) ⇒ chuyển 10 s + **1 phút ổn định ở mức đầu của pha đo** (`phase=settle`) ⇒ `phase=steady`. Chỉ `steady` vào thống kê và threshold. Nhãn pha gắn theo thời điểm gửi request (một scenario, không đổi nhãn giữa chừng hành trình).
+- **Đủ mẫu**: p95 cần ≥ 100 mẫu (mỗi cửa sổ hoặc cả pha), p99 cần ≥ 1000 mẫu và chỉ tính trên **toàn pha steady**; thiếu thì ghi "không đủ dữ liệu", **không bao giờ coi là đạt**; mọi bảng có cột số mẫu. Nhóm thiếu mẫu p99 ở từng lượt (ước tính SP-01 15 phút: Đăng nhập, Ghi khoảng 900) thì p99 tính trên **mẫu thô ghép của 3 lượt SP-01** (cùng profile, tham số, seed checksum, image; `analyze.py pool`), **không lấy trung bình các p99**, ghi rõ là số gộp.
+- **Phân vị chính xác**: k6 ghi mẫu thô từng request (`raw.csv.gz`); cửa sổ, số mẫu và phân vị tính trên mẫu thô (nội suy tuyến tính giữa hai hạng như k6). Histogram k6 trong Prometheus có biên …250, 500, 750, 1000, 2500… ms nên 300 ms và 800 ms nằm giữa hai biên: Prometheus chỉ dùng cho tài nguyên và hiển thị.
+- **Chấm**: threshold k6 chấm SLO trên toàn pha steady của `load`, `soak`, `closed` (thoát 99 khi vượt; `stress`, `spike`, `breakpoint` vượt SLO là dự kiến nên chỉ chấm theo tiêu chí riêng ở B.7.4–B.7.5); `verdict.json` (`perf/stack/verdict.py`) là kết luận cuối: ĐẠT / KHÔNG ĐẠT / KHÔNG ĐỦ DỮ LIỆU theo từng nhóm và từng tiêu chí. Lượt k6 bị dừng giữa chừng (mã thoát khác 0 và 99) hoặc pha steady ngắn hơn lịch quá 30 s là `INCOMPLETE`, không bao giờ "đạt".
+- **Tách CPU giữa hệ thống và công cụ đo** (k6 chạy cùng máy): `cpuset` chia VM Docker thành hai phần, container hệ thống (BE, TADSS, AI, hai PostgreSQL, Redis, Mailpit, LLM giả) dùng các CPU đầu, k6 và bộ quan sát (Prometheus, Alloy, cAdvisor, Grafana, Tempo, Pushgateway) dùng 3 CPU cuối (máy 8 CPU: `0-4` / `5-7`), trần `cpus` từng container giữ nguyên B.6.3; cấu hình thực tế ghi vào `metadata.json`. Giới hạn: CPU của VM là luồng của máy thật, Windows và Docker Desktop vẫn dùng chung.
+- **Trần VU** (open model): `maxVUs` = 1,5 × tốc độ đỉnh × thời lượng hành trình trung bình (8,35 s ở lượt 02/11; đo lại ở SP-08 và cập nhật `slo.json` `journeySeconds`), **cấp sẵn toàn bộ** để k6 không khởi tạo VU giữa lượt (thời lượng hành trình dao động, J3 tới 30 s: lượt thử 02/11 chỉ cấp sẵn 1 × thì bậc 10 hành trình/giây bỏ 1,17 % lượt khi hệ thống vẫn khỏe); nhờ vậy `dropped_iterations` phản ánh hệ thống chậm chứ không phải k6 thiếu VU (lượt breakpoint rạng sáng 02/11 bỏ 326 lượt vì đụng trần 400). RAM k6 khoảng 1 MB/VU (spike ×5 khoảng 1300 VU, trần k6 2 GB). Lượt có CPU k6 ≥ 80 % trần hoặc RAM k6 ≥ 90 % trần trong một phút, hoặc phút không có số liệu, là `INFRA_LIMITED` (P6-47).
+- **Tái lập**: `perf/results/k6/<mã lượt>/` gồm `metadata.json` (seed + checksum, tag + commit image 3 hệ, commit TADSS-Runtime + trạng thái sửa dở, SHA-256 script k6, `slo.json` và compose perf, tham số lệnh, `cpuset`/trần từng container), `schedule.json` (lịch tải thực dùng), `summary.json`, `raw.csv.gz`, `k6-exit`, `resources.json` (JSON kết quả các truy vấn Prometheus cố định của lượt; không chụp TSDB vì chứa mọi lượt, hàng trăm MB), `verdict.json`.
+- **Tự kiểm**: `perf.sh run load ... --selftest` đổi ngưỡng p95 Đọc thành < 1 ms, mã lượt có hậu tố `selftest`, không nạp được lên dashboard; phải ra k6 thoát 99 và `verdict.json` KHÔNG ĐẠT.
+- **Vị trí trong báo cáo**: chương "Đánh giá hiệu năng", SLO chỉ kết luận về hiệu năng; đặt cạnh kiểm thử tính đúng (unit, integration, E2E) và độ tin cậy TADSS khi strategy lỗi (SP-09, SC2).
 
 #### B.7.3. Ramp-up
-Tăng theo bậc (vd 25 % ⇒ 50 % ⇒ 75 % ⇒ 100 % mức danh nghĩa, mỗi bậc giữ 2 phút); **warm-up 2 phút** (JIT, pool kết nối, cache TADSS) gắn tag `phase=warmup` và loại khỏi thống kê và threshold; chỉ tính `phase=steady`.
+**Warm-up 2 phút** (JIT, pool kết nối, cache TADSS) tăng dần 25 % ⇒ 75 % mức danh nghĩa, gắn `phase=warmup`; chuyển 10 s rồi **1 phút `phase=settle`** ở mức đầu của pha đo; cả hai loại khỏi thống kê và threshold, chỉ tính `phase=steady` (B.7.2). Think time, tỷ lệ hành trình: B.6.5.
 
-#### B.7.4. Kịch bản
-| Kịch bản | Mô tả | Trả lời câu hỏi |
-| :--- | :--- | :--- |
-| Load | Mức danh nghĩa 15 phút (open model) | Đạt SLO ở tải bình thường không |
-| Stress | Tăng bậc vượt danh nghĩa tới khi vượt SLO | Hệ thống xuống cấp thế nào, lỗi gì xuất hiện trước |
-| Spike | Từ danh nghĩa nhảy ×5 trong 1 phút rồi về | Có sập không, mất bao lâu để hồi phục |
-| Soak | Danh nghĩa 90–120 phút | Rò rỉ bộ nhớ/kết nối, tác động job Hangfire theo thời gian |
-| A/B TADSS | Load với cờ bật và cờ tắt (P6-43) | TADSS cộng bao nhiêu vào p95/p99, tốn bao nhiêu tài nguyên |
-| A/A overhead | Load với telemetry bật và tắt | Phép đo có làm méo kết quả không (P6-40) |
+#### B.7.4. Kịch bản (tiêu chí bằng số chốt 02/11)
+| Kịch bản | Mô tả | Trả lời câu hỏi | Tiêu chí |
+| :--- | :--- | :--- | :--- |
+| Load (SP-01) | Mức danh nghĩa 15 phút (open model) | Đạt SLO ở tải bình thường không | Bảng SLO B.7.2 trên toàn pha steady; ×3 lượt, p99 thiếu mẫu tính trên mẫu ghép 3 lượt |
+| Stress (SP-02) | 100 ⇒ 150 ⇒ 200 ⇒ 250 % danh nghĩa, mỗi bậc chuyển 10 s + giữ 3 phút, rồi về 100 % 5 phút | Hệ thống xuống cấp thế nào, lỗi gì xuất hiện trước, có tự hồi phục không | Mô tả: từng bậc chấm như điểm gãy (B.7.5), ghi tín hiệu vi phạm đầu tiên; bậc cuối 100 % đạt tiêu chí cửa sổ = tự hồi phục |
+| Spike (SP-03) | Danh nghĩa 3 phút ⇒ ×5 (chuyển 10 s) giữ 1 phút ⇒ về danh nghĩa (10 s) giữ 5 phút | Có sập không, mất bao lâu để hồi phục | Thời gian hồi phục = từ lúc về danh nghĩa tới đầu chuỗi **3 cửa sổ 10 s liên tiếp** có p95 Đọc < 300 ms (≥ 100 mẫu) và lỗi < 0,5 %; ≤ 60 s là ĐẠT, lâu hơn là KHÔNG ĐẠT, không hồi phục trong 5 phút ghi "không hồi phục" |
+| Soak (SP-04) | Danh nghĩa 90 phút | Rò rỉ bộ nhớ/kết nối, tác động job Hangfire theo thời gian | ĐẠT khi đủ cả: SLO B.7.2 trên toàn pha; RAM BE **trung bình phút 15–25** so với **trung bình 10 phút cuối** của pha steady tăng ≤ 10 % (so trung bình vì RAM .NET dao động theo chu kỳ GC); số kết nối PostgreSQL của BE so cùng hai khoảng tăng ≤ 10 %; p95 Đọc mọi cửa sổ 10 phút ≤ 1,2 × cửa sổ đầu |
+| A/B TADSS (SP-06) | Load với cờ bật và cờ tắt (P6-43) | TADSS cộng bao nhiêu vào p95/p99, tốn bao nhiêu tài nguyên | So sánh như B.7.8 |
+| A/A overhead (SP-07) | Load với telemetry bật và tắt | Phép đo có làm méo kết quả không (P6-40) | So sánh như B.7.8 |
+| AI (SP-10, task 2.31) | Khung đánh giá gọn (người dùng 02/11: AI chỉ gọi model miễn phí, use case phụ; đủ số liệu đạt/không và dùng lại khi thay bằng model tự xây). Qua BE, 2 request/giây × 10 phút, chia đều chat, gợi ý đặt sân, phân tích tổng quan | Phần xử lý của AI có đạt SLO không; toàn chặng BE ⇒ AI mất bao lâu | **SP-10A** LLM giả trễ 0 ms nhưng vẫn qua lời gọi HTTP và serialize JSON thật: p95 < 300 ms, lỗi < 0,5 % trên histogram `http.server.request.duration` của AI (bắt đầu khi request vào FastAPI, kết thúc khi gửi xong phản hồi: gồm dựng prompt, gọi HTTP tới LLM, parse + kiểm schema, serialize; không gồm mạng BE ⇒ AI và phần của BE). Biên bucket 250/500 ms: p95 ≤ 250 ms là ĐẠT chắc, trong 250–500 ms ghi số nội suy kèm "chưa kết luận chắc"; không sửa mã AI để thêm biên. **SP-10B** trễ 800 ms: chỉ báo cáo toàn chặng, không chấm. Báo cáo ghi SP-10A **không** chứng minh đạt SLO với LLM thật; thay model sau này thì chạy lại đúng SP-10B để so |
 
 **Quy trình mỗi lượt (P6-46, P6-47):** khôi phục DB + xóa Redis ⇒ kiểm checksum ⇒ warm-up riêng ⇒ lượt đo ⇒ ghi kết quả + metadata ⇒ đánh giá hợp lệ. Thứ tự ưu tiên chạy: load trước, rồi stress, spike, soak; tối ưu và chạy lại để làm bằng chứng sau cùng.
 
-#### B.7.5. Điểm gãy
-`ramping-arrival-rate` tăng đều; điểm gãy = mức tải thấp nhất mà p95 vượt SLO **liên tục 1 phút** hoặc lỗi vượt ngưỡng. Ghi trạng thái tại điểm gãy: CPU/RAM từng container, pool kết nối và thời gian chờ pool, thread pool, GC, khóa DB, tỷ lệ đường lùi TADSS.
+#### B.7.5. Điểm gãy (SP-05, chốt 02/11)
+`ramping-arrival-rate` **theo bậc**: từ 50 % danh nghĩa (10 hành trình/giây), mỗi bậc thêm 25 % (5 hành trình/giây) tới tối đa 300 % (60); mỗi bậc chuyển 10 s rồi giữ 3 phút; bỏ 30 s đầu của phần giữ, xét **2 cửa sổ 1 phút trọn vẹn** sau đó. Một cửa sổ **vi phạm** khi: p95 Đọc > 300 ms hoặc p95 Đặt sân > 1000 ms (chỉ xét nhóm có ≥ 100 mẫu trong cửa sổ; các nhóm khác ít mẫu mỗi phút nên chỉ báo cáo), hoặc lỗi > 0,5 %, hoặc `dropped_iterations` > 1 % số lượt dự kiến của cửa sổ. **Điểm gãy = bậc thấp nhất có ít nhất một cửa sổ vi phạm.** Ghi lại tại bậc gãy và bậc liền trước (JSON truy vấn Prometheus trong `verdict.json`): CPU/RAM từng container, số lần GC theo thế hệ, hàng đợi và số luồng thread pool, pool kết nối Npgsql (đang dùng/rảnh, request chờ, tối đa), kết nối PostgreSQL theo trạng thái, khóa DB, tỷ lệ đường lùi TADSS (`tadss_decisions_total{execution_type="FALLBACK"}`).
 
 #### B.7.6. Phân tích p95/p99
 So **client** (k6, toàn bộ mẫu, chính xác) với **server** (histogram BE, xấp xỉ theo bucket): chênh lệch = mạng + xếp hàng ở Kestrel + thời gian k6. Phân vị từ histogram là xấp xỉ: ghi biên bucket và sai số; ưu tiên histogram mũ (exponential) nếu đường Collector ⇒ Prometheus giữ được. Giải thích theo trải nghiệm: p95 là 1/20 lượt chậm nhất người dùng gặp thường xuyên; p99 quyết định cảm giác "thỉnh thoảng treo".
@@ -661,7 +689,7 @@ Báo cáo chính thức tối thiểu có, **theo từng nhóm hành trình/endp
 Mỗi lượt sinh `perf/results/<run_id>/` (gitignore; lượt chọn làm bằng chứng chép sang `docs/research/evidence-packs/` như Evidence Pack): summary JSON của k6, cấu hình đã dùng (không bí mật), digest image BE/TADSS, sha 3 repo, strategy version, trạng thái cờ, seed, thông số máy, JSON kết quả các truy vấn Prometheus chính, `manifest.json` (SHA-256). Script dựng báo cáo so sánh nhiều lượt. Giả thuyết nút cổ chai cần kiểm: pool kết nối DB, tranh chấp khóa sân (slot lock) khi nhiều người đặt cùng giờ đẹp, BCrypt khi đăng nhập dồn, độ trễ/timeout TADSS gây đường lùi, job Hangfire chạy chồng, rate limiter.
 
 #### B.7.8. Tối ưu và so sánh trước/sau
-Mỗi cải tiến chỉ đổi **một** yếu tố (chỉ số DB, kích thước pool, truy vấn N+1, cache…), image mới theo sha, chạy lại đúng kịch bản và seed, ≥ 3 lượt mỗi bên, so trung vị và khoảng (P6-44). Thay đổi code là việc của BE/TADSS theo quy trình thường (test, build, review); tài liệu ghi lý do và kết quả.
+Mỗi cải tiến chỉ đổi **một** yếu tố (chỉ số DB, kích thước pool, truy vấn N+1, cache…), image mới theo sha, chạy lại đúng kịch bản và seed, ≥ 3 lượt mỗi bên, so trung vị và khoảng (P6-44). Chỉ gọi là **cải thiện** khi khoảng min–max của hai bên không chồng nhau; chồng nhau thì ghi "không phân biệt được" (chốt 02/11). Thay đổi code là việc của BE/TADSS theo quy trình thường (test, build, review); tài liệu ghi lý do và kết quả.
 
 #### B.7.9. Kết luận và hạn chế
 Mức đáp ứng từng SLO; hạn chế đã biết: một máy chạy cả tải lẫn hệ thống, laptop hạ xung, PostgreSQL cục bộ khác Neon (không có độ trễ mạng tới Neon), tỷ lệ hành trình là giả định, không có người dùng thật.
@@ -683,3 +711,10 @@ Mỗi kịch bản chạy được bằng một lệnh có tham số (kịch b�
 - **2.17 không cần người dùng xuất lại:** `data/private/smashcourt_bookings.csv` (gói 5.6, 215 booking, không tên/điện thoại/email) đủ trường ⇒ `perf/stack/reference_stats.py` rút `distribution.reference.json` (chỉ phân bố tổng hợp, commit được; test chặn định danh lọt ra) và `seed` dùng mặc định. Phân bố thật khác placeholder: 61 % đặt trong ngày, cao điểm 6–7 giờ và 18 giờ, 13 % đơn 2 sân, 25 % lượt đặt của khách hết hạn thanh toán ≥ 2 lần ⇒ TADSS 2.1.0 từ chối một phần (`BOOKING_REJECTED`, đúng quy tắc `REPEATED_PAYMENT_EXPIRY`) và có đơn `PENDING_APPROVAL` cho J7. Seed: 20.404 đơn, 101.364 dòng. Hạn chế: dữ liệu môi trường phát triển (nhiều đơn thử nghiệm hủy / không đến).
 - **2.16 thử tài nguyên (máy 8 CPU / 8 GB, bản deploy + runner vẫn chạy):** (1) không tải: perf 0,37 lõi, 540 MB; tất cả container SmashCourt 0,64 lõi, 2,5 GB. (2–3) tăng đều 2 ⇒ 40 hành trình/giây: k6 tối đa 0,3 lõi (không bị giới hạn); **nút thắt là CPU của BE** (trần 2 lõi): p95 ≤ 0,41 s tới khoảng 68 request/giây, 76 request/giây p95 vọt 3,6 s, khoảng 90 request/giây BE chạm 2 lõi và p95 > 10 s; PostgreSQL 0,8/1 lõi, TADSS ≤ 0,1, AI ≤ 0,3, RAM BE ≤ 590 MB; lỗi ≤ 0,05 %. Mức danh nghĩa đề xuất 50 request/giây có dư địa. **Lượt thử đầu phát hiện lỗi của mô hình tải:** VU mới của open model tự đăng nhập ⇒ khi hệ thống chậm, số VU tăng tới 800 và BCrypt dồn thành bão đăng nhập (đăng nhập 5 % ⇒ 14 % request) làm BE sụp sớm ở 40 request/giây; sửa: `setup()` đăng nhập sẵn 300 khách + nhân viên + quản lý, token perf sống 240 phút, đăng nhập chỉ đo ở J2 (lượt sau: 1,4–1,8 %). **Lượt thứ hai bị máy đo đứng 3 phút** (mọi nguồn mất số liệu, Pushgateway 80/100 mẫu) ⇒ `perf/stack/analyze.py` (tự chạy sau mỗi lượt, ghi `resources.json`) đánh dấu `INFRA_LIMITED`; con số trên chỉ là chỉ báo. (5) Bảng B.6.3 giữ nguyên (trần, không phải phần giữ riêng; BE 2 lõi là trần ràng buộc cần đo). (4) 02/11, người dùng cho phép: dừng tạm 10 container của bản deploy + 3 runner (`docker stop`, giữ volume), chạy lại đúng lượt tăng tải, bật lại (health, URL ngrok 200, runner nhận việc): **không còn phút mất số liệu**; ở cùng mức tải CPU BE thấp hơn khoảng 30–45 % (72,7 request/giây: 0,77 lõi so với 1,13) và p95 ≤ 0,10 s tới 84 request/giây, 0,47 s ở 101 request/giây, 0 % lỗi; chưa chạm điểm gãy ở 40 hành trình/giây ⇒ SP-05 (2C) cần `--max-rate` cao hơn. Phút cuối p95 2,6 s khi CPU BE chỉ 1,1 lõi ⇒ có nút thắt ngoài CPU, phân tích bằng trace ở 2.27. **Kết luận 2.16:** lượt chính thức bắt buộc tắt bản deploy + runner (tranh CPU làm sai số liệu và gây VM đứng); bảng B.6.3 giữ nguyên.
 - **2B xong.** Sang 2C: chốt SLO (2.18, người dùng).
+
+### Giai đoạn 2C — Kịch bản, phân tích (02/11/2026: task 2.18 xong; SP-08 chờ người dùng cho tắt bản deploy + runner)
+
+- **2.18 chốt** (người dùng duyệt 4 điểm + quy tắc đo, 02/11): bảng SLO và quy tắc ở B.7.2, tiêu chí kịch bản B.7.4, điểm gãy B.7.5, so sánh trước/sau B.7.8. Máy đọc: `perf/k6/slo.json` (một nguồn cho threshold k6 và phần chấm).
+- **Hiện thực:** `client.js` timeout 5 s, Rate `request_errors` + danh sách cặp (status, `code`) hợp lệ theo endpoint, nhãn `phase` theo thời điểm gửi; `mix.js` mỗi profile open một scenario (warm-up 25 ⇒ 75 % ⇒ settle 1 phút ⇒ steady), stress/spike/breakpoint theo bậc và thông số của `slo.json`, trần VU 1,5 × tốc độ đỉnh × thời lượng hành trình cấp sẵn toàn bộ, threshold theo nhóm SLO (load/soak/closed), `schedule.json`; `perf.sh` ghim `cpuset` (hệ thống `0-4`, k6 + bộ quan sát `5-7`), container k6 tên `perf-k6`, `--out csv` mẫu thô, `k6-exit`, metadata tái lập, `--selftest`, `pool`; `perf/stack/verdict.py` (chấm từ mẫu thô) + `analyze.py` (`verdict.json`, `INFRA_LIMITED` khi k6 chạm trần, `INCOMPLETE`, tài nguyên tại bậc gãy, gộp lượt); dashboard đọc `verdict.json` (thiếu mẫu / lượt không hợp lệ là hạn chế, lượt tự kiểm bị từ chối). Test: 134 pytest `perf/testboard perf/stack`.
+- **Kiểm trên máy (bản deploy vẫn chạy, chỉ kiểm chức năng, không phải lượt đo):** (1) lần đầu lộ lỗi `setup()` gọi đồng hồ pha ngoài scenario ⇒ k6 thoát 107 ⇒ verdict `INCOMPLETE` đúng như thiết kế; sửa (`__VU === 0` là setup). (2) **Tự kiểm** `run load --rate 2 --duration 1m --warmup 30s --selftest`: k6 thoát 99, `verdict.json` KHÔNG ĐẠT; số `verdict.py` tính từ mẫu thô **khớp tuyệt đối** summary k6 (Đọc n = 342, p95 46,0 ms, p99 69,9 ms). (3) `run load --rate 5 --duration 2m`: Đọc ĐẠT (n = 1662), các nhóm khác KHÔNG ĐỦ DỮ LIỆU; k6 thoát 99 vì p95 Đăng nhập 756 ms trên **24 mẫu** ⇒ minh họa vì sao kết luận theo `verdict.json`; `raw.csv.gz` 300 KB / 2,5 phút; RAM k6 khoảng 1 MB/VU; 29 từ chối nghiệp vụ hợp lệ, 0 lỗi. (4) Breakpoint ngắn 2 ⇒ 6 ⇒ 10 hành trình/giây: lần đầu cấp sẵn 1 × trần VU ⇒ bậc 10 bỏ 1,17 % lượt khi hệ thống vẫn khỏe (p95 Đọc 191 ms, BE 0,57 lõi) ⇒ báo động giả; sửa cấp sẵn toàn bộ ⇒ 0 lượt bỏ, verdict "chưa tới điểm gãy". Snapshot tài nguyên chạy được trên Prometheus thật (GC, thread pool, pool Npgsql 100, khóa, đường lùi TADSS). Ghi nhận: `setup()` đăng nhập sẵn khoảng 300 tài khoản làm BE chạm 2 lõi khoảng 2 phút trước warm-up (ngoài mọi pha đo).
+- **Tiếp:** SP-08 baseline (2.19) trên máy sạch (tắt bản deploy + runner, hỏi người dùng): đo `journeySeconds` và hệ số hành trình ⇒ request, chốt `--rate` danh nghĩa (khoảng 20) rồi SP-01 ×3.
