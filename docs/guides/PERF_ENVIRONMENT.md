@@ -15,10 +15,10 @@ bash perf/perf.sh down        # tắt perf, xóa dữ liệu của nó (bộ qua
 
 | Lệnh | Tùy chọn |
 | :--- | :--- |
-| `up` | `--be TAG --tadss TAG --ai TAG` (đo bản khác bản deploy), `--tadss-off` (BE không gọi TADSS, cặp đối chứng SP-06), `--trace` (trace 100 %, chỉ cho lượt phân tích), `--pg-locks on\|off` (collector `pg_locks` của Alloy; mặc định **tắt** từ 03/11 vì đọc `pg_locks` khóa chính bộ quản lý khóa PostgreSQL, chỉ bật cho lượt đối chứng), `--db-pool N` (`Maximum Pool Size` của BE, mặc định 100). Mỗi lần `up` đặt lại các tùy chọn về giá trị đã cho hoặc mặc định |
+| `up` | `--be TAG --tadss TAG --ai TAG` (đo bản khác bản deploy), `--tadss-off` (BE không gọi TADSS, cặp đối chứng SP-06), `--trace` (trace 100 %, chỉ cho lượt phân tích), `--pg-locks on\|off` (collector `pg_locks` của Alloy; mặc định **tắt** từ 03/11 vì đọc `pg_locks` khóa chính bộ quản lý khóa PostgreSQL, chỉ bật cho lượt đối chứng), `--db-pool N` (`Maximum Pool Size` của BE, mặc định 100), `--db-prepare N` (`Database:MaxAutoPrepare` của BE, P6-54: mặc định `0` = như bản deploy, không bật; lượt đánh giá dùng `50`; image BE trước P6-54 bỏ qua tùy chọn này). `--cpu-layout physical\|legacy` (cpuset theo core vật lý, mặc định từ 05/11; `legacy` = `0-4` / `5-7` để so với lượt cũ), `--be-cpus N` (trần CPU của BE, mặc định 2). Mỗi lần `up` đặt lại các tùy chọn về giá trị đã cho hoặc mặc định |
 | `seed` | `--seed N`, `--customers N`, `--distribution FILE` (mặc định `distribution.reference.json` rút từ 215 booking thật, xem Mục 3) |
 | `reset` | khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (`run` tự gọi; khoảng 20 giây) |
-| `run <profile>` | `--rate N` (hành trình/giây, mức danh nghĩa), `--duration 15m`, `--warmup 2m`, `--vus N` (closed), `--code SP-xx` (nạp lên dashboard), `--limited "lý do"` (lượt không dùng để kết luận, P6-47), `--no-reset`, `--selftest` (ngưỡng p95 Đọc 1 ms: kiểm k6 + verdict báo KHÔNG ĐẠT đúng; chỉ load/soak/closed, không nạp dashboard), `--pg-sample activity|locks` (lấy mẫu PostgreSQL suốt lượt bằng `perf/stack/pgsampler.py`: `pg-samples.jsonl.gz` + `hangfire-jobs.json`; `locks` chỉ cho lượt chẩn đoán, không đi cùng `--code`), `--tag TÊN` (hậu tố mã lượt, vd `diag`, `E1`). Breakpoint: `--start-rate`, `--step-rate`, `--max-rate`, `--step 3m` (mặc định 50 % / 25 % / 300 % của `--rate`, giữ 3 phút). Trần VU: `--max-vus N` hoặc `--journey-seconds S` (mặc định 1,5 × tốc độ đỉnh × `journeySeconds` của `slo.json`) |
+| `run <profile>` | `--rate N` (hành trình/giây, mức danh nghĩa), `--duration 15m`, `--warmup 2m`, `--vus N` (closed), `--code SP-xx` (nạp lên dashboard), `--limited "lý do"` (lượt không dùng để kết luận, P6-47), `--no-reset`, `--selftest` (ngưỡng p95 Đọc 1 ms: kiểm k6 + verdict báo KHÔNG ĐẠT đúng; chỉ load/soak/closed, không nạp dashboard), `--pg-sample activity|locks` (lấy mẫu PostgreSQL suốt lượt bằng `perf/stack/pgsampler.py`: `pg-samples.jsonl.gz` + `hangfire-jobs.json`; `locks` chỉ cho lượt chẩn đoán, không đi cùng `--code`), `--tag TÊN` (hậu tố mã lượt, vd `diag`, `E1`). Breakpoint: `--start-rate`, `--step-rate`, `--max-rate`, `--step 3m` (mặc định 50 % / 25 % / 300 % của `--rate`, giữ 3 phút). Trần VU: `--max-vus N` hoặc `--journey-seconds S` (mặc định 1,5 × tốc độ đỉnh × `journeySeconds` của `slo.json`); `--cooldown GIÂY` (nghỉ trước k6 cho laptop nguội), `--allow-battery` (bỏ chặn chạy pin, lượt đó không dùng để kết luận). Trước lượt `hostcheck.py preflight` dừng nếu chạy pin, RAM VM Docker cần > 95 % hoặc đĩa Docker < 5 GB; trong lượt ghi xung nhịp CPU ⇒ `cpu-clock.json` |
 | `pool <lượt> <lượt> …` | p95/p99 trên mẫu thô **ghép** của các lượt cùng profile, tham số, seed, image (SP-01 ×3, nhóm thiếu mẫu p99); từ chối khi khác cấu hình |
 | `status` | tag, commit, trạng thái từng service |
 
@@ -67,3 +67,14 @@ J1 xem chi nhánh, sân, lịch trống (55 %) · J2 đăng nhập (5 %) · J3 �
 Threshold k6 chấm trên mọi mẫu nên có thể "vượt" ở nhóm chỉ vài chục mẫu (thoát 99): kết luận theo `verdict.json`.
 
 Trace (lượt phân tích, `up --trace`): Grafana <http://127.0.0.1:3003> ⇒ Explore ⇒ Tempo, tìm theo `service.name`. Hàng "Hiệu năng" có thêm panel PostgreSQL (kết nối, giao dịch, khóa) và Redis (lệnh, cache hit) từ exporter trong Alloy. `--code SP-xx` nạp vào dashboard; xem biểu đồ ở hàng "Hiệu năng" (chỉnh khung thời gian về lượt đo).
+
+## Máy đo là laptop (05/11)
+
+Trước mỗi lần tắt bản deploy để đo:
+
+1. Cắm sạc (`hostcheck.py preflight` dừng nếu chạy pin). Power mode: giữ **cùng một chế độ** cho mọi lượt cần so với nhau (05/11 người dùng giữ Best power efficiency; preflight cảnh báo, ghi vào metadata); chế độ khác Best performance thì số tuyệt đối là cận dưới.
+2. Đóng ứng dụng nặng (trình duyệt nhiều tab, IDE thứ hai): Windows cần RAM ngoài 8 GB của VM Docker.
+3. Tắt bản deploy + runner (hỏi người dùng). `run` tự kiểm RAM VM Docker: bản deploy còn chạy thì trần RAM vượt 95 % ⇒ dừng trước khi động vào dữ liệu.
+4. Giữa các lượt dùng `--cooldown 120`. Xung nhịp CPU từng lượt ở `cpu-clock.json`; lượt có `throttledShare` cao thì đọc thận trọng.
+5. Xong: `perf.sh up` (về mặc định) rồi **tắt container perf** (`docker stop perf-…`, dữ liệu giữ nguyên) trước khi bật lại bản deploy.
+

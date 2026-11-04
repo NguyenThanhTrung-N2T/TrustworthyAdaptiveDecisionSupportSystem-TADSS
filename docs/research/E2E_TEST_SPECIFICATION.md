@@ -567,3 +567,4 @@ KPI: mọi dòng liên quan SC6; E2E-05 thêm SC5 (minh họa, số đo ở FI-1
 | Cách giả lập SignalR và trang VNPay trên MSW | T6.15 | SV2 |
 | Chỉ báo trạng thái kết nối SignalR trên UI và cách làm đứt kết nối ở E2E-10 bước 4 | T6.11, T6.15 | SV2 |
 | Cập nhật tài liệu này theo kết luận Q1–Q11 của SV2 | T5.29 | SV2, SV1 |
+| Hiệu năng E-STAGING không đạt vì nghẽn `LWLock: LockManager` ⇒ xét bật auto-prepare của BE (P6-54, mặc định tắt): chỉ sau khi đạt đủ 5 bước kiểm (kết nối không qua pooler hoặc `No Reset On Close`, bộ test BE với `SMASHCOURT_TEST_DB_MAX_AUTO_PREPARE=50`, E2E-01…14 + K-SC6, LT-04 trước/sau, khởi động lại BE sau mỗi script schema) ở [plan 6C Mục 10.1](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md#101-phương-án-dự-phòng-bật-auto-prepare-p6-54-cho-môi-trường-chạy-e2e-phase-7) | T7.2–T7.4 (khi cần) | SV1 |

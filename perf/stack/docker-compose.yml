@@ -160,6 +160,8 @@ services:
       <<: *otel
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: Host=postgres;Database=smashcourt;Username=smashcourt;Password=smashcourt_perf;Maximum Pool Size=${PERF_DB_POOL:-100}
+      # Auto-prepare (P6-54): mặc định 0 = như bản deploy (không bật); lượt đánh giá bật bằng perf.sh up --db-prepare 50. Image BE trước P6-54 bỏ qua khóa này (= 0)
+      Database__MaxAutoPrepare: "${PERF_DB_AUTO_PREPARE:-0}"
       Jwt__Key: perf-jwt-signing-key-not-secret-0123456789abcdef
       Jwt__Issuer: smashcourt-perf
       Jwt__Audience: smashcourt-perf
@@ -216,7 +218,7 @@ services:
       timeout: 5s
       retries: 40
       start_period: 10s
-    cpus: 2
+    cpus: ${PERF_BE_CPUS:-2}   # perf.sh up --be-cpus N (thí nghiệm CPU cho Đăng nhập, 05/11); mặc định 2 như mọi lượt trước
     cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 1g
 

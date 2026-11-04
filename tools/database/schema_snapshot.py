@@ -49,9 +49,12 @@ PHASE6_CONSTRAINTS = ("fk_bookings_approval_resolved_by", "chk_bookings_pending_
                       "chk_booking_promotions_discount_value")
 PHASE6_INDEXES = ("uq_bookings_tadss_decision", "idx_bookings_pending_approval", "idx_bookings_outcome_pending")
 PHASE6_DROPPED_CONSTRAINTS = ("uq_slot_locks_booking", "chk_booking_promotions_rate")
-# Điều kiện script giả định có sẵn (Mục 6.1, câu backfill)
+# Bổ sung P6-53 (05/11, phase6_drop_duplicate_booking_index.sql): bỏ bản trùng (status, booking_date) của bookings
+PHASE6_DROPPED_INDEXES = ("idx_bookings_status_date",)
+# Điều kiện script giả định có sẵn (Mục 6.1, câu backfill; P6-53 giữ index cùng cột có INCLUDE)
 PRECONDITION_COLUMNS = {"bookings": ("cancel_source", "cancelled_at")}
 PRECONDITION_CONSTRAINTS = ("chk_bookings_cancelled_at",)
+PRECONDITION_INDEXES = ("idx_booking_status_date",)
 
 _HEADER = re.compile(r"^-- Name: (?P<name>.+?); Type: (?P<type>[^;]+); Schema: (?P<schema>[^;]+)")
 _NOISE = re.compile(r"^(\\restrict|\\unrestrict|-- Dumped (from|by) )")
@@ -128,6 +131,7 @@ def phase6_rows(objects: dict[ObjectKey, str], schema: str = "public") -> list[t
     for table, needed in PRECONDITION_COLUMNS.items():
         rows += [(f"[có sẵn] cột {table}.{column}", column in columns[table]) for column in needed]
     rows += [(f"[có sẵn] ràng buộc {name}", name in constraints) for name in PRECONDITION_CONSTRAINTS]
+    rows += [(f"[có sẵn] index {name}", ("INDEX", schema, name) in objects) for name in PRECONDITION_INDEXES]
     for type_name, values in PHASE6_ENUM_VALUES.items():
         present = enum_values(objects.get(("TYPE", schema, type_name), ""))
         rows += [(f"enum {type_name} có '{value}'", value in present) for value in values]
@@ -137,6 +141,7 @@ def phase6_rows(objects: dict[ObjectKey, str], schema: str = "public") -> list[t
     rows += [(f"ràng buộc {name}", name in constraints) for name in PHASE6_CONSTRAINTS]
     rows += [(f"index {name}", ("INDEX", schema, name) in objects) for name in PHASE6_INDEXES]
     rows += [(f"đã bỏ {name}", name not in constraints) for name in PHASE6_DROPPED_CONSTRAINTS]
+    rows += [(f"đã bỏ index {name}", ("INDEX", schema, name) not in objects) for name in PHASE6_DROPPED_INDEXES]
     return rows
 
 

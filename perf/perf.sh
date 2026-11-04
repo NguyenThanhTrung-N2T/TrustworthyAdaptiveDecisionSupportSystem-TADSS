@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 # Một lệnh cho môi trường đo hiệu năng (Epic 6C, gói 6C-4). Chạy trong TADSS-Runtime/ (Git Bash trên Windows cũng được).
-#   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace] [--pg-locks on|off] [--db-pool N]
+#   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace] [--pg-locks on|off] [--db-pool N] [--db-prepare N]
+#       [--cpu-layout physical|legacy] [--be-cpus N]
 #       bật bộ quan sát kiểm thử (Grafana http://127.0.0.1:3003) + môi trường perf, chờ mọi service healthy.
 #       Tag mặc định = image sha đang chạy ở bản deploy (đo đúng bản đang chạy thật); chưa có bản deploy ⇒ develop/develop/master.
 #       --tadss-off: BE không gọi TADSS (cặp đối chứng SP-06). --trace: bật trace 100 % (lượt phân tích, không dùng để đo chính thức).
 #       --pg-locks on: bật lại collector pg_locks của Alloy (mặc định tắt từ 03/11, chỉ cho lượt đối chứng E1). --db-pool N: Maximum Pool Size
-#       của BE (mặc định 100; thí nghiệm E3). Mỗi lần up đặt lại cả hai về giá trị đã cho hoặc mặc định.
+#       của BE (mặc định 100; thí nghiệm E3). --db-prepare N: Database:MaxAutoPrepare của BE (P6-54; mặc định 0 = như deploy, lượt đánh giá 50).
+#       --cpu-layout: cpuset theo core vật lý (mặc định, 05/11) hoặc legacy 0-4 / 5-7 (so với lượt cũ). --be-cpus N: trần CPU của BE (mặc định 2).
+#       Mỗi lần up đặt lại mọi núm về giá trị đã cho hoặc mặc định.
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
 #   bash perf/perf.sh reset      khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (trước mỗi lượt đo, P6-46)
-#   bash perf/perf.sh run <profile> [--rate N] [--duration 15m] ... [--code SP-xx] [--selftest]
+#   bash perf/perf.sh run <profile> [--rate N] [--duration 15m] ... [--code SP-xx] [--selftest] [--cooldown GIÂY] [--allow-battery]
 #       một lượt k6: khôi phục dữ liệu ⇒ k6 (mẫu thô raw.csv.gz) ⇒ analyze.py (resources.json + verdict.json theo SLO đã chốt, task 2.18).
 #       --selftest: ngưỡng p95 Đọc 1 ms để kiểm k6 + verdict báo KHÔNG ĐẠT đúng (chỉ load/soak/closed, không nạp lên dashboard)
 #       --pg-sample activity|locks: lấy mẫu PostgreSQL suốt lượt (stack/pgsampler.py; locks CHỈ cho lượt chẩn đoán). --tag TÊN: hậu tố mã lượt
-#       (diag, E1, E2, E3…)
+#       (diag, E1, E2, E3…). Trước lượt: hostcheck preflight (cắm sạc, RAM VM Docker, đĩa; dừng nếu không an toàn; --allow-battery bỏ qua sạc),
+#       --cooldown: nghỉ trước k6 (laptop nguội). Trong lượt: xung nhịp CPU Windows mỗi 5 s ⇒ cpu-clock.json.
 #   bash perf/perf.sh pool <lượt> <lượt> <lượt>   p95/p99 trên mẫu thô ghép của các lượt cùng cấu hình (SP-01 ×3)
 #   bash perf/perf.sh status     tag/commit từng service đang chạy
 #   bash perf/perf.sh down       tắt môi trường perf và xóa dữ liệu của nó (bộ quan sát giữ nguyên để xem lại kết quả)
@@ -66,17 +70,27 @@ wait_healthy() {  # <container>, tối đa 120 giây
   done
   echo "perf.sh: $1 không healthy sau 120 giây (docker logs $1)" >&2; return 1
 }
-# B.7.2: k6 chạy cùng máy ⇒ tách CPU của VM Docker: hệ thống dùng các CPU đầu, k6 + bộ quan sát dùng 3 CPU cuối (compose đọc PERF_CPUSET_*)
+# B.7.2 + 05/11: k6 chạy cùng máy ⇒ tách CPU của VM Docker THEO CORE VẬT LÝ (perf/stack/hostcheck.py): k6 + bộ quan sát nhận core cuối (đủ hai luồng),
+# hệ thống nhận các core còn lại (máy đo 4 core × 2 luồng ⇒ 0-5 / 6-7). --cpu-layout legacy giữ bố cục cũ 0-4 / 5-7 (luồng 4 và 5 cùng một core)
+# để so với các lượt trước 05/11 (cặp trước/sau của P6-54). Compose đọc PERF_CPUSET_*.
 set_cpusets() {
-  local n; n="$(docker info --format '{{.NCPU}}')"
+  local n layout; n="$(docker info --format '{{.NCPU}}')"
   if [ "$n" -ge 6 ]; then
-    PERF_CPUSET_SYSTEM="0-$((n - 4))"; PERF_CPUSET_TOOLS="$((n - 3))-$((n - 1))"
+    layout="$(python "$root/stack/hostcheck.py" layout "${1:-physical}")"
+    PERF_CPUSET_SYSTEM="${layout% *}"; PERF_CPUSET_TOOLS="${layout#* }"
   else
     PERF_CPUSET_SYSTEM="0-$((n - 1))"; PERF_CPUSET_TOOLS="$PERF_CPUSET_SYSTEM"
     echo "perf.sh: VM Docker chỉ có $n CPU, không tách được CPU hệ thống / k6 (ghi ở metadata)" >&2
   fi
   export PERF_CPUSET_SYSTEM PERF_CPUSET_TOOLS
 }
+# run dùng đúng bố cục up đã đặt: đọc từ container đang chạy, không tính lại
+read_cpusets() {
+  PERF_CPUSET_SYSTEM="$(docker inspect --format '{{.HostConfig.CpusetCpus}}' perf-be)"
+  PERF_CPUSET_TOOLS="$(docker inspect --format '{{.HostConfig.CpusetCpus}}' smashcourt-test-prometheus)"
+  export PERF_CPUSET_SYSTEM PERF_CPUSET_TOOLS
+}
+count_cpus() { python -c "import sys; print(sum(int(b) - int(a) + 1 for a, _, b in (p.partition('-') if '-' in p else (p, '', p) for p in sys.argv[1].split(','))))" "$1"; }
 system_containers=(perf-be perf-tadss perf-ai perf-postgres perf-tadss-postgres perf-redis perf-mailpit perf-fake-llm)
 stop_apps() { docker stop perf-be perf-tadss >/dev/null; }
 start_apps() { docker start perf-tadss >/dev/null; wait_healthy perf-tadss; docker start perf-be >/dev/null; wait_healthy perf-be; }
@@ -86,7 +100,7 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
   up)
     BE_TAG="$(deployed_tag be)"; TADSS_TAG="$(deployed_tag tadss)"; AI_TAG="$(deployed_tag ai)"
-    PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0; PERF_PG_EXTRA_COLLECTORS='[]'; PERF_DB_POOL=100
+    PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0; PERF_PG_EXTRA_COLLECTORS='[]'; PERF_DB_POOL=100; PERF_DB_AUTO_PREPARE=0; PERF_BE_CPUS=2; cpu_layout=physical
     while [ $# -gt 0 ]; do
       case "$1" in
         --be) BE_TAG="${2:?--be cần tag}"; shift 2 ;;
@@ -98,16 +112,24 @@ case "$cmd" in
           case "${2:-}" in on) PERF_PG_EXTRA_COLLECTORS='["locks"]' ;; off) PERF_PG_EXTRA_COLLECTORS='[]' ;;
             *) echo "perf.sh: --pg-locks on|off" >&2; exit 2 ;; esac; shift 2 ;;
         --db-pool) PERF_DB_POOL="${2:?--db-pool cần số}"; shift 2 ;;
+        --db-prepare) PERF_DB_AUTO_PREPARE="${2:?--db-prepare cần số}"; shift 2 ;;
+        --be-cpus) PERF_BE_CPUS="${2:?--be-cpus cần số}"; shift 2 ;;
+        --cpu-layout)
+          case "${2:-}" in physical|legacy) cpu_layout="$2" ;; *) echo "perf.sh: --cpu-layout physical|legacy" >&2; exit 2 ;; esac; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
-    export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO PERF_PG_EXTRA_COLLECTORS PERF_DB_POOL
-    set_cpusets
+    export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO PERF_PG_EXTRA_COLLECTORS PERF_DB_POOL PERF_DB_AUTO_PREPARE PERF_BE_CPUS
+    set_cpusets "$cpu_layout"
+    # Trần CPU của BE không được vượt số luồng của nhóm hệ thống; sát trần thì PostgreSQL, TADSS, AI phải tranh CPU ⇒ đọc kết quả thận trọng
+    system_threads="$(count_cpus "$PERF_CPUSET_SYSTEM")"
+    python -c "import sys; v = float(sys.argv[1]); sys.exit(0 if 0 < v <= int(sys.argv[2]) else 1)" "$PERF_BE_CPUS" "$system_threads"       || { echo "perf.sh: --be-cpus phải trong (0, ${system_threads}] (số luồng CPU hệ thống ${PERF_CPUSET_SYSTEM})" >&2; exit 2; }
+    python -c "import sys; sys.exit(0 if float(sys.argv[1]) <= int(sys.argv[2]) - 2 else 1)" "$PERF_BE_CPUS" "$system_threads"       || echo "perf.sh: CẢNH BÁO BE ${PERF_BE_CPUS} CPU trên ${system_threads} luồng hệ thống: PostgreSQL, TADSS, AI tranh CPU, kết quả cần đọc thận trọng" >&2
     echo "perf.sh: bộ quan sát kiểm thử (CPU ${PERF_CPUSET_TOOLS}, dùng chung với k6; collector pg_locks $([ "$PERF_PG_EXTRA_COLLECTORS" = '[]' ] && echo tắt || echo bật))"
     docker compose -f "$obs" up -d --wait
     # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
     docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
-    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, CPU ${PERF_CPUSET_SYSTEM})"
+    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
     docker compose -f "$stack" pull --quiet be tadss ai
     docker compose -f "$stack" up -d --wait
     show_status
@@ -165,7 +187,7 @@ case "$cmd" in
   run)
     # Một lượt k6 (task 2.15; kịch bản SP ở gói 6C-5): khôi phục dữ liệu ⇒ ghi metadata ⇒ k6 ⇒ (có --code) nạp lên dashboard "Kiểm thử"
     profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset] [--selftest]}"; shift
-    code=""; limited=""; do_reset=1; selftest=0; pg_sample=""; tag=""; k6_env=(-e "PROFILE=$profile")
+    code=""; limited=""; do_reset=1; selftest=0; pg_sample=""; tag=""; cooldown=0; allow_battery=""; k6_env=(-e "PROFILE=$profile")
     while [ $# -gt 0 ]; do
       case "$1" in
         --rate) k6_env+=(-e "RATE=${2:?}"); shift 2 ;;
@@ -187,6 +209,8 @@ case "$cmd" in
         --pg-sample)
           case "${2:-}" in activity|locks) pg_sample="$2" ;; *) echo "perf.sh: --pg-sample activity|locks" >&2; exit 2 ;; esac; shift 2 ;;
         --tag) tag="${2:?--tag cần tên}"; shift 2 ;;
+        --cooldown) cooldown="${2:?--cooldown cần số giây}"; shift 2 ;;
+        --allow-battery) allow_battery="--allow-battery"; shift ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
@@ -197,8 +221,11 @@ case "$cmd" in
       case "$profile" in load|soak|closed) ;; *) echo "perf.sh: --selftest chỉ cho load/soak/closed (profile có threshold SLO)" >&2; exit 2 ;; esac
     fi
     [ "$profile" = smoke ] && k6_env+=(-e "THINK_SCALE=${THINK_SCALE:-0.05}")
+    # Máy đo là laptop (05/11): chạy pin, thiếu RAM VM Docker (bản deploy còn chạy) hoặc thiếu đĩa thì dừng trước khi động vào dữ liệu
+    host_check="$(python "$root/stack/hostcheck.py" preflight $allow_battery)" || { echo "perf.sh: máy chưa sẵn sàng để đo (xem DỪNG ở trên)" >&2; exit 1; }
     [ "$do_reset" = 1 ] && "$0" reset
-    set_cpusets
+    read_cpusets
+    if [ "$cooldown" != 0 ]; then echo "perf.sh: nghỉ ${cooldown} giây cho máy nguội trước k6"; sleep "$cooldown"; fi
     suffix="${tag:+-$tag}"; [ "$selftest" = 1 ] && suffix="${suffix}-selftest"
     run_id="$(date +%Y%m%d-%H%M%S)-${profile}${code:+-$code}${suffix}"
     out="$root/results/k6/$run_id"; mkdir -p "$out"
@@ -214,12 +241,16 @@ case "$cmd" in
       echo "  \"tadssRuntime\": {\"commit\": \"$(git -C "$repo" rev-parse HEAD 2>/dev/null)\", \"dirty\": $([ -n "$(git -C "$repo" status --porcelain -- perf 2>/dev/null)" ] && echo true || echo false)},"
       echo "  \"sha256\": {\"k6\": \"$(cat "$root"/k6/mix.js "$root"/k6/lib/*.js "$root"/k6/slo.json | sha256sum | cut -d' ' -f1)\", \"sloJson\": \"$(sha256sum "$root/k6/slo.json" | cut -d' ' -f1)\", \"compose\": \"$(sha256sum "$root/stack/docker-compose.yml" | cut -d' ' -f1)\"},"
       echo "  \"cpuset\": {\"system\": \"$PERF_CPUSET_SYSTEM\", \"tools\": \"$PERF_CPUSET_TOOLS\"},"
+      # Luồng → core vật lý như VM Docker thấy (WSL2 không ghim vCPU vào luồng thật của Windows); nguồn điện, chế độ nguồn, RAM, đĩa lúc bắt đầu
+      echo "  \"cpuTopology\": $(python "$root/stack/hostcheck.py" topology), \"cpuTopologyNote\": \"cấu trúc trong VM Docker; WSL2 không ghim vCPU vào luồng vật lý\","
+      echo "  \"beCpus\": $(docker inspect --format '{{.HostConfig.NanoCpus}}' perf-be | awk '{print $1 / 1e9}'), \"hostCheck\": ${host_check}, \"cooldownSeconds\": ${cooldown},"
       echo "  \"containers\": {$(for c in "${system_containers[@]}"; do docker inspect --format "\"$c\": {\"cpuset\": \"{{.HostConfig.CpusetCpus}}\", \"nanoCpus\": {{.HostConfig.NanoCpus}}, \"memoryBytes\": {{.HostConfig.Memory}}}" "$c"; done | paste -sd, -)},"
       echo "  \"tadssDecision\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__EnableTadssDecision=//p')\","
       echo "  \"traceRatio\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__TraceSampleRatio=//p')\","
-      # Yếu tố của thí nghiệm E1–E3 (plan 6C 2C): đọc từ container đang chạy, không từ tham số
+      # Yếu tố của thí nghiệm E1–E4 (plan 6C 2C): đọc từ container đang chạy, không từ tham số
       echo "  \"tag\": \"${tag}\", \"pgSample\": \"${pg_sample:-none}\","
       echo "  \"dbPool\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | grep -o 'Maximum Pool Size=[0-9]*' | cut -d= -f2)\","
+      echo "  \"dbAutoPrepare\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Database__MaxAutoPrepare=//p')\","
       echo "  \"pgLocksCollector\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' smashcourt-test-alloy | grep -q '^PERF_PG_EXTRA_COLLECTORS=.*locks' && echo on || echo off)\","
       echo "  \"seed\": $(cat "$seed_meta"),"
       echo "  \"host\": {\"cpus\": $(docker info --format '{{.NCPU}}'), \"memoryBytes\": $(docker info --format '{{.MemTotal}}')},"
@@ -235,6 +266,7 @@ case "$cmd" in
       for _ in $(seq 1 60); do [ -f "$out/.pgsampler-ready" ] && break; sleep 1; done
       [ -f "$out/.pgsampler-ready" ] || { echo "perf.sh: pgsampler không khởi động được" >&2; exit 1; }
     fi
+    python "$root/stack/hostcheck.py" clock-start "$out"
     set +e
     # --name perf-k6: cAdvisor ghi CPU/RAM của k6 theo tên cố định (kiểm k6 không thiếu tài nguyên, B.7.2); csv = mẫu thô để chấm SLO chính xác
     BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps --name perf-k6 "${k6_env[@]}" \
@@ -246,6 +278,7 @@ case "$cmd" in
     fi
     set -e
     echo "$k6_exit" > "$out/k6-exit"
+    python "$root/stack/hostcheck.py" clock-summary "$out" > /dev/null || echo "perf.sh: không tóm tắt được xung nhịp CPU" >&2
     echo "perf.sh: k6 thoát ${k6_exit} (0 = mọi ngưỡng đạt, 99 = có ngưỡng hỏng, khác = dừng giữa chừng ⇒ INCOMPLETE)"
     # Bảng tài nguyên theo phút + resources.json, rồi verdict.json (đợi lần đẩy số liệu cuối 5 giây của app/k6 tới Prometheus)
     sleep 10
@@ -265,5 +298,5 @@ case "$cmd" in
   status) show_status ;;
   # Tag chỉ cần cho up; compose vẫn đòi biến khi đọc file
   down) BE_TAG=- TADSS_TAG=- AI_TAG=- docker compose -f "$stack" down -v --remove-orphans ;;
-  *) sed -n '2,18p' "$0"; exit 2 ;;
+  *) sed -n '2,22p' "$0"; exit 2 ;;
 esac

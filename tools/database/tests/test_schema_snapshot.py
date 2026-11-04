@@ -43,7 +43,23 @@ CREATE TABLE public.bookings (
 
 ALTER TABLE ONLY public.slot_locks
     ADD CONSTRAINT uq_slot_locks_booking UNIQUE (booking_id);
+
+--
+-- Name: idx_booking_status_date; Type: INDEX; Schema: public; Owner: neondb_owner
+--
+
+CREATE INDEX idx_booking_status_date ON public.bookings USING btree (status, booking_date) INCLUDE (id, branch_id, created_at);
 """
+
+# Bản sao (status, booking_date) không INCLUDE: phase6_drop_duplicate_booking_index.sql bỏ nó (P6-53, 05/11)
+DUPLICATE_INDEX_BLOCK = """
+--
+-- Name: idx_bookings_status_date; Type: INDEX; Schema: public; Owner: neondb_owner
+--
+
+CREATE INDEX idx_bookings_status_date ON public.bookings USING btree (status, booking_date);
+"""
+BEFORE += DUPLICATE_INDEX_BLOCK
 
 
 def _after() -> str:
@@ -52,7 +68,8 @@ def _after() -> str:
     columns = [f"    {c} text," for c in snap.PHASE6_COLUMNS["bookings"] if c != "cancel_reason"]
     text = text.replace("    cancelled_at timestamp with time zone,\n",
                         "    cancelled_at timestamp with time zone,\n    cancel_reason public.booking_cancel_reason,\n" + "\n".join(columns) + "\n")
-    text = text.split("--\n-- Name: slot_locks uq_slot_locks_booking")[0]
+    keep = "--\n-- Name: idx_booking_status_date" + text.split("--\n-- Name: idx_booking_status_date")[1].replace(DUPLICATE_INDEX_BLOCK, "")
+    text = text.split("--\n-- Name: slot_locks uq_slot_locks_booking")[0] + keep
     invoice_columns = ",\n".join(f"    {c} text" for c in ("id", *snap.PHASE6_COLUMNS["invoices"]))
     blocks = [f"--\n-- Name: invoices; Type: TABLE; Schema: public; Owner: o\n--\n\nCREATE TABLE public.invoices (\n{invoice_columns}\n);\n"]
     blocks += [f"--\n-- Name: {n}; Type: TYPE; Schema: public; Owner: o\n--\n\nCREATE TYPE public.{n} AS ENUM ('A');\n" for n in snap.PHASE6_TYPES]
@@ -70,7 +87,8 @@ def test_normalize_drops_dump_noise():
 def test_parse_objects_keys_and_bodies_skip_owner_and_comments():
     objects = snap.parse_objects(BEFORE)
     assert set(objects) == {("TYPE", "public", "booking_status"), ("TABLE", "public", "bookings"),
-                            ("CONSTRAINT", "public", "slot_locks uq_slot_locks_booking")}
+                            ("CONSTRAINT", "public", "slot_locks uq_slot_locks_booking"),
+                            ("INDEX", "public", "idx_booking_status_date"), ("INDEX", "public", "idx_bookings_status_date")}
     assert "OWNER TO" not in objects[("TYPE", "public", "booking_status")]
 
 
@@ -99,9 +117,22 @@ def test_phase6_status_partial_when_only_enum_added():
     assert snap.phase6_status(snap.phase6_rows(snap.parse_objects(text))) == "áp dở"
 
 
+def test_phase6_status_partial_when_only_duplicate_index_remains():
+    # Áp đủ mọi thứ trừ script bỏ index trùng ⇒ chưa "đã áp đủ"
+    rows = snap.phase6_rows(snap.parse_objects(_after() + DUPLICATE_INDEX_BLOCK))
+    assert ("đã bỏ index idx_bookings_status_date", False) in rows
+    assert snap.phase6_status(rows) == "áp dở"
+
+
+def test_phase6_requires_the_covering_index_to_stay():
+    # Index giữ lại (có INCLUDE) là điều kiện có sẵn: lỡ bỏ nhầm thì báo ngay
+    text = _after().replace("idx_booking_status_date", "idx_other")
+    assert ("[có sẵn] index idx_booking_status_date", False) in snap.phase6_rows(snap.parse_objects(text))
+
+
 def test_compare_reports_columns_enum_and_objects():
     only_left, only_right, changed = snap.compare(snap.parse_objects(BEFORE), snap.parse_objects(_after()))
-    assert only_left == [("CONSTRAINT", "public", "slot_locks uq_slot_locks_booking")]
+    assert only_left == [("CONSTRAINT", "public", "slot_locks uq_slot_locks_booking"), ("INDEX", "public", "idx_bookings_status_date")]
     assert ("INDEX", "public", "idx_bookings_pending_approval") in only_right
     details = dict(changed)
     assert "+ cột `cancel_reason` public.booking_cancel_reason" in details[("TABLE", "public", "bookings")]

@@ -15,7 +15,8 @@ SERVICES = COMPOSE["services"]
 ALLOWED_HOSTS = set(SERVICES) | {"smashcourt-test-alloy", "127.0.0.1", "localhost"}
 # Biến được phép truyền vào: tag image và núm chỉnh lượt đo; không biến nào mang bí mật
 ALLOWED_VARIABLES = {"BE_TAG", "TADSS_TAG", "AI_TAG", "PERF_TADSS_DECISION", "PERF_TRACE_RATIO", "FAKE_LLM_DELAY_MS", "FAKE_LLM_JITTER_MS",
-                     "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS", "PERF_DB_POOL"}
+                     "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS", "PERF_DB_POOL",
+                     "PERF_DB_AUTO_PREPARE", "PERF_BE_CPUS"}
 TEXT = (STACK / "docker-compose.yml").read_text(encoding="utf-8")
 
 
@@ -45,6 +46,23 @@ def test_system_and_load_generator_are_pinned_to_separate_cpu_sets(service):
 def test_be_pool_size_is_a_knob_defaulting_to_the_size_sp08_ran_with():
     # Thí nghiệm E3 (plan 6C 2C): chỉ đổi Maximum Pool Size; mặc định giữ 100 như SP-08 và SP-01
     assert "Maximum Pool Size=${PERF_DB_POOL:-100}" in _environment("be")["ConnectionStrings__DefaultConnection"]
+
+
+def test_be_cpu_limit_is_a_knob_defaulting_to_two_cpus_like_every_earlier_run():
+    # Thí nghiệm CPU cho Đăng nhập (05/11): chỉ BE đổi trần CPU, mọi container khác giữ nguyên
+    assert SERVICES["be"]["cpus"] == "${PERF_BE_CPUS:-2}"
+    assert all(not str(service.get("cpus", "")).startswith("${") for name, service in SERVICES.items() if name != "be")
+
+
+def test_be_auto_prepare_is_a_knob_defaulting_to_off_like_the_deploy():
+    # P6-54 (người dùng chốt 05/11): auto-prepare chỉ cho kiểm thử, đánh giá; bản deploy không bật ⇒ mặc định perf 0, lượt đánh giá --db-prepare 50.
+    # Đi qua cấu hình của app, không qua chuỗi kết nối (chuỗi kết nối ghi rõ thì thắng cấu hình, sẽ che mất núm)
+    be = _environment("be")
+    assert be["Database__MaxAutoPrepare"] == "${PERF_DB_AUTO_PREPARE:-0}"
+    assert "Auto Prepare" not in be["ConnectionStrings__DefaultConnection"]
+    deploy = (STACK.parents[2] / "SmashCourt-BE" / "deploy" / "docker-compose.yml")
+    if deploy.exists():  # workspace đủ 4 repo: bản deploy không bật thì mặc định perf (0) mới đúng là "như deploy"
+        assert "MaxAutoPrepare" not in deploy.read_text(encoding="utf-8")
 
 
 def test_only_known_variables_are_interpolated_and_no_env_file_is_read():
