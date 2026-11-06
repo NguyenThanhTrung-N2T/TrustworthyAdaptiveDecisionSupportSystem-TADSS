@@ -120,7 +120,7 @@ Thứ tự phụ thuộc 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 → 5.7 (sp
 ### 2.10. Gói 5.7 — Đóng băng M5
 
 - **Làm gì (đã xong):** M-01 (bỏ log ERR giả cho 404), M-09 (k6 báo lượt bỏ theo pha, LT-02 400 VU), DOC-1…DOC-4 tự động (`tools/docs/check_docs.py`, bảng [`CONFIGURATION_REFERENCE.md`](guides/CONFIGURATION_REFERENCE.md)), đóng băng `2.0.0` (M-07), đặc tả API BE ↔ FE (T5.22, M-08), E-STAGING (T5.23), danh mục BE/FE/E2E và [đặc tả E2E](research/E2E_TEST_SPECIFICATION.md) (T5.27).
-- **Quyết định:** R-01…R-07 (spec Mục 4.7): đóng băng trước lượt đầy đủ (R-03), lượt chính thức có RP (R-04), API duyệt định danh bằng `bookingId` (R-05), Manager nhập cọc dạng % (R-06), E-STAGING trên nhánh Neon `staging` (R-07).
+- **Quyết định:** R-01…R-07 (spec Mục 4.7): đóng băng trước lượt đầy đủ (R-03), lượt chính thức có RP (R-04), API duyệt định danh bằng `bookingId` (R-05), Manager nhập cọc dạng % (R-06), E-STAGING trên nhánh Neon `staging` (R-07; thay 19/10: staging là nhánh `tadss-dev`).
 - **Đã xong 18/10:** lượt đầy đủ `full-r1`, báo cáo Gate M5. **Còn chờ:** lượt đầy đủ trên strategy 2.1.0 khi máy rảnh, rồi M-10 (lưu Evidence Pack).
 - **Minh chứng:** [plan 5.7](../spec/PHASE5_PLAN_5.7_M5_FREEZE.md).
 
@@ -259,7 +259,7 @@ Chạy khi push hoặc pull request vào `master`, `develop`.
 
 ### 4.5. E-STAGING (Phase 7–8)
 
-Môi trường tích hợp FE ↔ BE ↔ TADSS trên máy nhóm bằng Docker Compose, dữ liệu trên **nhánh Neon riêng `staging`** (R-07), VNPay sandbox; chỉ bật `docker compose up -d --build tadss-runtime grafana` ở TADSS. Dựng ở W13 (T7.2); dùng cho E2E, LT-04, FI-11…14. Chi tiết: [MASTER_EXECUTION_PLAN, mục E-STAGING](planning/MASTER_EXECUTION_PLAN.md#môi-trường-tích-hợp-e-staging).
+Môi trường tích hợp FE ↔ BE ↔ TADSS trên máy nhóm bằng Docker Compose, dữ liệu trên **nhánh Neon riêng `staging`** (R-07; thay 19/10/2026: staging là nhánh `tadss-dev`, DB TADSS là project Neon riêng), VNPay sandbox; chỉ bật `docker compose up -d --build tadss-runtime grafana` ở TADSS. Dựng ở W13 (T7.2); dùng cho E2E, LT-04, FI-11…14. Chi tiết: [MASTER_EXECUTION_PLAN, mục E-STAGING](planning/MASTER_EXECUTION_PLAN.md#môi-trường-tích-hợp-e-staging).
 
 ---
 

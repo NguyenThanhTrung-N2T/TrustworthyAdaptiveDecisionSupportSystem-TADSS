@@ -32,7 +32,7 @@ Tài liệu này không chọn selector, tên file test hay câu SQL cụ thể;
 Theo [Môi trường tích hợp E-STAGING](../planning/MASTER_EXECUTION_PLAN.md#môi-trường-tích-hợp-e-staging):
 
 - Ba repo chạy bằng Docker Compose trên máy nhóm, chung mạng `smashcourt-network`; TADSS chỉ bật `tadss-runtime` và `grafana` (`docker compose up -d --build tadss-runtime grafana` trong `TADSS-Runtime/`), không bật ngrok của TADSS và không bật stack đánh giá.
-- Dữ liệu trên nhánh Neon `staging` (DB SmashCourt và schema `tadss`), không bao giờ trỏ vào nhánh chính. VNPay sandbox nhận callback/IPN qua ngrok của **BE**.
+- Dữ liệu SmashCourt trên nhánh Neon **`tadss-dev`**: staging là nhánh Neon `tadss-dev` (chốt 19/10/2026, [spec Phase 6 Mục 6](../../spec/PHASE6_DESIGN_SPEC.md#6-thiết-kế-db-t61)), chép schema và dữ liệu từ `main` rồi áp các script Phase 6; không có nhánh nào tên `staging`. DB của TADSS là **project Neon riêng** (không cùng nhánh với DB SmashCourt). Không bao giờ trỏ vào nhánh chính `main`. Bản deploy (`SmashCourt-BE/deploy`) không gọi Neon lúc chạy: dùng PostgreSQL trên máy, dữ liệu chép từ `tadss-dev` bằng `deploy/seed-db.sh`. VNPay sandbox nhận callback/IPN qua ngrok của **BE**.
 - **Email qua Mailpit** (plan 6A-6 Task 12): BE chạy kèm `docker-compose.mailpit.yml`, mọi email (OTP, xác nhận, duyệt, hủy, slot trống) vào Mailpit; các bước ghi "Email gửi khách (chỉ ghi nhận)" kiểm bằng API Mailpit (`GET /api/v1/search?query=to:"<email>"`: có đúng thư, đúng người nhận). Không dùng Gmail SMTP cho đợt E2E (giới hạn khoảng 500 thư/ngày).
 - **Link VNPay có hạn** (P6-27, sandbox 30/10): link hết hạn trước hạn thanh toán 2 phút; khách mở trang VNPay rồi trả sau hạn link thì VNPay chặn (mã `15`, không trừ tiền, không gửi IPN), nên kịch bản không cần kiểm khe hở "trả trên trang đã mở sau khi đơn hết hạn" của trước 6A-6. Trang kết quả đọc `bookingStatus` của `POST /api/payments/vnpay/confirm` (P6-28).
 - Định tuyến strategy chuẩn: `Tadss:Routing:DefaultStrategy = DefaultDecisionStrategy`, không rule (cấu hình mặc định). Mọi thay đổi cấu hình của TADSS staging (Mục 3.3, điều kiện N3) được ghi vào cấu hình đã dùng của minh chứng.
@@ -70,7 +70,7 @@ Bí danh dưới đây dùng trong mọi kịch bản. Tài liệu không ghi m�
 | `MGR-B1` | `BRANCH_MANAGER` | `CN-B` (Manager chi nhánh khác) | E2E-08 |
 | `STAFF-A1` | `STAFF` | `CN-A` | E2E-08, 09, 10, 13 |
 | `CUS-STD` | `CUSTOMER` | — | Khách hạng thấp nhất (`STANDARD` sau ánh xạ), không có booking `NO_SHOW`: các ca `APPROVED` (E2E-01, 05, 06, 09) và người đặt lại slot ở E2E-03 |
-| `CUS-EXPIRY` | `CUSTOMER` | — | Khách có ít nhất `PaymentExpiryRejectThreshold` booking `PAYMENT_EXPIRED` (nhiều hơn số booking hoàn tất) trên nhánh `staging`: ca bị từ chối (E2E-14) |
+| `CUS-EXPIRY` | `CUSTOMER` | — | Khách có ít nhất `PaymentExpiryRejectThreshold` booking `PAYMENT_EXPIRED` (nhiều hơn số booking hoàn tất) trên nhánh `tadss-dev`: ca bị từ chối (E2E-14) |
 | `CUS-REVIEW` | `CUSTOMER` | — | Khách tạo các đơn chờ duyệt (E2E-02, 03, 04, 05, 07, 08, 10, 11, 12) theo điều kiện N ở Mục 3.3; ở E2E-05 còn đặt slot thỏa điều kiện N khi cờ tắt |
 
 Khách vãng lai không dùng trong E2E đặt online: từ Phase 6 đặt sân online bắt buộc đăng nhập `CUSTOMER` (DEPOSIT_APPROVAL_API P6-01; FE đã chỉ cho đặt khi đăng nhập từ 12/05/2026). Khách vãng lai chỉ xuất hiện ở đặt tại quầy (E2E-13). Mọi email và số điện thoại của persona là địa chỉ thử của nhóm.
@@ -97,33 +97,33 @@ Số cọc kỳ vọng: `depositAmount = round(F × rate)`, VND không có chữ
 - **Điều kiện A (kỳ vọng `APPROVED`):** F < `HighValueThreshold` (mặc định 2.000.000 VND) và khách có ít hơn `NoShowReviewThreshold` (mặc định 2) lần không đến.
 - **Điều kiện N (kỳ vọng `NEED_APPROVAL`), chọn một cách ở T7.2:**
   - N1 — đơn có F ≥ `HighValueThreshold` (nhiều sân cùng khung giờ hoặc nhiều giờ), giữ nguyên cấu hình mặc định;
-  - N2 — `CUS-REVIEW` có ít nhất `NoShowReviewThreshold` booking `NO_SHOW` đã kết thúc trên nhánh `staging`;
+  - N2 — `CUS-REVIEW` có ít nhất `NoShowReviewThreshold` booking `NO_SHOW` đã kết thúc trên nhánh `tadss-dev`;
   - N3 — hạ `Tadss:Strategies:Default:HighValueThreshold` của TADSS staging bằng biến môi trường (chỉ cấu hình, như cách PT cấu hình instance riêng), ghi giá trị vào cấu hình đã dùng của minh chứng.
 - Với điều kiện N, giờ bắt đầu phải đủ xa theo Mục 2.3, nếu không TADSS trả `APPROVED` cọc 100 % (`APPROVAL_WINDOW_UNAVAILABLE`).
 - Điều kiện N là thuộc tính của **cặp khách + slot**: N1 và N3 là thuộc tính của slot (F ≥ ngưỡng, khách nào đặt cũng cần duyệt), N2 là thuộc tính của khách `CUS-REVIEW` (slot nào cũng cần duyệt, khách khác đặt cùng slot thì `APPROVED`). Vì vậy mọi đơn chờ duyệt đều do `CUS-REVIEW` đặt trên slot thỏa cách đã chọn; bước nào cho khách khác đặt lại slot đó (E2E-03 bước 5) ghi kỳ vọng riêng cho từng cách.
 
-- **Điều kiện R (kỳ vọng `REJECTED`):** khách `CUS-EXPIRY` có `paymentExpiredCount ≥ PaymentExpiryRejectThreshold` (mặc định 5) và `paymentExpiredCount > completedCount`. Điều kiện R xét trước điều kiện N: khách này bị từ chối kể cả khi đặt slot giá trị lớn. Lịch sử `PAYMENT_EXPIRED` chỉ tạo được bằng SQL trên nhánh `staging` (Mục 3.4, điều 3) hoặc để các booking `PENDING` quá hạn thanh toán.
+- **Điều kiện R (kỳ vọng `REJECTED`):** khách `CUS-EXPIRY` có `paymentExpiredCount ≥ PaymentExpiryRejectThreshold` (mặc định 5) và `paymentExpiredCount > completedCount`. Điều kiện R xét trước điều kiện N: khách này bị từ chối kể cả khi đặt slot giá trị lớn. Lịch sử `PAYMENT_EXPIRED` chỉ tạo được bằng SQL trên nhánh `tadss-dev` (Mục 3.4, điều 3) hoặc để các booking `PENDING` quá hạn thanh toán.
 
-### 3.4. Dựng và dựng lại dữ liệu trên nhánh `staging`
+### 3.4. Dựng và dựng lại dữ liệu trên nhánh `tadss-dev` (staging)
 
-1. Làm mới nhánh `staging` từ nhánh chính trước mỗi đợt chạy chính thức (smoke Gate M7, đợt T8.4) theo MASTER_EXECUTION_PLAN mục Dữ liệu, bước 5. Mọi tài khoản và dữ liệu thử tạo trên nhánh mất theo.
+1. **Không làm mới `tadss-dev` từ `main` trước Gate M6**: `main` chưa áp script Phase 6, làm mới sẽ mất schema Phase 6. Tới lúc đó dùng tài khoản và chi nhánh thử, SC6 lọc theo `[t_start; t_end]` (Mục 3.6). Sau Gate M6 (`main` đã áp Phase 6) mới làm mới trước đợt chạy chính thức (smoke Gate M7, đợt T8.4) theo MASTER_EXECUTION_PLAN mục Dữ liệu, bước 5; mọi tài khoản và dữ liệu thử tạo trên nhánh mất theo.
 2. Tài khoản, chi nhánh, sân, bảng giá đã có trên nhánh chính thì nhánh mới thừa hưởng; phần còn thiếu tạo lại bằng màn hình hiện có (đăng ký theo UC-AUTH-01 cho khách; Owner tạo chi nhánh, sân, giá, tài khoản và gán Manager/Staff), theo ghi chú dựng lại của T7.2.
-3. Dữ liệu không tạo được qua giao diện (điểm thành viên để có hạng, lịch sử `NO_SHOW` cho N2) chỉ được sửa bằng SQL **trên nhánh `staging`**, không bao giờ trên nhánh chính; câu lệnh nằm trong ghi chú T7.2.
-4. Migration mới của schema `tadss` không được tự áp lên nhánh (D-05); ưu tiên tạo lại nhánh từ nhánh chính đã migrate.
+3. Dữ liệu không tạo được qua giao diện (điểm thành viên để có hạng, lịch sử `NO_SHOW` cho N2) chỉ được sửa bằng SQL **trên nhánh `tadss-dev`**, không bao giờ trên nhánh chính; câu lệnh nằm trong ghi chú T7.2.
+4. Migration mới của DB TADSS (project Neon riêng) không được tự áp (D-05); chỉ áp khi người dùng cho phép.
 
 ### 3.5. Dữ liệu cá nhân
 
-Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số điện thoại khách, booking thật). Vì vậy:
+Nhánh `tadss-dev` chép cả dữ liệu thật của `main` (tên, số điện thoại khách, booking thật). Vì vậy:
 
 - Video, trace, ảnh chụp màn hình và log của E2E có thể chứa dữ liệu cá nhân: **không commit, không chia sẻ ra ngoài nhóm** (MASTER_EXECUTION_PLAN, mục Dữ liệu, bước 1). Chúng nằm trong thư mục `evidence/` ở gốc repo TADSS (đã gitignore) hoặc thư mục tương đương ngoài repo.
 - Chỉ dùng tài khoản thử và chi nhánh thử; không đăng nhập bằng tài khoản của khách thật, không thao tác trên booking thật.
 - Màn hình của `OWNER-1` thấy mọi chi nhánh: ở E2E-08 lọc theo chi nhánh thử trước khi chụp; ảnh đưa vào báo cáo chỉ lấy từ màn hình chỉ có dữ liệu thử.
-- Không bao giờ xuất dữ liệu từ nhánh `staging` cho RP (MASTER_EXECUTION_PLAN, mục Thứ tự với việc xuất CSV RP).
+- Không bao giờ xuất dữ liệu từ nhánh `tadss-dev` cho RP (MASTER_EXECUTION_PLAN, mục Thứ tự với việc xuất CSV RP).
 
 ### 3.6. Chuẩn bị trước mỗi đợt chạy
 
 1. Ghi commit của ba repo, digest image, cấu hình đã dùng (không kèm bí mật), thông số máy.
-2. Xác nhận chuỗi kết nối của BE và TADSS trỏ vào nhánh `staging` (kiểm tên nhánh/host trong trang quản trị Neon).
+2. Xác nhận chuỗi kết nối của BE trỏ vào nhánh `tadss-dev` và của TADSS trỏ vào DB TADSS đã chọn cho đợt chạy, không phải `main` (kiểm tên nhánh/host trong trang quản trị Neon; ghi vào cấu hình đã dùng).
 3. TADSS `GET /health/ready` trả 200; `EnableTadssDecision = true`; URL ngrok của BE đã cập nhật vào `VNPAY_CALLBACK_URL`/`VNPAY_IPN_URL`. **VNPay chỉ gọi IPN URL khai ở trang "VNPAYGW SIT Testing" của đúng terminal** (biến `VNPAY_IPN_URL` không gửi sang VNPay): kiểm dòng của terminal đang dùng trỏ `https://<ngrok BE>/api/payments/vnpay/ipn`; mở thử một link do BE tạo phải tới trang chọn phương thức thanh toán (terminal bị khóa ⇒ trang lỗi mã 71). Mã terminal và HashSecret trong `.env` của BE phải khớp `appsettings.Development.json`. Ghi chú môi trường đầy đủ: [spec Phase 6 Mục 10.1](../../spec/PHASE6_DESIGN_SPEC.md#101-xác-minh-trước-khi-bắt-đầu-6a-1) (thử sandbox 28/10/2026).
 4. Kiểm giới hạn tốc độ `booking` của BE (vượt ngưỡng trả 429 `OTP_LIMIT_EXCEEDED`, DEPOSIT_APPROVAL_API 3.1) đủ cho số booking của đợt chạy.
 5. Ghi mốc bắt đầu `t_start` của đợt; cuối đợt ghi `t_end`. Bộ truy vấn SC6 chỉ xét dữ liệu trong `[t_start; t_end]`.
@@ -131,7 +131,7 @@ Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số đi
    `docker run --rm --network smashcourt-network -v "<tests/load>:/load" -v "<thư mục kết quả>:/out" -w /load/scenarios -e BE_URL=http://smashcourt-be:8080 -e MAILPIT_URL=http://smashcourt-mailpit:8025 -e LT04_BRANCH_ID=<id> -e LT04_PROFILE=full -e LT04_EXPECT=tadss -e LT04_EXPECTED_RATE=<tỷ lệ> -e LT04_STRATEGY="<tên phiên bản>" -e LT04_EXPECTED_RATE_SOURCE="<file@commit khóa>" -e SUMMARY_PATH=/out/lt04.json grafana/k6:2.3.0 run --quiet lt04.js`
    (chạy thử cờ tắt: `LT04_PROFILE=smoke LT04_EXPECT=fallback`; tài khoản có sẵn qua `LT04_ACCOUNTS`). Đạt khi k6 thoát 0 (ngưỡng check), rồi chạy K-SC6 (bước 6) cho khoảng của lượt.
 6. **Chạy bộ kiểm SC6 (K-SC6) sau đợt** (BE-IT-20; plan 6A-6 Task 11): trong `SmashCourt-BE`, đặt biến môi trường rồi chạy `dotnet test SmashCourt-BE.Tests --filter "Category=Staging"`.
-   - `SC6_CONNECTION_STRING`: chuỗi kết nối Npgsql tới nhánh `staging`, nên dùng role chỉ đọc. Cần quyền đọc `public` của BE; quyền đọc `tadss.decision_executions` chỉ phục vụ phần chẩn đoán "quyết định mồ côi", thiếu quyền **hoặc schema `tadss` nằm ở database khác** (trường hợp của dev 31/10: DB của BE không có schema `tadss`) thì báo cáo ghi `orphanCheckError` và các điều SC6 vẫn được kiểm.
+   - `SC6_CONNECTION_STRING`: chuỗi kết nối Npgsql tới nhánh `tadss-dev`, nên dùng role chỉ đọc. Cần quyền đọc `public` của BE; quyền đọc `tadss.decision_executions` chỉ phục vụ phần chẩn đoán "quyết định mồ côi", thiếu quyền **hoặc schema `tadss` nằm ở database khác** (trường hợp của dev 31/10: DB của BE không có schema `tadss`) thì báo cáo ghi `orphanCheckError` và các điều SC6 vẫn được kiểm.
    - `SC6_FROM_UTC = t_start`, `SC6_TO_UTC = t_end` (ISO 8601, bắt buộc, `t_end` phải trước lúc chạy kiểm để tập dữ liệu cố định); `TADSS_BASE_URL`, `TADSS_API_KEY` (điều 5); `SC6_OUTPUT` (đường dẫn file JSON vào Evidence Pack).
    - Đọc trường `status` của file JSON: `PASS` (0 vi phạm và 0 mục không kết luận được, test đạt), `FAIL` (có vi phạm, xem `violations`, `violationsByRule`), `INCONCLUSIVE` (lỗi gọi TADSS, lỗi DB hoặc lượt bị dừng, xem `inconclusiveChecks`, `abortReason`: chạy lại sau khi sửa môi trường, không tính là đạt). `orphanDecisions` chỉ để chẩn đoán, không ảnh hưởng kết luận.
 
@@ -145,8 +145,8 @@ Nhánh `staging` sao cả dữ liệu thật của nhánh chính (tên, số đi
 | :--- | :--- | :--- |
 | **UI** | Nội dung, trạng thái giao diện | Assertion của Playwright |
 | **API** | Request FE gửi và response BE trả | Network trong trace của Playwright; kiểm `code`, HTTP status, trường của `data` |
-| **DB** | Trạng thái DB SmashCourt trên nhánh `staging` | Truy vấn **chỉ đọc**; tên cột mới (`tadss_decision_id`, trường cọc, `resolvedBy`/`resolvedAt`/`approvalResult`) chốt ở T6.1 |
-| **TADSS** | Bản ghi của TADSS trong schema `tadss` cùng nhánh | Truy vấn chỉ đọc ba bảng `decision_executions`, `decision_overrides`, `decision_outcomes` (cột theo [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md) Mục B), chỉ xét `role = 'PRIMARY'` |
+| **DB** | Trạng thái DB SmashCourt trên nhánh `tadss-dev` | Truy vấn **chỉ đọc**; tên cột mới (`tadss_decision_id`, trường cọc, `resolvedBy`/`resolvedAt`/`approvalResult`) chốt ở T6.1 |
+| **TADSS** | Bản ghi của TADSS trong schema `tadss` của DB TADSS (project Neon riêng) | Truy vấn chỉ đọc ba bảng `decision_executions`, `decision_overrides`, `decision_outcomes` (cột theo [`DECISION_PERSISTENCE_INVARIANTS.md`](../architecture/DECISION_PERSISTENCE_INVARIANTS.md) Mục B), chỉ xét `role = 'PRIMARY'` |
 
 ### 4.2. Định danh và correlation id
 

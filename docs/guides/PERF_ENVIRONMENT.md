@@ -76,5 +76,7 @@ Trước mỗi lần tắt bản deploy để đo:
 2. Đóng ứng dụng nặng (trình duyệt nhiều tab, IDE thứ hai): Windows cần RAM ngoài 8 GB của VM Docker.
 3. Tắt bản deploy + runner (hỏi người dùng). `run` tự kiểm RAM VM Docker: bản deploy còn chạy thì trần RAM vượt 95 % ⇒ dừng trước khi động vào dữ liệu.
 4. Giữa các lượt dùng `--cooldown 120`. Xung nhịp CPU từng lượt ở `cpu-clock.json`; lượt có `throttledShare` cao thì đọc thận trọng.
-5. Xong: `perf.sh up` (về mặc định) rồi **tắt container perf** (`docker stop perf-…`, dữ liệu giữ nguyên) trước khi bật lại bản deploy.
+5. **Giữ máy thức suốt lần đo** (06/11 lượt đầu bị Modern Standby giữa lượt ⇒ hủy): không gập màn hình / bấm nút nguồn; chạy `powershell -NoProfile -ExecutionPolicy Bypass -File perf/stack/keepawake.ps1 -Log <log của lần đo>` ở nền (chặn ngủ do không thao tác bằng `SetThreadExecutionState`, tự thoát khi log có `=== xong` hoặc sau 3 giờ, không đổi cài đặt nguồn). Sau mỗi lượt kiểm sự kiện ngủ: `Get-WinEvent -FilterHashtable @{LogName='System'; Id=42,506,507; StartTime=<giờ bắt đầu>}` phải rỗng.
+6. Lượt cần so với nhau nên chạy khi máy mát (đầu buổi): sau khoảng 2 giờ đo liên tục xung nhịp tụt khoảng 11 % và Đăng nhập p95 tăng theo (06/11).
+7. Xong: `perf.sh up` (về mặc định) rồi **tắt container perf** (`docker stop perf-…`, dữ liệu giữ nguyên) trước khi bật lại bản deploy.
 

@@ -74,6 +74,27 @@ def test_minutes_without_any_sample_are_reported_as_infra_gaps(tmp_path):
 
 # ── task 2.18: giới hạn máy đo, verdict.json từ mẫu thô ─────────────────────────────────────────────────────────────────────────
 
+def test_cpu_limits_resolve_compose_variables_to_their_default(monkeypatch):
+    # 05/11 compose đổi cpus của BE thành ${PERF_BE_CPUS:-2}; trước khi sửa float() trên chuỗi biến làm analyze.py hỏng sau mỗi lượt
+    monkeypatch.delenv("PERF_BE_CPUS", raising=False)
+    limits = analyze.limits_from_compose()
+    assert limits["perf-be"] == 2.0 and all(isinstance(v, float) for v in limits.values())
+
+
+def test_cpu_limits_follow_the_environment_when_set(monkeypatch):
+    monkeypatch.setenv("PERF_BE_CPUS", "3")
+    assert analyze.limits_from_compose()["perf-be"] == 3.0
+
+
+def test_cpu_limit_of_be_comes_from_the_run_metadata(tmp_path, monkeypatch):
+    # perf.sh ghi beCpus từ container đang chạy; analyze chạy ở shell không có PERF_BE_CPUS nên phải tin metadata của lượt
+    monkeypatch.delenv("PERF_BE_CPUS", raising=False)
+    (tmp_path / "metadata.json").write_text(json.dumps({"beCpus": 4}), encoding="utf-8")
+    assert analyze.limits_from_compose(run_dir=tmp_path)["perf-be"] == 4.0
+    (tmp_path / "metadata.json").write_text(json.dumps({"startedAt": "x"}), encoding="utf-8")
+    assert analyze.limits_from_compose(run_dir=tmp_path)["perf-be"] == 2.0
+
+
 def test_memory_limits_are_read_from_compose_in_megabytes():
     memory = analyze.memory_limits_from_compose()
     assert memory["perf-be"] == 1024 and memory["perf-k6"] == 2048 and memory["perf-redis"] == 128

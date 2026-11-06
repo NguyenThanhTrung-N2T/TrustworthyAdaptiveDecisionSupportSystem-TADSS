@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -49,9 +51,23 @@ def prometheus_query(expr: str, at: int) -> list[dict]:
         return json.load(response)["data"]["result"]
 
 
-def limits_from_compose(path: Path = COMPOSE) -> dict[str, float]:
+_COMPOSE_VARIABLE = re.compile(r"^\$\{(?P<name>[A-Z0-9_]+):-(?P<default>[^}]*)\}$")
+
+
+def _compose_value(raw: object) -> str:
+    """Giá trị compose dạng `${TÊN:-mặc định}` (perf.sh truyền biến lúc up) ⇒ biến môi trường nếu có, không thì mặc định."""
+    match = _COMPOSE_VARIABLE.match(str(raw).strip())
+    return os.environ.get(match["name"], match["default"]) if match else str(raw)
+
+
+def limits_from_compose(path: Path = COMPOSE, run_dir: Path | None = None) -> dict[str, float]:
     services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
-    return {s["container_name"]: float(s["cpus"]) for s in services.values() if "cpus" in s}
+    limits = {s["container_name"]: float(_compose_value(s["cpus"])) for s in services.values() if "cpus" in s}
+    # Trần CPU thật của BE trong lượt (perf.sh ghi từ container đang chạy): đúng cả khi up --be-cpus mà shell phân tích không có biến
+    metadata = run_dir / "metadata.json" if run_dir else None
+    if metadata and metadata.exists() and (be_cpus := json.loads(metadata.read_text(encoding="utf-8")).get("beCpus")):
+        limits["perf-be"] = float(be_cpus)
+    return limits
 
 
 def memory_limits_from_compose(path: Path = COMPOSE) -> dict[str, float]:
@@ -111,7 +127,7 @@ def _fmt(value: float | None, digits: int = 2, width: int = 6) -> str:
 
 def report(run_dir: Path, query: Query = prometheus_query, limits: dict[str, float] | None = None,
            memory_limits: dict[str, float] | None = None) -> str:
-    limits = limits_from_compose() if limits is None else limits
+    limits = limits_from_compose(run_dir=run_dir) if limits is None else limits
     memory_limits = memory_limits_from_compose() if memory_limits is None else memory_limits
     start, end = window(run_dir)
     rows = minutes(start, end, query, limits)
