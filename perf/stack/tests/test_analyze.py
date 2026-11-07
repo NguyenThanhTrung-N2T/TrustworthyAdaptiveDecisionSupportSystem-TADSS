@@ -196,3 +196,95 @@ def test_pool_refuses_runs_with_different_configuration(tmp_path):
         assert "khác cấu hình" in str(error)
     else:
         raise AssertionError("phải từ chối gộp")
+
+
+# ── SP-10 (task 2.31, B.7.4): chấm phần xử lý của AI trên histogram server, toàn chặng BE ⇒ AI chỉ báo cáo ─────────────────────────────
+
+_AI_SLO = {"minSamples": {"p95": 100, "p99": 1000},
+           "ai": {"p95Ms": 300, "certainPassMs": 250, "certainFailMs": 500, "errorRateMax": 0.005}}
+
+
+def _ai_query(p95_s: float, total: float, errors: float):
+    def fake(expr: str, at: int) -> list[dict]:
+        if "histogram_quantile(0.95" in expr:
+            return [{"metric": {}, "value": [at, str(p95_s)]}]
+        if "histogram_quantile(0.99" in expr:
+            return [{"metric": {}, "value": [at, str(p95_s * 1.5)]}]
+        if "5.." in expr:
+            return [{"metric": {}, "value": [at, str(errors)]}]
+        return [{"metric": {}, "value": [at, str(total)]}]
+    return fake
+
+
+def _ai_raw() -> analyze.verdict.Raw:
+    raw = analyze.verdict.Raw()
+    for i in range(60):
+        raw.durations.append(analyze.verdict.Sample(float(i), "ai", "POST /api/ai/chat", "steady", 100.0 + i))
+    return raw
+
+
+def test_ai_verdict_passes_only_below_the_250_ms_bucket_bound():
+    result = analyze.ai_verdict(_ai_query(0.2, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)
+    assert result["status"] == "PASS" and result["aiServer"]["p95"] == 200.0 and result["aiServer"]["n"] == 1200
+    assert result["chain"]["POST /api/ai/chat"]["n"] == 60
+
+
+def test_ai_verdict_inside_the_250_500_bucket_is_not_a_certain_pass():
+    # p95 nội suy 300 ms nằm trong bucket (250; 500]: không phân biệt được < 300 hay không (B.7.4), không sửa mã AI để thêm biên
+    result = analyze.ai_verdict(_ai_query(0.3, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)
+    assert result["status"] == "INSUFFICIENT" and "250–500" in result["aiServer"]["note"]
+
+
+def test_ai_verdict_fails_above_500_ms_or_with_too_many_5xx():
+    assert analyze.ai_verdict(_ai_query(0.6, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)["status"] == "FAIL"
+    assert analyze.ai_verdict(_ai_query(0.2, 1200, 6), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)["status"] == "FAIL"
+
+
+def test_ai_verdict_needs_enough_requests():
+    assert analyze.ai_verdict(_ai_query(0.2, 50, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)["status"] == "INSUFFICIENT"
+
+
+def test_ai_verdict_with_llm_delay_is_report_only():
+    # SP-10B (LLM giả trễ 800 ms): chỉ báo cáo toàn chặng, không chấm; thiếu thông tin trễ thì không chấm được
+    assert analyze.ai_verdict(_ai_query(0.9, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=800)["status"] == "REPORT"
+    assert analyze.ai_verdict(_ai_query(0.2, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=None)["status"] == "INSUFFICIENT"
+
+
+def test_describe_shows_the_ai_server_and_chain_lines():
+    result = {"runId": "r", "profile": "ai", "status": "PASS", "validity": "OK",
+              **analyze.ai_verdict(_ai_query(0.2, 1200, 0), 0, 600, _ai_raw(), _AI_SLO, llm_delay_ms=0)}
+    text = analyze.describe(result)
+    assert "AI (server, histogram): n=1200 p95 200.0 ms" in text and "toàn chặng POST /api/ai/chat: n=60" in text
+
+
+# ── SP-09 (người dùng chốt 07/11): chấm theo khoảng lỗi ─────────────────────────────────────────────────────────────────────────────
+
+_FAULT_SLO = {"errorRateMax": 0.005, "minSamples": {"p95": 100, "p99": 1000}, "groups": {"booking": {"p95": 1000, "p99": 2000}}}
+
+
+def _fault_raw(error_during: int = 0) -> analyze.verdict.Raw:
+    raw = analyze.verdict.Raw()
+    for t in range(0, 900):
+        failed = 1.0 if 300 <= t < 300 + error_during else 0.0
+        raw.errors.append(analyze.verdict.Sample(float(t), "read", "GET x", "steady", failed))
+        raw.durations.append(analyze.verdict.Sample(float(t), "booking", "POST /api/bookings/online", "steady", 120.0))
+    return raw
+
+
+_FAULTS = {"kind": "stop-tadss", "onAt": 300.0, "offAt": 600.0, "check": {"status": "PASS", "problems": []}}
+
+
+def test_fault_verdict_passes_when_errors_stay_low_and_booking_recovers():
+    result = analyze.fault_verdict(_fault_raw(), _FAULTS, 899, _FAULT_SLO, {"status": "PASS"})
+    assert result["status"] == "PASS" and result["fault"]["bookingAfter"]["n"] == 240
+
+
+def test_fault_verdict_fails_with_errors_inside_the_fault_window():
+    assert analyze.fault_verdict(_fault_raw(error_during=3), _FAULTS, 899, _FAULT_SLO, {"status": "PASS"})["status"] == "FAIL"
+
+
+def test_fault_verdict_follows_the_db_check_and_sc6():
+    bad_db = {**_FAULTS, "check": {"status": "FAIL", "problems": ["1 đơn không cọc 100 %"]}}
+    assert analyze.fault_verdict(_fault_raw(), bad_db, 899, _FAULT_SLO, {"status": "PASS"})["status"] == "FAIL"
+    assert analyze.fault_verdict(_fault_raw(), _FAULTS, 899, _FAULT_SLO, {"status": "FAIL"})["status"] == "FAIL"
+    assert analyze.fault_verdict(_fault_raw(), _FAULTS, 899, _FAULT_SLO, None)["status"] == "INSUFFICIENT"

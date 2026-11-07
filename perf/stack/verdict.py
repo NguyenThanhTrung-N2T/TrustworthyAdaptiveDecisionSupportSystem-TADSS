@@ -17,7 +17,8 @@ from pathlib import Path
 
 SLO_FILE = Path(__file__).resolve().parents[1] / "k6" / "slo.json"
 PASS, FAIL, INSUFFICIENT, NOT_RECOVERED = "PASS", "FAIL", "INSUFFICIENT", "NOT_RECOVERED"
-LABELS = {PASS: "ĐẠT", FAIL: "KHÔNG ĐẠT", INSUFFICIENT: "KHÔNG ĐỦ DỮ LIỆU", NOT_RECOVERED: "KHÔNG HỒI PHỤC"}
+REPORT = "REPORT"   # SP-10B: chỉ báo cáo số, không chấm theo SLO
+LABELS = {PASS: "ĐẠT", FAIL: "KHÔNG ĐẠT", INSUFFICIENT: "KHÔNG ĐỦ DỮ LIỆU", NOT_RECOVERED: "KHÔNG HỒI PHỤC", REPORT: "CHỈ BÁO CÁO"}
 _DURATION = re.compile(r"(\d+)([hms])")
 _UNIT = {"h": 3600, "m": 60, "s": 1}
 

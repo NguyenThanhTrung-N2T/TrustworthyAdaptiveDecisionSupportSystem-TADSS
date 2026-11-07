@@ -6,13 +6,14 @@
 //   soak        open, RATE trong DURATION dài (SP-04, 90 phút)
 //   breakpoint  open, theo bậc từ 50 % RATE, mỗi bậc +25 % RATE tới 300 % (SP-05; START_RATE, STEP_RATE, MAX_RATE đổi được)
 //   closed      closed (ramping-vus) VUS người dùng có think time giữa hai hành trình: góc nhìn trải nghiệm
+//   ai          open, RATE request AI/giây qua BE (chat, gợi ý đặt sân, phân tích tổng quan, chia đều) trong DURATION (SP-10)
 // Mỗi profile (trừ smoke) là MỘT scenario: warm-up WARMUP tăng 25 % ⇒ 75 % RATE (phase=warmup) ⇒ chuyển 10 s + 1 phút ở mức đầu của pha đo
 // (phase=settle) ⇒ phase=steady. Nhãn pha gắn theo thời điểm gửi request; chỉ steady vào threshold (B.7.2, B.7.3). Một scenario thay vì ba
 // để k6 không cấp VU cho từng scenario chồng nhau lúc chuyển pha. Mọi ngưỡng/cửa sổ/bậc đọc từ slo.json (cùng file verdict.py chấm).
 // Mô hình open đo theo nhịp hành trình đến, không phụ thuộc hệ thống chậm (tránh coordinated omission của closed model).
 import exec from 'k6/execution';
 import { SLO, usePhaseClock } from './lib/client.js';
-import { JOURNEY_WEIGHTS, bookingOutcomes, journeys, loadCatalog, loginPool, pickWeighted, reseed, runJourney, thinkBetweenJourneys, usePool }
+import { JOURNEY_WEIGHTS, aiCall, bookingOutcomes, journeys, loadCatalog, loginPool, pickWeighted, reseed, runJourney, thinkBetweenJourneys, usePool }
   from './lib/journeys.js';
 
 const PROFILE = __ENV.PROFILE || 'smoke';
@@ -38,6 +39,7 @@ function steadyPlan() {
   switch (PROFILE) {
     case 'load':
     case 'soak':
+    case 'ai':
       return { first: RATE, peak: RATE, steps: [], stages: [{ target: rate(RATE), duration: DURATION }] };
     case 'stress': {
       const step = seconds(__ENV.STEP || SLO.stress.hold);
@@ -96,7 +98,7 @@ function scenarios() {
         throw new Error(`PROFILE không hợp lệ: ${PROFILE}`);
       }
       return { open: { executor: 'ramping-arrival-rate', timeUnit: '1s', startRate: rate(RATE * 0.25), preAllocatedVUs: PRE_VUS,
-        maxVUs: MAX_VUS, exec: 'mixed', stages: [{ target: rate(RATE * 0.75), duration: WARMUP },
+        maxVUs: MAX_VUS, exec: PROFILE === 'ai' ? 'aiCalls' : 'mixed', stages: [{ target: rate(RATE * 0.75), duration: WARMUP },
           { target: rate(PLAN.first), duration: TRANSITION }, { target: rate(PLAN.first), duration: SETTLE }, ...PLAN.stages] } };
   }
 }
@@ -120,6 +122,8 @@ function thresholds() {
     ...Object.fromEntries(GROUPS.map((g) => [`http_req_duration{phase:steady,slo:${g}}`,
       sloRun ? [`p(95)<${limit(g)}`, `p(99)<${SLO.groups[g].p99}`] : ['p(95)>=0']])),
     ...Object.fromEntries(GROUPS.map((g) => [`request_errors{phase:steady,slo:${g}}`, ['rate>=0']])),
+    // SP-10 chấm trên histogram server của AI (analyze.py); ngưỡng luôn đạt chỉ để summary có số toàn chặng BE ⇒ AI
+    ...(PROFILE === 'ai' ? { 'http_req_duration{phase:steady,slo:ai}': ['p(95)>=0'] } : {}),
     // Ngưỡng luôn đạt chỉ để summary có số đếm theo từng hành trình / kết quả đặt sân (tỷ lệ hành trình ≠ tỷ lệ request, B.6.5)
     ...Object.fromEntries(['J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7'].map((j) => [`journeys{journey:${j}}`, ['count>=0']])),
     ...Object.fromEntries(['PENDING', 'CONFIRMED', 'PENDING_APPROVAL', 'http_409', 'http_400'].map((o) => [`booking_outcomes{outcome:${o}}`, ['count>=0']])),
@@ -143,6 +147,11 @@ export function mixed(context) {
   usePool(context.pool);
   reseed(__VU, __ITER);
   runJourney(pickWeighted(JOURNEY_WEIGHTS), context.catalog);
+}
+
+export function aiCalls(context) {
+  usePool(context.pool);
+  aiCall(exec.scenario.iterationInTest);
 }
 
 export function roundRobin(context) {
@@ -186,6 +195,7 @@ export function handleSummary(summary) {
   const text = [
     `k6 ${PROFILE} (${RUN_ID})${SELFTEST ? ' [TỰ KIỂM: ngưỡng p95 Đọc 1 ms]' : ''}`,
     ...GROUPS.map((g) => metricLine(`  ${g}`, m[`http_req_duration{phase:steady,slo:${g}}`])),
+    ...(PROFILE === 'ai' ? [metricLine('  ai', m['http_req_duration{phase:steady,slo:ai}'])] : []),
     `request_errors (steady): ${m['request_errors{phase:steady}'] ? (m['request_errors{phase:steady}'].values.rate * 100).toFixed(2) : '-'} %`,
     `journeys: ${journeys && m.journeys ? m.journeys.values.count : 0}, đặt sân: ${bookingOutcomes && m.booking_outcomes ? m.booking_outcomes.values.count : 0}`,
     ...counts,

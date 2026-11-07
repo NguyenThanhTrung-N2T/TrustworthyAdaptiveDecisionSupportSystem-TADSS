@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Một lệnh cho môi trường đo hiệu năng (Epic 6C, gói 6C-4). Chạy trong TADSS-Runtime/ (Git Bash trên Windows cũng được).
 #   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace] [--pg-locks on|off] [--db-pool N] [--db-prepare N]
-#       [--cpu-layout physical|legacy] [--be-cpus N]
+#       [--cpu-layout physical|legacy] [--be-cpus N] [--telemetry-off] [--llm-delay MS] [--llm-jitter MS] [--faults]
 #       bật bộ quan sát kiểm thử (Grafana http://127.0.0.1:3003) + môi trường perf, chờ mọi service healthy.
 #       Tag mặc định = image sha đang chạy ở bản deploy (đo đúng bản đang chạy thật); chưa có bản deploy ⇒ develop/develop/master.
 #       --tadss-off: BE không gọi TADSS (cặp đối chứng SP-06). --trace: bật trace 100 % (lượt phân tích, không dùng để đo chính thức).
 #       --pg-locks on: bật lại collector pg_locks của Alloy (mặc định tắt từ 03/11, chỉ cho lượt đối chứng E1). --db-pool N: Maximum Pool Size
 #       của BE (mặc định 100; thí nghiệm E3). --db-prepare N: Database:MaxAutoPrepare của BE (P6-54; mặc định 0 = như deploy, lượt đánh giá 50).
 #       --cpu-layout: cpuset theo core vật lý (mặc định, 05/11) hoặc legacy 0-4 / 5-7 (so với lượt cũ). --be-cpus N: trần CPU của BE (mặc định 2).
+#       --telemetry-off: tắt OpenTelemetry của BE, TADSS, AI (cặp đối chứng SP-07). --llm-delay / --llm-jitter: độ trễ LLM giả
+#       (mặc định 800 / 200 ms; SP-10A dùng 0 / 0). --faults: BE gọi TADSS qua Toxiproxy (SP-09; run --fault stop-tadss|latency|reset).
 #       Mỗi lần up đặt lại mọi núm về giá trị đã cho hoặc mặc định.
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
 #   bash perf/perf.sh reset      khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (trước mỗi lượt đo, P6-46)
@@ -101,6 +103,7 @@ case "$cmd" in
   up)
     BE_TAG="$(deployed_tag be)"; TADSS_TAG="$(deployed_tag tadss)"; AI_TAG="$(deployed_tag ai)"
     PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0; PERF_PG_EXTRA_COLLECTORS='[]'; PERF_DB_POOL=100; PERF_DB_AUTO_PREPARE=0; PERF_BE_CPUS=2; cpu_layout=physical
+    PERF_TELEMETRY=true; FAKE_LLM_DELAY_MS=800; FAKE_LLM_JITTER_MS=200; PERF_TADSS_URL=http://tadss:8080; faults_profile=()
     while [ $# -gt 0 ]; do
       case "$1" in
         --be) BE_TAG="${2:?--be cần tag}"; shift 2 ;;
@@ -114,12 +117,17 @@ case "$cmd" in
         --db-pool) PERF_DB_POOL="${2:?--db-pool cần số}"; shift 2 ;;
         --db-prepare) PERF_DB_AUTO_PREPARE="${2:?--db-prepare cần số}"; shift 2 ;;
         --be-cpus) PERF_BE_CPUS="${2:?--be-cpus cần số}"; shift 2 ;;
+        --telemetry-off) PERF_TELEMETRY=false; shift ;;
+        --faults) PERF_TADSS_URL=http://toxiproxy:8666; faults_profile=(--profile faults); shift ;;
+        --llm-delay) FAKE_LLM_DELAY_MS="${2:?--llm-delay cần số ms}"; shift 2 ;;
+        --llm-jitter) FAKE_LLM_JITTER_MS="${2:?--llm-jitter cần số ms}"; shift 2 ;;
         --cpu-layout)
           case "${2:-}" in physical|legacy) cpu_layout="$2" ;; *) echo "perf.sh: --cpu-layout physical|legacy" >&2; exit 2 ;; esac; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
     export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO PERF_PG_EXTRA_COLLECTORS PERF_DB_POOL PERF_DB_AUTO_PREPARE PERF_BE_CPUS
+    export PERF_TELEMETRY FAKE_LLM_DELAY_MS FAKE_LLM_JITTER_MS PERF_TADSS_URL
     set_cpusets "$cpu_layout"
     # Trần CPU của BE không được vượt số luồng của nhóm hệ thống; sát trần thì PostgreSQL, TADSS, AI phải tranh CPU ⇒ đọc kết quả thận trọng
     system_threads="$(count_cpus "$PERF_CPUSET_SYSTEM")"
@@ -129,9 +137,10 @@ case "$cmd" in
     docker compose -f "$obs" up -d --wait
     # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
     docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
-    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
+    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, telemetry $([ "$PERF_TELEMETRY" = true ] && echo bật || echo tắt), LLM giả ${FAKE_LLM_DELAY_MS}±${FAKE_LLM_JITTER_MS} ms, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
     docker compose -f "$stack" pull --quiet be tadss ai
-    docker compose -f "$stack" up -d --wait
+    docker compose -f "$stack" "${faults_profile[@]}" up -d --wait
+    [ "${#faults_profile[@]}" = 0 ] && docker stop perf-toxiproxy >/dev/null 2>&1 || true   # không --faults: BE gọi thẳng TADSS
     show_status
     echo "perf.sh: BE http://127.0.0.1:18080 · Mailpit http://127.0.0.1:18025 · Grafana \"Kiểm thử\" http://127.0.0.1:3003"
     ;;
@@ -186,8 +195,8 @@ case "$cmd" in
     ;;
   run)
     # Một lượt k6 (task 2.15; kịch bản SP ở gói 6C-5): khôi phục dữ liệu ⇒ ghi metadata ⇒ k6 ⇒ (có --code) nạp lên dashboard "Kiểm thử"
-    profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset] [--selftest]}"; shift
-    code=""; limited=""; do_reset=1; selftest=0; pg_sample=""; tag=""; cooldown=0; allow_battery=""; k6_env=(-e "PROFILE=$profile")
+    profile="${1:?Cách dùng: perf.sh run <smoke|load|stress|spike|soak|breakpoint|closed|ai> [--rate N] [--duration 15m] [--vus N] [--code SP-01] [--limited LÝ_DO] [--no-reset] [--selftest]}"; shift
+    code=""; limited=""; do_reset=1; selftest=0; pg_sample=""; tag=""; cooldown=0; allow_battery=""; fault=""; k6_env=(-e "PROFILE=$profile")
     while [ $# -gt 0 ]; do
       case "$1" in
         --rate) k6_env+=(-e "RATE=${2:?}"); shift 2 ;;
@@ -211,6 +220,8 @@ case "$cmd" in
         --tag) tag="${2:?--tag cần tên}"; shift 2 ;;
         --cooldown) cooldown="${2:?--cooldown cần số giây}"; shift 2 ;;
         --allow-battery) allow_battery="--allow-battery"; shift ;;
+        --fault)
+          case "${2:-}" in stop-tadss|latency|reset) fault="$2" ;; *) echo "perf.sh: --fault stop-tadss|latency|reset" >&2; exit 2 ;; esac; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
@@ -221,6 +232,12 @@ case "$cmd" in
       case "$profile" in load|soak|closed) ;; *) echo "perf.sh: --selftest chỉ cho load/soak/closed (profile có threshold SLO)" >&2; exit 2 ;; esac
     fi
     [ "$profile" = smoke ] && k6_env+=(-e "THINK_SCALE=${THINK_SCALE:-0.05}")
+    # SP-09: lỗi tiêm qua Toxiproxy cần BE đang gọi TADSS qua proxy (up --faults); stop-tadss cũng chạy sau proxy cho cùng đường đi
+    if [ -n "$fault" ]; then
+      [ "$profile" = load ] || { echo "perf.sh: --fault chỉ cho profile load (SP-09)" >&2; exit 2; }
+      docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | grep -q '^TadssConfig__BaseUrl=http://toxiproxy' \
+        || { echo "perf.sh: --fault cần perf.sh up --faults trước" >&2; exit 2; }
+    fi
     # Máy đo là laptop (05/11): chạy pin, thiếu RAM VM Docker (bản deploy còn chạy) hoặc thiếu đĩa thì dừng trước khi động vào dữ liệu
     host_check="$(python "$root/stack/hostcheck.py" preflight $allow_battery)" || { echo "perf.sh: máy chưa sẵn sàng để đo (xem DỪNG ở trên)" >&2; exit 1; }
     [ "$do_reset" = 1 ] && "$0" reset
@@ -246,9 +263,11 @@ case "$cmd" in
       echo "  \"beCpus\": $(docker inspect --format '{{.HostConfig.NanoCpus}}' perf-be | awk '{print $1 / 1e9}'), \"hostCheck\": ${host_check}, \"cooldownSeconds\": ${cooldown},"
       echo "  \"containers\": {$(for c in "${system_containers[@]}"; do docker inspect --format "\"$c\": {\"cpuset\": \"{{.HostConfig.CpusetCpus}}\", \"nanoCpus\": {{.HostConfig.NanoCpus}}, \"memoryBytes\": {{.HostConfig.Memory}}}" "$c"; done | paste -sd, -)},"
       echo "  \"tadssDecision\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__EnableTadssDecision=//p')\","
+      echo "  \"telemetry\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__Enabled=//p')\","
+      echo "  \"fakeLlmDelayMs\": $(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-fake-llm | sed -n 's/^FAKE_LLM_DELAY_MS=//p'), \"fakeLlmJitterMs\": $(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-fake-llm | sed -n 's/^FAKE_LLM_JITTER_MS=//p'),"
       echo "  \"traceRatio\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__TraceSampleRatio=//p')\","
       # Yếu tố của thí nghiệm E1–E4 (plan 6C 2C): đọc từ container đang chạy, không từ tham số
-      echo "  \"tag\": \"${tag}\", \"pgSample\": \"${pg_sample:-none}\","
+      echo "  \"tag\": \"${tag}\", \"pgSample\": \"${pg_sample:-none}\", \"fault\": \"${fault}\","
       echo "  \"dbPool\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | grep -o 'Maximum Pool Size=[0-9]*' | cut -d= -f2)\","
       echo "  \"dbAutoPrepare\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Database__MaxAutoPrepare=//p')\","
       echo "  \"pgLocksCollector\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' smashcourt-test-alloy | grep -q '^PERF_PG_EXTRA_COLLECTORS=.*locks' && echo on || echo off)\","
@@ -267,6 +286,11 @@ case "$cmd" in
       [ -f "$out/.pgsampler-ready" ] || { echo "perf.sh: pgsampler không khởi động được" >&2; exit 1; }
     fi
     python "$root/stack/hostcheck.py" clock-start "$out"
+    injector=""
+    if [ -n "$fault" ]; then   # warm-up 120 s + chuyển 10 s + settle 60 s rồi 5 phút bình thường ⇒ lỗi 5 phút ⇒ hồi phục (mốc thật ở faults.json)
+      python "$root/stack/faults.py" inject "$out" --kind "$fault" --start-after 490 --duration 300 &
+      injector=$!
+    fi
     set +e
     # --name perf-k6: cAdvisor ghi CPU/RAM của k6 theo tên cố định (kiểm k6 không thiếu tài nguyên, B.7.2); csv = mẫu thô để chấm SLO chính xác
     BE_TAG=- TADSS_TAG=- AI_TAG=- MSYS_NO_PATHCONV=1 docker compose -f "$stack" --profile k6 run --rm --no-deps --name perf-k6 "${k6_env[@]}" \
@@ -275,6 +299,10 @@ case "$cmd" in
     k6_exit=$?
     if [ -n "$sampler" ]; then   # dừng bằng file (kill từ Git Bash không gửi tín hiệu êm cho tiến trình Windows)
       touch "$out/.stop-pgsampler"; wait "$sampler" || echo "perf.sh: pgsampler thoát lỗi (xem pg-samples.jsonl)" >&2
+    fi
+    if [ -n "$injector" ]; then
+      wait "$injector" || echo "perf.sh: faults.py inject thoát lỗi (xem faults.json)" >&2
+      python "$root/stack/faults.py" check "$out" || echo "perf.sh: kiểm DB sau lỗi không đạt (xem faults.json)" >&2
     fi
     set -e
     echo "$k6_exit" > "$out/k6-exit"
@@ -298,5 +326,5 @@ case "$cmd" in
   status) show_status ;;
   # Tag chỉ cần cho up; compose vẫn đòi biến khi đọc file
   down) BE_TAG=- TADSS_TAG=- AI_TAG=- docker compose -f "$stack" down -v --remove-orphans ;;
-  *) sed -n '2,22p' "$0"; exit 2 ;;
+  *) sed -n '2,24p' "$0"; exit 2 ;;
 esac

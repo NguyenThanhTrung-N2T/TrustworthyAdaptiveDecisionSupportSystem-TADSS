@@ -47,6 +47,8 @@
   "stress": {"factors": [1, 1.5, 2, 2.5], "hold": "3m", "recovery": "5m"},
   "spike": {"factor": 5, "before": "3m", "hold": "1m", "after": "5m", "window": "10s", "consecutive": 3, "group": "read",
             "passWithinSeconds": 60},
+  "ai": {"source": "plan 6C B.7.4 SP-10A, chốt 02/11/2026", "rate": 2, "duration": "10m", "p95Ms": 300, "certainPassMs": 250,
+         "certainFailMs": 500, "errorRateMax": 0.005},
   "soak": {"baselineFromMinute": 15, "baselineToMinute": 25, "tailMinutes": 10, "growthMax": 0.10, "p95Window": "10m",
            "p95GrowthFactorMax": 1.2},
   "infra": {"k6CpuMax": 0.8, "k6MemoryMax": 0.9},

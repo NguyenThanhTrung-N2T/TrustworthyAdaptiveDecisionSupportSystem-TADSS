@@ -26,6 +26,8 @@ services:
       - ../../docs/database/schema_smashcourt.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
       - ./postgres/20-drop-hangfire.sql:/docker-entrypoint-initdb.d/20-drop-hangfire.sql:ro
     command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    ports:
+      - "127.0.0.1:15432:5432"   # SC6 sau lượt SP-09 (bộ kiểm C# của BE chạy trên máy)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smashcourt -d smashcourt"]
       interval: 3s
@@ -108,7 +110,7 @@ services:
       Tadss__Security__ApiKeys__0__KeySha256: "6ca013748a8c98db645173d7eb354376c2060f286a73add9ebe3d52a5b0f179a"   # SHA-256 của hằng `tadss-perf-key`
       Tadss__Security__RateLimiting__PermitLimit: "100000"
       Tadss__Security__RateLimiting__TokensPerPeriod: "100000"
-      Tadss__Telemetry__Enabled: "true"
+      Tadss__Telemetry__Enabled: "${PERF_TELEMETRY:-true}"   # SP-07 A/A: perf.sh up --telemetry-off
       Tadss__Telemetry__OtlpEndpoint: http://smashcourt-test-alloy:4317
       Tadss__Telemetry__ServiceInstanceId: perf
       Tadss__Telemetry__MetricExportIntervalMs: "5000"
@@ -123,9 +125,30 @@ services:
       timeout: 5s
       retries: 40
       start_period: 10s
+    ports:
+      - "127.0.0.1:18081:8080"   # SC6 sau lượt SP-09 gọi GET /api/v2/decisions/{id} từ máy
     cpus: 1.5
     cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
     mem_limit: 768m
+
+  # SP-09 (plan 6C 2C, người dùng chốt 07/11): chỉ bật khi perf.sh up --faults; BE gọi TADSS qua đây, faults.py thêm/gỡ toxic
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    container_name: perf-toxiproxy
+    profiles: ["faults"]
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "127.0.0.1:18474:8474"   # API điều khiển cho faults.py
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    cpus: 0.5
+    cpuset: "${PERF_CPUSET_SYSTEM:-0-4}"
+    mem_limit: 128m
 
   ai:
     image: ghcr.io/nguyenthanhtrung-n2t/smashcourt-ai:${AI_TAG:?perf.sh đặt tag}
@@ -136,7 +159,7 @@ services:
       GEMINI_API_KEY: perf-fake-key   # LLM giả không kiểm khóa
       GEMINI_MODEL: gemini-3.6-flash
       GEMINI_BASE_URL: http://fake-llm:8080
-      OTEL_ENABLED: "true"
+      OTEL_ENABLED: "${PERF_TELEMETRY:-true}"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://smashcourt-test-alloy:4318
       OTEL_METRIC_EXPORT_INTERVAL: "5000"
       OTEL_TRACES_SAMPLER: traceidratio
@@ -186,7 +209,7 @@ services:
       Hangfire__Enabled: "true"   # job chạy như thật (hết hạn thanh toán, outcome); ảnh hưởng thấy ở soak
       Hangfire__Dashboard: "false"
       AIService__BaseUrl: http://ai:8000
-      TadssConfig__BaseUrl: http://tadss:8080
+      TadssConfig__BaseUrl: ${PERF_TADSS_URL:-http://tadss:8080}   # up --faults: http://toxiproxy:8666 (SP-09)
       TadssConfig__ApiKey: tadss-perf-key
       TadssConfig__EnableTadssDecision: ${PERF_TADSS_DECISION:-true}   # cặp bật/tắt của SP-06 (P6-43)
       # Rate limit nâng: k6 đăng nhập và đặt sân từ một IP (giới hạn thật 5 lần đăng nhập/phút sẽ chặn bài đo)
@@ -198,7 +221,7 @@ services:
       RateLimiting__AiManagement__PermitLimit: "1000000"
       IpRateLimiting__GeneralRules__0__Limit: "1000000"
       IpRateLimitPolicies__ai-public__Rules__0__Limit: "1000000"
-      Telemetry__Enabled: "true"
+      Telemetry__Enabled: "${PERF_TELEMETRY:-true}"
       Telemetry__OtlpEndpoint: http://smashcourt-test-alloy:4317
       Telemetry__MetricExportIntervalMs: "5000"
       Telemetry__TraceSampleRatio: ${PERF_TRACE_RATIO:-0}

@@ -286,6 +286,20 @@ export function j7(catalog) {
   }
 }
 
+// SP-10 (plan 6C B.7.4): ba endpoint AI qua BE chia đều theo thứ tự lượt trong cả bài đo; AI gọi LLM giả (perf/stack/fake_llm.py)
+const AI_CALLS = ['chat', 'suggest', 'analytics'];
+export function aiCall(index) {
+  tagWithJourney('SP10');
+  const kind = AI_CALLS[index % AI_CALLS.length];
+  if (kind === 'chat') {
+    post('/api/ai/chat', { message: 'Tối nay chi nhánh còn sân trống không?' }, 'POST /api/ai/chat', 'ai');
+  } else if (kind === 'suggest') {
+    post('/api/ai/suggest/booking', { date: vnDate(1) }, 'POST /api/ai/suggest/booking', 'ai', token('customer'));
+  } else {
+    post('/api/ai/analytics/summary', { fromDate: vnDate(-30), toDate: vnDate(0) }, 'POST /api/ai/analytics/summary', 'ai', token('manager'));
+  }
+}
+
 export function runJourney(name, catalog) {
   switch (name) {
     case 'J1': return j1(catalog);

@@ -204,6 +204,72 @@ def _soak_pairs(query: Query, steady_start: float, steady_end: float, slo: dict)
             (_average(query, connections % span, baseline_end), _average(query, connections % tail, steady_end)))
 
 
+_AI_SELECTOR = 'job="smashcourt-ai",deployment_environment_name="perf",http_route=~"/api/v1/ai/.*"'
+
+
+def ai_verdict(query: Query, steady_start: float, steady_end: float, raw: verdict.Raw, slo: dict, llm_delay_ms: float | None) -> dict:
+    """SP-10 (B.7.4): phần xử lý của AI chấm trên histogram `http.server.request.duration` của AI trong pha steady; toàn chặng BE ⇒ AI
+    (k6, mẫu thô) chỉ báo cáo. Biên bucket 250/500 ms: p95 ≤ 250 ms là đạt chắc, trong (250; 500] không phân biệt được, > 500 ms là không đạt.
+    LLM giả có trễ (SP-10B) thì chỉ báo cáo."""
+    cfg = slo["ai"]
+    span, at = max(1, round(steady_end - steady_start)), int(steady_end)
+    bucket = f"http_server_request_duration_seconds_bucket{{{_AI_SELECTOR}}}"
+    count = f"http_server_request_duration_seconds_count{{{_AI_SELECTOR}"
+
+    def quantile(p: float) -> float | None:
+        value = _value(query(f"histogram_quantile({p}, sum by (le) (increase({bucket}[{span}s])))", at))
+        return None if value is None else round(value * 1000, 1)
+
+    total = _value(query(f"sum(increase({count}}}[{span}s]))", at))
+    errors = _value(query(f'sum(increase({count},http_response_status_code=~"5.."}}[{span}s]))', at)) or 0.0
+    p95, p99 = quantile(0.95), quantile(0.99)
+    error_rate = round(errors / total, 6) if total else None
+    server = {"n": None if total is None else round(total), "p95": p95, "p99": p99, "errorRate": error_rate, "llmDelayMs": llm_delay_ms,
+              "note": "p95 nội suy tuyến tính trong bucket histogram của AI (biên 250/500 ms)"}
+    if llm_delay_ms is None:
+        status, server["note"] = verdict.INSUFFICIENT, "không rõ độ trễ LLM giả của lượt (metadata thiếu fakeLlmDelayMs)"
+    elif llm_delay_ms > 0:
+        status = verdict.REPORT
+    elif total is None or total < slo["minSamples"]["p95"] or p95 is None:
+        status = verdict.INSUFFICIENT
+    elif error_rate >= cfg["errorRateMax"] or p95 > cfg["certainFailMs"]:
+        status = verdict.FAIL
+    elif p95 <= cfg["certainPassMs"]:
+        status = verdict.PASS
+    else:
+        status, server["note"] = verdict.INSUFFICIENT, (f"p95 {p95} ms nằm trong bucket 250–500 ms: không phân biệt được so với "
+                                                        f"ngưỡng {cfg['p95Ms']} ms (không sửa mã AI để thêm biên)")
+    chain = {}
+    steady = raw.steady()
+    for name in sorted({s.name for s in steady.durations if s.slo == "ai"}):
+        values = [s.value for s in steady.durations if s.slo == "ai" and s.name == name]
+        chain[name] = {"n": len(values), **{f"p{p}": round(verdict.percentile(values, p / 100), 1) for p in (50, 95, 99)}}
+    return {"status": status, "aiServer": server, "chain": chain}
+
+
+def fault_verdict(raw: verdict.Raw, faults: dict, steady_end: float, slo: dict, sc6: dict | None) -> dict:
+    """SP-09 (người dùng chốt 07/11): trong khoảng lỗi lỗi request < errorRateMax (5xx, timeout, 4xx ngoài danh sách); sau khi gỡ lỗi
+    60 s, Đặt sân trở lại SLO p95 và lỗi < errorRateMax; DB (faults.py check): mọi đơn trong khoảng lỗi cọc 100 %, không quyết định trùng;
+    SC6 = 0 vi phạm sau lượt."""
+    on, off = faults.get("onAt"), faults.get("offAt")
+    if on is None or off is None:
+        return {"status": verdict.INSUFFICIENT, "fault": {"kind": faults.get("kind"), "problems": ["khoảng lỗi không đủ mốc"]}}
+    steady = raw.steady()
+    during = [s for s in steady.errors if on <= s.t < off]
+    recovery_from = off + 60
+    after = [s for s in steady.errors if recovery_from <= s.t <= steady_end]
+    booking_after = [s.value for s in steady.durations if s.slo == "booking" and recovery_from <= s.t <= steady_end]
+    during_errors, after_errors = verdict._error_result(during, slo), verdict._error_result(after, slo)
+    booking = verdict.judge(booking_after, {"p95": slo["groups"]["booking"]["p95"]}, slo["minSamples"])
+    db = faults.get("check") or {"status": verdict.INSUFFICIENT, "problems": ["chưa chạy faults.py check"]}
+    sc6_status = (sc6 or {}).get("status", verdict.INSUFFICIENT)
+    statuses = [during_errors["status"], after_errors["status"], booking["p95Status"], db["status"],
+                verdict.PASS if sc6_status == "PASS" else (verdict.FAIL if sc6_status == "FAIL" else verdict.INSUFFICIENT)]
+    return {"status": verdict._combine(statuses),
+            "fault": {"kind": faults.get("kind"), "onAt": on, "offAt": off, "duringErrors": during_errors, "afterErrors": after_errors,
+                      "bookingAfter": booking, "db": db, "sc6": sc6_status}}
+
+
 def _validity(run_dir: Path, raw: verdict.Raw, schedule: dict, resources: dict) -> tuple[str, list[str], int | None, float, float]:
     exit_file = run_dir / "k6-exit"
     k6_exit = int(exit_file.read_text(encoding="utf-8").strip()) if exit_file.exists() else None
@@ -247,6 +313,10 @@ def evaluate(run_dir: Path, query: Query = prometheus_query, slo: dict | None = 
         recovery_start = start + schedule["recoveryOffset"]
         result["recovery"] = verdict.spike_recovery(raw, recovery_start, recovery_start + schedule["recoverySeconds"], slo)
         result["status"] = result["recovery"]["status"]
+    elif profile == "ai":
+        metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+        result.update(ai_verdict(query, start, end, raw, slo, metadata.get("fakeLlmDelayMs")))
+        result["errors"] = verdict.slo_verdict(raw, slo)["errors"]
     elif profile == "soak":
         memory, connections = _soak_pairs(query, start, end, slo)
         result.update(verdict.soak_verdict(raw, start, end, slo, memory, connections))
@@ -254,6 +324,12 @@ def evaluate(run_dir: Path, query: Query = prometheus_query, slo: dict | None = 
         result.update(verdict.slo_verdict(raw, slo, selftest))
         if profile == "smoke":   # kiểm đường đi, không đo: chỉ chấm lỗi
             result["status"] = result["errors"]["status"]
+    faults_file = run_dir / "faults.json"
+    if faults_file.exists():   # SP-09: lượt load có tiêm lỗi, chấm theo khoảng lỗi thay cho SLO toàn pha
+        sc6_file = run_dir / "sc6.json"
+        result["sloWholeRun"] = result.get("status")
+        result.update(fault_verdict(raw, json.loads(faults_file.read_text(encoding="utf-8")), end, slo,
+                                    json.loads(sc6_file.read_text(encoding="utf-8")) if sc6_file.exists() else None))
     result["episodes"] = verdict.episodes(raw, slo)   # đợt nghẽn: so lượt đối chứng / thí nghiệm (plan 6C 2C)
     (run_dir / "verdict.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
@@ -294,6 +370,15 @@ def describe(result: dict) -> str:
                      + "".join(f" · {e['windows']} cửa sổ, p95 tới {e['maxP95']} ms" for e in found["episodes"][:8]))
     if "recovery" in result:
         lines.append(f"  hồi phục sau spike: {result['recovery']['seconds']} s")
+    if "fault" in result:
+        f = result["fault"]
+        lines.append(f"  lỗi tiêm {f.get('kind')}: trong khoảng lỗi {json.dumps(f.get('duringErrors'), ensure_ascii=False)}; "
+                     f"Đặt sân sau gỡ lỗi p95 {(f.get('bookingAfter') or {}).get('p95')} ms; DB {json.dumps(f.get('db'), ensure_ascii=False)}; SC6 {f.get('sc6')}")
+    if "aiServer" in result:
+        server = result["aiServer"]
+        lines.append(f"  AI (server, histogram): n={server['n']} p95 {server['p95']} ms p99 {server['p99']} ms lỗi 5xx {server['errorRate']}"
+                     f" · LLM giả trễ {server['llmDelayMs']} ms · {server['note']}")
+        lines.extend(f"  toàn chặng {name}: n={c['n']} p50 {c['p50']} p95 {c['p95']} p99 {c['p99']} ms" for name, c in result["chain"].items())
     for key in ("memory", "connections", "p95Drift"):
         if key in result:
             lines.append(f"  {key}: {json.dumps({k: v for k, v in result[key].items() if k != 'windows'}, ensure_ascii=False)}")
