@@ -1877,7 +1877,7 @@ codes:
     group: "SP"
     group_label: "Hiệu năng hệ thống"
     systems: ["BE"]
-    title: "Sự cố dưới tải (FI-11…14, Toxiproxy giữa BE và TADSS) + SC6 sau mỗi kịch bản"
+    title: "Sự cố dưới tải: FI-11 dừng TADSS, FI-12 chậm, FI-14 reset (Toxiproxy) + SC6 sau mỗi kịch bản"
     criteria: ""
     runner: "k6 + SQL"
     tool: "k6 (perf)"

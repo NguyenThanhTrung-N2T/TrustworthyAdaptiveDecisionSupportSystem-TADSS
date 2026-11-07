@@ -416,7 +416,7 @@ Các mã của [plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md)
 | SP-06 | A/B TADSS: cờ bật và tắt cùng điều kiện (ABBA), TADSS cộng bao nhiêu vào p95/p99 | k6 | P6 |
 | SP-07 | A/A overhead: telemetry bật và tắt, phép đo không làm méo kết quả | k6 | P6 |
 | SP-08 | Baseline năng lực hiện tại | k6 | P6 |
-| SP-09 | Sự cố dưới tải: FI-11 (dừng TADSS), FI-12 (Toxiproxy +1500 ms), FI-14 (Toxiproxy reset) dưới tải danh nghĩa + SC6 sau mỗi kịch bản (thiết kế chốt 07/11, plan 6C 2C); FI-13 dựa BE-IT-19, SC2 dựa FI-01…10 của evaluator | k6 + SQL | P6 |
+| SP-09 | Sự cố dưới tải: FI-11 dừng TADSS, FI-12 chậm, FI-14 reset (Toxiproxy) + SC6 sau mỗi kịch bản | k6 + SQL | P6 |
 | SP-10 | Tải các endpoint AI qua BE với LLM giả (không gồm độ trễ Google) | k6 | P6 |
 
 ---
