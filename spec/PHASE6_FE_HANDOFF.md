@@ -3,7 +3,7 @@
 | | |
 | :--- | :--- |
 | **Dành cho** | Người làm `smashcourt-fe` ở Epic 6B (Phase 6, W09–W12, 02/11 – 29/11/2026) |
-| **Trạng thái** | BE (Epic 6A, kèm P6-31: `cancelSource`, `cancelledByName`, `cancelledAt`) xong 31/10/2026 trên nhánh `feat/phase-6-deposit` của `SmashCourt-BE`; FE chưa bắt đầu |
+| **Trạng thái** | BE (Epic 6A, kèm P6-31: `cancelSource`, `cancelledByName`, `cancelledAt`) xong 31/10/2026, đã gộp vào nhánh `develop` của `SmashCourt-BE` (đang chạy trên bản deploy). **Rà lại 08/11:** hợp đồng API không đổi từ 31/10, danh sách Mục 4 vẫn đúng (kết quả ở 4.3). FE chưa bắt đầu; chia việc logic/API và UI ở 4.4 |
 | **Vai trò file** | Điểm vào: thứ tự đọc, cách chạy, danh sách việc theo từng file FE lệch BE (Mục 4), checklist từng gói, bẫy đã gặp. Nội dung chi tiết **không chép lại** ở đây; nguồn chuẩn là hai tài liệu ở Mục 1. Hai nơi lệch nhau thì theo nguồn chuẩn và báo lại để sửa file này |
 
 ---
@@ -76,7 +76,7 @@ FE lệch BE là bình thường: BE đã đổi nhiều qua 6A-1…6A-6 và P6-
 | A7 | `src/lib/signalr-events.ts`, `src/features/notifications/NotificationDispatcher.tsx` | Không có 3 sự kiện duyệt cọc | Thêm `BOOKING_PENDING_APPROVAL`, `BOOKING_APPROVAL_RESOLVED`, `PENDING_APPROVAL_QUEUE_CHANGED` (giá trị trùng tên, khớp `SignalREvents.cs`); đăng ký toast và tải lại. `BookingCancelled`, `BookingExpired` không mang dữ liệu hủy: nhận thì tải lại đơn | API Mục 6; spec 8.1 |
 | A8 | `src/shared/utils/date.ts`, `dateFormatter.ts` và 17 file dùng `toISOString().split("T")[0]` | "Hôm nay" theo UTC; `dateFormatter.ts` tự đọc chuỗi | Thêm `getTodayVN()`, `parseBackendDateVN()`; thay ở: `AnalyticsSummaryPanel`, `PricingSuggestionsPanel`, `PromotionSuggestionsPanel`, `StrategicInsightsPanel`, `CourtAndTimeSelectionStep`, `useBookingForm`, `BookingCalendarView`, `BookingFilterToolbar`, `WalkInBookingWorkspace`, `useBookingSchedule`, `BookingManagementBase`, `filter.types.ts`, `walkinBooking.types.ts`, `CourtManagementBase`, `CourtFilters`, `useCourtManagement`, `dateFormatter.ts`. `dateFormatter.ts` chuyển sang gọi `parseBackendDate` | Spec 8.1 (T-7, T-8) |
 | A9 | `.env.example`, `src/lib/signalr-client.ts` | **Đã làm 31/10.** Trước đó REST đọc `NEXT_PUBLIC_API_BASE_URL`, SignalR đọc `NEXT_PUBLIC_API_URL` (mặc định `localhost:5179`) | Gộp về `NEXT_PUBLIC_API_BASE_URL`: hub dựng bằng `toUrl("/hubs/notifications")` như REST; file mẫu, README sửa theo | — |
-| A10 | `package.json`, `.github/workflows/ci.yml` | Không có MSW, Playwright, bộ chạy unit test; CI chỉ `lint` + `build` | Cài MSW (6B-1), bộ chạy unit test cho FE-12 (6B-1), Playwright (6B-5); thêm bước `npx tsc --noEmit -p .` vào CI (FE-01) | Spec 8.5 |
+| A10 | `package.json`, `.github/workflows/ci.yml` | Không có MSW, Playwright, bộ chạy unit test (`scripts` chỉ `dev`, `build`, `start`, `lint`). **CI đã có `npx tsc --noEmit -p .` từ 31/10** (FE-01, Mục 7) | Cài MSW (6B-1), bộ chạy unit test cho FE-12 (6B-1), Playwright (6B-5) | Spec 8.5 |
 
 ### 4.2. Logic và màn hình (6B-2…6B-4)
 
@@ -96,6 +96,41 @@ FE lệch BE là bình thường: BE đã đổi nhiều qua 6A-1…6A-6 và P6-
 | A22 | (chưa có) trang kết quả đặt sân | `useBookingSubmit` chuyển thẳng sang VNPay | Trang `app/(customer)/bookings/result` → `BookingResultPage`, rẽ nhánh `PENDING` / `CONFIRMED` / `PENDING_APPROVAL` | Spec 8.2 |
 
 Trạng thái `CONFIRMED` dùng cho cả đơn tại quầy lẫn đơn online cọc 0 đ; phân biệt bằng `source` (`WALK_IN` / `ONLINE`).
+
+### 4.3. Rà soát lại ngày 08/11 (BE `develop`, FE `develop` `8e07911`)
+
+| Hạng mục | Kết quả |
+| :--- | :--- |
+| Hợp đồng BE từ 31/10 | **Không đổi.** Các commit BE sau P6-31 chỉ thêm `/health/*`, telemetry, auto-prepare (tắt), CD, và sửa lỗi bên trong: N-38 (check-out thu cả dịch vụ nhân viên khác vừa thêm), N-39…N-42 (thêm/xóa cùng một dịch vụ cùng lúc không còn lỗi 500 hay mất lần thêm; phản hồi `POST /api/bookings/{id}/services` và payload `BookingUpdated` hiện đúng số lượng mới). FE không phải sửa gì cho các lỗi này; có thể dùng thẳng phản hồi thêm dịch vụ thay vì tải lại |
+| TADSS | FE không gọi TADSS, không có việc mới. Lưu ý nghiệp vụ: với dữ liệu thử, strategy mặc định từ chối khá nhiều đơn (đo 08/11: khoảng 40 % lần đặt khi bật cờ) ⇒ `BOOKING_REJECTED` không phải ca hiếm, phải có thông điệp và đưa khách về bước chọn giờ |
+| Trường DTO (so tự động BE ↔ type FE) | Lệch **đúng** như A2 (`BookingDto` thiếu 11 trường) và A3 (`OnlineBookingResponse` thiếu 8 khóa); `BookingCourtDto`, `BookingServiceDto` khớp |
+| Route FE gọi ↔ route BE (129 lời gọi) | Mọi route có ở BE, trừ `fetchServiceById` (`GET /api/services/{id}`, `src/api/service.api.ts`): BE không có endpoint này, nhưng hàm không được dùng ở đâu ⇒ mã chết, xóa hoặc để nguyên, không ảnh hưởng chạy |
+| Sự kiện SignalR | 12 sự kiện khớp tên; thiếu đúng 3 sự kiện duyệt cọc (A7) |
+| Rẽ nhánh theo `code` | FE chỉ dò `code` ở hai file `error-handling.ts` (`features/customer/shared/utils`, `features/branch/owner/utils`); bảng mã ở đó có mã BE **không bao giờ trả** (`CUSTOMER_NOT_FOUND`, `BOOKING_NOT_FOUND`, `INSUFFICIENT_PERMISSIONS`…; BE trả `NOT_FOUND`, `FORBIDDEN`), hiện vẫn chạy vì rơi về `message` của BE. **Chưa chỗ nào xử lý mã Phase 6** (`BOOKING_REJECTED`, `PAYMENT_HOLD_EXPIRED`, `BOOKING_ALREADY_STARTED`, `APPROVAL_EXPIRED`, `APPROVAL_ALREADY_RESOLVED`, `BOOKING_NOT_PENDING_APPROVAL`, `TADSS_UNAVAILABLE`, `SLOT_UNAVAILABLE`, `SLOT_UNAVAILABLE_NOTIFY_REGISTERED`) |
+| Số dòng ở Mục 4 | Vẫn đúng: chuyển hướng `paymentUrl` ở `useBookingSubmit.ts:67`, `BookingDetailModal.tsx:69`, `BookingHistoryList.tsx:96`; 17 file dùng `toISOString()` cho ngày (A8) |
+| Rủi ro đang chạy | Bản deploy đã chạy BE Phase 6. Nếu FE production trên Vercel trỏ vào bản deploy thì **C1 xảy ra ngay** (đơn `CONFIRMED` không có `paymentUrl` ⇒ trình duyệt mở trang hỏng), kể cả khi cờ TADSS tắt ⇒ A11 làm đầu tiên |
+
+### 4.4. Chia việc (08/11): logic/API và UI
+
+Người giữ BE nhận phần **sửa lỗi cũ và map API mới, không đổi giao diện**; người làm FE nhận **mọi phần giao diện** (màn mới, bố cục, chữ hiển thị mới). Phần logic xuất ra hàm/hook có tên rõ để phía UI gọi; phía UI không tự rẽ nhánh theo `status` hay `code`.
+
+| # | Logic / API (người giữ BE) | UI (người làm FE) |
+| :---: | :--- | :--- |
+| A1–A5 | Toàn bộ: enum, type, `OnlineBookingResponse` dùng chung cho `retry-payment`, `PaymentConfirmationDto` | — |
+| A6 | Type + `src/api/booking-approval.api.ts` (`fetchPendingApprovals`, `approveBooking`, `rejectBooking`) | Trang hàng chờ, hộp thoại duyệt/từ chối (6B-3) |
+| A7 | Hằng sự kiện + đăng ký trong `NotificationDispatcher` (toast dùng cơ chế có sẵn, tải lại dữ liệu) | Badge, hiển thị riêng của hàng chờ (6B-3) |
+| A8 | `getTodayVN()`, `parseBackendDateVN()` + thay ở 17 file + unit test FE-12 | — |
+| A10 | MSW (handler theo ví dụ DEPOSIT_APPROVAL_API), bộ chạy unit test | Playwright (6B-5) |
+| A11 (C1) | Rẽ nhánh theo `status` ở 3 chỗ chuyển hướng + `BookingForm.onSuccess`; chỉ mở link khi `PENDING` và chưa quá `paymentLinkExpiresAt`, quá hạn thì gọi `retry-payment`. **Tạm thời** đơn `CONFIRMED` / `PENDING_APPROVAL` chuyển về trang lịch sử đặt sân có sẵn (`app/(customer)/bookings`) cho tới khi có A22 | — |
+| A12 | Hook xử lý kết quả thanh toán: rẽ nhánh theo `bookingStatus`, hỏi lại đơn 2–3 giây/lần tới 60 giây, chọn loại thông điệp theo `responseCode`, khôi phục phiên bằng refresh cookie trước `RoleGuard` | Bố cục và chữ của từng ca trên `PaymentResult.tsx`, hai nút "Thanh toán lại" / "Hủy đơn" |
+| A13, A14 | Quy tắc `canCancelBooking` / `canCancel` (mốc `+07:00`), nhãn trạng thái `PENDING_APPROVAL` trong bảng nhãn có sẵn | — |
+| A15 | `calculateRefundInfo` tính trên số đã trả, mốc `+07:00` | — |
+| A16, A17 | Hàm định dạng dùng chung (số đã cọc / còn lại theo `paymentStatus`, nhãn lý do theo `cancelReason`, người hủy theo `cancelSource` cho từng vai trò) | Hiện các trường đó trên `BookingCard`, `BookingDetailModal`, `BookingDetailDrawer` |
+| A18, A19, A21, A22 | — | Lọc "Chờ duyệt cọc", mục menu hàng chờ, câu ở bước xác nhận, trang kết quả đặt sân mới (khi xong, A11 đổi đích từ trang lịch sử sang trang này) |
+| A20 | Logic khóa slot đã qua theo giờ VN, tính lại khi trang mở lâu | — |
+| Mã lỗi | Một bảng mã Phase 6 dùng chung (API Mục 5) + hàm trả loại xử lý (thông điệp, tải lại, đóng hộp thoại, về bước chọn giờ); dọn mã không tồn tại ở hai `error-handling.ts` nếu muốn | Câu chữ hiển thị nếu muốn khác `message` của BE |
+
+Thứ tự đề xuất cho phần logic/API: A11 (rủi ro đang chạy) ⇒ A1–A5 ⇒ A8 ⇒ A13–A15 ⇒ mã lỗi ⇒ A6, A7 ⇒ A12 ⇒ A20 ⇒ MSW. Hai người đụng chung `booking.types.ts` (A1–A3): đẩy phần type lên `develop` sớm nhất để tránh xung đột.
 
 ## 5. Checklist theo gói
 
