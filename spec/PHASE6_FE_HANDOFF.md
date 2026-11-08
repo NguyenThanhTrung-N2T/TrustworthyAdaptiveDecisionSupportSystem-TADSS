@@ -86,8 +86,8 @@ FE lệch BE là bình thường: BE đã đổi nhiều qua 6A-1…6A-6 và P6-
 | A12 | `src/features/booking/customer/components/shared/PaymentResult.tsx` | Tiêu đề "Thanh toán thành công!" theo `isSuccess` (dòng 117–158); nút "Đặt lại" | Rẽ nhánh theo `bookingStatus`; `PENDING` + `isSuccess` ⇒ hỏi lại chi tiết đơn 2–3 giây/lần tới 60 giây; thất bại chọn câu theo `responseCode` (`24`, `79`/`13`, `15`) với hai nút "Thanh toán lại" / "Hủy đơn"; `CANCELLED_PENDING_REFUND` ⇒ câu hoàn tiền; khôi phục phiên trước khi `RoleGuard` chuyển trang | Spec 8.2 (N-36, P6-28); API 3.6 |
 | A13 | `src/features/booking/customer/utils/bookingStatus.ts` | Nhãn không có `PENDING_APPROVAL`; `canCancelBooking` chỉ `CONFIRMED`, `PAID_ONLINE` | Nhãn `PENDING_APPROVAL` ("Chờ chi nhánh xác nhận"), `CONFIRMED` online ("Thanh toán tại quầy"); khách hủy được `PENDING`, `PENDING_APPROVAL`, `CONFIRMED`, `PAID_ONLINE` **trước giờ bắt đầu** (tính bằng `+07:00`, P6-23). Link hủy trong email chỉ nhận `CONFIRMED`, `PAID_ONLINE` | BE `BookingCancellationService` (`CustomerCancellable`, `LinkCancellable`); spec 8.2 |
 | A14 | `src/features/booking/shared/utils/bookingStatus.ts`, `bookingRules.ts` (`canCancel`, dòng 94) | Nhãn không có `PENDING_APPROVAL`; nhân viên hủy được `CONFIRMED`, `PAID_ONLINE`, `PENDING` | Thêm nhãn "Chờ duyệt cọc"; `canCancel` thêm `PENDING_APPROVAL` (BE `StaffCancellable` = `PENDING`, `PENDING_APPROVAL`, `CONFIRMED`, `PAID_ONLINE`; nhân viên hủy được cả sau giờ bắt đầu) | Spec 8.4 |
-| A15 | `calculateRefundInfo` (`customer/utils/bookingStatus.ts` dòng 96), gọi ở `BookingDetailModal.tsx` (khoảng 442–452) và `CancelBookingModal.tsx` (38–49) | Truyền `finalTotal`; số giờ còn lại tính theo giờ máy | Truyền **số đã trả**: `PAID_ONLINE` ⇒ `depositAmount` (đơn online cũ trước Phase 6 có `depositAmount = null` ⇒ `finalTotal`); `PENDING`, `PENDING_APPROVAL`, `CONFIRMED` online ⇒ 0. Số giờ tới giờ chơi tính bằng mốc `+07:00` (P6-22) | Spec 8.2; API 3.4 |
-| A16 | `BookingCard`, `BookingDetailModal` (khách) | Không hiện cọc, hạn, lý do hủy | Cọc / còn lại; nút "Thanh toán cọc" khi `PENDING` và chưa quá `expiresAt`; đơn hủy: nhãn lý do theo `cancelReason`, dòng ai hủy theo `cancelSource` và thời điểm `cancelledAt`, **không** tên nhân viên | Spec 8.2 (P6-31) |
+| A15 | `calculateRefundInfo` (`customer/utils/bookingStatus.ts` dòng 96), gọi ở `BookingDetailModal.tsx` (khoảng 442–452) và `CancelBookingModal.tsx` (38–49) | Truyền `finalTotal`; số giờ còn lại tính theo giờ máy; chọn mốc bằng `find` đầu tiên thỏa (chỉ đúng khi danh sách đã sắp giảm dần); không tải được chính sách thì **tự dùng bảng % viết cứng** (24 giờ 100 %, 12 giờ 50 %, 6 giờ 25 %) | Truyền **số đã trả**: `PAID_ONLINE` ⇒ `depositAmount` (đơn online cũ trước Phase 6 có `depositAmount = null` ⇒ `finalTotal`); `PENDING`, `PENDING_APPROVAL`, `CONFIRMED` online ⇒ 0. Số giờ tới giờ chơi tính bằng mốc `+07:00` (P6-22). Chọn mốc như BE (4.5): `hoursBefore` lớn nhất ≤ số giờ còn lại, đã qua giờ chơi ⇒ 0 %, không phụ thuộc thứ tự mảng; bỏ bảng viết cứng (không tải được chính sách thì không hiện số xem trước) | Spec 8.2; API 3.4; BE `CancellationPolicy` |
+| A16 | `BookingCard`, `BookingDetailModal` (khách) | Không hiện cọc, hạn, lý do hủy | Cọc / còn lại; nút "Thanh toán cọc" khi `PENDING` và chưa quá `expiresAt` (bấm luôn gọi `retry-payment` lấy link mới rồi mở ngay: BE không lưu link, `BookingDto` không có `paymentUrl`); đơn hủy: nhãn lý do theo `cancelReason`, dòng ai hủy theo `cancelSource` và thời điểm `cancelledAt`, **không** tên nhân viên | Spec 8.2 (P6-31) |
 | A17 | `src/features/booking/shared/components/management/BookingDetailDrawer.tsx` | Chỉ có `finalTotal` (dòng 266–312) | Thêm: mức cọc (`depositRate`, `depositAmount`, `depositSource`); **"cọc phải trả" khi `paymentStatus = UNPAID`, "đã cọc" khi đã thu** (`remainingAmount` luôn bằng `finalTotal − depositAmount`, kể cả khi chưa trả); số thu khi check-out = `remainingAmount` (BE tính lại trên tổng Payment thành công, có thể thấp hơn nếu khách trả hai link); lý do cần duyệt (`approvalReasons`); mục hủy: lý do, người hủy (`cancelledByName`, `cancelSource`), thời điểm `cancelledAt` | Spec 8.4; API 2.2, 3.5 |
 | A18 | `BookingFilterToolbar.tsx` | Không có lọc "Chờ duyệt cọc" | Thêm `status=PENDING_APPROVAL` | Spec 8.4 |
 | A19 | `src/layouts/manager/navigation/*`, `src/layouts/owner/navigation/*` | Không có mục hàng chờ duyệt | Thêm `/manager/booking-approvals`, `/owner/booking-approvals`, badge = `totalItems` | Spec 8.3 |
@@ -95,13 +95,13 @@ FE lệch BE là bình thường: BE đã đổi nhiều qua 6A-1…6A-6 và P6-
 | A21 | `BookingConfirmationStep.tsx` | Câu "sẽ được chuyển đến trang thanh toán" | "Tổng tiền đơn; mức cọc được xác định sau khi đặt, phần còn lại thu tại quầy" | Spec 8.2 |
 | A22 | (chưa có) trang kết quả đặt sân | `useBookingSubmit` chuyển thẳng sang VNPay | Trang `app/(customer)/bookings/result` → `BookingResultPage`, rẽ nhánh `PENDING` / `CONFIRMED` / `PENDING_APPROVAL` | Spec 8.2 |
 | A23 | Đọc chuỗi giờ BE bằng `new Date(...)` (T-8, bổ sung 08/11): `OwnerPromotionsPage`, `StaffPromotionsPage`, `BranchManagerTab`, `SessionManagementTab`, `PromotionSelector`, `ChatPanel`, các panel AI (`AnalyticsSummaryPanel`, `PricingSuggestionsPanel`, `PromotionSuggestionsPanel`, `StrategicInsightsPanel`, `BookingSuggestionsPanel`, `OccupancyForecastChart`), `LiveCourtCard`, `BookingCalendarView`, `useTimeGrid`, `SignalRContext` | `new Date("05/10/2026 07:00:00")` bị hiểu là 10/05 kiểu Mỹ; có chỗ là ngày `yyyy-MM-dd` do FE tự tạo (không lỗi) | Soát từng chỗ: chuỗi BE (`dd/MM/yyyy HH:mm:ss`) chỉ đọc qua `parseBackendDate` / `formatDateTime`; thời gian trong payload SignalR là ISO UTC, đọc bằng `new Date` được. `useBookingSchedule`, `CourtFilters` cộng/trừ ngày trên chuỗi `yyyy-MM-dd`, không qua `toISOString` | Spec 8.1 (T-8, T-13) |
-| A24 | `src/features/booking/customer/hooks/useRetryPayment.ts` | Xử lý lỗi theo `message` | Theo `code`: `PAYMENT_HOLD_EXPIRED` (hai câu cùng mã: hết hạn giữ chỗ / còn dưới 3 phút) ⇒ báo và tải lại đơn; 400 `BAD_REQUEST` khi đơn đã bị job hủy ⇒ "Đơn đã hết hạn, vui lòng đặt lại" + về `/bookings/new`; response dùng type A3 (có `paymentLinkExpiresAt`) | Spec 8.2 (6A-5, 6A-6); API 5 #19 |
+| A24 | `src/features/booking/customer/hooks/useRetryPayment.ts` | Xử lý lỗi theo `message` | Theo `code` (danh sách đủ ở 4.5, `retry-payment`): `PAYMENT_HOLD_EXPIRED` (hai câu cùng mã: hết hạn giữ chỗ / còn dưới 3 phút) ⇒ hiện `message`, tải lại đơn, gợi ý đặt lại; 400 `BAD_REQUEST` (đơn không còn `PENDING`, hoặc đã quá hạn thanh toán, kể cả khi job chưa kịp hủy) ⇒ "Đơn đã hết hạn, vui lòng đặt lại" + nút về `/bookings/new`, tải lại đơn; 409 `CONFLICT` (đơn vừa đổi trạng thái) ⇒ tải lại đơn; response dùng type A3 (có `paymentLinkExpiresAt`) | Spec 8.2 (6A-5, 6A-6); API 5 #19; BE `PaymentService.RetryPaymentAsync` |
 | A25 | (chưa có) đồng hồ đếm ngược dùng chung | Mỗi màn tự tính, theo giờ máy | Một hook đọc `expiresAt` / `approvalExpiresAt` của BE qua `parseBackendDateVN` (không tự tính từ giờ tạo đơn); về 0 với đơn chờ duyệt ⇒ "Đang chờ chi nhánh phản hồi…", tải lại khi nhận `BookingExpired` hoặc sau 60 giây; tải lại đơn khi tab được focus lại (`visibilitychange`) | Spec 8.2; bẫy 4, 5, 10 |
-| A26 | `app/booking/cancel/page.tsx` (trang hủy bằng link trong email; logic đang viết ngay trong page) | Chưa có P6-23 | Ẩn nút hủy từ giờ bắt đầu (`+07:00`); `BOOKING_ALREADY_STARTED` có thông điệp; link chỉ hủy được `CONFIRMED`, `PAID_ONLINE` (BE `LinkCancellable`); tiền hoàn xem trước theo số đã trả như A15 | Spec 8.2 (P6-23); API 3.4 |
+| A26 | `app/booking/cancel/page.tsx` (trang hủy bằng link trong email; logic đang viết ngay trong page) | Chưa có P6-23 | Ẩn nút hủy từ giờ bắt đầu (`bookingDate` + `startTime` của `CancelTokenInfoDto`, tính bằng `+07:00`); link chỉ hủy được `CONFIRMED`, `PAID_ONLINE` (BE `LinkCancellable`), trạng thái khác thì không hiện nút. **Tiền hoàn lấy thẳng `refundAmount`, `refundPercent` BE trả** (BE đã tính trên số đã thu), không tự tính như A15. Lỗi theo `code`: `BOOKING_ALREADY_STARTED` 400, `NOT_FOUND` 404 (link sai), `BAD_REQUEST` 400 (link đã dùng / hết hạn / trạng thái không hủy được), `ACCOUNT_LOCKED` 403 | Spec 8.2 (P6-23); API 3.4; BE `GetCancelInfoAsync`, `CancelByTokenAsync` |
 | A27 | `BookingScheduleView.tsx` (`getStatusColor`), `customer/components/booking-history/BookingFilters.tsx` | `switch` / danh sách lọc không có `PENDING_APPROVAL`; lọc của khách thiếu cả `CONFIRMED` | Màu cho `PENDING_APPROVAL` trên lịch nhân viên (API 2.1: lịch và time grid coi là đang giữ sân); thêm lựa chọn lọc "Chờ duyệt cọc", "Đã xác nhận" cho khách | API 2.1; spec 8.4 |
 | A28 | `src/features/court/staff/components/BookingDetailModal.tsx` (chi tiết đơn ở màn sân của nhân viên, có nút check-out) | Chỉ hiện `finalTotal` | Như A17: đã cọc / còn lại, số thu khi check-out = `remainingAmount`, mục hủy theo `cancelSource` + `cancelledByName` | Spec 8.4; API 3.5 |
 | A29 | `src/features/booking/shared/hooks/useBookingManagement.ts` (check-in, check-out), `court/staff/components/BookingDetailModal.tsx` | Lỗi check-in hiện nguyên câu BE | Check-in đúng lúc job vừa đánh `NO_SHOW`: 409 `CONFLICT` hoặc 400 ⇒ "Đơn đã bị đánh không đến, vui lòng tải lại" + tải lại danh sách | Spec 8.4 (6A-5) |
-| A30 | (chưa có) logic hộp thoại duyệt / từ chối (6B-3) | — | Hàm thuần: % (0…100, tối đa 2 chữ số thập phân) ⇒ `depositRate = % / 100`; "Số tiền cọc ≈" cùng cách làm tròn với BE và báo trước khi dưới mức tối thiểu (API 4.2); `reason` 5…500 code point, không chỉ khoảng trắng; đơn `finalTotal = 0` ⇒ duyệt là xác nhận không cọc. Hook gửi: khóa nút khi đang gửi; 503 `TADSS_UNAVAILABLE` giữ nội dung, "Thử lại" gửi **đúng** nội dung cũ; 409 (`APPROVAL_EXPIRED`, `APPROVAL_ALREADY_RESOLVED`, `BOOKING_NOT_PENDING_APPROVAL`) ⇒ đóng hộp thoại, tải lại hàng chờ; `APPROVAL_DECISION_NOT_FOUND` có câu riêng; `VALIDATION_ERROR` gắn lỗi theo khóa `errors` (`DepositRate`, `Reason`) | Spec 8.3; API 4.2, 4.3, 5 #3–#17 |
+| A30 | (chưa có) logic hộp thoại duyệt / từ chối (6B-3) | — | Hàm thuần: % (0…100, tối đa 2 chữ số thập phân) ⇒ `depositRate = % / 100` (tối đa 4 chữ số thập phân như BE); "Số tiền cọc ≈" theo đúng công thức BE ở 4.5 (làm tròn tới đồng, nửa lên) và báo trước khi > 0 mà dưới 5.000 đ (mức tối thiểu là cấu hình BE: lỗi `errors.DepositRate` của BE là nguồn đúng cuối cùng); `reason` 5…500 code point, không chỉ khoảng trắng; đơn `finalTotal = 0` ⇒ duyệt là xác nhận không cọc. Hook gửi: khóa nút khi đang gửi; 503 `TADSS_UNAVAILABLE` giữ nội dung, "Thử lại" gửi **đúng** nội dung cũ; 409 (`APPROVAL_EXPIRED`, `APPROVAL_ALREADY_RESOLVED`, `BOOKING_NOT_PENDING_APPROVAL`) ⇒ đóng hộp thoại, tải lại hàng chờ; `APPROVAL_DECISION_NOT_FOUND` có câu riêng; `VALIDATION_ERROR` gắn lỗi theo khóa `errors` (`DepositRate`, `Reason`) | Spec 8.3; API 4.2, 4.3, 5 #3–#17 |
 | A31 | `booking.types.ts` — `TimeGridSlotDto.status` | `"AVAILABLE" \| "LOCKED" \| "IN_USE"` | Thêm `"RESERVED"` (BE `TimeGridService` trả 4 giá trị; FE hiện coi mọi giá trị khác `AVAILABLE` là bận nên không sai hành vi, chỉ sai type) | BE `TimeGridService` |
 | A32 | `src/api/core/apiClient.ts`, `src/api/upload.api.ts` (refresh riêng), `src/lib/signalr-client.ts` | **Không gửi** `ngrok-skip-browser-warning` ở đâu cả, trong khi Mục 7 ghi bắt buộc khi FE trên Vercel gọi BE qua ngrok gói miễn phí | Kiểm trước trên Vercel production (mở trang, xem request API trả JSON hay trang cảnh báo HTML). Nếu bị chặn: thêm header ở `apiClient`, lời gọi refresh, và `headers` của `withUrl` SignalR. CORS BE đã `AllowAnyHeader` | Mục 7; P6-36 |
 
@@ -119,6 +119,7 @@ Trạng thái `CONFIRMED` dùng cho cả đơn tại quầy lẫn đơn online c
 | Rẽ nhánh theo `code` | FE chỉ dò `code` ở hai file `error-handling.ts` (`features/customer/shared/utils`, `features/branch/owner/utils`); bảng mã ở đó có mã BE **không bao giờ trả** (`CUSTOMER_NOT_FOUND`, `BOOKING_NOT_FOUND`, `INSUFFICIENT_PERMISSIONS`…; BE trả `NOT_FOUND`, `FORBIDDEN`), hiện vẫn chạy vì rơi về `message` của BE. **Chưa chỗ nào xử lý mã Phase 6** (`BOOKING_REJECTED`, `PAYMENT_HOLD_EXPIRED`, `BOOKING_ALREADY_STARTED`, `APPROVAL_EXPIRED`, `APPROVAL_ALREADY_RESOLVED`, `BOOKING_NOT_PENDING_APPROVAL`, `TADSS_UNAVAILABLE`, `SLOT_UNAVAILABLE`, `SLOT_UNAVAILABLE_NOTIFY_REGISTERED`) |
 | Số dòng ở Mục 4 | Vẫn đúng: chuyển hướng `paymentUrl` ở `useBookingSubmit.ts:67`, `BookingDetailModal.tsx:69`, `BookingHistoryList.tsx:96`; 17 file dùng `toISOString()` cho ngày (A8) |
 | Đối chiếu lại spec 8.1–8.4 và API Mục 2, 5, 6, 7 | Bản 31/10 thiếu 10 việc, đã thêm thành **A23–A32**: đọc chuỗi giờ BE ở khoảng 17 file ngoài luồng đặt sân (T-8); lỗi theo `code` của `useRetryPayment`; đồng hồ đếm ngược dùng chung; trang hủy bằng link `app/booking/cancel`; màu lịch nhân viên và lọc của khách; chi tiết đơn ở màn sân của nhân viên (check-out); lỗi check-in khi job vừa đánh `NO_SHOW`; logic hộp thoại duyệt; type time grid thiếu `RESERVED`; header ngrok. Mục 2 dòng 1 sửa lại: đơn bị TADSS từ chối vẫn có trong lịch sử (C2) |
+| Đối chiếu thẳng với mã BE (lượt 3) | Mọi enum, DTO, endpoint, mã lỗi, công thức ghi ở **4.5** lấy từ mã C#. Sửa theo mã: A15 (FE chọn mốc hoàn tiền dựa vào thứ tự mảng và có bảng % viết cứng), A24 (`retry-payment` có hai ca 400 `BAD_REQUEST` và 409 `CONFLICT`), A26 (trang hủy bằng link dùng `refundAmount` BE trả, không tự tính), A30 (công thức cọc, mức tối thiểu). Thêm bẫy 17–19: `bookingDate` ra `"dd/MM/yyyy 07:00:00"`, tỷ lệ cọc phải đúng 4 chữ số thập phân, lý do đếm theo code point |
 | Rủi ro đang chạy | Bản deploy đã chạy BE Phase 6. Nếu FE production trên Vercel trỏ vào bản deploy thì **C1 xảy ra ngay** (đơn `CONFIRMED` không có `paymentUrl` ⇒ trình duyệt mở trang hỏng), kể cả khi cờ TADSS tắt ⇒ A11 làm đầu tiên |
 
 ### 4.4. Chia việc (08/11): logic/API và UI
@@ -155,6 +156,90 @@ SignalR chỉ là best-effort (API Mục 6): mọi màn có dữ liệu cọc ph
 
 Thứ tự đề xuất cho phần logic/API: A32 (kiểm nhanh, nếu Vercel đang hỏng thì mọi thứ khác vô nghĩa) ⇒ A11 (rủi ro đang chạy) ⇒ A1–A5, A31 ⇒ A8, A23 ⇒ A13–A15, A26 ⇒ mã lỗi, A24, A29 ⇒ A6, A7, A30 ⇒ A12, A25 ⇒ A20, A27 ⇒ MSW. Hai người đụng chung `booking.types.ts` (A1–A3): đẩy phần type lên `develop` sớm nhất để tránh xung đột.
 
+### 4.5. Hợp đồng chính xác (đọc thẳng từ mã BE `develop` ngày 08/11)
+
+Bảng dưới lấy từ mã C# (enum, DTO, controller, service), không chép từ tài liệu; lệch với DEPOSIT_APPROVAL_API thì theo bảng này và báo để sửa tài liệu. Viết type FE theo đúng tên khóa (camelCase), khóa `null` vẫn có mặt.
+
+#### Quy ước JSON
+
+| Thứ | Dạng trên dây | Ghi chú |
+| :--- | :--- | :--- |
+| Tên khóa | camelCase | `JsonNamingPolicy.CamelCase` |
+| Enum trong DTO | **chuỗi tên** (`"PENDING_APPROVAL"`) | DTO khai trường `string`; BE **không** bật `JsonStringEnumConverter` toàn cục. Số (`10`) chỉ dùng khi FE gửi bộ lọc `status` lên query |
+| `DateTime` (REST) | `"dd/MM/yyyy HH:mm:ss"` giờ VN, không offset | `VietnamDateTimeConverter`; đọc bằng `parseBackendDate` / `parseBackendDateVN` |
+| Ngày đặt `bookingDate` | `BookingDto`, `CancelTokenInfoDto`: **`"dd/MM/yyyy 07:00:00"`**; `PendingApprovalBookingDto`: `"yyyy-MM-dd"` | BE dựng `DateOnly.ToDateTime(00:00)` (Kind không xác định), converter coi là UTC rồi cộng +7 ⇒ phần giờ luôn `07:00:00`, vô nghĩa. **Chỉ lấy phần ngày**, ghép với `startTime` của sân để ra mốc `+07:00`; không đưa cả chuỗi vào `parseBackendDateVN` để làm giờ chơi. `PendingApprovalBookingDto.bookingDate` là `DateOnly` nên ra `yyyy-MM-dd` |
+| `TimeSpan` | `"HH:mm:ss"` | `startTime`, `endTime` |
+| Thời gian trong SignalR | ISO 8601 UTC (`"…Z"`) | `AddSignalR()` dùng JSON mặc định, không qua converter giờ VN |
+| Envelope | `{ success, code, message, data, errors }` | `errors`: từ điển khóa PascalCase (`DepositRate`, `Reason`) ⇒ mảng câu |
+
+#### Giá trị enum (thứ tự số đúng như C#)
+
+| Enum | Giá trị |
+| :--- | :--- |
+| `BookingStatus` | `PENDING`=0, `CONFIRMED`=1, `PAID_ONLINE`=2, `IN_PROGRESS`=3, `PENDING_PAYMENT`=4, `COMPLETED`=5, `CANCELLED`=6, `CANCELLED_PENDING_REFUND`=7, `CANCELLED_REFUNDED`=8, `NO_SHOW`=9, `PENDING_APPROVAL`=10 |
+| `DepositSource` | `TADSS`, `MANAGER`, `FULL_PAYMENT_FALLBACK` |
+| `CancelReason` (`BookingCancelReason`) | `PAYMENT_EXPIRED`, `APPROVAL_EXPIRED`, `APPROVAL_REJECTED`, `POLICY_REJECTED`, `CUSTOMER_CANCELLED`, `STAFF_CANCELLED`, `SYSTEM_CLEANUP` |
+| `CancelSource` (`CancelSourceEnum`) | `LINK`, `STAFF`, `SYSTEM`, `CUSTOMER` |
+| `paymentStatus` (`InvoicePaymentStatus`) | `UNPAID`, `PARTIALLY_PAID`, `PAID`, `REFUNDED`, `EXPIRED` |
+| `source` | `ONLINE`, `WALK_IN` |
+| Time grid `status` | `AVAILABLE`, `LOCKED`, `RESERVED`, `IN_USE` (`PENDING`, `PENDING_APPROVAL` ⇒ `LOCKED`; `CONFIRMED`, `PAID_ONLINE` ⇒ `RESERVED`) |
+
+#### DTO (khóa đủ)
+
+| DTO BE ⇒ type FE | Khóa |
+| :--- | :--- |
+| `BookingDto` (11 khóa mới) | `depositRate` number\|null, `depositAmount` number\|null, `remainingAmount` number\|null, `depositSource` string\|null, `approvalExpiresAt` string\|null, `approvalReasonCode` string\|null, `approvalReasons` string[]\|null, `cancelReason` string\|null, `cancelSource` string\|null, `cancelledByName` string\|null (chỉ endpoint nhân viên có giá trị), `cancelledAt` string\|null. Khóa cũ giữ nguyên (`expiresAt`, `refundAmount`, `paymentStatus`…) |
+| `OnlineBookingResponse` (cả `POST /api/bookings/online` lẫn `retry-payment`) | `bookingId`, `bookingCode`, `status`, `paymentUrl`\|null, `expiresAt`\|null, `paymentLinkExpiresAt`\|null, `finalTotal`, `depositRate`\|null, `depositAmount`\|null, `remainingAmount`\|null, `depositSource`\|null, `approvalExpiresAt`\|null |
+| `VnPayReturnResult` ⇒ `PaymentConfirmationDto` | `isSuccess`, `message`, `bookingId` **string**\|null, `bookingCode`\|null, `transactionRef`\|null, `amount`\|null, `responseCode`\|null, `bookingStatus`\|null |
+| `CancelTokenInfoDto` | `bookingId`, `branchName`, `courtNames` string[], `bookingDate`, `startTime`, `endTime`, `refundAmount`, `refundPercent`, `status` (FE đang khớp) |
+| `PagedResult<T>` | `items`, `page`, `pageSize`, `totalItems`, `totalPages`, `hasNext`, `hasPrev` (FE đã có `PagedResult<T>` ở `court/shared/types/court.types.ts`, nên chuyển lên `src/shared/types` khi dùng chung) |
+| `PendingApprovalBookingDto` | `bookingId`, `bookingCode`, `branchId`, `branchName`, `customerId`\|null, `customerName`, `customerPhone`\|null, `isGuest`, `loyaltyTierName`\|null, `bookingDate` (`yyyy-MM-dd`), `startTime`, `endTime`, `courts` (`{ courtId, courtName }[]`), `finalTotal`, `approvalReasonCode`\|null, `approvalReasons` string[], `approvalExpiresAt`, `createdAt`, `note`\|null |
+| `ApproveBookingDto` (gửi) | `depositRate` number (0…1, tối đa 4 chữ số thập phân), `reason` string |
+| `RejectBookingDto` (gửi) | `reason` string |
+| `BookingApprovalResultDto` | `bookingId`, `bookingCode`, `approvalResult` (`APPROVED` \| `REJECTED`), `status`, `finalTotal`, `depositRate`\|null, `depositAmount`\|null, `remainingAmount`\|null, `depositSource`\|null, `expiresAt`\|null, `resolvedBy`\|null, `resolvedAt`\|null |
+| SignalR `BookingPendingApproval` | `bookingId`, `bookingCode`, `branchId`, `branchName`, `customerName`, `courtIds`, `status`, `approvalExpiresAt`\|null, `message`, `timestamp` |
+| SignalR `BookingApprovalResolved` | `bookingId`, `bookingCode`, `branchId`, `approvalResult`, `status`, `message`, `timestamp` |
+| SignalR `PendingApprovalQueueChanged` | `branchId`, `bookingId`, `change` (`ADDED` \| `REMOVED`), `reason` (`NEW` \| `APPROVED` \| `REJECTED` \| `EXPIRED` \| `CANCELLED`), `timestamp` |
+| SignalR `BookingCreated` / `BookingCancelled` / `BookingExpired` (có sẵn, `BookingNotificationDto`) | `bookingId`, `customerId`, `customerName`, `branchId`, `branchName`, `courtIds`, `status` (nay là trạng thái cuối: `PENDING` / `PENDING_APPROVAL` / `CONFIRMED`), `message`, `timestamp`. Không mang trường cọc / hủy ⇒ tải lại đơn |
+
+#### Endpoint của luồng cọc và mã lỗi thật
+
+| Endpoint | Thành công | Lỗi FE phải rẽ nhánh (`HTTP code`) |
+| :--- | :--- | :--- |
+| `POST /api/bookings/online` (CUSTOMER, giới hạn 20 lần/phút) | **201**, `OnlineBookingResponse`; `message` theo `status` | 400 `BOOKING_REJECTED` (đơn vẫn có trong lịch sử, `POLICY_REJECTED`); 400 `SLOT_UNAVAILABLE`, 400 `SLOT_UNAVAILABLE_NOTIFY_REGISTERED` (đã tự đăng ký báo khi trống); 400 `BAD_REQUEST` (khung giờ đã bắt đầu, khuyến mãi không hợp lệ…, hiện `message`); 409 `CONFLICT` (đơn vừa bị nhân viên xử lý ⇒ mở lịch sử); 401/403 không envelope ⇒ đăng nhập; 429 ⇒ chờ rồi thử lại |
+| `POST /api/me/bookings/{id}/retry-payment` | 200, `OnlineBookingResponse` | 400 `PAYMENT_HOLD_EXPIRED` (hai câu); 400 `BAD_REQUEST` (không còn `PENDING` / quá hạn thanh toán); 409 `CONFLICT`; 404 `NOT_FOUND`; 403 `FORBIDDEN` |
+| `POST /api/payments/vnpay/confirm` | 200, `VnPayReturnResult` (kể cả khi `isSuccess = false`) | Rẽ nhánh theo `bookingStatus` + `responseCode`, không theo HTTP |
+| `GET /api/me/bookings/{id}` | 200, `BookingDto` (`cancelledByName` luôn `null`) | 404 |
+| `POST /api/me/bookings/{id}/cancel` | 200, không `data` | 400 `BOOKING_ALREADY_STARTED`; 400 `BAD_REQUEST` (trạng thái không hủy được); 403 `ACCOUNT_LOCKED` |
+| `GET /api/bookings/cancel/{token}` (không cần đăng nhập) | 200, `CancelTokenInfoDto` | 404 `NOT_FOUND` (link sai hoặc hết hạn); 403 `ACCOUNT_LOCKED` |
+| `POST /api/bookings/cancel/{token}` | 200, không `data` | 400 `BOOKING_ALREADY_STARTED`; 400 `BAD_REQUEST` (link đã dùng, hết hạn, trạng thái không hủy được); 404; 403 `ACCOUNT_LOCKED` |
+| `GET /api/bookings/pending-approval?branchId=&page=&pageSize=` (OWNER, BRANCH_MANAGER) | 200, `PagedResult<PendingApprovalBookingDto>`; `pageSize` 1…50 | 403 `FORBIDDEN` (Manager truyền chi nhánh khác) |
+| `POST /api/bookings/{bookingId}/approve` | 200, `BookingApprovalResultDto`; `message` theo kết quả | 400 `VALIDATION_ERROR` + `errors.DepositRate` / `errors.Reason`; 403 `FORBIDDEN`; 404 `NOT_FOUND`; 409 `BOOKING_NOT_PENDING_APPROVAL`, `APPROVAL_ALREADY_RESOLVED`, `APPROVAL_EXPIRED`, `APPROVAL_DECISION_NOT_FOUND`; 503 `TADSS_UNAVAILABLE` (thử lại đúng nội dung); 500 `INTERNAL_ERROR` |
+| `POST /api/bookings/{bookingId}/reject` | 200, `BookingApprovalResultDto` | Như approve, `errors` chỉ có `Reason` |
+| `POST /api/bookings/{id}/check-in` | 200 | 400 `BAD_REQUEST` ("Quá sớm để check-in", "Đã quá thời gian check-in", hoặc trạng thái không check-in được, gồm `NO_SHOW`); 409 `CONFLICT` ("Đơn đã được xử lý bởi người khác") |
+| `POST /api/bookings/{id}/cancel` (nhân viên) | 200 | 400 `BAD_REQUEST` (trạng thái không hủy được) |
+
+#### Công thức phải giống BE
+
+| Việc | Công thức BE | Cách viết ở FE |
+| :--- | :--- | :--- |
+| Tỷ lệ cọc hợp lệ | `0 ≤ rate ≤ 1`, đúng tối đa 4 chữ số thập phân (`DepositApprovalRules.IsValidRate`) | Nhập % tối đa 2 chữ số thập phân; đổi bằng số nguyên: `basisPoints = Math.round(percent * 100)`, gửi `depositRate = basisPoints / 10000` |
+| Lý do | 5…500 **code point**, không chỉ khoảng trắng (`IsValidReason`) | Đếm bằng `[...reason].length` (không dùng `reason.length`: emoji tính 2), `reason.trim() !== ""` |
+| Số tiền cọc khi duyệt | `Math.Round(finalTotal × rate, 0, AwayFromZero)` (`BookingApprovalService`) | `Math.round(finalTotal * basisPoints / 10000)` (số dương nên làm tròn nửa lên trùng `AwayFromZero`; nhân số nguyên trước để tránh lỗi số thực) |
+| Mức tối thiểu khi duyệt | Số tiền > 0 mà < `MinOnlinePaymentAmount` (cấu hình, hiện 5.000 đ) ⇒ 400, `errors.DepositRate` = "Số tiền cọc tối thiểu 5.000 đ, hoặc chọn 0 %" | Báo trước bằng hằng 5.000, vẫn hiện lỗi BE nếu cấu hình khác |
+| % hoàn khi hủy | Mốc có `hoursBefore` **lớn nhất** ≤ số giờ còn tới giờ chơi (giờ VN); đã qua giờ chơi ⇒ 0 (`CancellationPolicy.RefundPercent`). `GET /api/cancel-policies` trả sắp giảm dần | Tự sắp hoặc lọc lấy max, không dựa vào thứ tự mảng |
+| Tiền hoàn | Mỗi Payment `SUCCESS`: `round((amount − refundedAmount) × % / 100)`, cộng lại (`QuoteRefund`) | Xem trước ≈ `Math.round(sốĐãTrả × % / 100)` với số đã trả ở A15; có thể lệch 1 đ do BE làm tròn theo từng Payment; số thật là số BE ghi |
+| Đã tới giờ chơi | `now ≥ bookingDate + startTime sớm nhất` theo giờ VN (`CancellationPolicy.HasStarted`) | Mốc `+07:00` từ `bookingDate` và `startTime` của sân đầu tiên |
+| Còn phải thu khi check-out | `finalTotal hiện tại − tổng Payment SUCCESS` (không âm), bằng `remainingAmount` | Hiện `remainingAmount`, không tự trừ |
+
+#### Ai được hủy (BE `BookingCancellationService`)
+
+| Ai | Trạng thái hủy được | Giờ |
+| :--- | :--- | :--- |
+| Khách trong app | `PENDING`, `PENDING_APPROVAL`, `CONFIRMED`, `PAID_ONLINE` | Trước giờ bắt đầu |
+| Link trong email | `CONFIRMED`, `PAID_ONLINE` | Trước giờ bắt đầu |
+| Nhân viên / Manager / Owner | `PENDING`, `PENDING_APPROVAL`, `CONFIRMED`, `PAID_ONLINE` | Cả sau giờ bắt đầu |
+
 ## 5. Checklist theo gói
 
 Mỗi gói nên có plan riêng `spec/PHASE6_PLAN_6B-x_*.md` như các gói 6A (mục kết quả ở cuối plan).
@@ -189,6 +274,9 @@ Mỗi gói nên có plan riêng `spec/PHASE6_PLAN_6B-x_*.md` như các gói 6A (
 | 14 | Xem trước tiền hoàn tính trên `finalTotal` | Tính trên số đã trả (`depositAmount` khi `PAID_ONLINE`, đơn online cũ `depositAmount = null` thì `finalTotal`; 0 khi chưa trả) | Spec 8.2; A15 |
 | 15 | Hiện `depositAmount` là "đã cọc" cho đơn chưa trả | `remainingAmount = finalTotal − depositAmount` kể cả khi chưa trả; "đã cọc" chỉ khi `paymentStatus` khác `UNPAID` | API 2.2; A17 |
 | 16 | Sửa type FE theo trí nhớ hoặc theo response một lần gọi | Theo danh sách khóa ở API 2.2 / 3.1 / 3.6 (khóa `null` vẫn có mặt); test `HttpDepositDtoJsonTests` của BE khóa đúng danh sách này | API 2.2, 3.1, 3.6; FE-03 |
+| 17 | Lấy cả chuỗi `bookingDate` (`"dd/MM/yyyy 07:00:00"`) làm thời điểm, hoặc so `bookingDate` với "hôm nay" theo giờ máy | Phần giờ `07:00:00` là sản phẩm phụ của converter, không phải giờ chơi: chỉ lấy `dd/MM/yyyy`, ghép `startTime` (`HH:mm:ss`) thành mốc `+07:00`; so ngày bằng `getTodayVN()` | 4.5 (quy ước JSON) |
+| 18 | Gửi `depositRate = percent / 100` bằng số thực rồi tin BE làm tròn | BE **từ chối** (không làm tròn) tỷ lệ quá 4 chữ số thập phân: nhập 7,15 % thì `7.15 / 100` trong JS là `0.07150000000000001` (57,7 % ⇒ `0.5770000000000001`) ⇒ 400 `VALIDATION_ERROR`. Đổi qua số nguyên như 4.5: `Math.round(7.15 * 100) / 10000` = `0.0715` (đã thử bằng Node 08/11) | 4.5 (công thức) |
+| 19 | Đếm độ dài lý do bằng `reason.length` | BE đếm code point (emoji tính 1, `reason.length` tính 2) ⇒ dùng `[...reason].length` | 4.5 (công thức) |
 
 ## 7. CI/CD của FE (Epic 6C, từ 31/10/2026)
 
