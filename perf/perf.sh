@@ -138,7 +138,8 @@ case "$cmd" in
     # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
     docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
     echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, telemetry $([ "$PERF_TELEMETRY" = true ] && echo bật || echo tắt), LLM giả ${FAKE_LLM_DELAY_MS}±${FAKE_LLM_JITTER_MS} ms, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
-    docker compose -f "$stack" pull --quiet be tadss ai
+    # Tag sha bất biến: chỉ kéo image chưa có trên máy, registry trục trặc không làm hỏng lượt đo khi image đã có
+    docker compose -f "$stack" pull --quiet --policy missing be tadss ai
     docker compose -f "$stack" "${faults_profile[@]}" up -d --wait
     [ "${#faults_profile[@]}" = 0 ] && docker stop perf-toxiproxy >/dev/null 2>&1 || true   # không --faults: BE gọi thẳng TADSS
     show_status

@@ -111,3 +111,12 @@ def test_toxiproxy_runs_only_for_sp09_and_be_calls_tadss_directly_by_default():
     assert _environment("be")["TadssConfig__BaseUrl"] == "${PERF_TADSS_URL:-http://tadss:8080}"
     proxy = json.loads((STACK / "toxiproxy.json").read_text(encoding="utf-8"))
     assert proxy == [{"name": "tadss", "listen": "0.0.0.0:8666", "upstream": "tadss:8080", "enabled": True}]
+
+
+def test_up_pulls_only_missing_images_so_a_registry_outage_does_not_abort_a_session():
+    # Tag image là sha bất biến: đã có trên máy thì không kéo lại. 10/11 ghcr.io không kết nối được, `pull` luôn kéo
+    # làm `perf.sh up` (set -e) dừng giữa chừng và lượt đo chạy trên môi trường dở dang
+    script = (STACK.parent / "perf.sh").read_text(encoding="utf-8")
+    pulls = [line.strip() for line in script.splitlines() if re.search(r"docker compose .* pull\b", line)]
+    assert pulls, "perf.sh phải có bước pull image của be, tadss, ai"
+    assert all("--policy missing" in line for line in pulls), pulls
