@@ -26,8 +26,9 @@ from zoneinfo import ZoneInfo
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
 PLACEHOLDER = Path(__file__).with_name("distribution.placeholder.json")
 PERF_PASSWORD = "Perf@12345"
-# BCrypt cost 12 (như AuthService) của PERF_PASSWORD: hằng không bí mật, chỉ có ở dữ liệu perf
-PASSWORD_HASH = "$2b$12$ojCdr3JFXIzOM7tYET2c4.yauitJ945GuGxSEtFlcJX4kMhHQJS36"
+# BCrypt hệ số 11 (như PasswordHelper.BcryptWorkFactor của BE, P6-55) của PERF_PASSWORD: hằng không bí mật, chỉ có ở dữ liệu perf;
+# sinh và kiểm bằng BCrypt.Net-Next 4.1.0 của BE (11/11). Dữ liệu perf dựng trước 11/11 dùng hash hệ số 12
+PASSWORD_HASH = "$2a$11$e3acXhyN1H1WVp3Kunu/b.xsOw56X6sUCKM6hJK3wKfw46aZAgTGC"
 EMAIL_DOMAIN = "smashcourt.perf"
 _NAMESPACE = uuid.UUID("6f1c2a52-6c0e-4d39-9b52-5f2a7f0c6e10")
 _CHUNK = 500
