@@ -37,6 +37,7 @@ Push `develop` hoặc `master` của BE, TADSS, AI ⇒ CI (test, build, đẩy i
 | 1 | Bản mới hỏng, đã quay về bản trước (job đỏ để báo) |
 | 2 | **UNSAFE**: quay về cũng hỏng, cần người xử lý |
 | 3 | Từ chối, chưa đụng gì: sha sai hoặc image không có trên GHCR |
+| 4 | Chưa đụng gì: máy deploy không tới được GHCR sau 5 lần thử (khoảng 2,5 phút). Image vẫn có (job "Docker Image" xanh) ⇒ mạng ổn thì bấm **Re-run failed jobs** trên tab Actions, hoặc `gh run rerun <id> --failed` |
 
 - **Runner chạy trong Docker:** 3 container `smashcourt-runner-be`, `-tadss`, `-ai` (runner chính thức của GitHub + Docker Compose, `SmashCourt-BE/deploy/runner/`), `restart: unless-stopped` nên **tự chạy khi mở Docker Desktop**, không cài gì vào Windows. Mỗi runner chỉ thấy Docker của máy (để deploy) và `smashcourt-deploy.env` (gắn chỉ đọc vào `~/.smashcourt-deploy/.env` trong container); chạy bằng user `runner`, không phải root. Runner tắt (Docker tắt) thì job deploy chờ tối đa 24 giờ, mở Docker là chạy.
 - **Lệnh runner** (trong `SmashCourt-BE/`): bật/cập nhật `docker compose -f deploy/runner/docker-compose.yml up -d --build`; xem log `docker logs -f smashcourt-runner-be`. Đăng ký lại một runner (mất volume `smashcourt-runner-*`): `export RUNNER_TOKEN=$(gh api -X POST repos/NguyenThanhTrung-N2T/<repo>/actions/runners/registration-token -q .token)` rồi `docker compose -f deploy/runner/docker-compose.yml run --rm -e RUNNER_TOKEN runner-be register` (mã đăng ký chỉ dùng một lần, không lưu lại).
