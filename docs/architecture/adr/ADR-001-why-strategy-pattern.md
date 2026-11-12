@@ -21,7 +21,7 @@ Sử dụng mẫu thiết kế **Strategy Pattern** bằng cách định nghĩa 
     *   Kiểm thử độc lập (Testable) đối với từng chiến lược cụ thể mà không ảnh hưởng hệ thống lớn.
 *   **Tiêu cực (Negative):**
     *   Cấu trúc code phân lớp chặt chẽ hơn so với việc viết mã lệnh trực tiếp (hard-code).
-    *   Yêu cầu cấu hình `StrategyResolver` / DI container để quản lý vòng đời (lifecycle) của các strategy.
+    *   Yêu cầu đăng ký strategy qua DI container (`StrategyRegistrations`, `IStrategyRegistry`) và cấu hình định tuyến (`StrategyRouter`, `Tadss:Routing`) để quản lý vòng đời (lifecycle) và việc chọn strategy.
 
 ## Phương án thay thế đã cân nhắc
 1.  **Hard-code trực tiếp logic vào SmashCourt:** Loại bỏ vì gây tight coupling và vi phạm nguyên lý Open-Closed Principle (OCP).

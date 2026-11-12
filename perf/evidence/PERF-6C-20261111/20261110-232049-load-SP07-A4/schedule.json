@@ -1,0 +1,16 @@
+{
+  "runId": "20261110-232049-load-SP07-A4",
+  "profile": "load",
+  "rate": 19,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 900,
+  "peakRate": 19,
+  "maxVUs": 238,
+  "preAllocatedVUs": 238,
+  "journeySeconds": 8.35,
+  "steps": [],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

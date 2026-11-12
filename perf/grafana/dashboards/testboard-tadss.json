@@ -478,7 +478,7 @@
     {
       "type": "table",
       "title": "Nguồn kết quả",
-      "description": "**Đo gì:** Lần nạp gần nhất của từng nguồn: CI ba repo, Evidence Pack, k6, SC6, Playwright.\n**Đơn vị:** Thời gian tương đối kể từ lần nạp.\n**Cách đọc:** Nguồn cũ ⇒ chạy lại lệnh nạp (docs/guides/TEST_DASHBOARD.md). Kết quả trên dashboard là gộp các nguồn này.\n**Ngưỡng:** Không có ngưỡng.\n**Nguồn:** smashcourt_test_source_loaded_seconds (perf/testboard)\n**Mã test:** SC8",
+      "description": "**Đo gì:** Lần nạp gần nhất của từng nguồn: CI ba repo, Evidence Pack, k6, SC6, Playwright.\n**Đơn vị:** Thời gian tương đối kể từ lần nạp.\n**Cách đọc:** Nguồn cũ ⇒ chạy lại lệnh nạp (docs/guides/RUNBOOK.md). Kết quả trên dashboard là gộp các nguồn này.\n**Ngưỡng:** Không có ngưỡng.\n**Nguồn:** smashcourt_test_source_loaded_seconds (perf/testboard)\n**Mã test:** SC8",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

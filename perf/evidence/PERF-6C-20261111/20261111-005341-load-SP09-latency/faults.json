@@ -1,0 +1,21 @@
+{
+  "kind": "latency",
+  "latencyMs": 1500,
+  "plannedStartAfter": 490.0,
+  "plannedDuration": 300.0,
+  "launchedAt": 1794333230.1729674,
+  "onAt": 1794333720.173859,
+  "offAt": 1794334020.2678103,
+  "check": {
+    "checkWindow": [
+      1794333722.173859,
+      1794334018.2678103
+    ],
+    "bookings": 197,
+    "notFallback": 0,
+    "awaitingApproval": 0,
+    "duplicateDecisions": 0,
+    "problems": [],
+    "status": "PASS"
+  }
+}

@@ -20,7 +20,7 @@
 | :--- | :--- | :--- |
 | **RQ1** Resilience & toàn vẹn giao dịch | SC1, SC2, SC5, SC6 | FI, LT, E2E, BE-IT |
 | **RQ2** Governance & khả năng kiểm toán | SC3, SC4 | IT, CT, BE-IT, E2E |
-| **RQ3** Chất lượng tích hợp & quyết định trên dữ liệu thật | SC1 (E2E) | LT-04, E2E, RP |
+| **RQ3** Chất lượng tích hợp & quyết định trên dữ liệu đặt sân SmashCourt | SC1 (E2E) | LT-04, E2E, RP |
 | Độc lập domain | SC7 | PT |
 | Chất lượng bộ kiểm thử | SC8 | Toàn bộ, MT |
 
@@ -31,7 +31,7 @@
 | Mã | Môi trường | Thành phần | Dùng cho |
 | :--- | :--- | :--- | :--- |
 | **E-TC** | Testcontainers (trong `dotnet test`) | PostgreSQL 16, Redis 7, Toxiproxy | UT, IT, CT-01/02/04, BE-IT, một phần FI |
-| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose up -d --build` (D-14: khởi động cùng chế độ vận hành, evaluator tự chạy một lượt); chạy lại riêng `bash tools/evaluation/run.sh` (các service `eval-*` của `docker-compose.yml`, không profile; **đã hiện thực ở gói 5.5**, gộp vào lệnh `up` ở D-14; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); không có SmashCourt-BE/FE (LT-04 chạy ở E-STAGING) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
+| **E-EVAL** | Chế độ đánh giá một lệnh: `docker compose up -d --build` (D-14: khởi động cùng chế độ vận hành, evaluator tự chạy một lượt); chạy lại riêng `bash tools/evaluation/run.sh` (các service `eval-*` của `docker-compose.yml`, không profile; **đã hiện thực ở gói 5.5**, gộp vào lệnh `up` ở D-14; thay cho môi trường E-LOCAL/profile `lab` ghi trong bản trước, xem D-12 ở `spec/archive/phase5/PHASE5_DESIGN_SPEC.md`). Cô lập hoàn toàn, không chạm Neon | TADSS (build Release), PostgreSQL 16, Redis 7, Toxiproxy, `grafana/otel-lgtm` và container **evaluator** điều phối cả chiến dịch (Mục 6.1); không có SmashCourt-BE/FE (LT-04 chạy ở E-STAGING) | FI, LT-01/02/03/05, CT-03, MT, SCALE-1, SCALE-2; RP, PT (dữ liệu của gói 5.6) |
 | **E-STAGING** | Môi trường tích hợp trên máy nhóm, chạy bằng Docker Compose (chi tiết chốt ở W08: [Môi trường tích hợp E-STAGING](../planning/MASTER_EXECUTION_PLAN.md#môi-trường-tích-hợp-e-staging) trong MASTER_EXECUTION_PLAN) | SmashCourt FE/BE + TADSS + PostgreSQL: DB SmashCourt trên nhánh Neon `tadss-dev` (staging, chốt 19/10/2026, tách khỏi `main`), DB TADSS là project Neon riêng + Redis + VNPay sandbox | E2E, LT-04 và FI-11…FI-14 trên hệ thống đã tích hợp (đặc tả từng bước E2E: [`E2E_TEST_SPECIFICATION.md`](E2E_TEST_SPECIFICATION.md)) |
 
 Ba chế độ chạy của repo (D-12): **dev hằng ngày** `dotnet run` (Neon + Redis Cloud, chỉ app + Swagger, không Docker/Grafana); **vận hành / demo** `docker compose up -d --build` (TADSS + ngrok + Grafana); **đánh giá** (E-EVAL) chạy cùng lệnh `docker compose up -d --build` của chế độ vận hành (D-14) hoặc riêng bằng `bash tools/evaluation/run.sh`. Chỉ chế độ đánh giá tạo số liệu dùng làm minh chứng; test tự động trong CI vẫn chạy ở E-TC (`dotnet test`).
@@ -81,7 +81,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | Feature Flag & toàn vẹn đơn đặt sân (FI-11…14) | Tắt cờ `EnableTadssDecision` khi đang đặt sân: hiệu lực < 2 giây, mọi đơn cọc 100% (SC5); truy vấn bất biến trên DB SmashCourt sau mỗi kịch bản: 0 booking hỏng (SC6) | xUnit, SQL |
 | Kiểm thử SmashCourt-BE và FE (BE-UT, BE-IT, FE) | BE: ánh xạ booking → request v2, `TadssClient`, luồng cọc `APPROVED` / `NEED_APPROVAL` / `REJECTED` / cọc 100 % khi có sự cố, ba endpoint duyệt theo `bookingId` (phân quyền chi nhánh, kiểm body, mã lỗi, TADSS lỗi khi duyệt → 503 không có đường lùi 100 %, bấm lần hai → 409), job hết hạn duyệt (không tự duyệt) và job outcome (đúng một lần), sự kiện SignalR; chạy trên PostgreSQL thật với TADSS giả lập. FE: `tsc`/lint/build và luồng giao diện trên mock MSW theo hợp đồng BE ↔ FE (mã lỗi, 401/403 ngoài envelope, phần trăm → tỷ lệ). Đạt khi 100 % test case đạt (SC8) | xUnit, Testcontainers, WireMock.Net, Playwright, MSW |
 | Kiểm thử đầu–cuối trên giao diện (E2E, LT-04) | Tự động thao tác trên trình duyệt qua FE → BE → TADSS (E2E-01…E2E-14): đặt sân → mức cọc → VNPay sandbox → Manager duyệt / từ chối / hết hạn; tắt cờ, TADSS dừng khi đặt sân và khi duyệt; hai Manager, bấm lần hai, phạm vi chi nhánh, realtime, đặt tại quầy không qua TADSS. Đạt khi mọi kịch bản đạt, 0 vi phạm bất biến booking sau mỗi kịch bản (SC6), p95 tạo booking < 1000 ms (SC1) | Playwright, k6 |
-| Đánh giá trên dữ liệu đặt sân thật (RP-01…02) | Import 215 booking SmashCourt (ẩn danh) qua TADSS; so sánh với chính sách cọc 100%: tỷ lệ duyệt ngay / cần duyệt, mức cọc theo hạng khách và khung giờ | Script Python |
+| Đánh giá trên dữ liệu đặt sân SmashCourt (RP-01…02) | Import 215 booking SmashCourt (ẩn danh, phát sinh khi phát triển và demo Đồ án 1) qua TADSS; so sánh với chính sách cọc 100%: tỷ lệ duyệt ngay / cần duyệt, mức cọc theo hạng khách và khung giờ | Script Python |
 | Đánh giá độc lập nghiệp vụ (PT-01…02) | Import ≥ 10.000 đơn Hotel Booking Demand, chuyển sang request v2 rồi gửi vào TADSS. Đạt khi 0 lỗi contract, 0 thay đổi mã runtime/SDK (SC7) | Script Python |
 | Kiểm tra tài liệu (DOC-1…4) | Mọi tài liệu có đúng một dòng kiểm kê (hiện hành / lịch sử); tài liệu hiện hành không mô tả như hiện tại những thứ đã gỡ; mọi link nội bộ và anchor trong markdown trỏ đúng; bảng cấu hình khớp mã. Đạt khi cả bốn mã đạt | Python (`tools/docs/check_docs.py`), xUnit |
 
@@ -469,9 +469,9 @@ Với nhóm TADSS chạy ở E-EVAL, các bước 2–5 trên do evaluator thự
 
 ### 6.1. Chế độ đánh giá một lệnh (D-12)
 
-> **Hiện trạng:** đã hiện thực ở gói 5.5 (evaluator `tools/evaluation/`, bộ dựng Evidence Pack `tools/evidence/`, kịch bản k6 `tests/load/`). Thiết kế: D-12 và Mục 4.5 của `spec/PHASE5_DESIGN_SPEC.md`.
+> **Hiện trạng:** đã hiện thực ở gói 5.5 (evaluator `tools/evaluation/`, bộ dựng Evidence Pack `tools/evidence/`, kịch bản k6 `tests/load/`). Thiết kế: D-12 và Mục 4.5 của `spec/archive/phase5/PHASE5_DESIGN_SPEC.md`.
 
-Lệnh chuẩn: `docker compose up -d --build` (D-14; bản đầy đủ: `EVAL_MODE=full`), chạy lại riêng: `bash tools/evaluation/run.sh [quick|full] [--steps a,b,...] [--clean]` (hướng dẫn từng bước, đọc kết quả, sự cố thường gặp: [`docs/guides/EVALUATION_RUN_GUIDE.md`](../guides/EVALUATION_RUN_GUIDE.md), nơi sở hữu quy trình chạy). Cả hai cách dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**, và thêm service `eval-tadss-portability` cho PT. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt (`EVAL_STEPS` hay `--steps` nhận các chữ a…f):
+Lệnh chuẩn: `docker compose up -d --build` (D-14; bản đầy đủ: `EVAL_MODE=full`), chạy lại riêng: `bash tools/evaluation/run.sh [quick|full] [--steps a,b,...] [--clean]` (hướng dẫn từng bước, đọc kết quả, sự cố thường gặp: [`docs/guides/RUNBOOK.md`](../guides/RUNBOOK.md), nơi sở hữu quy trình chạy). Cả hai cách dựng stack cô lập (TADSS build Release, PostgreSQL 16, Redis 7, Toxiproxy, Grafana; **không bao giờ chạm Neon**) cùng container **evaluator**, và thêm service `eval-tadss-portability` cho PT. Evaluator chạy tuần tự rồi thoát kèm bản tóm tắt (`EVAL_STEPS` hay `--steps` nhận các chữ a…f):
 
 | Bước | Nội dung |
 | :--- | :--- |
@@ -484,7 +484,7 @@ Lệnh chuẩn: `docker compose up -d --build` (D-14; bản đầy đủ: `EVAL_
 
 **Thời lượng đo thật (bản nhanh, máy lab, lượt `EV-20261015-EVAL-quick-r2` chạy bằng `docker compose up -d --build` sau gói 5.7b, đạt mọi tiêu chí áp dụng được):** (a) 693 s, (b) 400 s, (c) 511 s, (d) 48 s, (e) 92 s, (f) 61 s — tổng 1.805 s (~30 phút), chưa tính lần đầu dựng image.
 
-**Hai độ dài:** **bản nhanh** (đo thật ~28 phút, tải rút ngắn, không chạy Stryker) để diễn tập; **bản đầy đủ** (ước tính ≈ 2,8 giờ từ các bước đã đo: LT-01 3 × 11 phút, LT-02 ~15 phút, LT-05 soak 61 phút, Stryker ≈ 21 phút; đo trọn vẹn ở gói 5.7) để lấy số liệu chính thức. Bước (e) ở bản nhanh đo thật 101 s (`quick-r1`, PT 10.000 request, 107 request/s) và, theo ngoại suy từ 107–330 request/s tùy độ bận của máy, khoảng 8–18 phút ở bản đầy đủ (PT ≈ 118 nghìn request; chưa đo trọn vẹn, thuộc gói 5.7). Replay booking SmashCourt (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01…PT-04) đổ vào cùng Evidence Pack và báo cáo.
+**Hai độ dài:** **bản nhanh** (đo thật ~28 phút, tải rút ngắn, không chạy Stryker) để diễn tập; **bản đầy đủ** (đo thật ≈ 3 giờ 25 phút ở lượt `EV-20261017-EVAL-full-r1`, 17/10/2026; ước tính trước đó ≈ 2,8 giờ từ các bước đã đo: LT-01 3 × 11 phút, LT-02 ~15 phút, LT-05 soak 61 phút, Stryker ≈ 21 phút; đo trọn vẹn ở gói 5.7) để lấy số liệu chính thức. Bước (e) ở bản nhanh đo thật 101 s (`quick-r1`, PT 10.000 request, 107 request/s) và, theo ngoại suy từ 107–330 request/s tùy độ bận của máy, khoảng 8–18 phút ở bản đầy đủ (PT ≈ 118 nghìn request; chưa đo trọn vẹn, thuộc gói 5.7). Replay booking SmashCourt (RP-01/RP-02) và adapter Hotel Booking Demand (PT-01…PT-04) đổ vào cùng Evidence Pack và báo cáo.
 
 **Giới hạn đo lường:** toàn bộ chạy trên một máy (k6, TADSS và cơ sở dữ liệu tranh nhau CPU) nên số liệu là số liệu phòng lab; báo cáo ghi thông số máy (CPU/RAM) và liệt kê vào Mục 8.
 

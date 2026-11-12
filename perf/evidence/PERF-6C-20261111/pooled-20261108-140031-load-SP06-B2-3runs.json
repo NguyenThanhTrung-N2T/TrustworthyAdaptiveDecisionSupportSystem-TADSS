@@ -1,0 +1,199 @@
+{
+  "groups": {
+    "read": {
+      "n": 135916,
+      "p95": 15.7,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "p99": 96.9,
+      "p99Limit": 800,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 135916,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "booking": {
+      "n": 1531,
+      "p95": 69.9,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "p99": 179.8,
+      "p99Limit": 2000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 1531,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "login": {
+      "n": 2503,
+      "p95": 404.7,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 515.5,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2503,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "ipn": {
+      "n": 1050,
+      "p95": 47.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 138.2,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 1050,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "write": {
+      "n": 2084,
+      "p95": 32.2,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 171.8,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2084,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    }
+  },
+  "errors": {
+    "n": 143084,
+    "rate": 0.0,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "endpoints": {
+    "GET /api/bookings": {
+      "n": 3630,
+      "p95": 23.6,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/dashboard-summary": {
+      "n": 3630,
+      "p95": 13.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/pending-approval": {
+      "n": 1385,
+      "p95": 18.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/schedule": {
+      "n": 3630,
+      "p95": 11.4,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/branches/basic": {
+      "n": 36126,
+      "p95": 9.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/courts": {
+      "n": 36287,
+      "p95": 8.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings": {
+      "n": 7653,
+      "p95": 19.4,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings/{id}": {
+      "n": 7135,
+      "p95": 19.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/payments/vnpay/ipn": {
+      "n": 1050,
+      "p95": 47.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "ipn"
+    },
+    "GET time-grid": {
+      "n": 36440,
+      "p95": 19.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "POST /api/auth/login": {
+      "n": 2503,
+      "p95": 404.7,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "login"
+    },
+    "POST /api/bookings/online": {
+      "n": 1531,
+      "p95": 69.9,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "slo": "booking"
+    },
+    "POST /api/bookings/{id}/check-in": {
+      "n": 1916,
+      "p95": 21.6,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/checkout": {
+      "n": 20,
+      "p95": 74.5,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    },
+    "POST /api/me/bookings/{id}/cancel": {
+      "n": 148,
+      "p95": 47.7,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    }
+  },
+  "status": "PASS",
+  "selftest": false,
+  "runs": [
+    "20261108-140031-load-SP06-B2",
+    "20261108-142315-load-SP06-B3",
+    "20261108-153154-load-SP06-B6"
+  ]
+}

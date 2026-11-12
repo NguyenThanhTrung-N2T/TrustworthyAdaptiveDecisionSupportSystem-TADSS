@@ -293,7 +293,7 @@ else
   record "NG-5" FAIL "không dựng được stack (cấu hình tĩnh: ${cfg_ports})"
 fi
 
-# ── NG-2b (không khởi động): Staging không có khóa; chuỗi kết nối DB/Redis là host chết nên không bao giờ chạm Neon/Redis thật (image có thể chứa appsettings.Development.json) ──
+# ── NG-2b (không khởi động): Staging không có khóa; chuỗi kết nối DB/Redis là host chết nên không bao giờ chạm Neon/Redis thật (image không chứa appsettings.Development.json từ Epic 6C) ──
 IMAGE="$(dc images tadss-runtime --format json 2>/dev/null \
           | grep -o '"Repository" *: *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
 IMAGE="${IMAGE:-${PROJECT}-tadss-runtime}"

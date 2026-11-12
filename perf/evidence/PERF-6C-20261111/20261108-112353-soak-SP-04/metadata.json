@@ -1,0 +1,23 @@
+{
+  "runId": "20261108-112353-soak-SP-04", "profile": "soak", "code": "SP-04", "selftest": false, "args": "-e PROFILE=soak -e RATE=19 -e DURATION=90m",
+  "be": {"image": "ghcr.io/nguyenthanhtrung-n2t/smashcourt-be:sha-d4592c1", "revision": "d4592c1f7b00f3ebaf30c1387201df2364541949"},
+  "tadss": {"image": "ghcr.io/nguyenthanhtrung-n2t/tadss-runtime:sha-43cb89c", "revision": "43cb89cc1749f43eee486118c29a5de8f24e3804"},
+  "ai": {"image": "ghcr.io/nguyenthanhtrung-n2t/smashcourt-ai:sha-7aad965", "revision": "7aad9655190064e44faf9e250a64cb3628929dc4"},
+  "tadssRuntime": {"commit": "43cb89cc1749f43eee486118c29a5de8f24e3804", "dirty": false},
+  "sha256": {"k6": "3aa6a7f16c1e95d4bc30c1e084d6cf6e43803188903874b2edd00d04af8b02cd", "sloJson": "f468cb20755d2fd66574d4646c520124ebeed6c0d0cfaaf502e6bd36fe6acb2b", "compose": "52077c0f757094c219e355eb9fb4bd2acec6a12d29ba5613d523e05c7ff471ca"},
+  "cpuset": {"system": "0-5", "tools": "6-7"},
+  "cpuTopology": {"0": 0, "1": 0, "2": 1, "3": 1, "4": 2, "5": 2, "6": 3, "7": 3}, "cpuTopologyNote": "cấu trúc trong VM Docker; WSL2 không ghim vCPU vào luồng vật lý",
+  "beCpus": 2, "hostCheck": {"power": {"hasBattery": true, "onAc": true, "batteryStatus": "2", "powerModeAc": "Best power efficiency", "powerModeAcGuid": "961cc777-2547-4f9d-8174-7d86181b8a7a"}, "memory": {"vmBytes": 8193597440, "perfLimitsBytes": 6710886400, "otherUsageBytes": 828448438, "ratio": 0.92, "ok": true}, "dockerDiskFreeGb": 28.8}, "cooldownSeconds": 120,
+  "containers": {"perf-be": {"cpuset": "0-5", "nanoCpus": 2000000000, "memoryBytes": 1073741824},"perf-tadss": {"cpuset": "0-5", "nanoCpus": 1500000000, "memoryBytes": 805306368},"perf-ai": {"cpuset": "0-5", "nanoCpus": 1000000000, "memoryBytes": 536870912},"perf-postgres": {"cpuset": "0-5", "nanoCpus": 1000000000, "memoryBytes": 1073741824},"perf-tadss-postgres": {"cpuset": "0-5", "nanoCpus": 500000000, "memoryBytes": 536870912},"perf-redis": {"cpuset": "0-5", "nanoCpus": 250000000, "memoryBytes": 134217728},"perf-mailpit": {"cpuset": "0-5", "nanoCpus": 250000000, "memoryBytes": 268435456},"perf-fake-llm": {"cpuset": "0-5", "nanoCpus": 500000000, "memoryBytes": 134217728}},
+  "tadssDecision": "true",
+  "telemetry": "true",
+  "fakeLlmDelayMs": 800, "fakeLlmJitterMs": 200,
+  "traceRatio": "0",
+  "tag": "", "pgSample": "activity", "fault": "",
+  "dbPool": "100",
+  "dbAutoPrepare": "0",
+  "pgLocksCollector": "off",
+  "seed": {"seed": 42, "customers": 2000, "distribution": "distribution.reference.json", "sqlSha256": "d1113e7183e6970f9b94f8988c65c33c06d0f106776c4ea2e6a1511a80b38fdc", "dbChecksum": "8eae1ba5a9401ecaa26f031a3ee750d5", "anchor": "2026-11-02"},
+  "host": {"cpus": 8, "memoryBytes": 8193597440},
+  "startedAt": "2026-11-08T04:23:59Z"
+}

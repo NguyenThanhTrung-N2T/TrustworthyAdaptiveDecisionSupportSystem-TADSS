@@ -1,0 +1,72 @@
+{
+  "runId": "20261103-213705-breakpoint-SP-08",
+  "profile": "breakpoint",
+  "rate": 20,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 2090,
+  "peakRate": 60,
+  "maxVUs": 752,
+  "preAllocatedVUs": 752,
+  "journeySeconds": 8.35,
+  "steps": [
+    {
+      "rate": 10,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 15,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 20,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 25,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 30,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 35,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 40,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 45,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 50,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 55,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 60,
+      "transition": 10,
+      "hold": 180
+    }
+  ],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

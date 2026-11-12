@@ -1,0 +1,1432 @@
+{
+  "runId": "20261103-213705-breakpoint-SP-08",
+  "profile": "breakpoint",
+  "selftest": false,
+  "k6Exit": 0,
+  "problems": [],
+  "validity": "OK",
+  "infra": [],
+  "steadyStart": 1793716904.0,
+  "steadyEnd": 1793719024.0,
+  "steps": [
+    {
+      "index": 0,
+      "rate": 10,
+      "holdStart": 1793716914.0,
+      "holdEnd": 1793717094.0,
+      "windows": [
+        {
+          "start": 1793716944.0,
+          "end": 1793717004.0,
+          "rate": 10,
+          "groups": {
+            "booking": {
+              "n": 37,
+              "p95": 97.8
+            },
+            "ipn": {
+              "n": 17,
+              "p95": 47.4
+            },
+            "login": {
+              "n": 27,
+              "p95": 365.5
+            },
+            "read": {
+              "n": 1563,
+              "p95": 16.5
+            },
+            "write": {
+              "n": 3,
+              "p95": 32.6
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 1647,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717004.0,
+          "end": 1793717064.0,
+          "rate": 10,
+          "groups": {
+            "booking": {
+              "n": 40,
+              "p95": 105.6
+            },
+            "ipn": {
+              "n": 12,
+              "p95": 35.8
+            },
+            "login": {
+              "n": 33,
+              "p95": 364.2
+            },
+            "read": {
+              "n": 1558,
+              "p95": 16.6
+            },
+            "write": {
+              "n": 6,
+              "p95": 99.6
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 1649,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": []
+    },
+    {
+      "index": 1,
+      "rate": 15,
+      "holdStart": 1793717104.0,
+      "holdEnd": 1793717284.0,
+      "windows": [
+        {
+          "start": 1793717134.0,
+          "end": 1793717194.0,
+          "rate": 15,
+          "groups": {
+            "booking": {
+              "n": 53,
+              "p95": 107.0
+            },
+            "ipn": {
+              "n": 22,
+              "p95": 82.0
+            },
+            "login": {
+              "n": 41,
+              "p95": 437.6
+            },
+            "read": {
+              "n": 2378,
+              "p95": 20.4
+            },
+            "write": {
+              "n": 8,
+              "p95": 70.4
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 2502,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717194.0,
+          "end": 1793717254.0,
+          "rate": 15,
+          "groups": {
+            "booking": {
+              "n": 55,
+              "p95": 176.3
+            },
+            "ipn": {
+              "n": 22,
+              "p95": 88.5
+            },
+            "login": {
+              "n": 48,
+              "p95": 687.6
+            },
+            "read": {
+              "n": 2338,
+              "p95": 26.9
+            },
+            "write": {
+              "n": 6,
+              "p95": 60.5
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 2469,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": []
+    },
+    {
+      "index": 2,
+      "rate": 20,
+      "holdStart": 1793717294.0,
+      "holdEnd": 1793717474.0,
+      "windows": [
+        {
+          "start": 1793717324.0,
+          "end": 1793717384.0,
+          "rate": 20,
+          "groups": {
+            "booking": {
+              "n": 61,
+              "p95": 290.8
+            },
+            "ipn": {
+              "n": 26,
+              "p95": 345.4
+            },
+            "login": {
+              "n": 54,
+              "p95": 650.5
+            },
+            "read": {
+              "n": 3179,
+              "p95": 85.7
+            },
+            "write": {
+              "n": 7,
+              "p95": 53.0
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 3327,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717384.0,
+          "end": 1793717444.0,
+          "rate": 20,
+          "groups": {
+            "booking": {
+              "n": 60,
+              "p95": 5001.7
+            },
+            "ipn": {
+              "n": 17,
+              "p95": 5001.5
+            },
+            "login": {
+              "n": 61,
+              "p95": 4158.8
+            },
+            "read": {
+              "n": 3146,
+              "p95": 2264.5
+            },
+            "write": {
+              "n": 10,
+              "p95": 3115.5
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors"
+          ],
+          "errors": {
+            "n": 3294,
+            "rate": 0.018822
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "errors",
+        "p95 read"
+      ]
+    },
+    {
+      "index": 3,
+      "rate": 25,
+      "holdStart": 1793717484.0,
+      "holdEnd": 1793717664.0,
+      "windows": [
+        {
+          "start": 1793717514.0,
+          "end": 1793717574.0,
+          "rate": 25,
+          "groups": {
+            "booking": {
+              "n": 46,
+              "p95": 178.6
+            },
+            "ipn": {
+              "n": 18,
+              "p95": 84.1
+            },
+            "login": {
+              "n": 76,
+              "p95": 829.8
+            },
+            "read": {
+              "n": 3909,
+              "p95": 52.1
+            },
+            "write": {
+              "n": 9,
+              "p95": 272.4
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 4058,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717574.0,
+          "end": 1793717634.0,
+          "rate": 25,
+          "groups": {
+            "booking": {
+              "n": 48,
+              "p95": 203.0
+            },
+            "ipn": {
+              "n": 16,
+              "p95": 233.3
+            },
+            "login": {
+              "n": 84,
+              "p95": 705.2
+            },
+            "read": {
+              "n": 3941,
+              "p95": 68.2
+            },
+            "write": {
+              "n": 6,
+              "p95": 295.3
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 4095,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": []
+    },
+    {
+      "index": 4,
+      "rate": 30,
+      "holdStart": 1793717674.0,
+      "holdEnd": 1793717854.0,
+      "windows": [
+        {
+          "start": 1793717704.0,
+          "end": 1793717764.0,
+          "rate": 30,
+          "groups": {
+            "booking": {
+              "n": 26,
+              "p95": 146.9
+            },
+            "ipn": {
+              "n": 16,
+              "p95": 55.2
+            },
+            "login": {
+              "n": 76,
+              "p95": 579.6
+            },
+            "read": {
+              "n": 4730,
+              "p95": 32.9
+            },
+            "write": {
+              "n": 4,
+              "p95": 50.2
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 4852,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717764.0,
+          "end": 1793717824.0,
+          "rate": 30,
+          "groups": {
+            "booking": {
+              "n": 34,
+              "p95": 3827.9
+            },
+            "ipn": {
+              "n": 13,
+              "p95": 2236.9
+            },
+            "login": {
+              "n": 77,
+              "p95": 2936.8
+            },
+            "read": {
+              "n": 4652,
+              "p95": 939.4
+            },
+            "write": {
+              "n": 5,
+              "p95": 159.0
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 4781,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "p95 read"
+      ]
+    },
+    {
+      "index": 5,
+      "rate": 35,
+      "holdStart": 1793717864.0,
+      "holdEnd": 1793718044.0,
+      "windows": [
+        {
+          "start": 1793717894.0,
+          "end": 1793717954.0,
+          "rate": 35,
+          "groups": {
+            "booking": {
+              "n": 37,
+              "p95": 2013.7
+            },
+            "ipn": {
+              "n": 16,
+              "p95": 331.7
+            },
+            "login": {
+              "n": 110,
+              "p95": 1961.6
+            },
+            "read": {
+              "n": 5500,
+              "p95": 372.4
+            },
+            "write": {
+              "n": 1,
+              "p95": 38.5
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 5664,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793717954.0,
+          "end": 1793718014.0,
+          "rate": 35,
+          "groups": {
+            "booking": {
+              "n": 31,
+              "p95": 234.2
+            },
+            "ipn": {
+              "n": 19,
+              "p95": 142.9
+            },
+            "login": {
+              "n": 105,
+              "p95": 1154.2
+            },
+            "read": {
+              "n": 5475,
+              "p95": 63.1
+            },
+            "write": {
+              "n": 6,
+              "p95": 67.1
+            }
+          },
+          "violations": [],
+          "errors": {
+            "n": 5636,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "p95 read"
+      ]
+    },
+    {
+      "index": 6,
+      "rate": 40,
+      "holdStart": 1793718054.0,
+      "holdEnd": 1793718234.0,
+      "windows": [
+        {
+          "start": 1793718084.0,
+          "end": 1793718144.0,
+          "rate": 40,
+          "groups": {
+            "booking": {
+              "n": 39,
+              "p95": 2191.3
+            },
+            "ipn": {
+              "n": 10,
+              "p95": 1831.8
+            },
+            "login": {
+              "n": 115,
+              "p95": 1876.2
+            },
+            "read": {
+              "n": 6140,
+              "p95": 995.9
+            },
+            "write": {
+              "n": 3,
+              "p95": 99.2
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 6307,
+            "rate": 0.000159
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793718144.0,
+          "end": 1793718204.0,
+          "rate": 40,
+          "groups": {
+            "booking": {
+              "n": 60,
+              "p95": 3763.0
+            },
+            "ipn": {
+              "n": 22,
+              "p95": 3975.9
+            },
+            "login": {
+              "n": 129,
+              "p95": 2794.8
+            },
+            "read": {
+              "n": 6488,
+              "p95": 771.9
+            },
+            "write": {
+              "n": 1,
+              "p95": 45.1
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 6700,
+            "rate": 0.001343
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "p95 read"
+      ]
+    },
+    {
+      "index": 7,
+      "rate": 45,
+      "holdStart": 1793718244.0,
+      "holdEnd": 1793718424.0,
+      "windows": [
+        {
+          "start": 1793718274.0,
+          "end": 1793718334.0,
+          "rate": 45,
+          "groups": {
+            "booking": {
+              "n": 32,
+              "p95": 2022.4
+            },
+            "ipn": {
+              "n": 14,
+              "p95": 964.2
+            },
+            "login": {
+              "n": 127,
+              "p95": 3859.0
+            },
+            "read": {
+              "n": 7194,
+              "p95": 421.2
+            },
+            "write": {
+              "n": 1,
+              "p95": 579.0
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 7368,
+            "rate": 0.000271
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793718334.0,
+          "end": 1793718394.0,
+          "rate": 45,
+          "groups": {
+            "booking": {
+              "n": 32,
+              "p95": 892.3
+            },
+            "ipn": {
+              "n": 9,
+              "p95": 428.9
+            },
+            "login": {
+              "n": 129,
+              "p95": 2546.2
+            },
+            "read": {
+              "n": 7109,
+              "p95": 444.2
+            },
+            "write": {
+              "n": 4,
+              "p95": 1567.2
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 7283,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "p95 read"
+      ]
+    },
+    {
+      "index": 8,
+      "rate": 50,
+      "holdStart": 1793718434.0,
+      "holdEnd": 1793718614.0,
+      "windows": [
+        {
+          "start": 1793718464.0,
+          "end": 1793718524.0,
+          "rate": 50,
+          "groups": {
+            "booking": {
+              "n": 38,
+              "p95": 4623.8
+            },
+            "ipn": {
+              "n": 15,
+              "p95": 2293.9
+            },
+            "login": {
+              "n": 149,
+              "p95": 3584.0
+            },
+            "read": {
+              "n": 7811,
+              "p95": 1309.3
+            },
+            "write": {
+              "n": 1,
+              "p95": 147.2
+            }
+          },
+          "violations": [
+            "p95 read"
+          ],
+          "errors": {
+            "n": 8014,
+            "rate": 0.0
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        },
+        {
+          "start": 1793718524.0,
+          "end": 1793718584.0,
+          "rate": 50,
+          "groups": {
+            "booking": {
+              "n": 36,
+              "p95": 5000.8
+            },
+            "ipn": {
+              "n": 14,
+              "p95": 5001.1
+            },
+            "login": {
+              "n": 150,
+              "p95": 5000.7
+            },
+            "read": {
+              "n": 7635,
+              "p95": 3787.6
+            },
+            "write": {
+              "n": 1,
+              "p95": 91.0
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors"
+          ],
+          "errors": {
+            "n": 7836,
+            "rate": 0.022843
+          },
+          "dropped": {
+            "n": 0,
+            "share": 0.0
+          }
+        }
+      ],
+      "violations": [
+        "errors",
+        "p95 read"
+      ]
+    },
+    {
+      "index": 9,
+      "rate": 55,
+      "holdStart": 1793718624.0,
+      "holdEnd": 1793718804.0,
+      "windows": [
+        {
+          "start": 1793718654.0,
+          "end": 1793718714.0,
+          "rate": 55,
+          "groups": {
+            "booking": {
+              "n": 23,
+              "p95": 5000.9
+            },
+            "ipn": {
+              "n": 4,
+              "p95": 3294.6
+            },
+            "login": {
+              "n": 172,
+              "p95": 5001.1
+            },
+            "read": {
+              "n": 8439,
+              "p95": 3449.4
+            },
+            "write": {
+              "n": 7,
+              "p95": 2551.6
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors"
+          ],
+          "errors": {
+            "n": 8645,
+            "rate": 0.016888
+          },
+          "dropped": {
+            "n": 7,
+            "share": 0.002121
+          }
+        },
+        {
+          "start": 1793718714.0,
+          "end": 1793718774.0,
+          "rate": 55,
+          "groups": {
+            "booking": {
+              "n": 23,
+              "p95": 5001.3
+            },
+            "ipn": {
+              "n": 1,
+              "p95": 4465.4
+            },
+            "login": {
+              "n": 161,
+              "p95": 5001.0
+            },
+            "read": {
+              "n": 8820,
+              "p95": 5000.4
+            },
+            "write": {
+              "n": 3,
+              "p95": 508.4
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors",
+            "dropped"
+          ],
+          "errors": {
+            "n": 9008,
+            "rate": 0.11623
+          },
+          "dropped": {
+            "n": 218,
+            "share": 0.066061
+          }
+        }
+      ],
+      "violations": [
+        "dropped",
+        "errors",
+        "p95 read"
+      ]
+    },
+    {
+      "index": 10,
+      "rate": 60,
+      "holdStart": 1793718814.0,
+      "holdEnd": 1793718994.0,
+      "windows": [
+        {
+          "start": 1793718844.0,
+          "end": 1793718904.0,
+          "rate": 60,
+          "groups": {
+            "booking": {
+              "n": 21,
+              "p95": 5001.2
+            },
+            "ipn": {
+              "n": 2,
+              "p95": 957.1
+            },
+            "login": {
+              "n": 146,
+              "p95": 5008.4
+            },
+            "read": {
+              "n": 8082,
+              "p95": 5000.8
+            },
+            "write": {
+              "n": 1,
+              "p95": 5010.2
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors",
+            "dropped"
+          ],
+          "errors": {
+            "n": 8252,
+            "rate": 0.146146
+          },
+          "dropped": {
+            "n": 470,
+            "share": 0.130556
+          }
+        },
+        {
+          "start": 1793718904.0,
+          "end": 1793718964.0,
+          "rate": 60,
+          "groups": {
+            "booking": {
+              "n": 1,
+              "p95": 5001.3
+            },
+            "login": {
+              "n": 133,
+              "p95": 5034.8
+            },
+            "read": {
+              "n": 5820,
+              "p95": 5027.9
+            }
+          },
+          "violations": [
+            "p95 read",
+            "errors",
+            "dropped"
+          ],
+          "errors": {
+            "n": 5954,
+            "rate": 0.985724
+          },
+          "dropped": {
+            "n": 1269,
+            "share": 0.3525
+          }
+        }
+      ],
+      "violations": [
+        "dropped",
+        "errors",
+        "p95 read"
+      ]
+    }
+  ],
+  "breakStep": 2,
+  "breakRate": 20,
+  "resourcesAtBreak": {
+    "break": {
+      "from": 1793717294.0,
+      "to": 1793717474.0,
+      "queries": {
+        "cpu": "sum by (name) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_project=\"smashcourt-perf\"}[180s]))",
+        "memoryMaxMb": "max by (name) (max_over_time(container_memory_working_set_bytes{container_label_com_docker_compose_project=\"smashcourt-perf\"}[180s])) / 1048576",
+        "gcPerSecond": "sum by (generation) (rate(process_runtime_dotnet_gc_collections_count_total{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "threadPoolQueueMax": "max(max_over_time(process_runtime_dotnet_thread_pool_queue_length{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "threadPoolThreadsMax": "max(max_over_time(process_runtime_dotnet_thread_pool_threads_count{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "npgsqlConnectionsMax": "max by (state) (max_over_time(db_client_connections_usage{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "npgsqlPendingMax": "max(max_over_time(db_client_connections_pending_requests{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s])) or vector(0)",
+        "npgsqlPoolMax": "max(db_client_connections_max{job=\"smashcourt-be\",deployment_environment_name=\"perf\"})",
+        "postgresConnectionsByStateMax": "max by (state) (max_over_time(pg_stat_activity_count{datname=\"smashcourt\"}[180s]))",
+        "postgresLocksMax": "max(max_over_time(pg_locks_count{datname=\"smashcourt\"}[180s]))",
+        "tadssFallbackShare": "(sum(increase(tadss_decisions_total{instance=\"perf\",execution_type=\"FALLBACK\"}[180s])) or vector(0)) / sum(increase(tadss_decisions_total{instance=\"perf\"}[180s]))"
+      },
+      "cpu": [
+        {
+          "labels": {
+            "name": "perf-ai"
+          },
+          "value": "0.16823312415165775"
+        },
+        {
+          "labels": {
+            "name": "perf-fake-llm"
+          },
+          "value": "0.06868675827380082"
+        },
+        {
+          "labels": {
+            "name": "perf-mailpit"
+          },
+          "value": "0.0078252700360048"
+        },
+        {
+          "labels": {
+            "name": "perf-postgres"
+          },
+          "value": "0.38392794384002915"
+        },
+        {
+          "labels": {
+            "name": "perf-redis"
+          },
+          "value": "0.022952214013201737"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss-postgres"
+          },
+          "value": "0.03321196110111883"
+        },
+        {
+          "labels": {
+            "name": "perf-be"
+          },
+          "value": "0.9483988663113344"
+        },
+        {
+          "labels": {
+            "name": "perf-k6"
+          },
+          "value": "0.15190745629206187"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss"
+          },
+          "value": "0.04306386067114257"
+        }
+      ],
+      "memoryMaxMb": [
+        {
+          "labels": {
+            "name": "perf-ai"
+          },
+          "value": "109.2265625"
+        },
+        {
+          "labels": {
+            "name": "perf-fake-llm"
+          },
+          "value": "29.6171875"
+        },
+        {
+          "labels": {
+            "name": "perf-mailpit"
+          },
+          "value": "37.359375"
+        },
+        {
+          "labels": {
+            "name": "perf-postgres"
+          },
+          "value": "498.26953125"
+        },
+        {
+          "labels": {
+            "name": "perf-redis"
+          },
+          "value": "8.5"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss-postgres"
+          },
+          "value": "60.60546875"
+        },
+        {
+          "labels": {
+            "name": "perf-be"
+          },
+          "value": "562.14453125"
+        },
+        {
+          "labels": {
+            "name": "perf-k6"
+          },
+          "value": "780.87109375"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss"
+          },
+          "value": "219.55859375"
+        }
+      ],
+      "gcPerSecond": [
+        {
+          "labels": {
+            "generation": "gen2"
+          },
+          "value": "0.005714742893717212"
+        },
+        {
+          "labels": {
+            "generation": "gen1"
+          },
+          "value": "0.005714742893717212"
+        },
+        {
+          "labels": {
+            "generation": "gen0"
+          },
+          "value": "0.21716022996125406"
+        }
+      ],
+      "threadPoolQueueMax": [
+        {
+          "labels": {},
+          "value": "9"
+        }
+      ],
+      "threadPoolThreadsMax": [
+        {
+          "labels": {},
+          "value": "10"
+        }
+      ],
+      "npgsqlConnectionsMax": [
+        {
+          "labels": {
+            "state": "idle"
+          },
+          "value": "6"
+        },
+        {
+          "labels": {
+            "state": "used"
+          },
+          "value": "2"
+        }
+      ],
+      "npgsqlPendingMax": [
+        {
+          "labels": {},
+          "value": "6"
+        }
+      ],
+      "npgsqlPoolMax": [
+        {
+          "labels": {},
+          "value": "100"
+        }
+      ],
+      "postgresConnectionsByStateMax": [
+        {
+          "labels": {
+            "state": "active"
+          },
+          "value": "46"
+        },
+        {
+          "labels": {
+            "state": "disabled"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "fastpath function call"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "idle in transaction"
+          },
+          "value": "4"
+        },
+        {
+          "labels": {
+            "state": "idle in transaction (aborted)"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "idle"
+          },
+          "value": "106"
+        }
+      ],
+      "postgresLocksMax": [
+        {
+          "labels": {},
+          "value": "1705"
+        }
+      ],
+      "tadssFallbackShare": [
+        {
+          "labels": {},
+          "value": "0"
+        }
+      ]
+    },
+    "before": {
+      "from": 1793717104.0,
+      "to": 1793717284.0,
+      "queries": {
+        "cpu": "sum by (name) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_project=\"smashcourt-perf\"}[180s]))",
+        "memoryMaxMb": "max by (name) (max_over_time(container_memory_working_set_bytes{container_label_com_docker_compose_project=\"smashcourt-perf\"}[180s])) / 1048576",
+        "gcPerSecond": "sum by (generation) (rate(process_runtime_dotnet_gc_collections_count_total{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "threadPoolQueueMax": "max(max_over_time(process_runtime_dotnet_thread_pool_queue_length{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "threadPoolThreadsMax": "max(max_over_time(process_runtime_dotnet_thread_pool_threads_count{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "npgsqlConnectionsMax": "max by (state) (max_over_time(db_client_connections_usage{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s]))",
+        "npgsqlPendingMax": "max(max_over_time(db_client_connections_pending_requests{job=\"smashcourt-be\",deployment_environment_name=\"perf\"}[180s])) or vector(0)",
+        "npgsqlPoolMax": "max(db_client_connections_max{job=\"smashcourt-be\",deployment_environment_name=\"perf\"})",
+        "postgresConnectionsByStateMax": "max by (state) (max_over_time(pg_stat_activity_count{datname=\"smashcourt\"}[180s]))",
+        "postgresLocksMax": "max(max_over_time(pg_locks_count{datname=\"smashcourt\"}[180s]))",
+        "tadssFallbackShare": "(sum(increase(tadss_decisions_total{instance=\"perf\",execution_type=\"FALLBACK\"}[180s])) or vector(0)) / sum(increase(tadss_decisions_total{instance=\"perf\"}[180s]))"
+      },
+      "cpu": [
+        {
+          "labels": {
+            "name": "perf-ai"
+          },
+          "value": "0.11420340657666168"
+        },
+        {
+          "labels": {
+            "name": "perf-fake-llm"
+          },
+          "value": "0.042647343746204484"
+        },
+        {
+          "labels": {
+            "name": "perf-mailpit"
+          },
+          "value": "0.005638960564510525"
+        },
+        {
+          "labels": {
+            "name": "perf-postgres"
+          },
+          "value": "0.18267420674546253"
+        },
+        {
+          "labels": {
+            "name": "perf-redis"
+          },
+          "value": "0.015773927995116673"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss-postgres"
+          },
+          "value": "0.02085521357921814"
+        },
+        {
+          "labels": {
+            "name": "perf-be"
+          },
+          "value": "0.5313692840773672"
+        },
+        {
+          "labels": {
+            "name": "perf-k6"
+          },
+          "value": "0.07607232575031586"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss"
+          },
+          "value": "0.0286193106495802"
+        }
+      ],
+      "memoryMaxMb": [
+        {
+          "labels": {
+            "name": "perf-ai"
+          },
+          "value": "113.15234375"
+        },
+        {
+          "labels": {
+            "name": "perf-fake-llm"
+          },
+          "value": "22.40625"
+        },
+        {
+          "labels": {
+            "name": "perf-mailpit"
+          },
+          "value": "34.8828125"
+        },
+        {
+          "labels": {
+            "name": "perf-postgres"
+          },
+          "value": "183.8671875"
+        },
+        {
+          "labels": {
+            "name": "perf-redis"
+          },
+          "value": "8.44140625"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss-postgres"
+          },
+          "value": "57.69921875"
+        },
+        {
+          "labels": {
+            "name": "perf-be"
+          },
+          "value": "320.98046875"
+        },
+        {
+          "labels": {
+            "name": "perf-k6"
+          },
+          "value": "770.5546875"
+        },
+        {
+          "labels": {
+            "name": "perf-tadss"
+          },
+          "value": "181.90625"
+        }
+      ],
+      "gcPerSecond": [
+        {
+          "labels": {
+            "generation": "gen2"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "generation": "gen1"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "generation": "gen0"
+          },
+          "value": "0.2857371446858606"
+        }
+      ],
+      "threadPoolQueueMax": [
+        {
+          "labels": {},
+          "value": "0"
+        }
+      ],
+      "threadPoolThreadsMax": [
+        {
+          "labels": {},
+          "value": "7"
+        }
+      ],
+      "npgsqlConnectionsMax": [
+        {
+          "labels": {
+            "state": "idle"
+          },
+          "value": "4"
+        },
+        {
+          "labels": {
+            "state": "used"
+          },
+          "value": "0"
+        }
+      ],
+      "npgsqlPendingMax": [
+        {
+          "labels": {},
+          "value": "0"
+        }
+      ],
+      "npgsqlPoolMax": [
+        {
+          "labels": {},
+          "value": "100"
+        }
+      ],
+      "postgresConnectionsByStateMax": [
+        {
+          "labels": {
+            "state": "active"
+          },
+          "value": "1"
+        },
+        {
+          "labels": {
+            "state": "disabled"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "fastpath function call"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "idle in transaction"
+          },
+          "value": "1"
+        },
+        {
+          "labels": {
+            "state": "idle in transaction (aborted)"
+          },
+          "value": "0"
+        },
+        {
+          "labels": {
+            "state": "idle"
+          },
+          "value": "21"
+        }
+      ],
+      "postgresLocksMax": [
+        {
+          "labels": {},
+          "value": "66"
+        }
+      ],
+      "tadssFallbackShare": [
+        {
+          "labels": {},
+          "value": "0"
+        }
+      ]
+    }
+  },
+  "status": "PASS"
+}

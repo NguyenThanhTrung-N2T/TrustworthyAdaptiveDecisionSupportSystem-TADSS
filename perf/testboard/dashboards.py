@@ -167,7 +167,7 @@ def build(system: str) -> dict:
     panels.append(_panel("table", "Nguồn kết quả", describe(
         "Lần nạp gần nhất của từng nguồn: CI ba repo, Evidence Pack, k6, SC6, Playwright.",
         "Thời gian tương đối kể từ lần nạp.",
-        "Nguồn cũ ⇒ chạy lại lệnh nạp (docs/guides/TEST_DASHBOARD.md). Kết quả trên dashboard là gộp các nguồn này.",
+        "Nguồn cũ ⇒ chạy lại lệnh nạp (docs/guides/RUNBOOK.md). Kết quả trên dashboard là gộp các nguồn này.",
         "Không có ngưỡng.", "smashcourt_test_source_loaded_seconds (perf/testboard)", "SC8"),
         [_target("smashcourt_test_source_loaded_seconds * 1000", instant=True, table=True)], (0, 22, 24, 7),
         transformations=[{"id": "organize", "options": {

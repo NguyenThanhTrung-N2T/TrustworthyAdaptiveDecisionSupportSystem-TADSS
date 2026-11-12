@@ -19,7 +19,7 @@
 | 5 | [`docs/report/USE_CASES.md`](../docs/report/USE_CASES.md) Mục 5, [`docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md`](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md) | UC-DEPOSIT-01…07, sơ đồ hoạt động 1–2, sơ đồ trạng thái booking | Hiểu luồng trước khi dựng màn |
 | 6 | `smashcourt-fe/CLAUDE.md` | Toàn bộ | Quy ước đặt file, tên, cách gọi API của repo FE |
 
-Không cần đọc: các plan `PHASE6_PLAN_6A-*.md` (việc của BE), hợp đồng BE ↔ TADSS (FE không gọi TADSS, không thấy `decisionId`).
+Không cần đọc: các plan `archive/phase6/PHASE6_PLAN_6A-*.md` (việc của BE), hợp đồng BE ↔ TADSS (FE không gọi TADSS, không thấy `decisionId`).
 
 ## 2. Nghiệp vụ trong 5 dòng
 

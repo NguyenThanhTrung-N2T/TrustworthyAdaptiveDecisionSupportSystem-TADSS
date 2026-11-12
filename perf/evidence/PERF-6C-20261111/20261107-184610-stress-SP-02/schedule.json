@@ -1,0 +1,43 @@
+{
+  "runId": "20261107-184610-stress-SP-02",
+  "profile": "stress",
+  "rate": 19,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 1070,
+  "peakRate": 48,
+  "maxVUs": 602,
+  "preAllocatedVUs": 602,
+  "journeySeconds": 8.35,
+  "steps": [
+    {
+      "rate": 19,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 29,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 38,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 48,
+      "transition": 10,
+      "hold": 180
+    },
+    {
+      "rate": 19,
+      "transition": 10,
+      "hold": 300,
+      "recovery": true
+    }
+  ],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

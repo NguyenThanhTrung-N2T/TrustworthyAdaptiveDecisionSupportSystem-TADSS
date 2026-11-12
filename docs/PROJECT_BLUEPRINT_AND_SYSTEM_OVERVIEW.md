@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** bức tranh tổng thể và các sơ đồ dùng cho báo cáo/slide. Thông số chi tiết nằm ở các file sở hữu (xem bản đồ tài liệu tại Mục III của [`THESIS_DEVELOPMENT_PLAYBOOK.md`](planning/THESIS_DEVELOPMENT_PLAYBOOK.md)).
 >
-> **Trạng thái (12/10/2026):** Phase 1–4 hoàn thành; Phase 5 (W05–W08, 05/10 – 01/11; bắt đầu thực tế 02/10) đã qua bước 0 (rà soát và điều chỉnh kế hoạch, Gate MR 01/10) và xong các gói 5.1–5.5 và phần mã của 5.6 — contract v2 là phiên bản duy nhất (năm endpoint `/api/v2/decisions`: đánh giá, chi tiết, hàng chờ, override, outcome; audit PostgreSQL bất biến; API key, rate limit, health live/ready; Docker Compose + ngrok; kiểm thử trên Testcontainers; định tuyến strategy + shadow mode; OpenTelemetry + Grafana; chế độ đánh giá chạy bằng một lệnh `docker compose up -d --build`; harness replay và adapter dữ liệu khách sạn, bản nhanh `EV-20261011-EVAL-quick-r1` đạt mọi tiêu chí áp dụng được). Gói 5.7: phần mã và tài liệu đã xong (12/10/2026) — contract v2.0.0 đóng băng ngày 11/10/2026 trước lượt đánh giá đầy đủ, tài liệu có kiểm tự động DOC-1…DOC-4; còn chờ người dùng chạy lượt đánh giá đầy đủ, lưu Evidence Pack và báo cáo Gate M5. Kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
+> **Trạng thái (12/11/2026):** Phase 1–5 hoàn thành, Gate M5 đạt 18/10/2026 — contract v2.0.0 đóng băng ngày 11/10/2026 là phiên bản duy nhất (năm endpoint `/api/v2/decisions`: đánh giá, chi tiết, hàng chờ, override, outcome; audit PostgreSQL bất biến; API key, rate limit, health live/ready; kiểm thử trên Testcontainers; định tuyến strategy + shadow mode; OpenTelemetry + Grafana; chế độ đánh giá chạy bằng một lệnh `docker compose up -d --build`; lượt đầy đủ `EV-20261017-EVAL-full-r1`). Phase 6 (W09–W12) đang làm: SmashCourt-BE xong Epic 6A (31/10/2026), Epic 6C (đóng gói, CI/CD, quan sát, đo hiệu năng) phần lớn xong (11/11/2026), smashcourt-fe (Epic 6B) chưa bắt đầu; TADSS không đổi mã. Tổng hợp: [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md); kế hoạch: [`MASTER_EXECUTION_PLAN.md`](planning/MASTER_EXECUTION_PLAN.md).
 
 ---
 
@@ -133,7 +133,7 @@ Mọi chuyển trạng thái được ghi bằng bản ghi mới (quyết địn
 | :--- | :--- |
 | Contract SDK v1, Runtime v1, pipeline chịu lỗi, audit đồng bộ, 510 test tại M4 (InMemory; còn 500 sau bước rà soát đầu Phase 5) | ✅ Phase 1–4 |
 | Đồng bộ tài liệu, dọn repo | ✅ Phase 5, bước 0 (Gate MR 01/10) |
-| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ⏳ Phase 5 (W05–W08, 05/10 – 01/11; bắt đầu thực tế 02/10): xong các gói 5.1–5.5 và phần mã của 5.6; gói 5.7: contract v2.0.0 đã đóng băng ngày 11/10/2026 (trước lượt đánh giá đầy đủ), DOC-1…4 xong; lượt đánh giá đầy đủ và Gate M5 đang chờ |
-| SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (02/11 – 29/11) |
+| Contract v2, audit bất biến, routing/shadow, toàn bộ hạ tầng & danh mục kiểm thử | ✅ Phase 5 (W05–W08; contract v2.0.0 đóng băng 11/10/2026; Gate M5 đạt 18/10/2026, lượt đầy đủ `EV-20261017-EVAL-full-r1`) |
+| SmashCourt-BE ∥ smashcourt-fe | ⏳ Phase 6 (02/11 – 29/11): BE xong Epic 6A (31/10); Epic 6C (đóng gói, CI/CD, quan sát, đo hiệu năng) phần lớn xong (11/11); FE (Epic 6B) chưa bắt đầu |
 | Tích hợp, kiểm thử & sửa lỗi, đánh giá bằng dữ liệu import, Evidence Pack | ⏳ Phase 7–8 (30/11 – 20/12) |
 | Báo cáo & bảo vệ | ⏳ Phase 9 (21/12 – 26/12/2026) |

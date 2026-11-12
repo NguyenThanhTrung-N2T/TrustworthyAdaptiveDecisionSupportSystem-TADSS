@@ -1,0 +1,402 @@
+{
+  "runId": "20261111-014033-load-trace-2.27",
+  "steadyStart": 1794336309,
+  "steadyEnd": 1794337237,
+  "averages": {
+    "requests": 48951,
+    "perRequestMs": {
+      "be": 14.16,
+      "db": 5.58,
+      "tadss": 0.19,
+      "rest": 8.39
+    },
+    "dbCommandsPerRequest": 3.48,
+    "tadssCallMs": 8.73,
+    "pool": {
+      "usedMax": 3,
+      "pendingMax": 0,
+      "timeouts": 0
+    },
+    "rateLimited": 0
+  },
+  "routeMeanMs": {
+    "GET /health/ready": 8.41,
+    "GET api/bookings": 12.94,
+    "GET api/bookings/dashboard-summary": 8.45,
+    "GET api/bookings/pending-approval": 10.29,
+    "GET api/bookings/schedule": 6.98,
+    "GET api/branches/basic": 4.81,
+    "GET api/branches/{branchId:guid}/courts/{courtId:guid}/time-grid": 10.62,
+    "GET api/courts": 4.27,
+    "GET api/me/bookings": 10.39,
+    "GET api/me/bookings/{id:guid}": 10.07,
+    "GET api/payments/vnpay/ipn": 29.29,
+    "POST api/auth/login": 323.26,
+    "POST api/bookings/{bookingId:guid}/approve": 26.92,
+    "POST api/me/bookings/{id:guid}/cancel": 33.32,
+    "POST api/bookings/online": 59.49,
+    "POST api/bookings/{id:guid}/check-in": 11.82
+  },
+  "traces": {
+    "GET api/bookings": {
+      "n": 100,
+      "p50": 11.3,
+      "p95": 18.3,
+      "mean": {
+        "total": 12.54,
+        "db": 9.46,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 3.08,
+        "statements": 4.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 30.35,
+          "db": 25.94,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 4.41,
+          "statements": 4.0
+        }
+      }
+    },
+    "GET api/bookings/dashboard-summary": {
+      "n": 100,
+      "p50": 7.57,
+      "p95": 13.07,
+      "mean": {
+        "total": 8.51,
+        "db": 5.6,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 2.91,
+        "statements": 5.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 18.17,
+          "db": 12.51,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 5.66,
+          "statements": 5.0
+        }
+      }
+    },
+    "GET api/bookings/pending-approval": {
+      "n": 100,
+      "p50": 8.88,
+      "p95": 15.24,
+      "mean": {
+        "total": 9.75,
+        "db": 6.67,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 3.09,
+        "statements": 5.09
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 21.83,
+          "db": 16.79,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 5.04,
+          "statements": 5.47
+        }
+      }
+    },
+    "GET api/bookings/schedule": {
+      "n": 100,
+      "p50": 6.34,
+      "p95": 10.03,
+      "mean": {
+        "total": 7.41,
+        "db": 4.84,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 2.57,
+        "statements": 4.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 15.82,
+          "db": 11.14,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 4.68,
+          "statements": 4.0
+        }
+      }
+    },
+    "GET api/branches/basic": {
+      "n": 100,
+      "p50": 3.88,
+      "p95": 6.26,
+      "mean": {
+        "total": 4.3,
+        "db": 2.79,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 1.51,
+        "statements": 2.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 11.39,
+          "db": 9.18,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 2.21,
+          "statements": 2.0
+        }
+      }
+    },
+    "GET api/branches/{branchId:guid}/courts/{courtId:guid}/time-grid": {
+      "n": 100,
+      "p50": 9.3,
+      "p95": 18.41,
+      "mean": {
+        "total": 12.96,
+        "db": 7.93,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 5.03,
+        "statements": 4.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 40.35,
+          "db": 31.52,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 8.83,
+          "statements": 4.0
+        }
+      }
+    },
+    "GET api/courts": {
+      "n": 100,
+      "p50": 3.36,
+      "p95": 5.78,
+      "mean": {
+        "total": 3.66,
+        "db": 2.16,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 1.49,
+        "statements": 2.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 14.24,
+          "db": 10.15,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 4.09,
+          "statements": 2.0
+        }
+      }
+    },
+    "GET api/me/bookings": {
+      "n": 100,
+      "p50": 9.17,
+      "p95": 16.89,
+      "mean": {
+        "total": 10.37,
+        "db": 7.74,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 2.63,
+        "statements": 3.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 31.6,
+          "db": 25.63,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 5.97,
+          "statements": 3.0
+        }
+      }
+    },
+    "GET api/me/bookings/{id:guid}": {
+      "n": 100,
+      "p50": 8.75,
+      "p95": 14.5,
+      "mean": {
+        "total": 10.93,
+        "db": 8.42,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 2.52,
+        "statements": 2.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 31.7,
+          "db": 24.27,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 7.43,
+          "statements": 2.0
+        }
+      }
+    },
+    "GET api/payments/vnpay/ipn": {
+      "n": 100,
+      "p50": 25.52,
+      "p95": 40.03,
+      "mean": {
+        "total": 27.45,
+        "db": 13.28,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 14.17,
+        "statements": 8.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 61.56,
+          "db": 36.28,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 25.28,
+          "statements": 8.0
+        }
+      }
+    },
+    "POST api/auth/login": {
+      "n": 100,
+      "p50": 313.13,
+      "p95": 374.23,
+      "mean": {
+        "total": 322.58,
+        "db": 14.04,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 308.54,
+        "statements": 6.0
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 430.91,
+          "db": 48.86,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 382.05,
+          "statements": 6.0
+        }
+      }
+    },
+    "POST api/bookings/online": {
+      "n": 100,
+      "p50": 58.84,
+      "p95": 96.56,
+      "mean": {
+        "total": 64.08,
+        "db": 36.81,
+        "tadss": 7.55,
+        "ai": 0.0,
+        "app": 19.71,
+        "statements": 25.08
+      },
+      "tail": {
+        "n": 30,
+        "mean": {
+          "total": 154.81,
+          "db": 100.19,
+          "tadss": 25.48,
+          "ai": 0.0,
+          "app": 29.14,
+          "statements": 25.6
+        }
+      }
+    },
+    "POST api/bookings/{bookingId:guid}/approve": {
+      "n": 67,
+      "p50": 31.76,
+      "p95": 51.75,
+      "mean": {
+        "total": 27.06,
+        "db": 13.9,
+        "tadss": 4.16,
+        "ai": 0.0,
+        "app": 9.0,
+        "statements": 5.33
+      },
+      "tail": {
+        "n": 4,
+        "mean": {
+          "total": 57.83,
+          "db": 32.12,
+          "tadss": 10.14,
+          "ai": 0.0,
+          "app": 15.56,
+          "statements": 7.0
+        }
+      }
+    },
+    "POST api/bookings/{id:guid}/check-in": {
+      "n": 100,
+      "p50": 10.26,
+      "p95": 18.61,
+      "mean": {
+        "total": 13.05,
+        "db": 10.31,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 2.75,
+        "statements": 3.0
+      },
+      "tail": {
+        "n": 26,
+        "mean": {
+          "total": 39.34,
+          "db": 35.7,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 3.64,
+          "statements": 3.0
+        }
+      }
+    },
+    "POST api/me/bookings/{id:guid}/cancel": {
+      "n": 55,
+      "p50": 27.07,
+      "p95": 70.86,
+      "mean": {
+        "total": 33.17,
+        "db": 15.25,
+        "tadss": 0.0,
+        "ai": 0.0,
+        "app": 17.93,
+        "statements": 9.04
+      },
+      "tail": {
+        "n": 3,
+        "mean": {
+          "total": 97.65,
+          "db": 40.38,
+          "tadss": 0.0,
+          "ai": 0.0,
+          "app": 57.27,
+          "statements": 9.0
+        }
+      }
+    }
+  }
+}

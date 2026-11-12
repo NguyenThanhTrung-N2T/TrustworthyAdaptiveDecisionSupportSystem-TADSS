@@ -1,7 +1,7 @@
 # Bộ quan sát kiểm thử (Epic 6C, gói 6C-3b, task 2.2; P6-37): chạy local, tách khỏi bản deploy và Grafana Cloud.
 #   Bật:  docker compose -f perf/docker-compose.yml up -d        Tắt: docker compose -f perf/docker-compose.yml down   (giữ dữ liệu)
 #   Grafana "Kiểm thử": http://127.0.0.1:3003 (Explore ⇒ Tempo cho trace) · Prometheus: http://127.0.0.1:9095 · Pushgateway: http://127.0.0.1:9096
-#   Nạp kết quả test: python perf/board.py ... (docs/guides/TEST_DASHBOARD.md)
+#   Nạp kết quả test: python perf/board.py ... (docs/guides/RUNBOOK.md)
 # Luồng: k6 + app của môi trường perf ──OTLP──► alloy ──► Prometheus ◄── Pushgateway ◄── perf/board.py (kết quả CI, evidence, k6, SC6)
 #        alloy còn đo CPU/RAM từng container (cAdvisor). Môi trường perf (gói 6C-4) nối vào mạng smashcourt-test.
 name: smashcourt-test-obs

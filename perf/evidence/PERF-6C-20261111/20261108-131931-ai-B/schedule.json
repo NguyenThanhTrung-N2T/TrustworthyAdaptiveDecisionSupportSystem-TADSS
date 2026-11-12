@@ -1,0 +1,16 @@
+{
+  "runId": "20261108-131931-ai-B",
+  "profile": "ai",
+  "rate": 2,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 600,
+  "peakRate": 2,
+  "maxVUs": 26,
+  "preAllocatedVUs": 26,
+  "journeySeconds": 8.35,
+  "steps": [],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

@@ -27,7 +27,7 @@ Tóm tắt (chi tiết trong file riêng):
 - **ADR-001:** runtime chỉ làm việc qua `IReservationDecisionStrategy`; strategy được đăng ký qua DI và tra cứu theo tên. Ở v2, strategy chỉ trả quyết định nghiệp vụ (`StrategyDecision`), runtime lo định danh/thời gian/telemetry.
 - **ADR-002:** một thư viện hợp đồng dùng chung, không phụ thuộc NuGet ngoài; v1 đóng băng tại Milestone 2, v2 đóng băng tại Milestone 5.
 - **ADR-003:** Outer Timeout 500ms → Fallback → Retry 2 lần → Circuit Breaker → Inner Timeout 120ms; v2 bổ sung cách ly strategy không hợp tác và breaker cho Redis. Từ 04/10/2026 (D-13) fallback trả `APPROVED` cọc 100% thay cho `NEED_APPROVAL`.
-- **ADR-004:** bất biến nghiệp vụ nằm trong `Reservation` và value object (`EnsureValid`, `CanBeCancelledWithoutPenalty`, `CalculateDepositRatio`, `Schedule.Duration`).
+- **ADR-004:** bất biến nghiệp vụ nằm trong `Reservation` và value object (constructor ném `DomainInvariantException`; hành vi `EarliestStart`, `ToBranchLocal`, `ReservationItem.Duration`, `BranchCalendar.IsPeak`).
 - **ADR-005:** định hướng mô hình học máy cho Khóa luận, ngoài phạm vi Đồ án 2.
 
 ---
@@ -72,7 +72,7 @@ Tóm tắt (chi tiết trong file riêng):
 ## ADR-012: Evidence Pack & nguồn dữ liệu minh chứng
 
 - **Bối cảnh:** giảng viên yêu cầu minh chứng bằng dữ liệu chạy thật; dữ liệu SmashCourt hiện có là dữ liệu môi trường phát triển (nhãn do job tự sinh).
-- **Quyết định:** hai nguồn dữ liệu import, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt đã ẩn danh (hình dạng input thực tế, so sánh với chính sách cọc 100%), dataset công khai Hotel Booking Demand (độc lập domain). *Cập nhật 05/10/2026: bỏ nguồn thứ ba là pilot UAT với người dùng thật — nhóm chỉ kiểm thử ở mức phát triển, không có đủ người dùng thật; giới hạn này ghi ở Mục 8 của tài liệu giao thức đánh giá.* Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo notebook.
+- **Quyết định:** hai nguồn dữ liệu import, mỗi nguồn cho một mục đích: replay 215 booking SmashCourt đã ẩn danh (hình dạng input thực tế, so sánh với chính sách cọc 100%), dataset công khai Hotel Booking Demand (độc lập domain). *Cập nhật 05/10/2026: bỏ nguồn thứ ba là pilot UAT với người dùng thật — nhóm chỉ kiểm thử ở mức phát triển, không có đủ người dùng thật; giới hạn này ghi ở Mục 8 của tài liệu giao thức đánh giá.* Mọi lượt chạy đóng gói thành Evidence Pack có manifest SHA-256 và báo cáo `report.html` (bộ sinh báo cáo Python, dựng lại được từ pack bằng `python -m evidence.report <pack>`).
 - **Hệ quả:** định nghĩa tại [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) và [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md).
 
 ## ADR-013: Clean Architecture nhiều project

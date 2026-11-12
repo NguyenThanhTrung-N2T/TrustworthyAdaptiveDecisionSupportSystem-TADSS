@@ -1,0 +1,16 @@
+{
+  "runId": "20261107-182902-spike-SP-03",
+  "profile": "spike",
+  "rate": 19,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 560,
+  "peakRate": 95,
+  "maxVUs": 1190,
+  "preAllocatedVUs": 1190,
+  "journeySeconds": 8.35,
+  "steps": [],
+  "recoveryOffset": 260,
+  "recoverySeconds": 300
+}

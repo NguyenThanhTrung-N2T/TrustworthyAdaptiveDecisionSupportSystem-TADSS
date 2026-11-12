@@ -44,12 +44,12 @@
 | Contract SDK v2, runtime, strategies quy tắc (Default theo hạng, MockAlternative theo khung giờ), định tuyến theo request, shadow mode | Thuật toán Adaptive Trust Score, mô hình học máy dự báo no-show |
 | Audit bất biến (execution, override, outcome) — nguồn dữ liệu cho Khóa luận | Decision Trace API giải thích quyết định |
 | Tích hợp SmashCourt: cọc, chờ duyệt, dashboard Manager, feature flag, job hết hạn/outcome | Mô phỏng đa tác tử, ablation study, ràng buộc công bằng |
-| Hạ tầng kiểm thử & minh chứng: Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, notebook báo cáo — gộp trong chế độ đánh giá một lệnh (chạy cùng `docker compose up -d --build`, D-14) | Event sourcing / outbox phân tán |
+| Hạ tầng kiểm thử & minh chứng: Testcontainers, Toxiproxy, k6, Playwright, Schemathesis, Stryker.NET, OpenTelemetry + Grafana, bộ sinh báo cáo `report.html` — gộp trong chế độ đánh giá một lệnh (chạy cùng `docker compose up -d --build`, D-14) | Event sourcing / outbox phân tán |
 | Replay 215 booking SmashCourt, adapter Hotel Booking Demand (dữ liệu import, không pilot người dùng thật) | |
 
 ### Ranh giới kiến trúc
 
-1. **Database:** TADSS dùng chung máy chủ PostgreSQL với SmashCourt nhưng tách hoàn toàn ở schema `tadss`; SmashCourt không đọc/ghi trực tiếp bảng của TADSS và ngược lại.
+1. **Database:** TADSS có database riêng, mọi bảng nằm ở schema `tadss`; tùy môi trường database này nằm cùng máy chủ PostgreSQL với SmashCourt (bản deploy: hai database `smashcourt` và `tadss` trong một container PostgreSQL) hoặc ở máy chủ riêng (dev: project Neon riêng). SmashCourt không đọc/ghi trực tiếp bảng của TADSS và ngược lại; hai bên chỉ trao đổi qua API.
 2. **Thanh toán:** TADSS không biết VNPay; TADSS chỉ trả quyết định và số tiền cọc. SmashCourt sở hữu giao dịch đặt sân và thanh toán.
 3. **Domain portability:** domain khác (khách sạn, phòng họp) chỉ cần adapter phía client ánh xạ về contract v2; không sửa mã runtime.
 4. **Dữ liệu cho Khóa luận:** snapshot input, quyết định, override và outcome do Đồ án 2 lưu là đầu vào cho Khóa luận.
@@ -60,7 +60,7 @@
 
 - **RQ1 — Resilience & tính toàn vẹn giao dịch:** Khi strategy, Redis, PostgreSQL hoặc kết nối SmashCourt ↔ TADSS gặp sự cố (tiêm lỗi ở tầng mạng trên hạ tầng thật), hệ thống có luôn trả về quyết định an toàn trong ngân sách thời gian và giữ cho booking của SmashCourt không rơi vào trạng thái mâu thuẫn không?
 - **RQ2 — Governance & khả năng kiểm toán:** Mô hình audit bất biến (execution + override + outcome, được DB bảo vệ) có đảm bảo mọi quyết định truy vết được, không bị sửa sau khi ghi, và chống ghi đè đồng thời của nhiều Manager không?
-- **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, và trên dữ liệu đặt sân thật đã ẩn danh thì tỷ lệ đơn cần duyệt và mức cọc thay đổi ra sao so với chính sách cọc 100%?
+- **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, và trên 215 đơn đặt sân SmashCourt đã ẩn danh (phát sinh khi phát triển và demo Đồ án 1) thì tỷ lệ đơn cần duyệt và mức cọc thay đổi ra sao so với chính sách cọc 100%?
 
 Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md).
 
@@ -87,7 +87,12 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | Định hướng Khóa luận | [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) | |
 | Khảo sát ý tưởng ban đầu | [`RESEARCH_PROBLEM_BACKLOG.md`](../research/RESEARCH_PROBLEM_BACKLOG.md) | Lưu trữ lịch sử |
 | Bảng tham chiếu cấu hình `Tadss:*` | [`CONFIGURATION_REFERENCE.md`](../guides/CONFIGURATION_REFERENCE.md) | DOC-4 kiểm đủ section |
-| Quy trình chạy lượt đánh giá | [`EVALUATION_RUN_GUIDE.md`](../guides/EVALUATION_RUN_GUIDE.md) | |
+| Lệnh chạy và vận hành (dev 4 repo, bản deploy, CD, lượt đánh giá, dashboard "Kiểm thử", đo hiệu năng) | [`RUNBOOK.md`](../guides/RUNBOOK.md) | Nơi duy nhất chứa lệnh |
+| Tổng hợp Phase 5–6 để review, trình bày, bàn giao | [`PROJECT_SUMMARY.md`](../PROJECT_SUMMARY.md) | Chỉ tóm tắt và dẫn link |
+| Sơ đồ và use case cho báo cáo | [`docs/report/`](../report/): `ARCHITECTURE_DIAGRAMS.md`, `USE_CASES.md`, `SEQUENCE_DIAGRAMS.md`, `ACTIVITY_AND_STATE_DIAGRAMS.md` | Chỉ tóm tắt, tài liệu sở hữu thắng |
+| Kết quả đo hiệu năng SmashCourt + TADSS (Epic 6C) | [`PERFORMANCE_REPORT.md`](../report/PERFORMANCE_REPORT.md) | |
+| Đặc tả từng bước kịch bản E2E | [`E2E_TEST_SPECIFICATION.md`](../research/E2E_TEST_SPECIFICATION.md) | |
+| Phase 6: quyết định P6-xx, thiết kế tích hợp cọc, việc của FE | [`spec/PHASE6_DESIGN_SPEC.md`](../../spec/PHASE6_DESIGN_SPEC.md), [`spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md`](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md), [`spec/PHASE6_FE_HANDOFF.md`](../../spec/PHASE6_FE_HANDOFF.md) | Spec và plan đã xong ở `spec/archive/` |
 | Kiểm kê tài liệu hiện hành / lịch sử | [`README.md`](../../README.md#tài-liệu) | Mục "Tài liệu"; DOC-1 kiểm đủ file |
 
 **Quy tắc cập nhật:** khi một thông số thay đổi (thời gian, tham số pipeline, endpoint, KPI…), chỉ sửa ở file sở hữu; các file khác dẫn link thay vì chép lại con số.
@@ -101,7 +106,7 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | 1 — Tổng quan | Bối cảnh, vấn đề, mục tiêu, phạm vi | PROPOSAL, Playbook | Xong trước cuối W13 |
 | 2 — Thiết kế | Kiến trúc, contract v2, DB, pipeline, luồng tích hợp | SAS, INVARIANTS, TAXONOMY, ADR, INTEGRATION_SPEC | Xong trước cuối W13 |
 | 3 — Hiện thực & kiểm thử | Hiện thực 3 repo, hạ tầng kiểm thử, danh mục kiểm thử | Mã nguồn, EXPERIMENTAL_DESIGN | W15–W16 |
-| 4 — Đánh giá | KPI SC1–SC8, chaos, tải, replay, portability | Evidence Pack + notebook | W15–W16 |
+| 4 — Đánh giá | KPI SC1–SC8, chaos, tải, replay, portability | Evidence Pack + `report.html`, [`PERFORMANCE_REPORT.md`](../report/PERFORMANCE_REPORT.md) | W15–W16 |
 | 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | RESEARCH_THESIS_DEFENSE | W16 |
 
 **Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (chế độ đánh giá E-EVAL — chạy cùng `docker compose up -d --build` (D-14), trên một máy nên là số liệu phòng lab kèm cấu hình CPU/RAM — hay môi trường tích hợp E-STAGING) và cỡ mẫu.

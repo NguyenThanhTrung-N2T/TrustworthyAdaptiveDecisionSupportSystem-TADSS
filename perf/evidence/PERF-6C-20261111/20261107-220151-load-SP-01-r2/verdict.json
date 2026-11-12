@@ -1,0 +1,208 @@
+{
+  "runId": "20261107-220151-load-SP-01-r2",
+  "profile": "load",
+  "selftest": false,
+  "k6Exit": 0,
+  "problems": [],
+  "validity": "OK",
+  "infra": [],
+  "steadyStart": 1794063975.0,
+  "steadyEnd": 1794064899.0,
+  "groups": {
+    "read": {
+      "n": 45330,
+      "p95": 17.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "p99": 102.4,
+      "p99Limit": 800,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 45330,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "booking": {
+      "n": 626,
+      "p95": 116.5,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "p99": 264.7,
+      "p99Limit": 2000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 626,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "login": {
+      "n": 834,
+      "p95": 433.2,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 574.0,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 834,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "ipn": {
+      "n": 260,
+      "p95": 91.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 183.2,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 260,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "write": {
+      "n": 68,
+      "p95": 51.0,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "p99": 104.3,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 68,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    }
+  },
+  "errors": {
+    "n": 47118,
+    "rate": 0.0,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "endpoints": {
+    "GET /api/bookings": {
+      "n": 1208,
+      "p95": 23.5,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/dashboard-summary": {
+      "n": 1208,
+      "p95": 14.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/pending-approval": {
+      "n": 459,
+      "p95": 19.6,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/schedule": {
+      "n": 1208,
+      "p95": 12.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/branches/basic": {
+      "n": 12036,
+      "p95": 10.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/courts": {
+      "n": 12096,
+      "p95": 9.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings": {
+      "n": 2562,
+      "p95": 21.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings/{id}": {
+      "n": 2409,
+      "p95": 21.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/payments/vnpay/ipn": {
+      "n": 260,
+      "p95": 91.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "ipn"
+    },
+    "GET time-grid": {
+      "n": 12144,
+      "p95": 20.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "POST /api/auth/login": {
+      "n": 834,
+      "p95": 433.2,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "login"
+    },
+    "POST /api/bookings/online": {
+      "n": 626,
+      "p95": 116.5,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "slo": "booking"
+    },
+    "POST /api/bookings/{id}/approve": {
+      "n": 31,
+      "p95": 49.1,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    },
+    "POST /api/me/bookings/{id}/cancel": {
+      "n": 37,
+      "p95": 49.6,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    }
+  },
+  "status": "INSUFFICIENT",
+  "episodes": {
+    "count": 0,
+    "episodes": [],
+    "windowsChecked": 91,
+    "windowsInsufficient": 1,
+    "definition": {
+      "window": "10s",
+      "mergeGap": "30s",
+      "group": "read",
+      "controlMin": 3,
+      "confirmedMax": 1
+    }
+  }
+}

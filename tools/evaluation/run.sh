@@ -6,7 +6,7 @@
 #   bash tools/evaluation/run.sh quick --steps e,f   # chỉ chạy một vài bước (a..f, cách nhau bằng dấu phẩy; mặc định chạy đủ a..f)
 #   bash tools/evaluation/run.sh quick --clean   # chạy xong thì dọn sạch phần đánh giá: container, volume, image, build cache (~6 GB); app/ngrok/Grafana vận hành không bị đụng
 # Kết quả: evidence/<run_id>/report.html. Khi không --clean, Grafana của stack đánh giá còn ở http://127.0.0.1:3002 để xem lại; dọn sau bằng --clean-only.
-# Hướng dẫn từng bước (chuẩn bị máy, đọc kết quả, chạy lại một bước, sự cố thường gặp): docs/guides/EVALUATION_RUN_GUIDE.md
+# Hướng dẫn từng bước (chuẩn bị máy, đọc kết quả, chạy lại một bước, sự cố thường gặp): docs/guides/RUNBOOK.md
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 export MSYS_NO_PATHCONV=1   # Git Bash trên Windows: không đổi đường dẫn /var/run/docker.sock

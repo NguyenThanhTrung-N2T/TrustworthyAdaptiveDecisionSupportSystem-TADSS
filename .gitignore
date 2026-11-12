@@ -39,7 +39,7 @@ data/private/
 __pycache__/
 .pytest_cache/
 
-## Môi trường ảo Python của người chạy hướng dẫn (docs/guides/EVALUATION_RUN_GUIDE.md)
+## Môi trường ảo Python của người chạy hướng dẫn (docs/guides/RUNBOOK.md)
 .venv/
 
 ## Kết quả nạp vào dashboard "Kiểm thử" (perf/board.py): bản gốc + state.json, chỉ để trên máy (đưa vào báo cáo thì chép ra)

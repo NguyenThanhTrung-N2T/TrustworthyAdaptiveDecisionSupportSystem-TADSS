@@ -1,0 +1,15 @@
+{
+  "runId": "20261103-213705-breakpoint-SP-08", "profile": "breakpoint", "code": "SP-08", "selftest": false, "args": "-e PROFILE=breakpoint -e RATE=20",
+  "be": {"image": "ghcr.io/nguyenthanhtrung-n2t/smashcourt-be:sha-c9df6d6", "revision": "c9df6d6985784d93eceb0b95dd44781d462c1325"},
+  "tadss": {"image": "ghcr.io/nguyenthanhtrung-n2t/tadss-runtime:sha-c5cc1a7", "revision": "c5cc1a71024e3da4b4ada996ab31791173848db1"},
+  "ai": {"image": "ghcr.io/nguyenthanhtrung-n2t/smashcourt-ai:sha-7aad965", "revision": "7aad9655190064e44faf9e250a64cb3628929dc4"},
+  "tadssRuntime": {"commit": "c5cc1a71024e3da4b4ada996ab31791173848db1", "dirty": false},
+  "sha256": {"k6": "f0bdc4ee9a016a76486e64a11ce0ea6b276dad04d56ae79c01bf997bcec56558", "sloJson": "ea18a54f52cba0da512f85ff9473728b05637408ff515aa28437a70b035a1425", "compose": "d6493016c5159091171312619ce0534d4445f9f81c0ecec1b49666873b77f282"},
+  "cpuset": {"system": "0-4", "tools": "5-7"},
+  "containers": {"perf-be": {"cpuset": "0-4", "nanoCpus": 2000000000, "memoryBytes": 1073741824},"perf-tadss": {"cpuset": "0-4", "nanoCpus": 1500000000, "memoryBytes": 805306368},"perf-ai": {"cpuset": "0-4", "nanoCpus": 1000000000, "memoryBytes": 536870912},"perf-postgres": {"cpuset": "0-4", "nanoCpus": 1000000000, "memoryBytes": 1073741824},"perf-tadss-postgres": {"cpuset": "0-4", "nanoCpus": 500000000, "memoryBytes": 536870912},"perf-redis": {"cpuset": "0-4", "nanoCpus": 250000000, "memoryBytes": 134217728},"perf-mailpit": {"cpuset": "0-4", "nanoCpus": 250000000, "memoryBytes": 268435456},"perf-fake-llm": {"cpuset": "0-4", "nanoCpus": 500000000, "memoryBytes": 134217728}},
+  "tadssDecision": "true",
+  "traceRatio": "0",
+  "seed": {"seed": 42, "customers": 2000, "distribution": "distribution.reference.json", "sqlSha256": "d1113e7183e6970f9b94f8988c65c33c06d0f106776c4ea2e6a1511a80b38fdc", "dbChecksum": "8eae1ba5a9401ecaa26f031a3ee750d5", "anchor": "2026-11-02"},
+  "host": {"cpus": 8, "memoryBytes": 8193593344},
+  "startedAt": "2026-11-03T14:37:13Z"
+}

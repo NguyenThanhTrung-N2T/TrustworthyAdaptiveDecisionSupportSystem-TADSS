@@ -2,7 +2,7 @@
 
 > **Vai trò của tài liệu:** nguồn duy nhất về cấu trúc bảng, ràng buộc, trigger, index và bất biến của schema `tadss`. Contract HTTP: [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md).
 >
-> **Database:** PostgreSQL 16, dùng chung máy chủ với SmashCourt, tách ở schema `tadss`. Lịch sử migration nằm ở `tadss.__EFMigrationsHistory`.
+> **Database:** PostgreSQL (kiểm thử và chế độ đánh giá chạy bản 16); database riêng của TADSS, mọi bảng ở schema `tadss`. Database này có thể nằm cùng máy chủ với DB SmashCourt (bản deploy) hoặc ở máy chủ riêng (dev trên Neon); hai bên không truy cập bảng của nhau. Lịch sử migration nằm ở `tadss.__EFMigrationsHistory`.
 
 ---
 

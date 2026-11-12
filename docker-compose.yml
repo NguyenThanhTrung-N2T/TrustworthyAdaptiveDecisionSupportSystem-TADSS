@@ -4,7 +4,7 @@
 #      Theo dõi: docker compose logs -f evaluator   — kết quả: evidence/<run_id>/report.html; Grafana của stack đánh giá: localhost:3002.
 # Cần trước: src/TADSS.Runtime.Api/appsettings.Development.json có API key riêng thật (file được mount chỉ đọc vào container, không nằm trong image — Epic 6C),
 #            .env (mẫu .env.example) có NGROK_AUTHTOKEN, và mạng: docker network create smashcourt-network
-# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok"; chạy đánh giá: docs/guides/EVALUATION_RUN_GUIDE.md.
+# Hướng dẫn chi tiết: README mục "Chạy bằng Docker và expose qua ngrok"; chạy đánh giá: docs/guides/RUNBOOK.md.
 name: tadss
 
 services:
@@ -189,7 +189,7 @@ services:
       Tadss__Telemetry__ServiceInstanceId: tadss-pt
       Tadss__Telemetry__MetricExportIntervalMs: "5000"
       Tadss__Telemetry__TraceSampleRatio: "0.1"
-      # Tham số miền khách sạn chốt một lần ở spike S-2 (spec/PHASE5_REPORT_5.6.md), từ phân bố dữ liệu và không chỉnh theo kết quả:
+      # Tham số miền khách sạn chốt một lần ở spike S-2 (spec/archive/phase5/PHASE5_REPORT_5.6.md), từ phân bố dữ liệu và không chỉnh theo kết quả:
       Tadss__Validation__MaxItemMinutes: "100800"   # 70 ngày: lưu trú dài nhất của dataset là 69 đêm (99.240 phút); mặc định 720 từ chối ngay cả 1 đêm (1.320 phút)
       Tadss__Strategies__Default__HighValueThreshold: "750"   # EUR: p90 giá trị đơn (adr x số đêm) = 729, làm tròn bội số 50, khoảng 9,5 % đơn vào NEED_APPROVAL; mặc định 2.000.000 tính bằng VND
       Tadss__Shadow__Enabled: "true"   # PT-04 (gói 5.7b): chạy bóng MockAlternative cạnh Default; chỉ instance PT, không nhận tải của bước (b)

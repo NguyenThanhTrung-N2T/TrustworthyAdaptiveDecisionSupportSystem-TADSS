@@ -1,0 +1,22 @@
+{
+  "kind": "stop-tadss",
+  "latencyMs": null,
+  "plannedStartAfter": 490.0,
+  "plannedDuration": 300.0,
+  "launchedAt": 1794331851.2520452,
+  "onAt": 1794332341.25305,
+  "offAt": 1794332642.0372477,
+  "tadssHealthyAt": 1794332647.7334414,
+  "check": {
+    "checkWindow": [
+      1794332343.25305,
+      1794332640.0372477
+    ],
+    "bookings": 197,
+    "notFallback": 0,
+    "awaitingApproval": 0,
+    "duplicateDecisions": 0,
+    "problems": [],
+    "status": "PASS"
+  }
+}

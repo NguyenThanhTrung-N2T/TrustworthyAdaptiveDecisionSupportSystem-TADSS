@@ -15,7 +15,7 @@
 | Contract v2 (lịch sử khách, nhiều sân, giờ chi nhánh) | Đặc trưng đầu vào cho mô hình mà không cần đổi contract |
 | Audit bất biến: snapshot request + quyết định + override + outcome | Dataset có nhãn kết quả thực tế; override của Manager là tín hiệu phản hồi của con người |
 | Định tuyến theo request + **shadow mode** | So sánh TADS với baseline trên cùng traffic mà không ảnh hưởng khách |
-| Evidence Pack, notebook, k6, Toxiproxy, OpenTelemetry | Tái sử dụng để đo chi phí độ trễ và độ bền của strategy học máy |
+| Evidence Pack, bộ sinh báo cáo, k6, Toxiproxy, OpenTelemetry | Tái sử dụng để đo chi phí độ trễ và độ bền của strategy học máy |
 
 ---
 

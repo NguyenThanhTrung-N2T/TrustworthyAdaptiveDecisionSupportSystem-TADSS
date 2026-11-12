@@ -1,0 +1,1378 @@
+{
+  "runId": "20261103-213705-breakpoint-SP-08",
+  "start": 1793716633,
+  "end": 1793719019,
+  "cpuLimits": {
+    "perf-postgres": 1.0,
+    "perf-tadss-postgres": 0.5,
+    "perf-redis": 0.25,
+    "perf-mailpit": 0.25,
+    "perf-fake-llm": 0.5,
+    "perf-tadss": 1.5,
+    "perf-ai": 1.0,
+    "perf-be": 2.0,
+    "perf-k6": 1.5
+  },
+  "memoryLimitsMb": {
+    "perf-postgres": 1024.0,
+    "perf-tadss-postgres": 512.0,
+    "perf-redis": 128.0,
+    "perf-mailpit": 256.0,
+    "perf-fake-llm": 128.0,
+    "perf-tadss": 768.0,
+    "perf-ai": 512.0,
+    "perf-be": 1024.0,
+    "perf-k6": 2048.0
+  },
+  "gapMinutes": [],
+  "infra": [],
+  "validity": "OK",
+  "minutes": [
+    {
+      "minute": 1,
+      "at": 1793716693,
+      "rps": 3.381,
+      "vus": 0.0,
+      "client_p95_s": 2.571,
+      "server_be_p95_s": 2.647,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.13,
+        "perf-fake-llm": 0.05,
+        "perf-mailpit": 0.002,
+        "perf-postgres": 0.048,
+        "perf-redis": 0.018,
+        "perf-tadss-postgres": 0.02,
+        "perf-be": 1.907,
+        "perf-k6": 0.009,
+        "perf-tadss": 0.049
+      },
+      "memory_mb": {
+        "perf-ai": 95,
+        "perf-fake-llm": 23,
+        "perf-mailpit": 30,
+        "perf-postgres": 160,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 60,
+        "perf-be": 170,
+        "perf-k6": 439,
+        "perf-tadss": 86
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 2,
+      "at": 1793716753,
+      "rps": 10.957,
+      "vus": 55.0,
+      "client_p95_s": 1.726,
+      "server_be_p95_s": 1.719,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.119,
+        "perf-fake-llm": 0.044,
+        "perf-mailpit": 0.003,
+        "perf-postgres": 0.083,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.019,
+        "perf-be": 0.852,
+        "perf-k6": 0.037,
+        "perf-tadss": 0.06
+      },
+      "memory_mb": {
+        "perf-ai": 95,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 30,
+        "perf-postgres": 170,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 60,
+        "perf-be": 260,
+        "perf-k6": 508,
+        "perf-tadss": 94
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 3,
+      "at": 1793716813,
+      "rps": 28.46,
+      "vus": 93.0,
+      "client_p95_s": 0.069,
+      "server_be_p95_s": 0.048,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.119,
+        "perf-fake-llm": 0.047,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.216,
+        "perf-redis": 0.019,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 0.467,
+        "perf-k6": 0.075,
+        "perf-tadss": 0.11
+      },
+      "memory_mb": {
+        "perf-ai": 96,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 31,
+        "perf-postgres": 189,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 61,
+        "perf-be": 359,
+        "perf-k6": 558,
+        "perf-tadss": 113
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 4,
+      "at": 1793716873,
+      "rps": 31.339,
+      "vus": 110.0,
+      "client_p95_s": 0.046,
+      "server_be_p95_s": 0.04,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.106,
+        "perf-fake-llm": 0.045,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.173,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.021,
+        "perf-be": 0.509,
+        "perf-k6": 0.067,
+        "perf-tadss": 0.052
+      },
+      "memory_mb": {
+        "perf-ai": 96,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 31,
+        "perf-postgres": 194,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 61,
+        "perf-be": 408,
+        "perf-k6": 624,
+        "perf-tadss": 129
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 5,
+      "at": 1793716933,
+      "rps": 27.103,
+      "vus": 83.0,
+      "client_p95_s": 0.056,
+      "server_be_p95_s": 0.041,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.108,
+        "perf-fake-llm": 0.043,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.126,
+        "perf-redis": 0.016,
+        "perf-tadss-postgres": 0.021,
+        "perf-be": 0.423,
+        "perf-k6": 0.063,
+        "perf-tadss": 0.029
+      },
+      "memory_mb": {
+        "perf-ai": 97,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 31,
+        "perf-postgres": 167,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 54,
+        "perf-be": 416,
+        "perf-k6": 681,
+        "perf-tadss": 130
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 6,
+      "at": 1793716993,
+      "rps": 27.766,
+      "vus": 88.0,
+      "client_p95_s": 0.03,
+      "server_be_p95_s": 0.028,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.099,
+        "perf-fake-llm": 0.036,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.125,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.021,
+        "perf-be": 0.316,
+        "perf-k6": 0.053,
+        "perf-tadss": 0.023
+      },
+      "memory_mb": {
+        "perf-ai": 107,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 32,
+        "perf-postgres": 138,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 57,
+        "perf-be": 424,
+        "perf-k6": 681,
+        "perf-tadss": 138
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 7,
+      "at": 1793717053,
+      "rps": 26.929,
+      "vus": 78.0,
+      "client_p95_s": 0.057,
+      "server_be_p95_s": 0.05,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.096,
+        "perf-fake-llm": 0.036,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.127,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.02,
+        "perf-be": 0.423,
+        "perf-k6": 0.048,
+        "perf-tadss": 0.024
+      },
+      "memory_mb": {
+        "perf-ai": 98,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 33,
+        "perf-postgres": 150,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 58,
+        "perf-be": 391,
+        "perf-k6": 685,
+        "perf-tadss": 146
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 8,
+      "at": 1793717113,
+      "rps": 29.221,
+      "vus": 111.0,
+      "client_p95_s": 0.041,
+      "server_be_p95_s": 0.036,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.095,
+        "perf-fake-llm": 0.038,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.132,
+        "perf-redis": 0.014,
+        "perf-tadss-postgres": 0.018,
+        "perf-be": 0.366,
+        "perf-k6": 0.065,
+        "perf-tadss": 0.026
+      },
+      "memory_mb": {
+        "perf-ai": 99,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 33,
+        "perf-postgres": 158,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 57,
+        "perf-be": 317,
+        "perf-k6": 769,
+        "perf-tadss": 154
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 9,
+      "at": 1793717173,
+      "rps": 41.041,
+      "vus": 125.0,
+      "client_p95_s": 0.029,
+      "server_be_p95_s": 0.025,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.106,
+        "perf-fake-llm": 0.041,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.171,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.019,
+        "perf-be": 0.49,
+        "perf-k6": 0.065,
+        "perf-tadss": 0.026
+      },
+      "memory_mb": {
+        "perf-ai": 99,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 33,
+        "perf-postgres": 160,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 58,
+        "perf-be": 283,
+        "perf-k6": 770,
+        "perf-tadss": 166
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 10,
+      "at": 1793717233,
+      "rps": 41.567,
+      "vus": 125.0,
+      "client_p95_s": 0.17,
+      "server_be_p95_s": 0.079,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.127,
+        "perf-fake-llm": 0.046,
+        "perf-mailpit": 0.008,
+        "perf-postgres": 0.209,
+        "perf-redis": 0.017,
+        "perf-tadss-postgres": 0.024,
+        "perf-be": 0.629,
+        "perf-k6": 0.085,
+        "perf-tadss": 0.033
+      },
+      "memory_mb": {
+        "perf-ai": 100,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 34,
+        "perf-postgres": 184,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 55,
+        "perf-be": 312,
+        "perf-k6": 770,
+        "perf-tadss": 174
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 11,
+      "at": 1793717293,
+      "rps": 42.217,
+      "vus": 121.0,
+      "client_p95_s": 0.04,
+      "server_be_p95_s": 0.032,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.108,
+        "perf-fake-llm": 0.041,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.179,
+        "perf-redis": 0.015,
+        "perf-tadss-postgres": 0.02,
+        "perf-be": 0.468,
+        "perf-k6": 0.085,
+        "perf-tadss": 0.027
+      },
+      "memory_mb": {
+        "perf-ai": 101,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 35,
+        "perf-postgres": 175,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 58,
+        "perf-be": 322,
+        "perf-k6": 771,
+        "perf-tadss": 185
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 12,
+      "at": 1793717353,
+      "rps": 54.896,
+      "vus": 158.0,
+      "client_p95_s": 0.073,
+      "server_be_p95_s": 0.046,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.121,
+        "perf-fake-llm": 0.043,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.241,
+        "perf-redis": 0.016,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 0.705,
+        "perf-k6": 0.103,
+        "perf-tadss": 0.03
+      },
+      "memory_mb": {
+        "perf-ai": 101,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 35,
+        "perf-postgres": 208,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 58,
+        "perf-be": 346,
+        "perf-k6": 771,
+        "perf-tadss": 195
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 13,
+      "at": 1793717413,
+      "rps": 54.844,
+      "vus": 222.0,
+      "client_p95_s": 2.289,
+      "server_be_p95_s": 2.644,
+      "error_pct": 0.735,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.209,
+        "perf-fake-llm": 0.091,
+        "perf-mailpit": 0.009,
+        "perf-postgres": 0.584,
+        "perf-redis": 0.03,
+        "perf-tadss-postgres": 0.044,
+        "perf-be": 1.204,
+        "perf-k6": 0.217,
+        "perf-tadss": 0.053
+      },
+      "memory_mb": {
+        "perf-ai": 102,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 35,
+        "perf-postgres": 463,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 60,
+        "perf-be": 457,
+        "perf-k6": 779,
+        "perf-tadss": 205
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 14,
+      "at": 1793717473,
+      "rps": 55.514,
+      "vus": 175.0,
+      "client_p95_s": 0.474,
+      "server_be_p95_s": 0.309,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.163,
+        "perf-fake-llm": 0.069,
+        "perf-mailpit": 0.008,
+        "perf-postgres": 0.314,
+        "perf-redis": 0.022,
+        "perf-tadss-postgres": 0.03,
+        "perf-be": 0.964,
+        "perf-k6": 0.143,
+        "perf-tadss": 0.037
+      },
+      "memory_mb": {
+        "perf-ai": 102,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 37,
+        "perf-postgres": 498,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 61,
+        "perf-be": 552,
+        "perf-k6": 781,
+        "perf-tadss": 220
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 15,
+      "at": 1793717533,
+      "rps": 66.406,
+      "vus": 187.0,
+      "client_p95_s": 0.065,
+      "server_be_p95_s": 0.041,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.121,
+        "perf-fake-llm": 0.048,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.286,
+        "perf-redis": 0.018,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 0.929,
+        "perf-k6": 0.114,
+        "perf-tadss": 0.03
+      },
+      "memory_mb": {
+        "perf-ai": 116,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 37,
+        "perf-postgres": 499,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 56,
+        "perf-be": 555,
+        "perf-k6": 781,
+        "perf-tadss": 228
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 16,
+      "at": 1793717593,
+      "rps": 67.916,
+      "vus": 194.0,
+      "client_p95_s": 0.098,
+      "server_be_p95_s": 0.059,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.155,
+        "perf-fake-llm": 0.057,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.303,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.025,
+        "perf-be": 1.089,
+        "perf-k6": 0.125,
+        "perf-tadss": 0.037
+      },
+      "memory_mb": {
+        "perf-ai": 117,
+        "perf-fake-llm": 26,
+        "perf-mailpit": 37,
+        "perf-postgres": 414,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 56,
+        "perf-be": 556,
+        "perf-k6": 781,
+        "perf-tadss": 228
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 17,
+      "at": 1793717653,
+      "rps": 68.535,
+      "vus": 188.0,
+      "client_p95_s": 0.218,
+      "server_be_p95_s": 0.08,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.144,
+        "perf-fake-llm": 0.055,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.313,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.028,
+        "perf-be": 1.086,
+        "perf-k6": 0.126,
+        "perf-tadss": 0.031
+      },
+      "memory_mb": {
+        "perf-ai": 104,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 38,
+        "perf-postgres": 419,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 56,
+        "perf-be": 431,
+        "perf-k6": 781,
+        "perf-tadss": 228
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 18,
+      "at": 1793717713,
+      "rps": 76.901,
+      "vus": 227.0,
+      "client_p95_s": 0.325,
+      "server_be_p95_s": 0.123,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.131,
+        "perf-fake-llm": 0.052,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.32,
+        "perf-redis": 0.017,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 1.094,
+        "perf-k6": 0.14,
+        "perf-tadss": 0.029
+      },
+      "memory_mb": {
+        "perf-ai": 104,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 38,
+        "perf-postgres": 420,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 56,
+        "perf-be": 497,
+        "perf-k6": 781,
+        "perf-tadss": 228
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 19,
+      "at": 1793717773,
+      "rps": 79.879,
+      "vus": 234.0,
+      "client_p95_s": 0.784,
+      "server_be_p95_s": 0.408,
+      "error_pct": 0.0,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.147,
+        "perf-fake-llm": 0.053,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.332,
+        "perf-redis": 0.021,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 1.098,
+        "perf-k6": 0.133,
+        "perf-tadss": 0.025
+      },
+      "memory_mb": {
+        "perf-ai": 105,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 38,
+        "perf-postgres": 448,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 506,
+        "perf-k6": 789,
+        "perf-tadss": 229
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 20,
+      "at": 1793717833,
+      "rps": 80.9,
+      "vus": 236.0,
+      "client_p95_s": 0.886,
+      "server_be_p95_s": 0.456,
+      "error_pct": 0.0,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.173,
+        "perf-fake-llm": 0.071,
+        "perf-mailpit": 0.008,
+        "perf-postgres": 0.434,
+        "perf-redis": 0.026,
+        "perf-tadss-postgres": 0.035,
+        "perf-be": 1.36,
+        "perf-k6": 0.193,
+        "perf-tadss": 0.043
+      },
+      "memory_mb": {
+        "perf-ai": 106,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 505,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 56,
+        "perf-be": 557,
+        "perf-k6": 789,
+        "perf-tadss": 229
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 21,
+      "at": 1793717893,
+      "rps": 88.661,
+      "vus": 264.0,
+      "client_p95_s": 0.334,
+      "server_be_p95_s": 0.171,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.125,
+        "perf-fake-llm": 0.05,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.361,
+        "perf-redis": 0.017,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 1.036,
+        "perf-k6": 0.157,
+        "perf-tadss": 0.027
+      },
+      "memory_mb": {
+        "perf-ai": 106,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 351,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 57,
+        "perf-be": 553,
+        "perf-k6": 789,
+        "perf-tadss": 229
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 22,
+      "at": 1793717953,
+      "rps": 94.501,
+      "vus": 285.0,
+      "client_p95_s": 0.491,
+      "server_be_p95_s": 0.287,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.134,
+        "perf-fake-llm": 0.05,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.398,
+        "perf-redis": 0.018,
+        "perf-tadss-postgres": 0.023,
+        "perf-be": 1.272,
+        "perf-k6": 0.151,
+        "perf-tadss": 0.026
+      },
+      "memory_mb": {
+        "perf-ai": 107,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 487,
+        "perf-redis": 8,
+        "perf-tadss-postgres": 57,
+        "perf-be": 539,
+        "perf-k6": 789,
+        "perf-tadss": 230
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 23,
+      "at": 1793718013,
+      "rps": 93.845,
+      "vus": 256.0,
+      "client_p95_s": 0.082,
+      "server_be_p95_s": 0.06,
+      "error_pct": 0.0,
+      "be_db_active": 2.0,
+      "cpu": {
+        "perf-ai": 0.152,
+        "perf-fake-llm": 0.056,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.389,
+        "perf-redis": 0.019,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.406,
+        "perf-k6": 0.17,
+        "perf-tadss": 0.03
+      },
+      "memory_mb": {
+        "perf-ai": 107,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 38,
+        "perf-postgres": 503,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 59,
+        "perf-be": 593,
+        "perf-k6": 794,
+        "perf-tadss": 230
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 24,
+      "at": 1793718073,
+      "rps": 95.671,
+      "vus": 343.0,
+      "client_p95_s": 1.133,
+      "server_be_p95_s": 0.49,
+      "error_pct": 0.0,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.157,
+        "perf-fake-llm": 0.059,
+        "perf-mailpit": 0.007,
+        "perf-postgres": 0.419,
+        "perf-redis": 0.021,
+        "perf-tadss-postgres": 0.025,
+        "perf-be": 1.469,
+        "perf-k6": 0.16,
+        "perf-tadss": 0.034
+      },
+      "memory_mb": {
+        "perf-ai": 108,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 510,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 59,
+        "perf-be": 480,
+        "perf-k6": 793,
+        "perf-tadss": 231
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 25,
+      "at": 1793718133,
+      "rps": 110.107,
+      "vus": 337.0,
+      "client_p95_s": 0.721,
+      "server_be_p95_s": 0.431,
+      "error_pct": 0.0,
+      "be_db_active": 2.0,
+      "cpu": {
+        "perf-ai": 0.165,
+        "perf-fake-llm": 0.063,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.508,
+        "perf-redis": 0.022,
+        "perf-tadss-postgres": 0.029,
+        "perf-be": 1.674,
+        "perf-k6": 0.178,
+        "perf-tadss": 0.034
+      },
+      "memory_mb": {
+        "perf-ai": 108,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 504,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 536,
+        "perf-k6": 794,
+        "perf-tadss": 231
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 26,
+      "at": 1793718193,
+      "rps": 107.937,
+      "vus": 378.0,
+      "client_p95_s": 1.863,
+      "server_be_p95_s": 1.679,
+      "error_pct": 0.168,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.169,
+        "perf-fake-llm": 0.062,
+        "perf-mailpit": 0.007,
+        "perf-postgres": 0.592,
+        "perf-redis": 0.022,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.781,
+        "perf-k6": 0.203,
+        "perf-tadss": 0.037
+      },
+      "memory_mb": {
+        "perf-ai": 109,
+        "perf-fake-llm": 31,
+        "perf-mailpit": 39,
+        "perf-postgres": 488,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 570,
+        "perf-k6": 794,
+        "perf-tadss": 231
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 27,
+      "at": 1793718253,
+      "rps": 109.339,
+      "vus": 314.0,
+      "client_p95_s": 0.462,
+      "server_be_p95_s": 0.232,
+      "error_pct": 0.0,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.157,
+        "perf-fake-llm": 0.058,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.469,
+        "perf-redis": 0.023,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.76,
+        "perf-k6": 0.18,
+        "perf-tadss": 0.032
+      },
+      "memory_mb": {
+        "perf-ai": 110,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 498,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 581,
+        "perf-k6": 794,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": []
+    },
+    {
+      "minute": 28,
+      "at": 1793718313,
+      "rps": 122.268,
+      "vus": 353.0,
+      "client_p95_s": 0.604,
+      "server_be_p95_s": 0.376,
+      "error_pct": 0.03,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.195,
+        "perf-fake-llm": 0.081,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.637,
+        "perf-redis": 0.028,
+        "perf-tadss-postgres": 0.037,
+        "perf-be": 1.848,
+        "perf-k6": 0.224,
+        "perf-tadss": 0.039
+      },
+      "memory_mb": {
+        "perf-ai": 110,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 506,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 610,
+        "perf-k6": 806,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 29,
+      "at": 1793718373,
+      "rps": 121.175,
+      "vus": 348.0,
+      "client_p95_s": 0.519,
+      "server_be_p95_s": 0.287,
+      "error_pct": 0.0,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.16,
+        "perf-fake-llm": 0.062,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.523,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.025,
+        "perf-be": 1.807,
+        "perf-k6": 0.198,
+        "perf-tadss": 0.031
+      },
+      "memory_mb": {
+        "perf-ai": 111,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 510,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 597,
+        "perf-k6": 810,
+        "perf-tadss": 233
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 30,
+      "at": 1793718433,
+      "rps": 119.231,
+      "vus": 422.0,
+      "client_p95_s": 1.999,
+      "server_be_p95_s": 0.906,
+      "error_pct": 0.031,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.165,
+        "perf-fake-llm": 0.063,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.542,
+        "perf-redis": 0.023,
+        "perf-tadss-postgres": 0.031,
+        "perf-be": 1.836,
+        "perf-k6": 0.214,
+        "perf-tadss": 0.034
+      },
+      "memory_mb": {
+        "perf-ai": 120,
+        "perf-fake-llm": 31,
+        "perf-mailpit": 39,
+        "perf-postgres": 514,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 58,
+        "perf-be": 605,
+        "perf-k6": 810,
+        "perf-tadss": 234
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 31,
+      "at": 1793718493,
+      "rps": 135.407,
+      "vus": 448.0,
+      "client_p95_s": 1.737,
+      "server_be_p95_s": 1.433,
+      "error_pct": 0.121,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.156,
+        "perf-fake-llm": 0.059,
+        "perf-mailpit": 0.007,
+        "perf-postgres": 0.638,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.833,
+        "perf-k6": 0.231,
+        "perf-tadss": 0.035
+      },
+      "memory_mb": {
+        "perf-ai": 125,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 493,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 558,
+        "perf-k6": 810,
+        "perf-tadss": 236
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 32,
+      "at": 1793718553,
+      "rps": 134.76,
+      "vus": 462.0,
+      "client_p95_s": 2.038,
+      "server_be_p95_s": 0.935,
+      "error_pct": 0.0,
+      "be_db_active": 3.0,
+      "cpu": {
+        "perf-ai": 0.154,
+        "perf-fake-llm": 0.055,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.569,
+        "perf-redis": 0.021,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.831,
+        "perf-k6": 0.21,
+        "perf-tadss": 0.03
+      },
+      "memory_mb": {
+        "perf-ai": 112,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 505,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 579,
+        "perf-k6": 810,
+        "perf-tadss": 238
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 33,
+      "at": 1793718613,
+      "rps": 136.436,
+      "vus": 714.0,
+      "client_p95_s": 4.444,
+      "server_be_p95_s": 3.395,
+      "error_pct": 2.323,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.151,
+        "perf-fake-llm": 0.057,
+        "perf-mailpit": 0.005,
+        "perf-postgres": 0.577,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.03,
+        "perf-be": 1.934,
+        "perf-k6": 0.211,
+        "perf-tadss": 0.035
+      },
+      "memory_mb": {
+        "perf-ai": 113,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 510,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 617,
+        "perf-k6": 818,
+        "perf-tadss": 242
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 34,
+      "at": 1793718673,
+      "rps": 137.701,
+      "vus": 727.0,
+      "client_p95_s": 4.418,
+      "server_be_p95_s": 3.084,
+      "error_pct": 1.492,
+      "be_db_active": 8.0,
+      "cpu": {
+        "perf-ai": 0.149,
+        "perf-fake-llm": 0.058,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.538,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.024,
+        "perf-be": 1.978,
+        "perf-k6": 0.191,
+        "perf-tadss": 0.031
+      },
+      "memory_mb": {
+        "perf-ai": 113,
+        "perf-fake-llm": 33,
+        "perf-mailpit": 40,
+        "perf-postgres": 513,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 606,
+        "perf-k6": 818,
+        "perf-tadss": 246
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 35,
+      "at": 1793718733,
+      "rps": 128.127,
+      "vus": 752.0,
+      "client_p95_s": 6.165,
+      "server_be_p95_s": 6.164,
+      "error_pct": 14.241,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.159,
+        "perf-fake-llm": 0.055,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.509,
+        "perf-redis": 0.018,
+        "perf-tadss-postgres": 0.026,
+        "perf-be": 1.999,
+        "perf-k6": 0.181,
+        "perf-tadss": 0.03
+      },
+      "memory_mb": {
+        "perf-ai": 127,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 516,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 57,
+        "perf-be": 641,
+        "perf-k6": 818,
+        "perf-tadss": 251
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 36,
+      "at": 1793718793,
+      "rps": 151.529,
+      "vus": 698.0,
+      "client_p95_s": 4.198,
+      "server_be_p95_s": 3.191,
+      "error_pct": 1.452,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.14,
+        "perf-fake-llm": 0.054,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.632,
+        "perf-redis": 0.02,
+        "perf-tadss-postgres": 0.024,
+        "perf-be": 1.998,
+        "perf-k6": 0.197,
+        "perf-tadss": 0.027
+      },
+      "memory_mb": {
+        "perf-ai": 115,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 501,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 58,
+        "perf-be": 583,
+        "perf-k6": 818,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 37,
+      "at": 1793718853,
+      "rps": 150.585,
+      "vus": 731.0,
+      "client_p95_s": 3.727,
+      "server_be_p95_s": 2.312,
+      "error_pct": 1.28,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.157,
+        "perf-fake-llm": 0.054,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.6,
+        "perf-redis": 0.021,
+        "perf-tadss-postgres": 0.026,
+        "perf-be": 2.001,
+        "perf-k6": 0.21,
+        "perf-tadss": 0.031
+      },
+      "memory_mb": {
+        "perf-ai": 115,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 39,
+        "perf-postgres": 507,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 617,
+        "perf-k6": 825,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 38,
+      "at": 1793718913,
+      "rps": 136.199,
+      "vus": 752.0,
+      "client_p95_s": 6.842,
+      "server_be_p95_s": 7.246,
+      "error_pct": 22.692,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.153,
+        "perf-fake-llm": 0.066,
+        "perf-mailpit": 0.006,
+        "perf-postgres": 0.599,
+        "perf-redis": 0.025,
+        "perf-tadss-postgres": 0.033,
+        "perf-be": 1.995,
+        "perf-k6": 0.277,
+        "perf-tadss": 0.032
+      },
+      "memory_mb": {
+        "perf-ai": 118,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 511,
+        "perf-redis": 11,
+        "perf-tadss-postgres": 60,
+        "perf-be": 602,
+        "perf-k6": 825,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 39,
+      "at": 1793718973,
+      "rps": 98.427,
+      "vus": 752.0,
+      "client_p95_s": 7.26,
+      "server_be_p95_s": 10.0,
+      "error_pct": 94.495,
+      "be_db_active": 1.0,
+      "cpu": {
+        "perf-ai": 0.163,
+        "perf-fake-llm": 0.065,
+        "perf-mailpit": 0.008,
+        "perf-postgres": 0.483,
+        "perf-redis": 0.023,
+        "perf-tadss-postgres": 0.027,
+        "perf-be": 1.998,
+        "perf-k6": 0.225,
+        "perf-tadss": 0.023
+      },
+      "memory_mb": {
+        "perf-ai": 116,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 515,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 703,
+        "perf-k6": 826,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": [
+        "perf-be"
+      ]
+    },
+    {
+      "minute": 40,
+      "at": 1793719019,
+      "rps": 86.843,
+      "vus": 752.0,
+      "client_p95_s": 7.144,
+      "server_be_p95_s": 10.0,
+      "error_pct": 63.065,
+      "be_db_active": 0.0,
+      "cpu": {
+        "perf-ai": 0.184,
+        "perf-fake-llm": 0.066,
+        "perf-mailpit": 0.004,
+        "perf-postgres": 0.405,
+        "perf-redis": 0.023,
+        "perf-tadss-postgres": 0.033,
+        "perf-be": 1.667,
+        "perf-k6": 0.231,
+        "perf-tadss": 0.028
+      },
+      "memory_mb": {
+        "perf-ai": 117,
+        "perf-fake-llm": 22,
+        "perf-mailpit": 40,
+        "perf-postgres": 510,
+        "perf-redis": 9,
+        "perf-tadss-postgres": 60,
+        "perf-be": 640,
+        "perf-k6": 828,
+        "perf-tadss": 232
+      },
+      "cpu_at_limit": []
+    }
+  ]
+}

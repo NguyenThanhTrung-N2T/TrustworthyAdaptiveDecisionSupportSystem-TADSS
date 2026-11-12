@@ -1,4 +1,4 @@
-"""Lệnh của testboard. Chạy từ gốc repo TADSS-Runtime: `python perf/board.py <lệnh>` (hướng dẫn: docs/guides/TEST_DASHBOARD.md)."""
+"""Lệnh của testboard. Chạy từ gốc repo TADSS-Runtime: `python perf/board.py <lệnh>` (hướng dẫn: docs/guides/RUNBOOK.md)."""
 from __future__ import annotations
 
 import argparse

@@ -31,7 +31,7 @@ flowchart LR
 ```
 
 - FE chỉ gọi BE; BE là client duy nhất của TADSS trong SmashCourt.
-- TADSS và SmashCourt dùng chung máy chủ PostgreSQL nhưng tách schema; không bên nào truy cập bảng của bên kia.
+- TADSS có database riêng, mọi bảng nằm ở schema `tadss`; tùy môi trường database này nằm cùng máy chủ PostgreSQL với SmashCourt (bản deploy: hai database `smashcourt` và `tadss` trong một container PostgreSQL) hoặc ở máy chủ riêng (dev: project Neon riêng). Không bên nào truy cập bảng của bên kia; hai bên chỉ trao đổi qua API.
 
 ---
 

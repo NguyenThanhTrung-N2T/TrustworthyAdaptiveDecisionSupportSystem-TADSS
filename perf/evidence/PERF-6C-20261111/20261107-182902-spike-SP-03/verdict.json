@@ -1,0 +1,88 @@
+{
+  "runId": "20261107-182902-spike-SP-03",
+  "profile": "spike",
+  "selftest": false,
+  "k6Exit": 0,
+  "problems": [],
+  "validity": "OK",
+  "infra": [],
+  "steadyStart": 1794051216.0,
+  "steadyEnd": 1794051803.0,
+  "recovery": {
+    "seconds": 30,
+    "status": "PASS",
+    "windows": [
+      {
+        "offset": 0.0,
+        "n": 1235,
+        "p95": 5002.3,
+        "errorRate": 1.0,
+        "good": false
+      },
+      {
+        "offset": 10.0,
+        "n": 822,
+        "p95": 5001.3,
+        "errorRate": 0.87046,
+        "good": false
+      },
+      {
+        "offset": 20.0,
+        "n": 946,
+        "p95": 4349.2,
+        "errorRate": 0.02572,
+        "good": false
+      },
+      {
+        "offset": 30.0,
+        "n": 518,
+        "p95": 16.6,
+        "errorRate": 0.0,
+        "good": true
+      },
+      {
+        "offset": 40.0,
+        "n": 504,
+        "p95": 18.1,
+        "errorRate": 0.0,
+        "good": true
+      },
+      {
+        "offset": 50.0,
+        "n": 488,
+        "p95": 55.4,
+        "errorRate": 0.0,
+        "good": true
+      }
+    ]
+  },
+  "status": "PASS",
+  "episodes": {
+    "count": 2,
+    "episodes": [
+      {
+        "start": 1794051390.0,
+        "end": 1794051500.0,
+        "lastStart": 1794051490.0,
+        "windows": 11,
+        "maxP95": 5018.1
+      },
+      {
+        "start": 1794051730.0,
+        "end": 1794051740.0,
+        "lastStart": 1794051730.0,
+        "windows": 1,
+        "maxP95": 645.4
+      }
+    ],
+    "windowsChecked": 57,
+    "windowsInsufficient": 1,
+    "definition": {
+      "window": "10s",
+      "mergeGap": "30s",
+      "group": "read",
+      "controlMin": 3,
+      "confirmedMax": 1
+    }
+  }
+}

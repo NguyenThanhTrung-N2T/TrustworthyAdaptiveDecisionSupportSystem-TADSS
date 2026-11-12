@@ -1,0 +1,199 @@
+{
+  "groups": {
+    "read": {
+      "n": 136037,
+      "p95": 15.9,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "p99": 108.8,
+      "p99Limit": 800,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 136037,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "booking": {
+      "n": 2520,
+      "p95": 95.0,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "p99": 236.3,
+      "p99Limit": 2000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2520,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "login": {
+      "n": 2505,
+      "p95": 445.1,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 584.1,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2505,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "ipn": {
+      "n": 989,
+      "p95": 50.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 101.3,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 989,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "write": {
+      "n": 1044,
+      "p95": 42.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 149.9,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 1044,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    }
+  },
+  "errors": {
+    "n": 143095,
+    "rate": 0.0,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "endpoints": {
+    "GET /api/bookings": {
+      "n": 3638,
+      "p95": 21.8,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/dashboard-summary": {
+      "n": 3638,
+      "p95": 13.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/pending-approval": {
+      "n": 1378,
+      "p95": 18.7,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/schedule": {
+      "n": 3638,
+      "p95": 11.7,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/branches/basic": {
+      "n": 36099,
+      "p95": 9.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/courts": {
+      "n": 36269,
+      "p95": 8.4,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings": {
+      "n": 7678,
+      "p95": 19.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings/{id}": {
+      "n": 7277,
+      "p95": 18.8,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/payments/vnpay/ipn": {
+      "n": 989,
+      "p95": 50.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "ipn"
+    },
+    "GET time-grid": {
+      "n": 36422,
+      "p95": 19.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "POST /api/auth/login": {
+      "n": 2505,
+      "p95": 445.1,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "login"
+    },
+    "POST /api/bookings/online": {
+      "n": 2520,
+      "p95": 95.0,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "slo": "booking"
+    },
+    "POST /api/bookings/{id}/approve": {
+      "n": 139,
+      "p95": 59.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/check-in": {
+      "n": 769,
+      "p95": 20.2,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/me/bookings/{id}/cancel": {
+      "n": 136,
+      "p95": 63.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    }
+  },
+  "status": "INSUFFICIENT",
+  "selftest": false,
+  "runs": [
+    "20261110-232049-load-SP07-A4",
+    "20261110-234334-load-SP07-A5",
+    "20261111-022736-load-SP07-A7"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "runId": "20261108-112353-soak-SP-04",
+  "profile": "soak",
+  "rate": 19,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 5400,
+  "peakRate": 19,
+  "maxVUs": 238,
+  "preAllocatedVUs": 238,
+  "journeySeconds": 8.35,
+  "steps": [],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

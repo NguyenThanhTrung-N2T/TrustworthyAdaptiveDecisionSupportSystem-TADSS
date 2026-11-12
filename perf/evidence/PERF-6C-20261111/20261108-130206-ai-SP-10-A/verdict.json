@@ -1,0 +1,59 @@
+{
+  "runId": "20261108-130206-ai-SP-10-A",
+  "profile": "ai",
+  "selftest": false,
+  "k6Exit": 0,
+  "problems": [],
+  "validity": "OK",
+  "infra": [],
+  "steadyStart": 1794117994.0,
+  "steadyEnd": 1794118593.0,
+  "status": "PASS",
+  "aiServer": {
+    "n": 1198,
+    "p95": 19.0,
+    "p99": 24.0,
+    "errorRate": 0.0,
+    "llmDelayMs": 0,
+    "note": "p95 nội suy tuyến tính trong bucket histogram của AI (biên 250/500 ms)"
+  },
+  "chain": {
+    "POST /api/ai/analytics/summary": {
+      "n": 400,
+      "p50": 14.9,
+      "p95": 22.0,
+      "p99": 68.3
+    },
+    "POST /api/ai/chat": {
+      "n": 400,
+      "p50": 10.8,
+      "p95": 16.4,
+      "p99": 21.6
+    },
+    "POST /api/ai/suggest/booking": {
+      "n": 399,
+      "p50": 14.6,
+      "p95": 24.9,
+      "p99": 33.4
+    }
+  },
+  "errors": {
+    "n": 1199,
+    "rate": 0.0,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "episodes": {
+    "count": 0,
+    "episodes": [],
+    "windowsChecked": 0,
+    "windowsInsufficient": 0,
+    "definition": {
+      "window": "10s",
+      "mergeGap": "30s",
+      "group": "read",
+      "controlMin": 3,
+      "confirmedMax": 1
+    }
+  }
+}

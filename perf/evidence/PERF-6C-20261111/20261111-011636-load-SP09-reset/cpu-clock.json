@@ -1,0 +1,13 @@
+{
+  "samples": 239,
+  "intervalS": 5,
+  "effectiveMhz": {
+    "median": 3462,
+    "p10": 3016,
+    "min": 0,
+    "max": 3677
+  },
+  "baseMhz": 2419,
+  "throttledShare": 0.025,
+  "throttledRule": "mẫu < 80% trung vị của lượt"
+}

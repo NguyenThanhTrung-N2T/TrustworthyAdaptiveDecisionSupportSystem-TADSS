@@ -1,0 +1,39 @@
+{
+  "runId": "20261107-222426-load-SP-01-r3",
+  "steadyStart": 1794065342,
+  "steadyEnd": 1794066268,
+  "averages": {
+    "requests": 47447,
+    "perRequestMs": {
+      "be": 13.68,
+      "db": 5.16,
+      "tadss": 0.12,
+      "rest": 8.4
+    },
+    "dbCommandsPerRequest": 3.26,
+    "tadssCallMs": 8.76,
+    "pool": {
+      "usedMax": 3,
+      "pendingMax": 0,
+      "timeouts": 0
+    },
+    "rateLimited": 0
+  },
+  "routeMeanMs": {
+    "GET /health/ready": 8.11,
+    "GET api/bookings": 12.04,
+    "GET api/bookings/dashboard-summary": 7.94,
+    "GET api/bookings/pending-approval": 10.49,
+    "GET api/bookings/schedule": 6.28,
+    "GET api/branches/basic": 4.75,
+    "GET api/branches/{branchId:guid}/courts/{courtId:guid}/time-grid": 10.44,
+    "GET api/courts": 4.33,
+    "GET api/me/bookings": 10.63,
+    "GET api/me/bookings/{id:guid}": 10.05,
+    "GET api/payments/vnpay/ipn": 29.31,
+    "POST api/auth/login": 325.49,
+    "POST api/bookings/{bookingId:guid}/approve": 40.29,
+    "POST api/me/bookings/{id:guid}/cancel": 32.13,
+    "POST api/bookings/online": 64.44
+  }
+}
