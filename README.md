@@ -417,6 +417,7 @@ Cột *File* ghi đường dẫn tính từ gốc repo. Bảng này do `tools/do
 | `docs/planning/BACKLOG_SPRINTS.md` | hiện hành | Backlog theo phase và trạng thái task |
 | `docs/planning/PROJECT_WBS_MAPPING.md` | hiện hành | WBS, phụ thuộc và rủi ro |
 | `docs/planning/PROPOSAL_DO_AN_2.md` | hiện hành | Phạm vi chính thức của Đồ án 2 |
+| `docs/planning/PROPOSAL_KHOA_LUAN.md` | hiện hành | Đề cương Khóa luận (bản thảo 13/11/2026, ngoài phạm vi Đồ án 2): bài toán, cơ sở lý thuyết, kiến trúc hướng sự kiện, yêu cầu chất lượng KL1–KL11, kế hoạch 16 tuần |
 | `docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md` | hiện hành | Thuật ngữ chuẩn, ranh giới phạm vi, bản đồ tài liệu |
 | `docs/report/ARCHITECTURE_DIAGRAMS.md` | hiện hành | Sơ đồ cho báo cáo (Mermaid): ngữ cảnh, container, trước/sau khi có TADSS, cấu trúc bên trong TADSS; chỉ tóm tắt, tài liệu sở hữu thắng |
 | `docs/report/USE_CASES.md` | hiện hành | Sơ đồ và đặc tả use case mới/thay đổi khi SmashCourt dùng TADSS (UC-DEPOSIT-01…12) và use case của TADSS (UC-TADSS-01…08) |
@@ -426,7 +427,7 @@ Cột *File* ghi đường dẫn tính từ gốc repo. Bảng này do `tools/do
 | `docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md` | hiện hành | Danh mục kiểm thử, KPI SC1–SC8, quy tắc DOC-1…DOC-4 |
 | `docs/research/E2E_TEST_SPECIFICATION.md` | hiện hành | Đặc tả từng bước các kịch bản E2E-01…E2E-14 (T5.27): dữ liệu thử, bước, quan sát kỳ vọng, minh chứng, truy vết |
 | `docs/research/DATASET_SCHEMA_SPECIFICATION.md` | hiện hành | Cấu trúc dataset và Evidence Pack |
-| `docs/research/RESEARCH_THESIS_DEFENSE.md` | hiện hành | Định hướng Khóa luận (ngoài phạm vi Đồ án 2) |
+| `docs/research/RESEARCH_THESIS_DEFENSE.md` | lịch sử | Định hướng Khóa luận ban đầu (khung ATDA), ảnh chụp 13/11/2026. Thay thế: `docs/planning/PROPOSAL_KHOA_LUAN.md` |
 | `docs/research/RESEARCH_PROBLEM_BACKLOG.md` | lịch sử | Khảo sát tiền đề trước khi khóa phạm vi, ảnh chụp 27/09/2026. Thay thế: `docs/planning/PROPOSAL_DO_AN_2.md` |
 | `src/Shared.DecisionContractSDK/README.md` | hiện hành | Giới thiệu SDK `Shared.DecisionContractSDK` (đóng gói vào NuGet) |
 

@@ -16,7 +16,7 @@ Khi mở rộng từ nền tảng hạ tầng `TADSS Runtime Engine` (Đồ án 
     *   Contract v2 của Đồ án 2 đã bổ sung lịch sử khách (`history`) và snapshot request được lưu trong audit, nên Khóa luận có sẵn đặc trưng và nhãn kết quả (`decision_outcomes`) mà không phải đổi contract.
     *   Giữ cho phạm vi Đồ án 2 tập trung vào độ tin cậy vận hành của Runtime Engine.
 *   **Tiêu cực (Negative):**
-    *   Không hiện thực trong Đồ án 2. Lựa chọn mô hình cuối cùng phụ thuộc dữ liệu thực tế thu được (xem [`RESEARCH_THESIS_DEFENSE.md`](../../research/RESEARCH_THESIS_DEFENSE.md)); CatBoost là baseline định hướng, không phải cam kết.
+    *   Không hiện thực trong Đồ án 2. Lựa chọn mô hình cuối cùng phụ thuộc dữ liệu thực tế thu được (xem [`PROPOSAL_KHOA_LUAN.md`](../../planning/PROPOSAL_KHOA_LUAN.md)); CatBoost là baseline định hướng, không phải cam kết.
     *   Strategy học máy có thể nặng CPU, nên cần cơ chế cách ly timeout của runtime v2 (ADR-003).
 
 ## Phương án thay thế đã cân nhắc (Cho Khóa luận)

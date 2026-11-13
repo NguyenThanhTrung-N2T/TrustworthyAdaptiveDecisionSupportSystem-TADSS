@@ -23,7 +23,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 
 **Kết quả hiệu năng chính** ([báo cáo](report/PERFORMANCE_REPORT.md)): ở tải danh nghĩa (khoảng 51 request/s) hệ thống đạt mọi SLO p95, 0 % lỗi khi máy ở trạng thái bình thường; gãy ở 2,5 lần tải danh nghĩa (nút cổ chai CPU BE); hồi phục sau spike ×5 trong 30 s; TADSS thêm 15–30 ms vào Đặt sân p95, ra quyết định p95 khoảng 15 ms; khi TADSS dừng / chậm / mất kết nối khách vẫn đặt được (cọc 100 %), dữ liệu đúng (SC6). Năng lực tăng khoảng 2,4 lần so với đầu Phase 6 (P6-53 bỏ index trùng, nút cổ chai chuyển từ khóa PostgreSQL sang CPU BE); P6-55 hạ bcrypt 12 ⇒ 11.
 
-**Quyết định quan trọng của Phase 6:** P6-01…P6-31 ở spec Phase 6 (nghiệp vụ cọc, thời gian, hủy, thanh toán); P6-32…P6-55 ở plan 6C (đóng gói, CI/CD, một bản deploy, quan sát, đo hiệu năng, P6-53 index trùng, P6-54 auto-prepare chỉ cho đánh giá, P6-55 bcrypt 11). Đánh đổi đã chốt 11/11: giữ `TimeoutMs` 800 ms + một lần thử lại khi gọi TADSS; câu đọc chi tiết booking 12 bảng để làm hướng cải tiến.
+**Quyết định quan trọng của Phase 6:** P6-01…P6-31 ở spec Phase 6 (nghiệp vụ cọc, thời gian, hủy, thanh toán); P6-32…P6-58 ở plan 6C (đóng gói, CI/CD, một bản deploy, quan sát, đo hiệu năng, P6-53 index trùng, P6-54 auto-prepare chỉ cho đánh giá, P6-55 bcrypt 11, P6-56 bật / tắt cờ TADSS khi đang chạy, P6-57 mạch ngắt lời gọi đánh giá cọc ở BE, P6-58 tắt cache quyết định bằng cấu hình). Đánh đổi đã chốt 11/11: giữ `TimeoutMs` 800 ms + một lần thử lại khi gọi TADSS (từ P6-57 mạch ngắt bỏ qua lời gọi khi TADSS đang hỏng); câu đọc chi tiết booking 12 bảng để làm hướng cải tiến.
 
 **Việc còn mở:**
 

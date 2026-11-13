@@ -62,7 +62,7 @@
 - **RQ2 — Governance & khả năng kiểm toán:** Mô hình audit bất biến (execution + override + outcome, được DB bảo vệ) có đảm bảo mọi quyết định truy vết được, không bị sửa sau khi ghi, và chống ghi đè đồng thời của nhiều Manager không?
 - **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, và trên 215 đơn đặt sân SmashCourt đã ẩn danh (phát sinh khi phát triển và demo Đồ án 1) thì tỷ lệ đơn cần duyệt và mức cọc thay đổi ra sao so với chính sách cọc 100%?
 
-Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md).
+Câu hỏi nghiên cứu của Khóa luận (RQ1–RQ5): xem [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md).
 
 ---
 
@@ -84,7 +84,7 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | Tích hợp SmashCourt ↔ TADSS + **contract v2** | [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md), `openapi-v2.yaml`, `schemas/v2/` | Nguồn cho Phase 5–6; contract v1 (Phase 1–4) đã gỡ, tra lại qua tag `phase4-baseline` |
 | Danh mục kiểm thử, KPI, giao thức thực nghiệm | [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) | **Nguồn duy nhất về test case & KPI** |
 | Dữ liệu minh chứng & Evidence Pack | [`DATASET_SCHEMA_SPECIFICATION.md`](../research/DATASET_SCHEMA_SPECIFICATION.md) | |
-| Định hướng Khóa luận | [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) | |
+| Đề cương Khóa luận | [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md) | Bản thảo; định hướng ban đầu ở `RESEARCH_THESIS_DEFENSE.md` là tài liệu lịch sử |
 | Khảo sát ý tưởng ban đầu | [`RESEARCH_PROBLEM_BACKLOG.md`](../research/RESEARCH_PROBLEM_BACKLOG.md) | Lưu trữ lịch sử |
 | Bảng tham chiếu cấu hình `Tadss:*` | [`CONFIGURATION_REFERENCE.md`](../guides/CONFIGURATION_REFERENCE.md) | DOC-4 kiểm đủ section |
 | Lệnh chạy và vận hành (dev 4 repo, bản deploy, CD, lượt đánh giá, dashboard "Kiểm thử", đo hiệu năng) | [`RUNBOOK.md`](../guides/RUNBOOK.md) | Nơi duy nhất chứa lệnh |
@@ -107,6 +107,6 @@ Giả thuyết của Khóa luận (H1, ràng buộc công bằng): xem [`RESEARC
 | 2 — Thiết kế | Kiến trúc, contract v2, DB, pipeline, luồng tích hợp | SAS, INVARIANTS, TAXONOMY, ADR, INTEGRATION_SPEC | Xong trước cuối W13 |
 | 3 — Hiện thực & kiểm thử | Hiện thực 3 repo, hạ tầng kiểm thử, danh mục kiểm thử | Mã nguồn, EXPERIMENTAL_DESIGN | W15–W16 |
 | 4 — Đánh giá | KPI SC1–SC8, chaos, tải, replay, portability | Evidence Pack + `report.html`, [`PERFORMANCE_REPORT.md`](../report/PERFORMANCE_REPORT.md) | W15–W16 |
-| 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | RESEARCH_THESIS_DEFENSE | W16 |
+| 5 — Kết luận | Đóng góp, hạn chế, hướng Khóa luận | PROPOSAL_KHOA_LUAN | W16 |
 
 **Nguyên tắc trình bày số liệu:** mọi con số trong báo cáo phải truy được về Evidence Pack (run id, commit, cấu hình, file dữ liệu thô); luôn nêu rõ môi trường đo (chế độ đánh giá E-EVAL — chạy cùng `docker compose up -d --build` (D-14), trên một máy nên là số liệu phòng lab kèm cấu hình CPU/RAM — hay môi trường tích hợp E-STAGING) và cỡ mẫu.

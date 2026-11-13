@@ -1,3 +1,5 @@
+> **Tài liệu lịch sử** — ảnh chụp ngày 13/11/2026, không cập nhật theo mã. Nguồn hiện hành: [PROPOSAL_KHOA_LUAN.md](../planning/PROPOSAL_KHOA_LUAN.md).
+
 # ĐỊNH HƯỚNG KHÓA LUẬN: KIẾN TRÚC QUYẾT ĐỊNH TIN CẬY THÍCH ỨNG (ATDA) `[NGOÀI PHẠM VI ĐỒ ÁN 2]`
 
 > Tài liệu định hướng cho Khóa luận tốt nghiệp (Lớp 3 — strategy TADS và khung ATDA). Không thuộc kế hoạch 16 tuần của Đồ án 2 ([`MASTER_EXECUTION_PLAN.md`](../planning/MASTER_EXECUTION_PLAN.md)).

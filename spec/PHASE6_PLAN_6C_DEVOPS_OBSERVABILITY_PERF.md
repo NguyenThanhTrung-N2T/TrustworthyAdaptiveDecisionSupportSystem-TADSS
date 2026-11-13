@@ -100,29 +100,29 @@ Chế độ đánh giá của TADSS (`docker compose up -d --build`, D-14) giữ
 
 Chi tiết từng mã nằm ở **một chỗ**: `tests/catalog.yaml` (task 2.1) sinh từ [methodology](../docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4. Bảng dưới chỉ để biết đủ nhóm hay chưa.
 
-| Nhóm | Mã | Hệ thống | Trạng thái 31/10 |
+| Nhóm | Mã | Hệ thống | Trạng thái (rà lại 13/11) |
 | :--- | :--- | :--- | :--- |
 | Unit / Integration TADSS | UT-01…15, IT-01…15 | TADSS | Đạt |
 | Contract | CT-01…04 | TADSS, BE | Đạt |
 | Mutation | MT-01…03 | TADSS | Đạt |
 | Chịu lỗi TADSS / scale | FI-01…10, SCALE-1…3 | TADSS | Đạt |
-| Tải TADSS | LT-01, 02, 03, 05 | TADSS | Đạt (chạy lại trên 2.1.0) |
+| Tải TADSS | LT-01, 02, 03, 05 | TADSS | LT-01, LT-03 đạt; LT-02, LT-05 có sai lệch 504 đã giải thích ở Gate M5 (`spec/archive/phase5/PHASE5_REPORT_5.7.md` Mục 3) |
 | Bảo mật / expose / quan sát / tài liệu TADSS | SEC-1…7, NG-1…5, OB-1…5, DOC-1…4 | TADSS | Đạt |
-| Đánh giá trên dữ liệu | RP-01…02, PT-01…04 | TADSS | Chờ CSV / lượt đầy đủ |
-| Unit / Integration BE | BE-UT-01…14, BE-IT-01…27 | BE | Đạt |
-| Bất biến booking | SC6 (CI + môi trường triển khai) | BE + TADSS | CI đạt; trên môi trường triển khai chưa chạy |
+| Đánh giá trên dữ liệu | RP-01…02, PT-01…04 | TADSS | Đạt (lượt đầy đủ `EV-20261017-EVAL-full-r1`) |
+| Unit / Integration BE | BE-UT-01…14, BE-IT-01…27 | BE | Đạt (CI 13/11) |
+| Bất biến booking | SC6 (CI + môi trường triển khai) | BE + TADSS | CI đạt; DB perf sau mỗi lượt SP-09 đạt; **bản deploy chưa chạy** |
 | Lint và cú pháp AI | AI-LINT (ruff, compileall — đã có trong CI AI) | AI | Đạt |
-| **Mới:** unit AI | AI-UT-01…05 (dựng prompt, đọc/kiểm response của LLM bằng LLM giả, xử lý lỗi/timeout/429 của Gemini, kiểm schema vào/ra, `/health`) | AI | Giai đoạn 1 (repo AI chưa có test nào) |
-| **Mới:** hợp đồng BE ↔ AI | AI-CT-01 (DTO `SmashCourt-BE/Integrations/AI/DTOs` khớp `app/models/ai_schemas.py`, snake_case) | BE + AI | Giai đoạn 1 |
+| **Mới:** unit AI | AI-UT-01…05 (dựng prompt, đọc/kiểm response của LLM bằng LLM giả, xử lý lỗi/timeout/429 của Gemini, kiểm schema vào/ra, `/health`) | AI | Đạt (CI AI) |
+| **Mới:** hợp đồng BE ↔ AI | AI-CT-01 (DTO `SmashCourt-BE/Integrations/AI/DTOs` khớp `app/models/ai_schemas.py`, snake_case) | BE + AI | Đạt |
 | FE | FE-01…12 | FE | Chưa làm (6B) |
 | E2E | E2E-01…14 | Toàn hệ thống | Chưa chạy (Phase 7–8) |
-| Chịu lỗi tích hợp | FI-11…14 | BE ↔ TADSS | Chưa chạy |
-| **Mới:** đóng gói và CD | OPS-01…10 | BE + TADSS + AI | Giai đoạn 1 |
-| **Mới:** quan sát BE | OB-BE-1…4 | BE | Giai đoạn 1 |
-| **Mới:** quan sát AI | OB-AI-1…3 (metric FastAPI + lời gọi Gemini: độ trễ, token, lỗi, 429; trace BE ⇒ AI; dashboard tab AI) | AI | Giai đoạn 1 |
-| **Mới:** bảo mật BE | SEC-BE-1…7 | BE | SEC-BE-7 ở giai đoạn 1, còn lại làm sau |
-| **Mới:** bảo mật AI | SEC-AI-1 (AI không lộ ra ngoài: không ngrok, không cổng host), SEC-AI-2 (xác thực BE ⇒ AI, làm sau), SEC-AI-3 (khóa Gemini không vào image/log), SEC-AI-4 (quét gói Python có lỗ hổng trong CI) | AI | SEC-AI-1, 3, 4 ở giai đoạn 1; SEC-AI-2 làm sau |
-| **Mới:** hiệu năng hệ thống | SP-01…09 (SP-01 gộp LT-04), SP-10 (AI với LLM giả) | BE + TADSS + AI | Giai đoạn 2 |
+| Chịu lỗi tích hợp | FI-11…14 | BE ↔ TADSS | FI-11, FI-12, FI-14 đạt dưới tải (SP-09 11/11, lặp lại khi bật mạch ngắt 13/11); FI-13 đạt ở mức BE (BE-IT-19, CI), chưa chạy dưới tải (tùy chọn D4) |
+| **Mới:** đóng gói và CD | OPS-01…10 | BE + TADSS + AI | OPS-01…08 đạt (CI, CD chạy thật từ 01/11); **OPS-09, OPS-10 chờ diễn tập 1.41** |
+| **Mới:** quan sát BE | OB-BE-1…4 | BE | Đạt: OB-BE-2 thấy span TADSS trong trace BE trên Tempo của môi trường perf (11/11); OB-BE-4 thử sự cố giả 01/11 (luật "Service không sẵn sàng" của AI chuyển Alerting 13:12, lịch sử cảnh báo Grafana Cloud) |
+| **Mới:** quan sát AI | OB-AI-1…3 (metric FastAPI + lời gọi Gemini: độ trễ, token, lỗi, 429; trace BE ⇒ AI; dashboard tab AI) | AI | Đạt (kiểm 01/11: một trace chung BE ⇒ AI ⇒ Gemini, mọi truy vấn tab AI có dữ liệu) |
+| **Mới:** bảo mật BE | SEC-BE-1…7 | BE | SEC-BE-7 đạt (CI); còn lại làm sau |
+| **Mới:** bảo mật AI | SEC-AI-1 (AI không lộ ra ngoài: không ngrok, không cổng host), SEC-AI-2 (xác thực BE ⇒ AI, làm sau), SEC-AI-3 (khóa Gemini không vào image/log), SEC-AI-4 (quét gói Python có lỗ hổng trong CI) | AI | SEC-AI-1, 3, 4 đạt; SEC-AI-2 làm sau |
+| **Mới:** hiệu năng hệ thống | SP-01…09 (SP-01 gộp LT-04), SP-10 (AI với LLM giả) | BE + TADSS + AI | Đủ kết quả hợp lệ ([báo cáo hiệu năng](../docs/report/PERFORMANCE_REPORT.md)); SP-04 không đạt luật bộ nhớ (heap .NET phẳng) |
 | KPI | SC1…SC8 | — | Tổng hợp từ các nhóm trên |
 
 Khoảng 205 hạng mục; không bỏ mục nào.
@@ -919,3 +919,22 @@ Mỗi kịch bản chạy được bằng một lệnh có tham số (kịch b�
   - **M3:** luật cảnh báo trên log Error có sẵn (ví dụ `[Outcome]` nhãn outcome lệch `checked_in_at`, đơn thiếu `tadss_decision_id`). Vài giờ, rời rạc.
   Thứ tự nếu làm: M1, rồi M2 bản tối thiểu. Làm sau buổi đo SP-09 (P6-57) và C (P6-58).
 - **Buổi 10 (13/11, 15:02–16:56): đo P6-57.** SP-09 trên cùng image BE `sha-c01a71f`, chỉ đổi `CircuitEnabled` (`perf.sh up --faults [--circuit-off]`), thứ tự FI-11 tắt, FI-11 bật, FI-12 bật, FI-12 tắt, thêm FI-14 bật (buổi 1 giờ 54). Request đặt sân **trong 5 phút lỗi** (`faults.py latency`): FI-11 tắt 189 request, 163 chờ > 800 ms, p50 / p95 1.653 / 1.682 ms ⇒ bật 175, **3**, 50 / 75 ms; FI-12 tắt 180, 160, 1.653 / 1.682 ms ⇒ bật 192, **4**, 50 / 74 ms; FI-14 bật 186, 0, 51 / 75 ms. Các đơn còn chậm: một hai đơn đầu (trước khi mạch mở) và đơn thử ở +64 s, +188 s (khớp lịch 60 s, 120 s). Mạch mở khoảng 5–10 s sau khi lỗi bắt đầu, tự đóng khoảng 5–10 s sau khi gỡ (đọc metric `smashcourt_tadss_circuit_state` của perf, nhịp 5 s). Mọi lượt: mọi đơn trong lỗi cọc 100 %, 0 chờ duyệt, 0 quyết định trùng, SC6 đạt, lỗi request ≤ 0,09 %. Một lượt mỗi bên: báo độ lớn hiệu ứng (khoảng 22 lần ở p95 trong lỗi), không áp B.7.8. Bằng chứng `perf/evidence/PERF-6C-20261113-SP09/` (5 lượt, có `fault-latency.json`; `perf_evidence.py` từ nay chép file này). Báo cáo hiệu năng Mục 6.8 và Mục 11 đã cập nhật. Còn: C (P6-58).
+- **Rà soát plan 6C (13/11 tối, sau P6-58; đối chiếu Mục 4, dashboard "Kiểm thử" `perf/results/state.json`, Grafana Cloud bằng truy vấn chỉ đọc):** bảng Mục 4 cập nhật trạng thái. Không còn việc nào chặn; các điểm còn hở:
+  - **Kiểm thử, dashboard "Kiểm thử" lệch với báo cáo:** 132 / 191 mã có kết quả trên bảng; 59 mã chưa từng nạp. Trong đó FE-01…12, E2E-01…14 là đúng (chưa làm). 33 mã còn lại đã có kết quả ở nơi khác nhưng không lên bảng:
+    1. **Chưa nạp lại** (công cụ đã có): CI nạp lần cuối 01/11 nên thiếu BE-UT-14, BE-IT-27 (`board.py ci all`); SP-06, SP-07, SP-09 chưa từng nạp (`board.py k6`).
+    2. **Bộ nạp k6 chỉ đọc `verdict.json` của một lượt, không đọc bản gộp `pooled-*.json`:** SP-01 trên bảng là vàng "KHÔNG ĐỦ DỮ LIỆU" (lượt r3 buổi 9) trong khi kết luận gộp 3 lượt là ĐẠT (báo cáo Mục 6.2, 10.2). Luật B.7.2 kết luận theo bản gộp nên đây là lỗi của bộ nạp.
+    3. **Không có nguồn nạp:** FI-11…14 (chạy trong lượt SP-09 nhưng bộ nạp k6 gắn một summary với đúng một mã SP); bước CI không phải test (OPS-01…08, NG-2/3, OB-4, SEC-BE-7, SEC-AI-4); kiểm thủ công (OB-BE-4, OB-AI-2/3, SEC-AI-1); LT-01/02/05 không có trong manifest của `full-r1` vì bước (b) trượt (sai lệch đã giải thích ở Gate M5), bảng hiện "chưa chạy" thay vì "có sai lệch".
+    Cổng giai đoạn 2 ("dashboard kiểm thử hiện đủ mọi nhóm ở Mục 4") vì vậy chưa đạt ở mức hiển thị, dù kết quả đã có.
+  - **Giám sát bản deploy (Grafana Cloud, 13/11):** 6 luật cảnh báo đều chạy (`inactive`, `health ok`); lịch sử cảnh báo có các lần chuyển Alerting / Normal đúng lúc bản deploy tắt cho buổi đo; Loki nhận log cả 3 service. Bản deploy chỉ để giám sát (người dùng chốt 13/11) nên hầu như không có request nghiệp vụ: panel quyết định TADSS, panel Gemini trống là bình thường, đã được kiểm bằng dữ liệu ở môi trường perf và Grafana local (01/11). So với Mục 5.2: thiếu cảnh báo 5xx của TADSS (chỉ có BE, AI; lỗi TADSS hiện lộ qua luật đường lùi và mạch ngắt của BE); CD thất bại do GitHub gửi email, quota ngrok xem trên trang ngrok (đã ghi ở 1C).
+  - **Việc của người dùng còn treo:** 1.41 diễn tập CD (OPS-09, OPS-10); quyết định SP-04 (nhận là hạn chế hay soak 3 giờ); kiểm `NEXT_PUBLIC_API_BASE_URL` của Vercel (C1); đổi mật khẩu Neon `main`.
+  - **Đề xuất chờ người dùng chấp nhận (chưa làm, làm thì ghi mã P6-59 trở đi):**
+    - **D1. Sửa bộ nạp bảng "Kiểm thử"** (`perf/testboard/sources.py`): nhận file `pooled-*.json` cho mã SP (lấy kết luận gộp); nạp FI-11/12/14 từ thư mục lượt SP-09 có `faults.json` + `fault-latency.json`; nguồn "ghi nhận thủ công" (file YAML có mã, ngày, người kiểm, link bằng chứng) cho mã kiểm tay và bước CI không phải test; LT-02/LT-05 hiện "có sai lệch". Rồi nạp lại CI, SP-06/07/09. Khoảng nửa ngày kèm test pytest.
+    - **D3. Thêm luật cảnh báo "TADSS lỗi 5xx > 5 %"** cho đủ Mục 5.2 (`grafana_cloud.py`, có test `check`).
+    - **D4. FI-13 dưới tải:** một lượt SP-09 tắt cờ giữa pha steady bằng file cờ (P6-56) rồi bật lại; đo thời gian có hiệu lực (< 2 giây theo đề cương) và SC6. Cần tắt bản deploy khoảng 30 phút.
+    - **D5 = M1–M3** (theo dõi lỗi logic booking / hóa đơn / thanh toán, mục 13/11 ở trên).
+    - **D6. Một lượt closed model** (profile `closed` của `perf/k6/mix.js` có sẵn nhưng chưa từng chạy): cùng số người dùng tương đương tải danh nghĩa, để báo cáo Mục 4.4 có số minh họa chênh lệch open / closed (coordinated omission). Cần tắt bản deploy khoảng 25 phút; không bắt buộc, mọi lượt chính thức dùng open model.
+  - **Ngày chạy đủ (người dùng chốt 13/11, chưa đặt ngày):** gom mọi việc còn lại cần chạy thật vào **một ngày**, sau khi làm xong phần Grafana bổ sung (D3, D5 nếu được duyệt). Điều kiện như các buổi đo (máy đã chạy khoảng 1,5 giờ, cắm sạc, tắt trình duyệt nặng, không build / test trên máy lúc đo; hỏi người dùng trước khi tắt bản deploy). Thứ tự:
+    1. Diễn tập CD 1.41 (OPS-09, OPS-10) khi bản deploy còn bật: push bản hỏng có chủ đích cho từng service ⇒ tự quay về; hỏng cả bản cũ ⇒ `UNSAFE`; sha / image sai ⇒ từ chối. Người dùng push, Claude theo dõi và ghi kết quả.
+    2. Tắt bản deploy, chạy perf: D4 (FI-13 tắt / bật cờ dưới tải + SC6), D6 (một lượt closed model); tùy chọn soak 3 giờ (SP-04).
+    3. Bật lại bản deploy; D1 sửa bộ nạp rồi nạp lại toàn bộ kết quả lên dashboard "Kiểm thử" (CI, SP-01…10, FI-11…14, ghi nhận thủ công); cập nhật báo cáo hiệu năng và gói bằng chứng mới.
+    - **Tùy chọn, không chặn:** soak 3 giờ để kết luận working set BE (SP-04); ba cảnh báo khởi động trong log BE; test chập chờn `NetworkError_IsRetriedOnce_ThenFullPayment` chưa lặp lại từ 11/11 (CI BE xanh 5 / 6 lượt gần nhất, lượt đỏ do test khác đã sửa).

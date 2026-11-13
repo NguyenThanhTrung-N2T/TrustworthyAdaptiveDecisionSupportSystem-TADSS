@@ -171,4 +171,4 @@ Bắt đầu 31/10/2026, không có trong backlog ban đầu của phase. Task (
 
 ## KHÓA LUẬN (NGOÀI PHẠM VI ĐỒ ÁN 2)
 
-Backlog Khóa luận (chiến lược TADS, mô hình học máy, mô phỏng) được mô tả tại [`RESEARCH_THESIS_DEFENSE.md`](../research/RESEARCH_THESIS_DEFENSE.md) và không thuộc kế hoạch 16 tuần này.
+Backlog Khóa luận (chiến lược TADS, mô hình học máy, mô phỏng) được mô tả tại [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md) và không thuộc kế hoạch 16 tuần này.

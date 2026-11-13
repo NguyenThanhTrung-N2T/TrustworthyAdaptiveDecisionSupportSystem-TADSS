@@ -14,7 +14,9 @@ Chương này trả lời ba câu hỏi: hệ thống có đạt mục tiêu hi�
 ## 1. Mục tiêu và phạm vi
 
 - **Đo cả hệ thống** SmashCourt-BE + TADSS (+ SmashCourt-AI ở SP-10) qua các hành trình người dùng thật của ứng dụng đặt sân, không đo từng hàm riêng lẻ. Bổ sung cho các bài đo riêng của TADSS (LT-01…05 trong bộ đánh giá Phase 5) và không thay kiểm thử tính đúng (unit, integration, E2E).
-- **Ngoài phạm vi:** cổng thanh toán thật (k6 tự ký IPN bằng khóa giả), email thật (vào Mailpit), Gemini thật (LLM giả có độ trễ cấu hình được), giao diện FE.
+- **Luồng nghiệp vụ được đo** (chi tiết hành trình ở Mục 4): đăng nhập (J2), xem chi nhánh / sân / lịch trống (J1, tương ứng "xem sản phẩm"), tạo đơn đặt sân online kèm quyết định cọc của TADSS (J3), thanh toán qua kết quả IPN của cổng (J4), cùng các thao tác sau đặt: hủy, xem lịch sử, nhân viên check-in / check-out, quản lý duyệt cọc (J5–J7).
+- **Quy ước giả lập cổng thanh toán khi chạy tải:** môi trường `perf` dùng `TmnCode` / `HashSecret` VNPay **giả** của riêng nó; BE vẫn dựng link thanh toán như thật nhưng không gọi VNPay; k6 tự ký IPN bằng đúng khóa giả đó (HMAC như cổng thật) và gửi vào `GET /api/payments/vnpay/ipn`, nên toàn bộ phần kiểm chữ ký, số tiền và cập nhật đơn của BE vẫn chạy. Email vào Mailpit, AI gọi LLM giả. Script khởi động chặn mọi chuỗi kết nối tới Neon, Gmail hay VNPay thật.
+- **Ngoài phạm vi:** cổng thanh toán thật, email thật, Gemini thật (độ trễ của chúng không thuộc hệ thống), giao diện FE.
 
 ## 2. Tiêu chí chấp nhận (SLO)
 
@@ -32,6 +34,17 @@ Chốt 02/11/2026 (plan B.7.2), đo **phía client** (k6) trên pha ổn định
 
 TADSS giữ SLO riêng: **SC1** p95 < 150 ms phía server; **SC2** p99 ≤ 700 ms khi strategy lỗi (đã chấm ở bộ đánh giá Phase 5). AI (SP-10A): p95 < 300 ms phần xử lý của AI.
 
+**Tiêu chí theo kịch bản** (plan B.7.4, B.7.5, chốt cùng ngày; "cửa sổ đạt" = p95 Đọc < 300 ms với ≥ 100 mẫu và lỗi < 0,5 %):
+
+| Kịch bản | Đạt khi |
+| :--- | :--- |
+| Load (SP-01) | Mọi dòng của bảng trên, trên pha `steady`, ×3 lượt |
+| Stress (SP-02) | Không chấm đạt / không đạt: ghi bậc và tín hiệu vi phạm đầu tiên; về lại 100 % mà các cửa sổ đạt thì "tự hồi phục" |
+| Spike (SP-03) | Từ lúc về mức danh nghĩa tới đầu chuỗi **3 cửa sổ 10 s đạt liên tiếp** ≤ 60 s; không hồi phục trong 5 phút ghi "không hồi phục" |
+| Soak (SP-04) | SLO bảng trên trên toàn pha; RAM BE và số kết nối PostgreSQL (trung bình phút 15–25 so với 10 phút cuối) tăng ≤ 10 %; p95 Đọc mọi cửa sổ 10 phút ≤ 1,2 lần cửa sổ đầu |
+| Điểm gãy (SP-05) | Bậc thấp nhất có một cửa sổ 1 phút vi phạm: p95 Đọc > 300 ms, p95 Đặt sân > 1000 ms, lỗi > 0,5 % hoặc bỏ lượt (`dropped_iterations`) > 1 % |
+| Chịu lỗi (SP-09) | Lỗi request trong lúc lỗi < 0,5 %; từ 60 s sau khi gỡ, Đặt sân p95 < 1000 ms; mọi đơn trong lúc lỗi cọc 100 %; SC6 không vi phạm |
+
 **Quy tắc đọc kết quả.** p95 cần ≥ 100 mẫu, p99 cần ≥ 1000 mẫu; thiếu mẫu ghi **KHÔNG ĐỦ DỮ LIỆU**, không bao giờ coi là đạt. p99 thiếu mẫu ở từng lượt thì tính trên mẫu thô ghép của 3 lượt (không lấy trung bình các p99). Phân vị tính trên mẫu thô từng request (nội suy tuyến tính như k6). So sánh hai cấu hình chỉ gọi là **cải thiện / khác biệt** khi khoảng min–max của ≥ 3 lượt mỗi bên **không chồng nhau**; chồng nhau thì ghi "không phân biệt được".
 
 ## 3. Môi trường và công cụ
@@ -43,21 +56,46 @@ TADSS giữ SLO riêng: **SC1** p95 < 150 ms phía server; **SC2** p99 ≤ 700 m
 | Trần tài nguyên | BE 2 CPU / 1 GB, TADSS 1,5 CPU, PostgreSQL SmashCourt 1 CPU / 1 GB, PostgreSQL TADSS 0,5 CPU, AI 1 CPU, k6 1,5 CPU / 2 GB |
 | Tách CPU | `cpuset`: hệ thống dùng CPU 0–5 (3 nhân vật lý), k6 + bộ quan sát dùng CPU 6–7 (1 nhân), để công cụ đo không tranh CPU với hệ thống được đo |
 | Công cụ | k6 2.3.0 (mẫu thô từng request); Prometheus 3.15 + Alloy (cAdvisor, OTLP), Tempo 2.10 (trace, lượt phân tích), Grafana "Kiểm thử"; `pg_stat_activity` lấy mẫu mỗi giây |
+| Exporter | Chạy trong Alloy: exporter PostgreSQL × 2 (DB SmashCourt, DB TADSS: kết nối theo trạng thái, giao dịch, khóa khi bật), exporter Redis (lệnh / giây, hit / miss), cAdvisor (CPU, RAM, mạng từng container); Pushgateway nhận kết quả các bộ test cho dashboard "Kiểm thử" |
 | Điều kiện lượt chính thức | Tắt bản deploy và runner CI trên cùng máy; khôi phục DB về dữ liệu mẫu + kiểm checksum trước mỗi lượt; kiểm sự kiện ngủ của Windows và xung nhịp CPU từng lượt (`cpu-clock.json`) |
+
+**Cách thu thập.** (1) k6 ghi **mẫu thô từng request** (`raw.csv.gz`, nguồn duy nhất để chấm SLO) và đẩy metric qua OTLP vào Alloy cho dashboard. (2) BE, TADSS, AI xuất metric (histogram request, Npgsql, HttpClient, runtime .NET), trace và log qua OTLP ⇒ Alloy ⇒ Prometheus / Tempo. (3) Exporter và cAdvisor được Alloy đọc mỗi 5 giây. (4) Sau mỗi lượt, `perf/perf.sh` gọi `perf/stack/analyze.py`: `verdict.json` chấm SLO trên mẫu thô của pha `steady`, `resources.json` lấy tài nguyên từ Prometheus trong đúng khoảng đó; cùng thư mục lượt có xung nhịp CPU (`cpu-clock.json`), mẫu `pg_stat_activity` và metadata (sha image, seed, cờ); lượt dùng làm bằng chứng được chép sang gói `perf/evidence/` kèm SHA-256.
 
 **Dữ liệu.** Bộ sinh tất định (seed 42): 2.000 khách, chi nhánh, sân, bảng giá và đơn có sẵn theo phân bố rút từ 215 booking trên DB chính của SmashCourt (phát sinh khi phát triển và demo Đồ án 1; chỉ file thống kê vào repo, không dữ liệu cá nhân); cùng seed ⇒ cùng dữ liệu ⇒ các lượt so sánh được.
 
 ## 4. Mô hình người dùng
 
-- **Hành trình:** J1 xem sân / lịch trống; J2 đăng nhập; J3 đặt sân online ⇒ J4 thanh toán (IPN do k6 ký) / hủy / bỏ dở; J5 xem lịch sử và chi tiết đơn; J6 nhân viên xem danh sách, check-in, check-out; J7 quản lý duyệt cọc.
-- **Tỷ lệ:** J1 55 %, J5 15 %, J3+J4 15 %, J2 5 %, J6 7 %, J7 3 % (giả định có lý do: đọc nhiều hơn ghi; không có log truy cập thật). Tỷ lệ request khác tỷ lệ hành trình: ở tải danh nghĩa 96 % request là Đọc.
-- **Think time** có seed: xem trang 2–6 s, điền form 8–20 s, giữa hai hành trình 5–15 s.
-- **Open model** (`constant-arrival-rate`, `ramping-arrival-rate`): hành trình đến theo nhịp bất kể hệ thống chậm, tránh sai số "coordinated omission" của mô hình đóng; trần VU cấp sẵn để k6 không phải tạo VU giữa lượt.
+### 4.1. Virtual User
+
+Mỗi VU đóng vai một khách, một nhân viên và một quản lý cố định (tài khoản suy từ số thứ tự VU), giữ phiên đăng nhập riêng. Token lấy từ nhóm tài khoản đăng nhập sẵn ở bước `setup` (300 khách rải đều trên 2.000, mọi nhân viên và quản lý), vì open model sinh thêm VU khi hệ thống chậm: nếu mỗi VU mới tự đăng nhập thì bcrypt dồn thành "bão đăng nhập" không có ở người dùng thật (thấy ở lượt thử tài nguyên 01/11). Đăng nhập được đo riêng bằng hành trình J2. Số VU cấp sẵn = **1,5 × tốc độ đến cao nhất của lượt × thời lượng một hành trình** (đặt 8,35 s; SP-08 đo 7,1–7,9 s ở các bậc chưa quá tải), ví dụ 238 VU ở 19 hành trình/s, để k6 không phải tạo VU giữa lượt; lượt nào thiếu VU thì `dropped_iterations` ghi lại và được chấm (Mục 2).
+
+### 4.2. Think Time
+
+Ngẫu nhiên có seed, giống nhau giữa các lượt: xem trang 2–6 s, điền form đặt sân 8–20 s, giữa hai hành trình 5–15 s.
+
+### 4.3. Workload Model
+
+- **Hành trình:** J1 xem sân / lịch trống; J2 đăng nhập; J3 đặt sân online ⇒ J4 thanh toán (IPN do k6 ký) / hủy / bỏ dở; J5 xem lịch sử và chi tiết đơn; J6 nhân viên xem danh sách, check-in, check-out; J7 quản lý duyệt cọc (chỉ có khi TADSS trả `NEED_APPROVAL`).
+- **Tỷ lệ:** J1 55 %, J5 15 %, J3+J4 15 %, J2 5 %, J6 7 %, J7 3 % (giả định có lý do: đọc nhiều hơn ghi; không có log truy cập thật). Tỷ lệ request khác tỷ lệ hành trình: ở tải danh nghĩa 96 % request là Đọc; hệ số 2,72 request / hành trình. Mỗi request mang tag hành trình và nhóm SLO để tách số liệu.
 - **Giờ thật:** giờ đặt sân, đơn để check-in / check-out chọn theo giờ VN lúc chạy (sân mở 06–22 giờ) ⇒ tỷ lệ request ghi phụ thuộc giờ chạy; mỗi bảng ghi khung giờ của lượt.
+
+### 4.4. Open Model và Closed Model
+
+- **Closed model** (`ramping-vus`): số người dùng cố định, mỗi người chờ phản hồi rồi mới làm tiếp. Khi hệ thống chậm, người dùng tự gửi ít request đi, nên tải giảm đúng lúc hệ thống yếu và độ trễ đo được thấp hơn thực tế ("coordinated omission"). Hợp với câu hỏi trải nghiệm của một nhóm người dùng cố định; có sẵn profile `closed` trong `perf/k6/mix.js`.
+- **Open model** (`constant-arrival-rate`, `ramping-arrival-rate`): hành trình đến theo nhịp đặt trước, bất kể hệ thống nhanh hay chậm, giống người dùng thật trên Internet không biết nhau. **Mọi lượt chính thức dùng open model**, vì SLO throughput (≥ 50 request/s) và việc tìm điểm gãy cần tải không tự giảm khi hệ thống chậm; khi không đủ VU để giữ nhịp, phần bị bỏ ghi thành `dropped_iterations` thay vì bị che đi.
 
 ## 5. Ramp-up và quy trình mỗi lượt
 
-Khôi phục DB + xóa Redis ⇒ kiểm checksum ⇒ nghỉ 120 s cho máy nguội ⇒ **warm-up 2 phút** tăng dần 25 % ⇒ 75 % mức danh nghĩa (JIT, pool kết nối, cache TADSS) ⇒ 10 s chuyển + **1 phút ổn định** ⇒ pha `steady` (15 phút với SP-01). Chỉ pha `steady` vào thống kê. Lượt bị dừng giữa chừng là `INCOMPLETE`, không bao giờ "đạt".
+Khôi phục DB + xóa Redis ⇒ kiểm checksum ⇒ nghỉ 120 s cho máy nguội ⇒ **warm-up 2 phút** tăng dần 25 % ⇒ 75 % mức danh nghĩa (JIT, pool kết nối, cache TADSS) ⇒ 10 s chuyển + **1 phút ổn định** ⇒ pha `steady` (15 phút với SP-01). Chỉ pha `steady` vào thống kê: warm-up và pha ổn định mang tag `phase=warmup` / `phase=settle`, bị loại khỏi mọi phân vị và threshold. Lượt bị dừng giữa chừng là `INCOMPLETE`, không bao giờ "đạt".
+
+**Tăng tải theo bậc** (`ramping-arrival-rate`; mỗi bậc chuyển 10 s rồi giữ):
+
+| Kịch bản | Bậc |
+| :--- | :--- |
+| Stress (SP-02) | 100 ⇒ 150 ⇒ 200 ⇒ 250 % danh nghĩa, giữ 3 phút mỗi bậc, rồi về 100 % trong 5 phút để xem hồi phục |
+| Spike (SP-03) | Danh nghĩa 3 phút ⇒ ×5 giữ 1 phút ⇒ về danh nghĩa giữ 5 phút |
+| Điểm gãy (SP-05) | Từ 50 % (10 hành trình/s), mỗi bậc thêm 25 % (5 hành trình/s) tới tối đa 300 %, giữ 3 phút; bỏ 30 s đầu mỗi bậc, chấm 2 cửa sổ 1 phút sau đó |
+| Soak (SP-04) | Danh nghĩa 90 phút sau cùng warm-up |
 
 ## 6. Kết quả theo kịch bản
 
@@ -187,7 +225,16 @@ Hai cột là hai tập mẫu khác nhau: client gồm mạng nội bộ Docker,
 
 ## 8. Giám sát bằng Grafana
 
-- **Dashboard "Kiểm thử"** (Grafana local, nguồn `perf/testboard/`): mỗi nhóm test một ô theo màu (đạt, không đạt, không đủ dữ liệu), bấm ô ⇒ bảng mã hỏng ⇒ link báo cáo gốc; hàng hiệu năng: request/s, VU, p95 / p99 phía k6 cạnh phía server, lỗi, CPU / RAM từng container perf. Lượt không hợp lệ hoặc thiếu mẫu hiện là hạn chế, không phải đạt.
+- **Dashboard "Kiểm thử"** (Grafana local, nguồn `perf/testboard/`, ba tab BE / TADSS / AI): mỗi nhóm test một ô theo màu (đạt, không đạt, không đủ dữ liệu), bấm ô ⇒ bảng mã hỏng ⇒ link báo cáo gốc. Lượt không hợp lệ hoặc thiếu mẫu hiện là hạn chế, không phải đạt. Hàng hiệu năng chia theo bốn nhóm câu hỏi:
+
+  | Nhóm | Panel |
+  | :--- | :--- |
+  | Tải | Request / giây (k6) và số VU đang chạy |
+  | Chất lượng phản hồi | p95 / p99 phía client (k6) cạnh phía server (histogram của app); tỷ lệ request lỗi (5xx, timeout) |
+  | Tài nguyên ứng dụng | CPU và RAM từng container perf (cAdvisor) |
+  | Cơ sở dữ liệu | Tab BE: PostgreSQL SmashCourt, kết nối theo trạng thái, giao dịch commit / rollback mỗi giây, khóa đang giữ (khi bật collector `locks`). Tab TADSS: PostgreSQL TADSS, kết nối, giao dịch; Redis, lệnh / giây và tỷ lệ cache hit |
+
+  Mọi panel có mô tả 6 ý (đo gì, đơn vị, cách đọc, ngưỡng và nguồn ngưỡng, metric nguồn, mã test), kiểm bằng `perf/board.py check` trong CI.
 - **Dashboard "Vận hành"** (Grafana Cloud, bản deploy): ba tab BE / TADSS / AI, phiên bản đang chạy theo nhãn image, cảnh báo qua email (không sẵn sàng, 5xx, đường lùi TADSS, quota Gemini).
 - **Tempo** (lượt phân tích `up --trace`, trace 100 %): cây span BE ⇒ PostgreSQL ⇒ TADSS cho từng request, dùng ở Mục 9.
 
