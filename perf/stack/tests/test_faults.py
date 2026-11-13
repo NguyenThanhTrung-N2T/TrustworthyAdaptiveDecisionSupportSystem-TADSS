@@ -43,3 +43,37 @@ def test_judge_passes_only_when_every_booking_fell_back_and_no_decision_is_dupli
     assert faults.judge(40, 0, 2, 0)["status"] == "FAIL"
     assert faults.judge(40, 0, 0, 1)["status"] == "FAIL"
     assert faults.judge(0, 0, 0, 0)["status"] == "INSUFFICIENT"
+
+
+# P6-57: bảng trước / sau của mạch ngắt dùng độ trễ đặt sân trong đúng khoảng lỗi, một nguồn số liệu dựng lại được
+def test_booking_latency_counts_only_online_booking_requests_inside_the_fault_window():
+    samples = [(1000.0, faults.BOOKING_ENDPOINT, 1600.0), (1100.0, faults.BOOKING_ENDPOINT, 1700.0),
+               (1299.9, faults.BOOKING_ENDPOINT, 1650.0), (1300.0, faults.BOOKING_ENDPOINT, 80.0),
+               (1100.0, "GET /api/branches/basic", 9999.0)]
+    result = faults.booking_latency(samples, 1000.0, 1300.0)
+    assert result["insideFault"] == {"requests": 3, "p50": 1650.0, "p95": 1695.0, "max": 1700.0}
+    assert result["window"] == [1000.0, 1300.0]
+
+
+def test_booking_latency_outside_excludes_a_margin_around_both_edges():
+    samples = [(900.0, faults.BOOKING_ENDPOINT, 50.0), (950.0, faults.BOOKING_ENDPOINT, 900.0),
+               (1350.0, faults.BOOKING_ENDPOINT, 900.0), (1400.0, faults.BOOKING_ENDPOINT, 70.0)]
+    result = faults.booking_latency(samples, 1000.0, 1300.0)
+    assert result["outsideFault"]["requests"] == 2
+    assert result["outsideFault"]["max"] == 70.0
+
+
+def test_booking_latency_with_no_samples_reports_zero_requests_and_no_percentiles():
+    result = faults.booking_latency([], 1000.0, 1300.0)
+    assert result["insideFault"] == {"requests": 0, "p50": None, "p95": None, "max": None}
+
+
+def test_latency_refuses_a_run_whose_fault_was_never_removed(tmp_path):
+    (tmp_path / faults.FAULT_FILE).write_text('{"kind": "latency", "onAt": 1000.0}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        faults.latency(tmp_path)
+
+
+def test_perf_sh_computes_the_window_latency_after_every_fault_run():
+    script = (Path(__file__).resolve().parents[2] / "perf.sh").read_text(encoding="utf-8")
+    assert 'faults.py" latency "$out"' in script

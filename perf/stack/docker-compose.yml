@@ -212,6 +212,7 @@ services:
       TadssConfig__BaseUrl: ${PERF_TADSS_URL:-http://tadss:8080}   # up --faults: http://toxiproxy:8666 (SP-09)
       TadssConfig__ApiKey: tadss-perf-key
       TadssConfig__EnableTadssDecision: ${PERF_TADSS_DECISION:-true}   # cặp bật/tắt của SP-06 (P6-43)
+      TadssConfig__CircuitEnabled: ${PERF_TADSS_CIRCUIT:-true}   # mạch ngắt như bản deploy (P6-57); SP-09 cặp tắt / bật: perf.sh up --circuit-off
       # Rate limit nâng: k6 đăng nhập và đặt sân từ một IP (giới hạn thật 5 lần đăng nhập/phút sẽ chặn bài đo)
       RateLimiting__Login__PermitLimit: "1000000"
       RateLimiting__Booking__PermitLimit: "1000000"

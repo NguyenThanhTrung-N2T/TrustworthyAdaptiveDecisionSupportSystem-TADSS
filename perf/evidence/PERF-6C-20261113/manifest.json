@@ -1,0 +1,273 @@
+{
+  "id": "PERF-6C-20261113",
+  "createdUtc": "2026-11-13T04:16:38Z",
+  "runs": [
+    {
+      "runId": "20261113-094644-load-SP-01-p655c-warm",
+      "files": {
+        "bottleneck.json": {
+          "bytes": 1232,
+          "sha256": "8ba8737d886bae1f0742993a416febbd6c2946b021b01bb0a8ff49fb20379972",
+          "copied": true
+        },
+        "cpu-clock.csv": {
+          "bytes": 5258,
+          "sha256": "019ecb510f675e003e8b63d0c2edbdeaf4d927b4031725bd72c715e12530deef",
+          "copied": false
+        },
+        "cpu-clock.json": {
+          "bytes": 250,
+          "sha256": "29f658fbc8738ab87492349ee2b7f17b8f00739e785119ada30c37fd4cd08554",
+          "copied": true
+        },
+        "hangfire-jobs.json": {
+          "bytes": 35518,
+          "sha256": "12b79856edf2ca9d8a3e79b65ba7b9a6cef92ca38d6cede46e80202f5b5ccf5a",
+          "copied": false
+        },
+        "k6-exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "copied": true
+        },
+        "metadata.json": {
+          "bytes": 2794,
+          "sha256": "14aac6413a0d46a5bf3dcee4794ab16557453a2d3f8d1cb6a1408ca055e0c8cf",
+          "copied": true
+        },
+        "pg-samples.jsonl.gz": {
+          "bytes": 17379,
+          "sha256": "69e28c9ec1b89872e74b7d7175042292d9360f0bbe5846cb129169b50135a9a8",
+          "copied": false
+        },
+        "raw.csv.gz": {
+          "bytes": 5256904,
+          "sha256": "b6c9a67bb076b2619bf2f144a996b6c8e956afec1ff1730c9321aac0537863be",
+          "copied": false
+        },
+        "resources.json": {
+          "bytes": 17398,
+          "sha256": "30ba12ab6a1c49c25b41fdb634c8e9b56ba554fb0ca195e84cbffe497b028579",
+          "copied": true
+        },
+        "schedule.json": {
+          "bytes": 340,
+          "sha256": "60b9787c8c800ebced17519bda5217e02ae0a4a0ce93f44e2cead086cf1e8e8a",
+          "copied": true
+        },
+        "summary.json": {
+          "bytes": 157880,
+          "sha256": "6f7ed9a671a54a784fd6a87c9a7ca6342fda9bf12f28d0cc69ad7007d2009b40",
+          "copied": false
+        },
+        "verdict.json": {
+          "bytes": 4930,
+          "sha256": "47d2b633d515dfe9e0678f04054d0f8e22fb9c194f6bb0ab9a94c62392f0bed7",
+          "copied": true
+        }
+      }
+    },
+    {
+      "runId": "20261113-100848-load-SP-01-p655c-r1",
+      "files": {
+        "bottleneck.json": {
+          "bytes": 1175,
+          "sha256": "af08cb1dc2a1e3fa585e2239cfde742f5d76578da1ce22e0102c465ebcdaff3d",
+          "copied": true
+        },
+        "cpu-clock.csv": {
+          "bytes": 5275,
+          "sha256": "b782b6c3b7f624c69c134b766f1c1fb47785891d9620f71d3e37e7db791d6e79",
+          "copied": false
+        },
+        "cpu-clock.json": {
+          "bytes": 248,
+          "sha256": "2c709d37dbfa400784a10f34c7c1d3875910072afbfe7ee2a004ad001d059612",
+          "copied": true
+        },
+        "hangfire-jobs.json": {
+          "bytes": 34740,
+          "sha256": "3efa5562a975310ca2ee544d624605d895452e72ac8578aed58624abdaf1c654",
+          "copied": false
+        },
+        "k6-exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "copied": true
+        },
+        "metadata.json": {
+          "bytes": 2790,
+          "sha256": "76d5e667f734c6d2eff5172e74d15790d3e79e7f0bc39fac4000874afa0b7a9e",
+          "copied": true
+        },
+        "pg-samples.jsonl.gz": {
+          "bytes": 16223,
+          "sha256": "0885ce5dd2dc37a5a5e17ca526640d71cd129b5f037ccbac3a32d7e664678885",
+          "copied": false
+        },
+        "raw.csv.gz": {
+          "bytes": 5231961,
+          "sha256": "dd75745b6072d9d0ccfd6aeffd049970072ec29b75ab9a944d9f5915afb41ea9",
+          "copied": false
+        },
+        "resources.json": {
+          "bytes": 17409,
+          "sha256": "941c4891d12a3ccfe890a70cb330ffcf8ffcafb33d92c976968217c1bef1fdc9",
+          "copied": true
+        },
+        "schedule.json": {
+          "bytes": 338,
+          "sha256": "b6f6d4df538630de81a0a6c469bb3daf2a29ee2c6988532f411ebc0f45841cea",
+          "copied": true
+        },
+        "summary.json": {
+          "bytes": 157836,
+          "sha256": "cf2dca3c42bd4ac3c0e42cb044f57731e76b57905c64de5d823798e699090adf",
+          "copied": false
+        },
+        "verdict.json": {
+          "bytes": 4583,
+          "sha256": "b2af974233410a23054a99b944e0a2aed5906a5af8f228cbbdf158449b5a9c1d",
+          "copied": true
+        }
+      }
+    },
+    {
+      "runId": "20261113-103054-load-SP-01-p655c-r2",
+      "files": {
+        "bottleneck.json": {
+          "bytes": 1224,
+          "sha256": "b6ea51f41e1060e8ccffa51ee3e7b465b85603c7355e0e02ead80dd3a208f2d7",
+          "copied": true
+        },
+        "cpu-clock.csv": {
+          "bytes": 5293,
+          "sha256": "cc13f05b318473fdb5e807aff6e1434f3083e97899aa2a9126d09d9984d11c6f",
+          "copied": false
+        },
+        "cpu-clock.json": {
+          "bytes": 248,
+          "sha256": "14e8f61db709320f144b1fb4f4785dad69970a843512e66f7acb155a754d91b6",
+          "copied": true
+        },
+        "hangfire-jobs.json": {
+          "bytes": 34735,
+          "sha256": "c450709896c696a1ddf1c53a833b669d8b20e36b272d5ed483803c704ffa5cc7",
+          "copied": false
+        },
+        "k6-exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "copied": true
+        },
+        "metadata.json": {
+          "bytes": 2790,
+          "sha256": "e45f040c599617144fb3b39f38fb377087295cfa1385be77ec7dc901ebda878f",
+          "copied": true
+        },
+        "pg-samples.jsonl.gz": {
+          "bytes": 16339,
+          "sha256": "1605b3d760ea01ee6340ad89312cb85942c882e89686a632104cf4c71a2c807d",
+          "copied": false
+        },
+        "raw.csv.gz": {
+          "bytes": 5234615,
+          "sha256": "373aaa654dd9cc5a7dc129158fe7d96225de35d2caf3c38d9486615806d26b58",
+          "copied": false
+        },
+        "resources.json": {
+          "bytes": 17430,
+          "sha256": "d762e161183a9e1224631659306b2b442e62c1e36b0a664e8fd2f57f64a286ef",
+          "copied": true
+        },
+        "schedule.json": {
+          "bytes": 338,
+          "sha256": "aeaf80e0a2bda36619b979b6fb912debf3a276f5cafbf95f7bfaabee92345526",
+          "copied": true
+        },
+        "summary.json": {
+          "bytes": 157772,
+          "sha256": "7b279a0c15cdec0a078e740499a9667d0911b06088a4da9f0a73750289323a80",
+          "copied": false
+        },
+        "verdict.json": {
+          "bytes": 4752,
+          "sha256": "0d2ad9c27a6b664d28f449a3fb414da52f33a0b09f4f3889a5f129188a3bda95",
+          "copied": true
+        }
+      }
+    },
+    {
+      "runId": "20261113-105302-load-SP-01-p655c-r3",
+      "files": {
+        "bottleneck.json": {
+          "bytes": 1226,
+          "sha256": "1a7d10335c98f3179d27082da410e7c23162c1a61f44b54148761c304ca68c6f",
+          "copied": true
+        },
+        "cpu-clock.csv": {
+          "bytes": 5338,
+          "sha256": "b29f84978e8fc4a5a0bfad29a8fa4646fe53d95fa689b106bbcb2a7619419df7",
+          "copied": false
+        },
+        "cpu-clock.json": {
+          "bytes": 248,
+          "sha256": "3aadf3998133dd4e9c0cd9b1e09dee6b10f1ec6cf947cf8caece989de1fa0bba",
+          "copied": true
+        },
+        "hangfire-jobs.json": {
+          "bytes": 35514,
+          "sha256": "21415d76600ba22b9c3fd03a84abf81c8741a25506be64be3d0cd37fe117ff0b",
+          "copied": false
+        },
+        "k6-exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "copied": true
+        },
+        "metadata.json": {
+          "bytes": 2790,
+          "sha256": "73d55fef478d7faeb2a028518e23faea1e96576f6d3226586b4cbe7f512c871c",
+          "copied": true
+        },
+        "pg-samples.jsonl.gz": {
+          "bytes": 17042,
+          "sha256": "c051c478c7b80248337bf1ead791f12ae9b803769febc23468c5a78957d65538",
+          "copied": false
+        },
+        "raw.csv.gz": {
+          "bytes": 5246125,
+          "sha256": "a4684b3e19875d483762f22793f787b535e39fe569e58b488451aa319370d8cd",
+          "copied": false
+        },
+        "resources.json": {
+          "bytes": 17456,
+          "sha256": "5f133710ee7ef2b725b55b5c98eb61bc286e09616ef6b996f4926ca9efeed684",
+          "copied": true
+        },
+        "schedule.json": {
+          "bytes": 338,
+          "sha256": "55c7b3db3ccb3a608ad710aa2df7ecb9ca566e7c2c0bf71f70a0f327d087b982",
+          "copied": true
+        },
+        "summary.json": {
+          "bytes": 157864,
+          "sha256": "4ebce70a8458eee424f4ba79a9305f0262b8583f3219cd357933d0727bf9141f",
+          "copied": false
+        },
+        "verdict.json": {
+          "bytes": 4762,
+          "sha256": "d344f97d84f3171e5f06cba687b20fbda08dbfe4b09628fdd5e301ec7cae9c35",
+          "copied": true
+        }
+      }
+    }
+  ],
+  "pooled": [
+    {
+      "name": "pooled-20261113-100848-load-SP-01-p655c-r1-3runs.json",
+      "bytes": 4396,
+      "sha256": "4c89928a6479fcc725c68591bf879b85a5851b48d04cec98c8149ef9c15e8b82"
+    }
+  ]
+}

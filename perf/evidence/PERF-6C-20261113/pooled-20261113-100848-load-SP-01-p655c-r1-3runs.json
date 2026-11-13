@@ -1,0 +1,206 @@
+{
+  "groups": {
+    "read": {
+      "n": 136125,
+      "p95": 14.6,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "p99": 22.5,
+      "p99Limit": 800,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 136125,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "booking": {
+      "n": 2821,
+      "p95": 87.1,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "p99": 119.7,
+      "p99Limit": 2000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2821,
+        "rate": 0.002127,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "login": {
+      "n": 2513,
+      "p95": 191.1,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 215.8,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2513,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "ipn": {
+      "n": 1090,
+      "p95": 45.7,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 82.4,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 1090,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "write": {
+      "n": 2280,
+      "p95": 35.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 51.3,
+      "p99Limit": 1000,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 2280,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    }
+  },
+  "errors": {
+    "n": 144829,
+    "rate": 4.1e-05,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "endpoints": {
+    "GET /api/bookings": {
+      "n": 3634,
+      "p95": 22.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/dashboard-summary": {
+      "n": 3634,
+      "p95": 13.4,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/pending-approval": {
+      "n": 1374,
+      "p95": 18.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/schedule": {
+      "n": 3634,
+      "p95": 11.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/branches/basic": {
+      "n": 36110,
+      "p95": 8.6,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/courts": {
+      "n": 36281,
+      "p95": 7.5,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings": {
+      "n": 7669,
+      "p95": 18.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings/{id}": {
+      "n": 7340,
+      "p95": 17.1,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/payments/vnpay/ipn": {
+      "n": 1090,
+      "p95": 45.7,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "ipn"
+    },
+    "GET time-grid": {
+      "n": 36449,
+      "p95": 17.9,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "POST /api/auth/login": {
+      "n": 2513,
+      "p95": 191.1,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "login"
+    },
+    "POST /api/bookings/online": {
+      "n": 2821,
+      "p95": 87.1,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "slo": "booking"
+    },
+    "POST /api/bookings/{id}/approve": {
+      "n": 162,
+      "p95": 50.6,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/check-in": {
+      "n": 1924,
+      "p95": 19.9,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/checkout": {
+      "n": 34,
+      "p95": 85.2,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    },
+    "POST /api/me/bookings/{id}/cancel": {
+      "n": 160,
+      "p95": 51.3,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    }
+  },
+  "status": "PASS",
+  "selftest": false,
+  "runs": [
+    "20261113-100848-load-SP-01-p655c-r1",
+    "20261113-103054-load-SP-01-p655c-r2",
+    "20261113-105302-load-SP-01-p655c-r3"
+  ]
+}

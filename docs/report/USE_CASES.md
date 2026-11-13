@@ -243,7 +243,7 @@ flowchart LR
 
 #### Yêu cầu phi chức năng
 
-1. Thời gian thêm vào luồng đặt sân do gọi TADSS: tối đa 800 ms (timeout phía BE); TADSS tự giới hạn pipeline strategy 500 ms.
+1. Thời gian thêm vào luồng đặt sân do gọi TADSS: khi TADSS bình thường chỉ là thời gian ra quyết định (TADSS tự giới hạn pipeline strategy 500 ms, đo p95 khoảng 15 ms); khi TADSS không trả lời được, tối đa 2 × 800 ms (timeout phía BE, thử lại một lần). Từ P6-57 (mạch ngắt của BE) chỉ các đơn bắt đầu trong khoảng 1,1 s đầu của sự cố phải chờ như vậy, các đơn sau cọc 100 % ngay; mỗi đơn đi thử khi mạch nửa mở chờ tối đa 800 ms.
 2. Không gọi TADSS bên trong transaction ghi booking (không giữ kết nối/khóa DB trong lúc chờ mạng).
 
 ### 5.2. UC-DEPOSIT-02: Thanh toán cọc qua VNPay

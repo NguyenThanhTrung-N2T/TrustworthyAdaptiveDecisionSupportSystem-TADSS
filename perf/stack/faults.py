@@ -2,7 +2,8 @@
 
     python perf/stack/faults.py inject <thư mục lượt> --kind stop-tadss|latency|reset --start-after GIÂY --duration GIÂY [--latency-ms 1500]
     python perf/stack/faults.py check <thư mục lượt>
-    (perf.sh run --fault KIND tự chạy `inject` ở nền ngay trước k6 và `check` sau k6, trước analyze.py)
+    python perf/stack/faults.py latency <thư mục lượt>
+    (perf.sh run --fault KIND tự chạy `inject` ở nền ngay trước k6, `check` và `latency` sau k6, trước analyze.py)
 
 - stop-tadss (FI-11): `docker stop perf-tadss` trong khoảng lỗi rồi bật lại, chờ healthy.
 - latency (FI-12): Toxiproxy thêm `latency` ms vào chiều TADSS ⇒ BE (vượt TimeoutMs 800 ms của BE).
@@ -10,11 +11,15 @@
 Khoảng lỗi ghi ở `faults.json` (epoch giây). `check` đọc DB của lượt (chỉ đọc) và ghi kết quả vào cùng file:
 đơn online tạo trong khoảng lỗi (bỏ `MARGIN_SECONDS` ở hai đầu: lời gọi TADSS sát biên có thể rơi ra ngoài khoảng) phải cọc 100 %
 (`FULL_PAYMENT_FALLBACK`), không đơn nào chờ duyệt; TADSS không có hai quyết định PRIMARY cho cùng một đơn.
+`latency` (P6-57, bảng trước / sau của mạch ngắt) tính độ trễ của request đặt sân online **trong đúng khoảng lỗi** `[onAt, offAt)` và
+ngoài khoảng (bỏ 60 s quanh hai biên) từ mẫu thô của k6, ghi `fault-latency.json` (file riêng: `faults.json` của lượt cũ đã có hash trong
+gói bằng chứng). Số request ở đây khác số đơn của `check`: request bị từ chối (tranh khung giờ) vẫn tính độ trễ nhưng không tạo đơn.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
 import sys
 import time
@@ -27,6 +32,9 @@ TOXIC = "sp09-fault"
 MARGIN_SECONDS = 2
 KINDS = ("stop-tadss", "latency", "reset")
 FAULT_FILE = "faults.json"
+LATENCY_FILE = "fault-latency.json"
+BOOKING_ENDPOINT = "POST /api/bookings/online"
+OUTSIDE_MARGIN_SECONDS = 60
 
 
 def toxic_payload(kind: str, latency_ms: int) -> dict:
@@ -130,6 +138,43 @@ def check(run_dir: Path) -> dict:
     return result
 
 
+def _percentile(values: list[float], p: float) -> float | None:
+    # Cùng cách nội suy với verdict.percentile (k6); viết lại để hàm thuần không phải nạp mẫu thô
+    if not values:
+        return None
+    ordered = sorted(values)
+    position = p * (len(ordered) - 1)
+    low, high = math.floor(position), math.ceil(position)
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def _summary(values: list[float]) -> dict:
+    def rounded(value: float | None) -> float | None:
+        return None if value is None else round(value, 1)
+    return {"requests": len(values), "p50": rounded(_percentile(values, 0.5)), "p95": rounded(_percentile(values, 0.95)),
+            "max": rounded(max(values) if values else None)}
+
+
+def booking_latency(samples: list[tuple[float, str, float]], on_at: float, off_at: float) -> dict:
+    """Độ trễ (ms) của `POST /api/bookings/online` trong khoảng lỗi và ngoài khoảng; `samples` là (thời điểm, endpoint, độ trễ)."""
+    inside = [v for t, name, v in samples if name == BOOKING_ENDPOINT and on_at <= t < off_at]
+    outside = [v for t, name, v in samples if name == BOOKING_ENDPOINT
+               and not on_at - OUTSIDE_MARGIN_SECONDS <= t < off_at + OUTSIDE_MARGIN_SECONDS]
+    return {"endpoint": BOOKING_ENDPOINT, "window": [on_at, off_at], "outsideMarginSeconds": OUTSIDE_MARGIN_SECONDS,
+            "insideFault": _summary(inside), "outsideFault": _summary(outside)}
+
+
+def latency(run_dir: Path) -> dict:
+    import verdict  # mẫu thô của k6 (cùng thư mục): chỉ nạp khi cần
+    record = json.loads((run_dir / FAULT_FILE).read_text(encoding="utf-8"))
+    if "offAt" not in record:
+        raise ValueError("lỗi chưa được gỡ (inject dừng giữa chừng): không có khoảng lỗi để tính")
+    raw = verdict.read_raw(run_dir / "raw.csv.gz").steady()
+    result = booking_latency([(s.t, s.name, s.value) for s in raw.durations], record["onAt"], record["offAt"])
+    (run_dir / LATENCY_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return result
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -141,9 +186,15 @@ def main(argv: list[str]) -> int:
     p_inject.add_argument("--latency-ms", type=int, default=1500)
     p_check = sub.add_parser("check")
     p_check.add_argument("run_dir", type=Path)
+    p_latency = sub.add_parser("latency")
+    p_latency.add_argument("run_dir", type=Path)
     args = parser.parse_args(argv)
     if args.command == "inject":
         inject(args.run_dir, args.kind, args.start_after, args.duration, args.latency_ms)
+        return 0
+    if args.command == "latency":
+        result = latency(args.run_dir)
+        print(f"faults latency: trong lỗi {json.dumps(result['insideFault'])}, ngoài lỗi {json.dumps(result['outsideFault'])}")
         return 0
     result = check(args.run_dir)
     print(f"faults: {result['status']} {json.dumps({k: v for k, v in result.items() if k != 'status'}, ensure_ascii=False)}")

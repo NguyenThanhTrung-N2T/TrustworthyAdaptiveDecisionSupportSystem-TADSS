@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Một lệnh cho môi trường đo hiệu năng (Epic 6C, gói 6C-4). Chạy trong TADSS-Runtime/ (Git Bash trên Windows cũng được).
 #   bash perf/perf.sh up [--be TAG] [--tadss TAG] [--ai TAG] [--tadss-off] [--trace] [--pg-locks on|off] [--db-pool N] [--db-prepare N]
-#       [--cpu-layout physical|legacy] [--be-cpus N] [--telemetry-off] [--llm-delay MS] [--llm-jitter MS] [--faults]
+#       [--cpu-layout physical|legacy] [--be-cpus N] [--telemetry-off] [--circuit-off] [--llm-delay MS] [--llm-jitter MS] [--faults]
 #       bật bộ quan sát kiểm thử (Grafana http://127.0.0.1:3003) + môi trường perf, chờ mọi service healthy.
 #       Tag mặc định = image sha đang chạy ở bản deploy (đo đúng bản đang chạy thật); chưa có bản deploy ⇒ develop/develop/master.
 #       --tadss-off: BE không gọi TADSS (cặp đối chứng SP-06). --trace: bật trace 100 % (lượt phân tích, không dùng để đo chính thức).
 #       --pg-locks on: bật lại collector pg_locks của Alloy (mặc định tắt từ 03/11, chỉ cho lượt đối chứng E1). --db-pool N: Maximum Pool Size
 #       của BE (mặc định 100; thí nghiệm E3). --db-prepare N: Database:MaxAutoPrepare của BE (P6-54; mặc định 0 = như deploy, lượt đánh giá 50).
 #       --cpu-layout: cpuset theo core vật lý (mặc định, 05/11) hoặc legacy 0-4 / 5-7 (so với lượt cũ). --be-cpus N: trần CPU của BE (mặc định 2).
-#       --telemetry-off: tắt OpenTelemetry của BE, TADSS, AI (cặp đối chứng SP-07). --llm-delay / --llm-jitter: độ trễ LLM giả
+#       --telemetry-off: tắt OpenTelemetry của BE, TADSS, AI (cặp đối chứng SP-07). --circuit-off: tắt mạch ngắt lệnh đánh giá cọc của BE
+#       (cặp tắt / bật của SP-09 sau P6-57; mặc định bật như bản deploy). --llm-delay / --llm-jitter: độ trễ LLM giả
 #       (mặc định 800 / 200 ms; SP-10A dùng 0 / 0). --faults: BE gọi TADSS qua Toxiproxy (SP-09; run --fault stop-tadss|latency|reset).
 #       Mỗi lần up đặt lại mọi núm về giá trị đã cho hoặc mặc định.
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
@@ -103,7 +104,7 @@ case "$cmd" in
   up)
     BE_TAG="$(deployed_tag be)"; TADSS_TAG="$(deployed_tag tadss)"; AI_TAG="$(deployed_tag ai)"
     PERF_TADSS_DECISION=true; PERF_TRACE_RATIO=0; PERF_PG_EXTRA_COLLECTORS='[]'; PERF_DB_POOL=100; PERF_DB_AUTO_PREPARE=0; PERF_BE_CPUS=2; cpu_layout=physical
-    PERF_TELEMETRY=true; FAKE_LLM_DELAY_MS=800; FAKE_LLM_JITTER_MS=200; PERF_TADSS_URL=http://tadss:8080; faults_profile=()
+    PERF_TELEMETRY=true; PERF_TADSS_CIRCUIT=true; FAKE_LLM_DELAY_MS=800; FAKE_LLM_JITTER_MS=200; PERF_TADSS_URL=http://tadss:8080; faults_profile=()
     while [ $# -gt 0 ]; do
       case "$1" in
         --be) BE_TAG="${2:?--be cần tag}"; shift 2 ;;
@@ -118,6 +119,7 @@ case "$cmd" in
         --db-prepare) PERF_DB_AUTO_PREPARE="${2:?--db-prepare cần số}"; shift 2 ;;
         --be-cpus) PERF_BE_CPUS="${2:?--be-cpus cần số}"; shift 2 ;;
         --telemetry-off) PERF_TELEMETRY=false; shift ;;
+        --circuit-off) PERF_TADSS_CIRCUIT=false; shift ;;
         --faults) PERF_TADSS_URL=http://toxiproxy:8666; faults_profile=(--profile faults); shift ;;
         --llm-delay) FAKE_LLM_DELAY_MS="${2:?--llm-delay cần số ms}"; shift 2 ;;
         --llm-jitter) FAKE_LLM_JITTER_MS="${2:?--llm-jitter cần số ms}"; shift 2 ;;
@@ -127,7 +129,7 @@ case "$cmd" in
       esac
     done
     export BE_TAG TADSS_TAG AI_TAG PERF_TADSS_DECISION PERF_TRACE_RATIO PERF_PG_EXTRA_COLLECTORS PERF_DB_POOL PERF_DB_AUTO_PREPARE PERF_BE_CPUS
-    export PERF_TELEMETRY FAKE_LLM_DELAY_MS FAKE_LLM_JITTER_MS PERF_TADSS_URL
+    export PERF_TELEMETRY PERF_TADSS_CIRCUIT FAKE_LLM_DELAY_MS FAKE_LLM_JITTER_MS PERF_TADSS_URL
     set_cpusets "$cpu_layout"
     # Trần CPU của BE không được vượt số luồng của nhóm hệ thống; sát trần thì PostgreSQL, TADSS, AI phải tranh CPU ⇒ đọc kết quả thận trọng
     system_threads="$(count_cpus "$PERF_CPUSET_SYSTEM")"
@@ -137,7 +139,7 @@ case "$cmd" in
     docker compose -f "$obs" up -d --wait
     # Bộ quan sát dùng cho cả dashboard ngoài lượt đo nên compose của nó không ghim CPU; ghim lúc bật cùng perf
     docker update --cpuset-cpus "$PERF_CPUSET_TOOLS" $(docker compose -f "$obs" ps -q) >/dev/null
-    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, telemetry $([ "$PERF_TELEMETRY" = true ] && echo bật || echo tắt), LLM giả ${FAKE_LLM_DELAY_MS}±${FAKE_LLM_JITTER_MS} ms, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
+    echo "perf.sh: môi trường perf (be ${BE_TAG}, tadss ${TADSS_TAG}, ai ${AI_TAG}, TADSS $([ "$PERF_TADSS_DECISION" = true ] && echo bật || echo tắt), trace ${PERF_TRACE_RATIO}, pool ${PERF_DB_POOL}, auto prepare ${PERF_DB_AUTO_PREPARE}, BE ${PERF_BE_CPUS} CPU, telemetry $([ "$PERF_TELEMETRY" = true ] && echo bật || echo tắt), mạch ngắt $([ "$PERF_TADSS_CIRCUIT" = true ] && echo bật || echo tắt), LLM giả ${FAKE_LLM_DELAY_MS}±${FAKE_LLM_JITTER_MS} ms, CPU hệ thống ${PERF_CPUSET_SYSTEM} / công cụ ${PERF_CPUSET_TOOLS} (${cpu_layout}))"
     # Tag sha bất biến: chỉ kéo image chưa có trên máy, registry trục trặc không làm hỏng lượt đo khi image đã có
     docker compose -f "$stack" pull --quiet --policy missing be tadss ai
     docker compose -f "$stack" "${faults_profile[@]}" up -d --wait
@@ -265,6 +267,7 @@ case "$cmd" in
       echo "  \"containers\": {$(for c in "${system_containers[@]}"; do docker inspect --format "\"$c\": {\"cpuset\": \"{{.HostConfig.CpusetCpus}}\", \"nanoCpus\": {{.HostConfig.NanoCpus}}, \"memoryBytes\": {{.HostConfig.Memory}}}" "$c"; done | paste -sd, -)},"
       echo "  \"tadssDecision\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__EnableTadssDecision=//p')\","
       echo "  \"telemetry\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__Enabled=//p')\","
+      echo "  \"tadssCircuit\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^TadssConfig__CircuitEnabled=//p')\","
       echo "  \"fakeLlmDelayMs\": $(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-fake-llm | sed -n 's/^FAKE_LLM_DELAY_MS=//p'), \"fakeLlmJitterMs\": $(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-fake-llm | sed -n 's/^FAKE_LLM_JITTER_MS=//p'),"
       echo "  \"traceRatio\": \"$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | sed -n 's/^Telemetry__TraceSampleRatio=//p')\","
       # Yếu tố của thí nghiệm E1–E4 (plan 6C 2C): đọc từ container đang chạy, không từ tham số
@@ -304,6 +307,7 @@ case "$cmd" in
     if [ -n "$injector" ]; then
       wait "$injector" || echo "perf.sh: faults.py inject thoát lỗi (xem faults.json)" >&2
       python "$root/stack/faults.py" check "$out" || echo "perf.sh: kiểm DB sau lỗi không đạt (xem faults.json)" >&2
+      python "$root/stack/faults.py" latency "$out" || echo "perf.sh: không tính được độ trễ trong khoảng lỗi (xem faults.json)" >&2
     fi
     set -e
     echo "$k6_exit" > "$out/k6-exit"

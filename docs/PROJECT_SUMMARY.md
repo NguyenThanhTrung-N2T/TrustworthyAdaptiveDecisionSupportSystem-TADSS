@@ -34,7 +34,8 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | Bật cờ `EnableTadssDecision` trên bản deploy (P6-56) | SV1 | Sau khi CD triển khai image BE có cờ đổi lúc chạy: `bash deploy/tadss-flag.sh on`. Với dữ liệu perf strategy mặc định từ chối khoảng 40 % lần đặt; FE chưa hiển thị `PENDING_APPROVAL` / `BOOKING_REJECTED` (6B) |
 | Đổi mật khẩu Neon `main`; áp script Phase 6 + P6-53 lên `main` sau Gate M6 | Người dùng | |
 | Kiểm cảnh báo Grafana Cloud bằng sự cố giả; kiểm URL BE của FE trên Vercel | Người dùng | Rủi ro C1 nếu FE production trỏ vào BE Phase 6 |
-| Đo lại SP-01 ×3 sau P6-55 khi máy ổn định; gói bằng chứng hiệu năng | SV1 | Báo cáo hiệu năng Mục 10.2: thời gian kiểm mật khẩu đã chốt (giảm khoảng 45 %), p95 / p99 chưa |
+| ~~Đo lại SP-01 ×3 sau P6-55~~ ✅ 13/11 | SV1 | Báo cáo hiệu năng Mục 10.2: Đăng nhập nhanh khoảng 2 lần (p95 khoảng 190 ms), CPU BE −20 %, đuôi Đọc / Ghi / Đặt sân giảm; gói `PERF-6C-20261113` |
+| Đo SP-09 FI-11, FI-12 với mạch ngắt tắt / bật (P6-57), rồi áp C (P6-58) | SV1 | Sau khi CD triển khai BE có P6-57 |
 | Nợ kỹ thuật: `SmashCourt-BE/Services/BookingService.cs` dài 2.417 dòng | — | Người dùng chốt 12/11: **chưa tách** (ưu tiên 6B, Phase 7); ghi vào báo cáo tổng kết mục hướng cải tiến |
 
 ---
@@ -74,7 +75,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | Toàn bộ test case TADSS (UT, IT, CT, FI, LT mức TADSS, MT) đạt trên hạ tầng thật; không còn EF InMemory (đã gỡ ở gói 5.1–5.2) | ✅ kèm một sai lệch đã giải thích: lượt đầy đủ `EV-20261017-EVAL-full-r1` đạt SC1–SC4, SC7, SC8 (73 mã danh mục đạt, 0 trượt); bước (b) có 0,04 % / 0,11 % response 504 ở LT-02 / LT-05 do máy bận (thí nghiệm A/B, [báo cáo 5.7](../spec/archive/phase5/PHASE5_REPORT_5.7.md) Mục 3); chạy lại khi máy rảnh, không nới tiêu chí |
 | Contract v2 đóng băng                                                                                                         | ✅ 11/10/2026 (`2.0.0`, M-07)                                                                                                                                                                |
 | Dashboard, Toxiproxy, k6, Schemathesis, Stryker, bộ sinh báo cáo chạy bằng một lệnh và **đã có lượt đầy đủ**                  | ✅ `EV-20261017-EVAL-full-r1` (17/10/2026, ≈ 3 giờ 25 phút); Evidence Pack chính thức chép vào repo ở lượt đầy đủ cuối trên strategy 2.1.0 |
-| Danh mục kiểm thử toàn hệ thống (BE, FE, E2E) viết xong; API BE ↔ FE đã chốt                                                  | ✅ Danh mục BE-UT-01…07, BE-IT-01…20, FE-01…10, E2E-01…14 (số tại Gate M5; Phase 6 mở rộng thành BE-UT-01…13, BE-IT-01…26, FE-01…12, Mục 5.1); `DEPOSIT_APPROVAL_API.md` review 18/10 (T5.29): R-1…R-8 đã sửa, Q1…Q12 đã chốt |
+| Danh mục kiểm thử toàn hệ thống (BE, FE, E2E) viết xong; API BE ↔ FE đã chốt                                                  | ✅ Danh mục BE-UT-01…07, BE-IT-01…20, FE-01…10, E2E-01…14 (số tại Gate M5; Phase 6 mở rộng thành BE-UT-01…14, BE-IT-01…27, FE-01…12, Mục 5.1); `DEPOSIT_APPROVAL_API.md` review 18/10 (T5.29): R-1…R-8 đã sửa, Q1…Q12 đã chốt |
 
 Task 10 của plan 5.7 đã làm (18/10/2026): phân tích lượt đầy đủ, báo cáo Gate M5 ở [`spec/archive/phase5/PHASE5_REPORT_5.7.md`](../spec/archive/phase5/PHASE5_REPORT_5.7.md). Theo quyết định của người dùng, Evidence Pack chính thức (M-10) chỉ chép vào `docs/research/evidence-packs/{run_id}/` cho lượt đầy đủ cuối cùng trên strategy 2.1.0. Sau Gate: `DefaultDecisionStrategy` 2.1.0 từ chối khách lặp lại việc giữ chỗ không thanh toán (T5.31); review API BE ↔ FE (T5.29).
 
@@ -313,7 +314,7 @@ Nguồn sở hữu: [EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY](research/EXP
 | RP-01…02                 | Replay booking SmashCourt, so sánh với cọc 100 % tĩnh (mô tả)                                                                                                              | E-EVAL bước (e)                            | 5 (215/215, 16/10) |
 | PT-01…02                 | Hotel Booking Demand ≥ 10.000 đơn qua contract v2, không sửa mã                                                                                                            | E-EVAL bước (e)                            | 5            |
 | PT-03…04                 | Mô phỏng kinh tế chính sách cọc theo chính sách hủy SmashCourt; shadow `MockAlternative` cạnh `Default` kèm đối soát và ghép cặp (kết quả mô tả, không phải KPI đạt/trượt) | E-EVAL bước (e), (f)                       | 5 (5.7b)     |
-| BE-UT-01…13, BE-IT-01…26 | SmashCourt-BE: ánh xạ, `TadssClient`, luồng cọc, endpoint duyệt, job, SignalR                                                                                              | E-TC (BE)                                  | 6            |
+| BE-UT-01…14, BE-IT-01…27 | SmashCourt-BE: ánh xạ, `TadssClient`, luồng cọc, endpoint duyệt, job, SignalR, mạch ngắt (P6-57)                                                                                              | E-TC (BE)                                  | 6            |
 | FE-01…12                 | `tsc`/lint/build, luồng giao diện trên mock MSW                                                                                                                            | FE                                         | 6            |
 | E2E-01…14                | Playwright qua FE → BE → TADSS ([đặc tả từng bước](research/E2E_TEST_SPECIFICATION.md))                                                                                    | E-STAGING                                  | 7–8          |
 
@@ -439,7 +440,7 @@ Danh sách đầy đủ và nhóm của từng tài liệu: [README mục Tài l
 | Lý do từng quyết định D-xx, P-xx, R-xx                | [PHASE5_DESIGN_SPEC](../spec/archive/phase5/PHASE5_DESIGN_SPEC.md)                                                                                                                                                                                  |
 | Hợp đồng BE ↔ FE (Phase 6)                            | [`SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (link sang repo khác chỉ mở được khi xem trong workspace chứa cả `SmashCourt-BE/`; trên GitHub thì mở repo `SmashCourt-BE`) |
 | Spec Phase 6: quyết định P6-01…P6-31, thiết kế BE / FE, truy vết | [PHASE6_DESIGN_SPEC](../spec/PHASE6_DESIGN_SPEC.md) |
-| Epic 6C: CI/CD, quan sát, môi trường đo, nhật ký đo, P6-32…P6-56 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) |
+| Epic 6C: CI/CD, quan sát, môi trường đo, nhật ký đo, P6-32…P6-57 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) |
 | Việc FE theo từng file, hợp đồng chính xác BE ↔ FE | [PHASE6_FE_HANDOFF](../spec/PHASE6_FE_HANDOFF.md) |
 | Kết quả hiệu năng (SP-01…10, nút cổ chai, trước / sau) | [PERFORMANCE_REPORT](report/PERFORMANCE_REPORT.md) |
 | Lệnh chạy mọi thứ, sự cố, dọn Docker | [RUNBOOK](guides/RUNBOOK.md) |

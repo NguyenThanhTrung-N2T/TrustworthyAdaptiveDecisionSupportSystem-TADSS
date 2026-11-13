@@ -17,7 +17,7 @@ ALLOWED_HOSTS = set(SERVICES) | {"smashcourt-test-alloy", "127.0.0.1", "localhos
 # Biến được phép truyền vào: tag image và núm chỉnh lượt đo; không biến nào mang bí mật
 ALLOWED_VARIABLES = {"BE_TAG", "TADSS_TAG", "AI_TAG", "PERF_TADSS_DECISION", "PERF_TRACE_RATIO", "FAKE_LLM_DELAY_MS", "FAKE_LLM_JITTER_MS",
                      "PERF_CPUSET_SYSTEM", "PERF_CPUSET_TOOLS", "PERF_DB_POOL",
-                     "PERF_DB_AUTO_PREPARE", "PERF_BE_CPUS", "PERF_TELEMETRY", "PERF_TADSS_URL"}
+                     "PERF_DB_AUTO_PREPARE", "PERF_BE_CPUS", "PERF_TELEMETRY", "PERF_TADSS_URL", "PERF_TADSS_CIRCUIT"}
 TEXT = (STACK / "docker-compose.yml").read_text(encoding="utf-8")
 
 
@@ -103,6 +103,15 @@ def test_telemetry_is_on_by_default_and_switched_by_one_knob_for_sp07():
     assert _environment("be")["Telemetry__Enabled"] == "${PERF_TELEMETRY:-true}"
     assert _environment("tadss")["Tadss__Telemetry__Enabled"] == "${PERF_TELEMETRY:-true}"
     assert _environment("ai")["OTEL_ENABLED"] == "${PERF_TELEMETRY:-true}"
+
+
+def test_be_circuit_is_on_like_deploy_and_switched_by_one_knob_for_sp09():
+    # P6-57: bản deploy bật mạch ngắt; perf đo đúng cấu hình đó, cặp tắt / bật của SP-09 chỉ đổi biến này (perf.sh up --circuit-off)
+    assert _environment("be")["TadssConfig__CircuitEnabled"] == "${PERF_TADSS_CIRCUIT:-true}"
+    script = (STACK.parent / "perf.sh").read_text(encoding="utf-8")
+    assert "--circuit-off) PERF_TADSS_CIRCUIT=false" in script
+    assert "PERF_TADSS_CIRCUIT=true" in script
+    assert '\\"tadssCircuit\\"' in script
 
 
 def test_toxiproxy_runs_only_for_sp09_and_be_calls_tadss_directly_by_default():

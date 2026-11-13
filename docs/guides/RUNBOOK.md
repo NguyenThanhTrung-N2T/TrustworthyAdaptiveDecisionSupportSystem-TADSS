@@ -16,6 +16,7 @@ Lệnh chạy nguyên văn trong Git Bash (lệnh `docker compose` chạy đư�
 | Cập nhật một service của bản deploy | `bash deploy/deploy.sh be` (hoặc `tadss`, `ai`) trong `SmashCourt-BE/` | 2 |
 | Xem dữ liệu của bản deploy | pgAdmin / DBeaver tới `127.0.0.1:15432` | 2.3 |
 | Bật / tắt TADSS trên bản deploy (không khởi động lại) | `bash deploy/tadss-flag.sh on` · `off` · `status` trong `SmashCourt-BE/` | 2.4 |
+| TADSS treo mà đặt sân vẫn nhanh (mạch ngắt) | Panel "Mạch gọi TADSS" tab BE; log `Mạch gọi TADSS` | 2.5 |
 | Xem job deploy của CI, mã thoát `cd.sh` | tab Actions của repo, job "Deploy (máy deploy)" | 3 |
 | Xem dashboard vận hành, log, trace | Grafana Cloud › SmashCourt - Vận hành | 4 |
 | Chạy một lượt đánh giá TADSS | `docker compose up -d --build` trong `TADSS-Runtime/` | 6 |
@@ -115,6 +116,22 @@ Một lệnh trong `SmashCourt-BE/`, **không khởi động lại BE**, nên vi
 - **Giữ trạng thái:** file nằm trong volume `smashcourt-deploy-be-runtime-config`, nên CD tạo lại container BE vẫn giữ cờ. Chưa có file thì dùng `appsettings.json` của image (mặc định **tắt**). Không đặt `TadssConfig__EnableTadssDecision` trong `deploy/docker-compose.yml` (file là nguồn quyết định).
 - **Điều kiện bật:** TADSS chạy và `TADSS_API_KEY` có trong `smashcourt-deploy.env` (bắt buộc, compose deploy đã đòi biến này từ 6C-2b; `TadssSettingsValidator` không chấp nhận cờ bật mà thiếu khóa hay URL). Image BE phải có tính năng này (từ commit thêm `RuntimeConfigExtensions`); image cũ thì script báo lỗi và không đổi gì.
 - Mức test: `RuntimeConfigExtensionsTests` (nạp lại trong 2 giây khi ghi đè, khi `mv`, khi xóa file), `TadssFlagChangeLoggerTests` (log khi đổi), BE-IT-19 (`HttpTadssIntegrationTests`, booking sau lúc đổi dùng giá trị mới).
+
+### 2.5. Mạch ngắt khi TADSS không trả lời (P6-57)
+
+Cờ bật nhưng TADSS treo hoặc mạng tới TADSS mất gói: trước P6-57 mỗi đơn online chờ 800 ms × 2 rồi mới cọc 100 %. Bản deploy bật mạch ngắt (`TadssConfig__CircuitEnabled: "true"` trong `deploy/docker-compose.yml`), chỉ cho lệnh đánh giá cọc lúc đặt sân:
+
+| Trạng thái | Vào khi | Đơn online |
+| :--- | :--- | :--- |
+| Đóng | Bình thường; đơn thử thành công | Gọi TADSS như cũ (800 ms, thử lại 1 lần) |
+| Mở | 1 lần gọi lỗi **và** `/health/ready` của TADSS lỗi (300 ms), hoặc 3 lần gọi lỗi liên tiếp | Cọc 100 % ngay, không gọi TADSS |
+| Nửa mở | BE kiểm `/health/ready` mỗi 10 s, thấy chuyển từ lỗi sang tốt; hoặc tới mốc 60 → 120 → 240 → 300 s | Một đơn đi thử (một lần gọi); các đơn khác vẫn cọc 100 % |
+
+- **Xem:** panel "Mạch gọi TADSS" ở tab BE của dashboard Vận hành (0 đóng, 1 mở, 2 nửa mở); log Warning `Mạch gọi TADSS: … ⇒ …` của `smashcourt-be`; `bash deploy/tadss-flag.sh status` in lần chuyển gần nhất. Trạng thái khác đóng quá 2 phút thì có email "Mạch gọi TADSS của BE không đóng".
+- **Xử lý:** không cần làm gì để đóng lại: TADSS hồi phục thì mạch tự đóng sau một đơn thử. Muốn ngừng hẳn TADSS: `bash deploy/tadss-flag.sh off` (cờ đổi thì mạch về đóng). Lệnh duyệt / từ chối của Manager không đi qua mạch: TADSS lỗi thì Manager nhận "thử lại sau" như trước.
+- **Tắt riêng mạch ngắt:** bỏ dòng `TadssConfig__CircuitEnabled` trong compose deploy rồi `bash deploy/deploy.sh be` (tạo lại container BE). Tham số khác ở `TadssConfig` của `appsettings.json` (`CircuitFailureThreshold`, `CircuitProbeIntervalSeconds`, `CircuitProbeTimeoutMs`, `CircuitBreakSeconds`, `CircuitMaxBreakSeconds`).
+- **Đo:** `bash perf/perf.sh up --circuit-off` cho lượt đối chứng mạch tắt; `python perf/stack/faults.py latency <lượt>` tính độ trễ đặt sân trong khoảng lỗi (`fault-latency.json`).
+- **E-STAGING** cũng bật mạch. TADSS dev dùng Neon (ngủ khi vắng): trước đợt E2E / LT-04 gọi `/health/ready` của TADSS tới khi 200 rồi chờ 15 giây.
 
 ---
 

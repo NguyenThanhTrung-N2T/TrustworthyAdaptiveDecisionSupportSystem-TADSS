@@ -37,6 +37,7 @@ Theo [Môi trường tích hợp E-STAGING](../planning/MASTER_EXECUTION_PLAN.md
 - **Link VNPay có hạn** (P6-27, sandbox 30/10): link hết hạn trước hạn thanh toán 2 phút; khách mở trang VNPay rồi trả sau hạn link thì VNPay chặn (mã `15`, không trừ tiền, không gửi IPN), nên kịch bản không cần kiểm khe hở "trả trên trang đã mở sau khi đơn hết hạn" của trước 6A-6. Trang kết quả đọc `bookingStatus` của `POST /api/payments/vnpay/confirm` (P6-28).
 - Định tuyến strategy chuẩn: `Tadss:Routing:DefaultStrategy = DefaultDecisionStrategy`, không rule (cấu hình mặc định). Mọi thay đổi cấu hình của TADSS staging (Mục 3.3, điều kiện N3) được ghi vào cấu hình đã dùng của minh chứng.
 - Các kịch bản chạy **tuần tự**: E2E-05 đổi cờ, E2E-06 và E2E-11 dừng TADSS — trạng thái dùng chung của cả hệ thống — nên không chạy song song với kịch bản khác hay với FI-11…FI-14.
+- **Mạch ngắt của BE bật như bản deploy** (P6-57, `TadssConfig__CircuitEnabled=true` trong `docker-compose.yml` của BE): một lần gọi TADSS lỗi mà `/health/ready` cũng lỗi thì BE ngừng gọi TADSS, đơn online cọc 100 % cho tới khi một đơn thử thành công (BE kiểm `/health/ready` 10 giây một lần). DB Neon của TADSS ngủ khi vắng (thức mất 1–3 giây) nên đơn đầu sau lúc vắng có thể mở mạch. **Điều kiện chung trước mỗi đợt chạy, và sau mỗi bước khởi động lại TADSS** (E2E-06 bước 3, E2E-11): gọi `GET /health/ready` của TADSS tới khi trả 200 rồi chờ thêm **15 giây** trước khi đặt đơn kế tiếp. Áp cả cho LT-04.
 
 ### 2.3. Mốc thời gian dùng trong kịch bản
 

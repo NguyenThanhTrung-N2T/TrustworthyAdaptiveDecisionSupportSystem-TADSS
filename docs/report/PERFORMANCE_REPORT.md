@@ -3,9 +3,9 @@
 | | |
 | :--- | :--- |
 | **Dành cho** | Chương "Đánh giá hiệu năng" của báo cáo đồ án; người đọc là hội đồng và giảng viên hướng dẫn |
-| **Trạng thái** | 12/11/2026: SP-01…SP-10 đều có kết quả hợp lệ; nút cổ chai (task 2.27) và tối ưu trước / sau (task 2.28) đã phân tích; P6-55 (Mục 10.2) đã chốt phần thời gian kiểm mật khẩu, phần p95 / p99 còn một buổi đo lại SP-01 ×3 |
+| **Trạng thái** | 12/11/2026: SP-01…SP-10 đều có kết quả hợp lệ; nút cổ chai (task 2.27) và tối ưu trước / sau (task 2.28) đã phân tích; P6-55 (Mục 10.2) đã chốt bằng buổi đo lại SP-01 ×3 ngày 13/11 |
 | **Nguồn** | Thiết kế, SLO và nhật ký từng buổi đo: [`spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md`](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) (Phụ lục B.6–B.7, Mục 13 giai đoạn 2C). Cách chạy lại: [`docs/guides/RUNBOOK.md`](../guides/RUNBOOK.md). Danh mục mã kịch bản: [`EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md`](../research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md) Mục 4.16 |
-| **Bằng chứng** | [`perf/evidence/PERF-6C-20261111/`](../../perf/evidence/PERF-6C-20261111/manifest.json): kết luận, cấu hình, tài nguyên của các lượt dùng trong chương này + `manifest.json` (SHA-256 của mọi file, kể cả mẫu thô không chép vào repo) |
+| **Bằng chứng** | [`perf/evidence/PERF-6C-20261111/`](../../perf/evidence/PERF-6C-20261111/manifest.json) (mọi kịch bản tới 12/11) và [`perf/evidence/PERF-6C-20261113/`](../../perf/evidence/PERF-6C-20261113/manifest.json) (SP-01 sau P6-55, Mục 10.2): kết luận, cấu hình, tài nguyên của các lượt dùng trong chương này + `manifest.json` (SHA-256 của mọi file, kể cả mẫu thô không chép vào repo) |
 
 Chương này trả lời ba câu hỏi: hệ thống có đạt mục tiêu hiệu năng đã đặt trước ở tải bình thường không; giới hạn và cách xuống cấp khi vượt tải; và việc đưa TADSS vào luồng đặt sân tốn bao nhiêu. Số trong chương lấy từ lượt đo thật; mọi ngưỡng được chốt **trước** khi có kết quả (02/11/2026) và không đổi sau đó.
 
@@ -212,19 +212,32 @@ Trung bình mọi request BE ở tải danh nghĩa 13,7–23,5 ms (DB 5,2–12,5
 
 **Thay đổi.** Mọi hash mật khẩu mới dùng hệ số 11 (`PasswordHelper.BcryptWorkFactor`); hash cũ hệ số 12 vẫn kiểm được vì hệ số nằm trong hash. Dữ liệu mẫu perf dựng lại bằng hash hệ số 11 (đúng tình huống sau khi người dùng đã đổi mật khẩu). Một lần kiểm bằng hệ số 11 tốn đúng một nửa công so với hệ số 12.
 
-**Đo (11–12/11, buổi 8b, cấu hình bản deploy, BE `sha-8ee8e63`).** Lần chạy đầu (buổi 8) bị **loại** vì chính máy đo bị dùng cho build và test trong lúc đo (r2 nghẽn 100 s trùng lúc build; r3 bị preflight chặn vì RAM VM 96 %). Chạy lại sạch:
+**Đo chính thức (13/11, buổi 9, 10:08–11:13, cấu hình bản deploy, BE `sha-2ac0b70`; khác `sha-d4592c1` của các lượt 08/11 chỉ ở P6-55 và cờ đổi nóng P6-56, phần sau không chạy trong perf).** Máy khởi động 09:15 nên chạy một lượt làm nóng bỏ đi (`p655c-warm`, 3439 MHz, 1 đợt nghẽn), rồi 3 lượt: xung nhịp trung vị 3440–3459 MHz, **0 đợt nghẽn**, hợp lệ cả ba; bản gộp `pooled-20261113-100848-load-SP-01-p655c-r1-3runs.json` **ĐẠT mọi nhóm p95 và p99** (đủ mẫu), lỗi 0,004 %.
 
-| Lượt | Xung nhịp trung vị | Đợt nghẽn | Đăng nhập p50 | Đăng nhập p95 (cả lượt / ngoài đợt nghẽn) | Đọc p95 | Kết luận lượt |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Trước (07/11 tối, hệ số 12), 3 lượt | 3486–3500 MHz | 0 / 0 / 0 | 313–318 ms | 402–433 / 402–433 ms | 15,5–17,2 ms | Mọi p95 đạt |
-| `p655b-r1` | 2857 MHz | 1 | 173 ms | 339 / 282 ms | 20,5 ms | Hợp lệ, KHÔNG ĐỦ DỮ LIỆU (p99 vài nhóm thiếu mẫu) |
-| `p655b-r2` | 2775 MHz | 4 | 172 ms | 698 / 425 ms | 50,2 ms | Hợp lệ, KHÔNG ĐẠT (Đăng nhập p95, Đặt sân p99 2,64 s) |
-| `p655b-r3` | 3407 MHz | — | — | — | — | **Không dùng**: máy bị tắt lúc 00:38:54, trước khi hết pha đo |
+Có hai mốc "trước" (hệ số 12), cùng dải xung nhịp, mỗi bên 3 lượt; phép so theo quy tắc B.7.8 (khác nhau chỉ khi khoảng min–max không chồng nhau):
+
+- **Tối 07/11** (SP-01, 21:39–22:46): khác tỷ lệ hành trình. Tỷ lệ theo giờ thật nên buổi tối ít đặt sân và ghi hơn (ghi 68–71 request mỗi lượt so với 748–774 hôm nay), so được nhóm Đăng nhập và Đọc.
+- **Chiều 08/11** (SP-06 bên A, cùng cấu hình, 13:35–15:52): **cùng tỷ lệ request** với buổi 9 (Đăng nhập 836–841, Đặt sân 765–896, Ghi 726–768 mỗi lượt), dùng làm mốc chính.
+
+| Nhóm (min–max 3 lượt) | Trước: chiều 08/11 | Sau: 13/11 | Kết luận B.7.8 |
+| :--- | :--- | :--- | :--- |
+| Đăng nhập p50 / p95 / p99 | 308–316 / 390–428 / 486–557 ms | 160–162 / 188–193 / 214–225 ms | **Giảm** cả ba (khoảng một nửa) |
+| Đọc p95 / p99 | 15,3–17,2 / 61–116 ms | 14,5–14,7 / 22–23 ms | **Giảm** |
+| Đặt sân p95 / p99 | 90,6–94,8 / 164–238 ms | 82,6–91,0 / 112–132 ms | p95 chồng nhau; p99 **giảm** |
+| Ghi p95 / p99 | 37,1–45,6 / 130–193 ms | 34,7–35,9 / 47–61 ms | **Giảm** |
+| IPN p95 / p99 | 43,2–52,9 / 85–209 ms | 43,7–49,0 / 80–91 ms | Chồng nhau (không phân biệt được) |
+| CPU BE trung bình | 0,60–0,61 lõi | 0,47–0,48 lõi | **Giảm khoảng 20 %** |
+
+So với tối 07/11 cũng ra cùng kết luận: Đăng nhập p50 / p95 / p99 313–318 / 402–433 / 532–574 ⇒ 160–162 / 188–193 / 214–225 ms; Đọc p99 82–104 ⇒ 22–23 ms; CPU BE 0,58–0,61 ⇒ 0,47–0,48 lõi.
 
 **Kết luận.**
 
-- **Thời gian kiểm mật khẩu giảm khoảng 45 %** (Đăng nhập p50 313–318 ⇒ 172–173 ms). Hai khoảng min–max không chồng nhau, dù xung nhịp sau thay đổi **thấp hơn khoảng 20 %** (thay đổi càng chắc chắn), và mức giảm khớp lý thuyết (một nửa công băm, phần còn lại là DB và mạng).
-- **Đuôi phân bố (p95, p99) sau P6-55: chưa kết luận được.** Mới có 2 lượt hợp lệ (quy tắc B.7.8 cần ≥ 3 mỗi bên) và cả hai chạy ở xung nhịp thấp. Các đợt nghẽn làm p95 xấu đi không do bcrypt: đối chiếu mọi lượt từ 06/11 thì lượt có xung nhịp trung vị ≥ khoảng 3400 MHz hầu như 0 đợt nghẽn, còn lượt ≤ khoảng 3100 MHz luôn có 1–6 đợt (CTRL-r1 2730 MHz: 6; SP07-A1 2778 MHz: 3; `p655b-r2` 2775 MHz: 4). Còn một buổi đo lại SP-01 ×3 khi máy ổn định để chốt.
+- **Đăng nhập nhanh khoảng 2 lần** ở mọi phân vị, đúng lý thuyết (hệ số 11 tốn một nửa công băm so với 12).
+- **CPU của BE giảm khoảng 20 %**, khớp ước lượng của 2.27 (bcrypt khoảng 45 % CPU BE, hạ một nửa thì tiết kiệm khoảng 22 %).
+- **Đuôi phân bố của các nhóm khác cũng giảm** (Đọc, Ghi, Đặt sân p99), dù các nhóm này không băm mật khẩu: bcrypt chiếm luồng xử lý của BE nên request khác phải xếp hàng; bớt bcrypt thì bớt xếp hàng. p50 của Đặt sân, Ghi, IPN gần như không đổi, đúng với giải thích này.
+- Mức Đăng nhập p95 hiện còn khoảng 38 % ngưỡng 500 ms, nên khoảng dư không còn mỏng như trước (390–850 ms giữa các buổi cùng cấu hình, Mục 6.2).
+
+**Lần đo trước đó (11–12/11, buổi 8 và 8b) không dùng để kết luận.** Buổi 8 bị **loại** vì chính máy đo bị dùng cho build và test trong lúc đo (r2 nghẽn 100 s trùng lúc build; r3 bị preflight chặn vì RAM VM 96 %). Buổi 8b: `p655b-r1` (2857 MHz, 1 đợt nghẽn, Đăng nhập p50 173 ms) và `p655b-r2` (2775 MHz, 4 đợt nghẽn, Đăng nhập p95 698 ms) chạy ở xung nhịp thấp; `p655b-r3` bị cắt do máy tắt lúc 00:38:54. Hai lượt này cho cùng p50 Đăng nhập với buổi 9 nhưng đuôi xấu hơn nhiều; đối chiếu mọi lượt từ 06/11 thì lượt có xung nhịp trung vị ≥ khoảng 3400 MHz hầu như 0 đợt nghẽn, còn lượt ≤ khoảng 3100 MHz luôn có 1–6 đợt (Mục 12, hạn chế).
 
 ## 11. Đánh đổi đã chốt và hướng cải tiến
 
@@ -243,14 +256,14 @@ Trung bình mọi request BE ở tải danh nghĩa 13,7–23,5 ms (DB 5,2–12,5
 1. Ở tải danh nghĩa (khoảng 51 request/s, 19 hành trình/s), khi máy ở trạng thái bình thường, hệ thống **đạt mọi SLO p95** với 0 % lỗi; p99 đạt ở mọi nhóm đủ mẫu.
 2. Hệ thống chịu được **2 lần** tải danh nghĩa trước khi Đọc vượt ngưỡng, gãy ở **2,5 lần**, hồi phục sau spike ×5 trong **30 s** và tự hồi phục sau stress.
 3. Đưa TADSS vào luồng đặt sân tốn **15–30 ms** p95; TADSS ra quyết định p95 khoảng 15 ms; khi TADSS dừng, chậm hay mất kết nối, khách **vẫn đặt được** (cọc 100 %), 0 lỗi, dữ liệu đúng (SC6).
-4. Nút cổ chai hiện tại là **CPU của BE**, gần một nửa dành cho bcrypt khi đăng nhập; đã xử lý bằng P6-55 (thời gian kiểm mật khẩu giảm khoảng 45 %).
+4. Nút cổ chai hiện tại là **CPU của BE**, gần một nửa dành cho bcrypt khi đăng nhập; đã xử lý bằng P6-55: Đăng nhập nhanh khoảng 2 lần (p95 khoảng 190 ms), CPU BE giảm khoảng 20 %, đuôi Đọc / Ghi / Đặt sân cũng giảm.
 5. Telemetry không làm méo kết quả ở các nhóm chính.
 
 **Hạn chế.**
 
 - Một laptop chạy cả hệ thống lẫn công cụ đo; kết quả là **cận dưới** và phụ thuộc xung nhịp CPU (Đăng nhập p95 dao động 390–850 ms giữa các buổi cùng cấu hình; lượt có xung nhịp trung vị ≤ khoảng 3100 MHz luôn có đợt nghẽn, lượt ≥ khoảng 3400 MHz hầu như không); chế độ nguồn "Best power efficiency" ở mọi ngày đo; sau khi khởi động máy cần khoảng 1,5 giờ mới ổn định. Buổi đo không ghi tiến trình khác trên máy nên không quy được xung nhịp thấp cho một nguyên nhân.
 - PostgreSQL chạy cục bộ trong Docker, không có độ trễ mạng tới Neon như môi trường dev.
-- Tỷ lệ hành trình là giả định (không có log truy cập thật); tỷ lệ request ghi phụ thuộc giờ chạy.
+- Tỷ lệ hành trình là giả định (không có log truy cập thật); tỷ lệ request ghi phụ thuộc giờ chạy (buổi tối khoảng 70 request ghi mỗi lượt, buổi ngày khoảng 750), nên phép so trước / sau chỉ dùng các lượt cùng khung giờ hoặc chỉ so nhóm không phụ thuộc tỷ lệ.
 - Cổng thanh toán, email, Gemini là bản giả; SP-10B không đo được độ trễ LLM của gợi ý đặt sân.
 - Bộ nhớ working set trong soak và nguyên nhân Đăng nhập chậm hơn khi bật telemetry chưa xác định.
 - Lượt bị nhiễu được loại và ghi rõ (SP07-A1, hai lượt đầu ngày đo 3 do mạng tới GHCR, buổi 8 do máy đo bị dùng cho build / test trong lúc đo, `p655b-r3` do máy bị tắt giữa lượt), không dùng để kết luận.
@@ -266,7 +279,7 @@ Danh sách đầy đủ, SHA-256 và kích thước của mọi file ở [`perf/
 | SP-08 | `20261103-213705-breakpoint-SP-08` |
 | SP-01 tối 07/11 | `20261107-213903-load-SP-01-r1`, `-220151-…-r2`, `-222426-…-r3` + bản gộp |
 | SP-01 sáng 08/11 | `20261108-101424-load-SP-01-day-r1`, `-103709-…-r2`, `-105956-…-r3` + bản gộp |
-| SP-01 sau P6-55 | `20261111-233610-load-SP-01-p655b-r1`, `20261111-235817-load-SP-01-p655b-r2` (bản gộp sau buổi đo lại) |
+| SP-01 sau P6-55 | `…-load-SP-01-p655c-r1…r3` + bản gộp `pooled-20261113-100848-load-SP-01-p655c-r1-3runs.json` (gói [`PERF-6C-20261113`](../../perf/evidence/PERF-6C-20261113/manifest.json)); lượt làm nóng `p655c-warm` và hai lượt buổi 8b `p655b-r1`, `-r2` (gói `PERF-6C-20261111`) chỉ để tham khảo |
 | SP-02, SP-03, SP-05 | lượt `stress`, `spike`, `breakpoint-SP-05` ngày 07/11 |
 | SP-04 | `20261108-112353-soak-SP-04` |
 | SP-06 | `SP06-A1`, `B2`, `B3`, `A4`, `A5`, `B6` (08/11) + hai bản gộp |
