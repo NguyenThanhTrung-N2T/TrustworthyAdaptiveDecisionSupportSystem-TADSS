@@ -106,6 +106,9 @@ services:
       ConnectionStrings__DefaultConnection: Host=tadss-postgres;Database=tadss;Username=tadss;Password=tadss_perf
       Tadss__Database__ApplyMigrationsOnStartup: "true"   # database dùng một lần của perf
       Tadss__Cache__RedisConnectionString: redis:6379
+      # Như bản deploy (P6-58): cache quyết định của strategy quy tắc tắt (khóa chứa mã đơn nên không bao giờ trúng)
+      Tadss__Strategies__Default__CacheTtlMinutes: "0"
+      Tadss__Strategies__MockAlternative__CacheTtlMinutes: "0"
       Tadss__Security__ApiKeys__0__ClientId: smashcourt-be
       Tadss__Security__ApiKeys__0__KeySha256: "6ca013748a8c98db645173d7eb354376c2060f286a73add9ebe3d52a5b0f179a"   # SHA-256 của hằng `tadss-perf-key`
       Tadss__Security__RateLimiting__PermitLimit: "100000"

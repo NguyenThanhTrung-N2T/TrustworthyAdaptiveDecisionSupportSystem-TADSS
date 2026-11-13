@@ -1,0 +1,20 @@
+{
+  "endpoint": "POST /api/bookings/online",
+  "window": [
+    1794561676.0146701,
+    1794561976.088618
+  ],
+  "outsideMarginSeconds": 60,
+  "insideFault": {
+    "requests": 180,
+    "p50": 1653.4,
+    "p95": 1681.9,
+    "max": 1818.9
+  },
+  "outsideFault": {
+    "requests": 387,
+    "p50": 59.7,
+    "p95": 88.5,
+    "max": 245.4
+  }
+}

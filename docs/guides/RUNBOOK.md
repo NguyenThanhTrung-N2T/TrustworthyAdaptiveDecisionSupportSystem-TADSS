@@ -87,7 +87,7 @@ Mọi thứ nằm ở **`SmashCourt-BE/deploy/`**: `docker-compose.yml` (cả h�
 | `tadss-runtime` | <http://localhost:8081/health/ready> | Chỉ BE gọi |
 | `smashcourt-ai` | <http://localhost:8000/health> | |
 | `smashcourt-postgres` | `127.0.0.1:15432` | Database `smashcourt` (BE), `tadss` (TADSS) |
-| `smashcourt-redis` | | Cache của TADSS |
+| `smashcourt-redis` | | Cache của TADSS; từ P6-58 cache quyết định của strategy quy tắc tắt (`CacheTtlMinutes` = 0 trong compose deploy), Redis để sẵn cho strategy cần cache sau này |
 | `smashcourt-alloy` | <http://localhost:12345> | Gom số liệu lên Grafana Cloud (Mục 4) |
 | `smashcourt-runner-be`, `-tadss`, `-ai` | | Runner CI (Mục 3) |
 

@@ -1,0 +1,16 @@
+{
+  "runId": "20261113-161256-load-SP09-p657-latency-off",
+  "profile": "load",
+  "rate": 19,
+  "selftest": false,
+  "warmupSeconds": 120,
+  "settleEndSeconds": 190,
+  "steadySeconds": 900,
+  "peakRate": 19,
+  "maxVUs": 238,
+  "preAllocatedVUs": 238,
+  "journeySeconds": 8.35,
+  "steps": [],
+  "recoveryOffset": null,
+  "recoverySeconds": null
+}

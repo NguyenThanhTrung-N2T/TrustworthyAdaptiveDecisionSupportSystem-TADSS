@@ -129,3 +129,10 @@ def test_up_pulls_only_missing_images_so_a_registry_outage_does_not_abort_a_sess
     pulls = [line.strip() for line in script.splitlines() if re.search(r"docker compose .* pull\b", line)]
     assert pulls, "perf.sh phải có bước pull image của be, tadss, ai"
     assert all("--policy missing" in line for line in pulls), pulls
+
+
+def test_rule_strategies_run_without_decision_cache_like_deploy():
+    # P6-58: khóa cache chứa mã đơn nên không bao giờ trúng; perf đo đúng cấu hình deploy (cache tắt bằng TTL 0, không đổi mã TADSS)
+    env = _environment("tadss")
+    assert env["Tadss__Strategies__Default__CacheTtlMinutes"] == "0"
+    assert env["Tadss__Strategies__MockAlternative__CacheTtlMinutes"] == "0"

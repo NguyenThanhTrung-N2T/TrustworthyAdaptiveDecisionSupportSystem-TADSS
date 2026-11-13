@@ -35,7 +35,8 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | Đổi mật khẩu Neon `main`; áp script Phase 6 + P6-53 lên `main` sau Gate M6 | Người dùng | |
 | Kiểm cảnh báo Grafana Cloud bằng sự cố giả; kiểm URL BE của FE trên Vercel | Người dùng | Rủi ro C1 nếu FE production trỏ vào BE Phase 6 |
 | ~~Đo lại SP-01 ×3 sau P6-55~~ ✅ 13/11 | SV1 | Báo cáo hiệu năng Mục 10.2: Đăng nhập nhanh khoảng 2 lần (p95 khoảng 190 ms), CPU BE −20 %, đuôi Đọc / Ghi / Đặt sân giảm; gói `PERF-6C-20261113` |
-| Đo SP-09 FI-11, FI-12 với mạch ngắt tắt / bật (P6-57), rồi áp C (P6-58) | SV1 | Sau khi CD triển khai BE có P6-57 |
+| ~~Đo SP-09 với mạch ngắt tắt / bật (P6-57)~~ ✅ 13/11 | SV1 | Trong 5 phút TADSS treo / chậm: request chờ > 800 ms 160–163 ⇒ 3–4, p95 khoảng 1,68 s ⇒ khoảng 75 ms; mạch tự đóng khoảng 5–10 s sau khi gỡ; gói `PERF-6C-20261113-SP09` |
+| Áp C (P6-58) lên bản deploy: `bash deploy/deploy.sh tadss` sau khi commit BE | SV1 | Cấu hình đã có trong compose deploy + perf, panel cache hit đã sửa |
 | Nợ kỹ thuật: `SmashCourt-BE/Services/BookingService.cs` dài 2.417 dòng | — | Người dùng chốt 12/11: **chưa tách** (ưu tiên 6B, Phase 7); ghi vào báo cáo tổng kết mục hướng cải tiến |
 
 ---
@@ -440,7 +441,7 @@ Danh sách đầy đủ và nhóm của từng tài liệu: [README mục Tài l
 | Lý do từng quyết định D-xx, P-xx, R-xx                | [PHASE5_DESIGN_SPEC](../spec/archive/phase5/PHASE5_DESIGN_SPEC.md)                                                                                                                                                                                  |
 | Hợp đồng BE ↔ FE (Phase 6)                            | [`SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md`](../../SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md) (link sang repo khác chỉ mở được khi xem trong workspace chứa cả `SmashCourt-BE/`; trên GitHub thì mở repo `SmashCourt-BE`) |
 | Spec Phase 6: quyết định P6-01…P6-31, thiết kế BE / FE, truy vết | [PHASE6_DESIGN_SPEC](../spec/PHASE6_DESIGN_SPEC.md) |
-| Epic 6C: CI/CD, quan sát, môi trường đo, nhật ký đo, P6-32…P6-57 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) |
+| Epic 6C: CI/CD, quan sát, môi trường đo, nhật ký đo, P6-32…P6-58 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) |
 | Việc FE theo từng file, hợp đồng chính xác BE ↔ FE | [PHASE6_FE_HANDOFF](../spec/PHASE6_FE_HANDOFF.md) |
 | Kết quả hiệu năng (SP-01…10, nút cổ chai, trước / sau) | [PERFORMANCE_REPORT](report/PERFORMANCE_REPORT.md) |
 | Lệnh chạy mọi thứ, sự cố, dọn Docker | [RUNBOOK](guides/RUNBOOK.md) |

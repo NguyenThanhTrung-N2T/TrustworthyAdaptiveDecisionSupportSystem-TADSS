@@ -145,7 +145,23 @@ Tải danh nghĩa 15 phút; từ phút thứ khoảng 8 tạo lỗi **5 phút** 
 | FI-12 TADSS chậm thêm 1,5 s | 0 % / 0 % | 98 ms | 197 / 197 | 0 | Đạt |
 | FI-14 cắt kết nối (TCP RST) | 0 % / 0 % | 139 ms | 196 / 196 | 0 | Đạt |
 
-Khách vẫn đặt được sân trong mọi kiểu lỗi, không đơn nào vào hàng chờ duyệt, không dữ liệu sai. **Đánh đổi đã chấp nhận (FI-12):** khi TADSS chậm, BE chờ tối đa 800 ms rồi **thử lại một lần** trước khi cọc 100 % ⇒ Đặt sân p95 của cả lượt khoảng **1,66 s** (vượt ngưỡng 1000 ms trong 5 phút lỗi). Đây là mục tiêu thiết kế ban đầu (chờ có hạn, thử lại, hỏng thì cọc 100 %), người dùng chốt giữ nguyên ngày 11/11.
+Khách vẫn đặt được sân trong mọi kiểu lỗi, không đơn nào vào hàng chờ duyệt, không dữ liệu sai. **Đánh đổi đã chấp nhận (FI-12):** khi TADSS chậm, BE chờ tối đa 800 ms rồi **thử lại một lần** trước khi cọc 100 % ⇒ Đặt sân p95 của cả lượt khoảng **1,66 s** (vượt ngưỡng 1000 ms trong 5 phút lỗi). Đây là mục tiêu thiết kế ban đầu (chờ có hạn, thử lại, hỏng thì cọc 100 %), người dùng chốt giữ nguyên ngày 11/11. Bảng trên là số **trước P6-57** (11/11, BE `sha-8ee8e63`).
+
+**Sau P6-57: mạch ngắt lệnh đánh giá cọc ở BE (13/11, buổi 10, 15:02–16:56).** Giữ timeout 800 ms và một lần thử lại, BE thêm mạch ngắt: một lần gọi lỗi mà `/health/ready` của TADSS cũng lỗi (hoặc 3 lần gọi lỗi liên tiếp) thì ngừng gọi TADSS, đơn cọc 100 % ngay; một đơn đi thử khi TADSS hồi phục hoặc theo lịch 60 → 120 → 240 → 300 s ([plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md) P6-57). Đo trên **cùng một image** BE `sha-c01a71f`, chỉ đổi `TadssConfig:CircuitEnabled` (`perf.sh up --circuit-off`), thứ tự xen kẽ tắt, bật, bật, tắt; xung nhịp và tải như trên. Độ trễ tính bằng `faults.py latency` trên request `POST /api/bookings/online` **trong đúng 5 phút lỗi**; số đơn và cọc 100 % từ bộ kiểm DB (cửa sổ bỏ 2 s ở mỗi đầu, nên ít hơn số request; request bị từ chối vì tranh khung giờ có độ trễ nhưng không tạo đơn).
+
+| Kiểu lỗi | Mạch ngắt | Request trong lỗi | Chờ > 800 ms | Đặt sân p50 / p95 trong lỗi | Đơn cọc 100 % | Mạch mở / đóng lại | SC6 |
+| :--- | :--- | ---: | ---: | :--- | ---: | :--- | :--- |
+| FI-11 dừng TADSS | tắt | 189 | 163 | 1.653 / 1.682 ms | 159 / 159 | — | Đạt |
+| | **bật** | 175 | **3** | **50 / 75 ms** | 157 / 157 | khoảng 10 s sau lỗi / khoảng 9 s sau khi gỡ | Đạt |
+| FI-12 TADSS chậm thêm 1,5 s | tắt | 180 | 160 | 1.653 / 1.682 ms | 160 / 160 | — | Đạt |
+| | **bật** | 192 | **4** | **50 / 74 ms** | 159 / 159 | khoảng 5 s / khoảng 5 s | Đạt |
+| FI-14 cắt kết nối (TCP RST) | bật | 186 | 0 | 51 / 75 ms | 161 / 161 | khoảng 5 s / khoảng 10 s | Đạt |
+
+- **Khi TADSS treo hoặc chậm (FI-11, FI-12), số đơn phải chờ quá 800 ms giảm từ 86–89 % số request (160–163 request) xuống 3–4 request trong 5 phút**; p95 đặt sân trong lúc lỗi giảm từ khoảng 1,68 s xuống khoảng 75 ms, ngang lúc không lỗi. Các đơn còn chậm đúng là các đơn thiết kế đã tính trước: một hai đơn ở giây đầu (trước khi mạch kịp mở) và **đơn thử ở giây +64 và +188**, khớp lịch 60 s rồi 120 s (đơn thử gọi một lần, chờ tối đa 800 ms).
+- **Mạch tự đóng trong khoảng 5–10 s sau khi gỡ lỗi** (lần kiểm nền 10 s thấy TADSS tốt lại, cho một đơn thử thành công); không ai phải thao tác. Thời điểm mở / đóng đọc từ metric `smashcourt_tadss_circuit_state` của perf (nhịp xuất 5 s nên sai số khoảng 5 s).
+- **FI-14:** khi kết nối bị cắt thẳng, BE biết lỗi ngay nên trước P6-57 cũng đã nhanh (p95 85 ms); bật mạch không làm chậm hơn và BE ngừng gửi request vô ích tới TADSS.
+- Trong mọi lượt khách vẫn đặt được sân, mọi đơn trong lúc lỗi cọc 100 %, không đơn nào chờ duyệt, không quyết định trùng, SC6 đạt; lỗi request ≤ 0,09 % (ngưỡng 0,5 %).
+- **Phạm vi kết luận:** một lượt mỗi bên cho mỗi kiểu lỗi, nên đây là **độ lớn hiệu ứng** (khoảng 22 lần ở p95 trong lúc lỗi), không phải phép so B.7.8 (cần ≥ 3 lượt mỗi bên). Đánh đổi của mạch ngắt: trong lúc mạch mở mọi đơn cọc 100 % (bỏ qua `NEED_APPROVAL` / `REJECTED`); TADSS chậm dưới 800 ms thì mạch không bắt được.
 
 ### 6.9. AI qua BE (SP-10)
 
@@ -243,7 +259,7 @@ So với tối 07/11 cũng ra cùng kết luận: Đăng nhập p50 / p95 / p99 
 
 | Vấn đề | Quyết định | Lý do |
 | :--- | :--- | :--- |
-| Đặt sân chậm tới khoảng 1,66 s khi TADSS chậm | **Giữ** `TimeoutMs` 800 ms + một lần thử lại | Mục tiêu thiết kế: ưu tiên có quyết định thật, hỏng mới cọc 100 % |
+| Đặt sân chậm tới khoảng 1,66 s khi TADSS chậm | **Giữ** `TimeoutMs` 800 ms + một lần thử lại; thêm **P6-57** mạch ngắt ở BE | Mục tiêu thiết kế: ưu tiên có quyết định thật, hỏng mới cọc 100 %. Từ P6-57 chỉ vài đơn đầu và đơn thử còn chờ; p95 trong lúc lỗi khoảng 75 ms (Mục 6.8) |
 | bcrypt chiếm gần nửa CPU BE | **P6-55**: hệ số 11 cho mọi hash mới | Nhanh khoảng 2 lần, vẫn trên mức tối thiểu 10 khuyến nghị; hash cũ hệ số 12 vẫn kiểm được (hệ số nằm trong hash) và chỉ thành 11 khi người dùng đổi / đặt lại mật khẩu |
 | Câu đọc chi tiết booking 12 bảng | **Hướng cải tiến**, không sửa trong Phase 6 | Dùng ở 19 chỗ (đọc chi tiết cho FE, nạp trước khi ghi để ra quyết định tiền, đọc lại sau khi ghi); chỉ nhóm cuối làm nhẹ được và chiếm khoảng 1/4 số lần chạy. Hướng: bật auto-prepare cho bản deploy khi thấy đúng triệu chứng; về lâu dài mỗi luồng một câu đọc vừa đủ, có test riêng |
 | Working set BE tăng trong soak | Theo dõi | Heap .NET phẳng; cần soak ≥ 3 giờ để kết luận |
@@ -263,6 +279,8 @@ So với tối 07/11 cũng ra cùng kết luận: Đăng nhập p50 / p95 / p99 
 
 - Một laptop chạy cả hệ thống lẫn công cụ đo; kết quả là **cận dưới** và phụ thuộc xung nhịp CPU (Đăng nhập p95 dao động 390–850 ms giữa các buổi cùng cấu hình; lượt có xung nhịp trung vị ≤ khoảng 3100 MHz luôn có đợt nghẽn, lượt ≥ khoảng 3400 MHz hầu như không); chế độ nguồn "Best power efficiency" ở mọi ngày đo; sau khi khởi động máy cần khoảng 1,5 giờ mới ổn định. Buổi đo không ghi tiến trình khác trên máy nên không quy được xung nhịp thấp cho một nguyên nhân.
 - PostgreSQL chạy cục bộ trong Docker, không có độ trễ mạng tới Neon như môi trường dev.
+- Cache quyết định: từ P6-58 (13/11, sau các buổi đo trong chương này) bản deploy và perf tắt cache của hai strategy quy tắc (khóa chứa mã đơn nên không bao giờ trúng); mọi lượt trong chương đo khi cache còn bật, nên số là thận trọng (mỗi quyết định thêm hai lệnh Redis). Stack đánh giá của TADSS vẫn bật cache để kiểm cơ chế.
+- Rate limit của TADSS đếm theo từng instance; chạy N instance thì hạn mức tối đa gấp N lần. Bản deploy và perf chạy một instance.
 - Tỷ lệ hành trình là giả định (không có log truy cập thật); tỷ lệ request ghi phụ thuộc giờ chạy (buổi tối khoảng 70 request ghi mỗi lượt, buổi ngày khoảng 750), nên phép so trước / sau chỉ dùng các lượt cùng khung giờ hoặc chỉ so nhóm không phụ thuộc tỷ lệ.
 - Cổng thanh toán, email, Gemini là bản giả; SP-10B không đo được độ trễ LLM của gợi ý đặt sân.
 - Bộ nhớ working set trong soak và nguyên nhân Đăng nhập chậm hơn khi bật telemetry chưa xác định.
@@ -284,7 +302,7 @@ Danh sách đầy đủ, SHA-256 và kích thước của mọi file ở [`perf/
 | SP-04 | `20261108-112353-soak-SP-04` |
 | SP-06 | `SP06-A1`, `B2`, `B3`, `A4`, `A5`, `B6` (08/11) + hai bản gộp |
 | SP-07 | `SP07-A1` (loại), `B2`, `B3`, `A4`, `A5`, `B6`, `B8`, `A7` + bản gộp |
-| SP-09 | `SP09-stop-tadss`, `SP09-latency`, `SP09-reset` (có `faults.json`, `sc6.json`) |
+| SP-09 | `SP09-stop-tadss`, `SP09-latency`, `SP09-reset` (có `faults.json`, `sc6.json`); sau P6-57: `SP09-p657-stop-tadss-off`, `-on`, `-latency-on`, `-off`, `-reset-on` (gói [`PERF-6C-20261113-SP09`](../../perf/evidence/PERF-6C-20261113-SP09/manifest.json), có `fault-latency.json`) |
 | SP-10 | `ai-SP-10-A`, `ai-B` |
 | Phân tích 2.27 | `20261111-014033-load-trace-2.27` (có `bottleneck.json`) |
 | Đối chứng auto-prepare 07/11 | `CTRL-r1…r5`, `AP50-r1…r3` |

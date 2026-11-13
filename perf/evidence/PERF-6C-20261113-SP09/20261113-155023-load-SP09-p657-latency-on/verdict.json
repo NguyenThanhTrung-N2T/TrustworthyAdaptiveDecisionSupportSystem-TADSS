@@ -1,0 +1,259 @@
+{
+  "runId": "20261113-155023-load-SP09-p657-latency-on",
+  "profile": "load",
+  "selftest": false,
+  "k6Exit": 0,
+  "problems": [],
+  "validity": "OK",
+  "infra": [],
+  "steadyStart": 1794560059.0,
+  "steadyEnd": 1794560981.0,
+  "groups": {
+    "read": {
+      "n": 45354,
+      "p95": 15.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "p99": 23.9,
+      "p99Limit": 800,
+      "p99Status": "PASS",
+      "errors": {
+        "n": 45354,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "booking": {
+      "n": 746,
+      "p95": 86.4,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "p99": 128.9,
+      "p99Limit": 2000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 746,
+        "rate": 0.005362,
+        "limit": 0.005,
+        "status": "FAIL"
+      }
+    },
+    "login": {
+      "n": 840,
+      "p95": 196.8,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 226.6,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 840,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "ipn": {
+      "n": 348,
+      "p95": 44.8,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 99.3,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 348,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    },
+    "write": {
+      "n": 759,
+      "p95": 37.5,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "p99": 69.4,
+      "p99Limit": 1000,
+      "p99Status": "INSUFFICIENT",
+      "errors": {
+        "n": 759,
+        "rate": 0.0,
+        "limit": 0.005,
+        "status": "PASS"
+      }
+    }
+  },
+  "errors": {
+    "n": 48047,
+    "rate": 8.3e-05,
+    "limit": 0.005,
+    "status": "PASS"
+  },
+  "endpoints": {
+    "GET /api/bookings": {
+      "n": 1215,
+      "p95": 22.5,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/dashboard-summary": {
+      "n": 1215,
+      "p95": 13.3,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/pending-approval": {
+      "n": 460,
+      "p95": 18.5,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/bookings/schedule": {
+      "n": 1215,
+      "p95": 11.2,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/branches/basic": {
+      "n": 12032,
+      "p95": 9.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/courts": {
+      "n": 12091,
+      "p95": 8.0,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings": {
+      "n": 2553,
+      "p95": 19.8,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/me/bookings/{id}": {
+      "n": 2433,
+      "p95": 17.4,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "GET /api/payments/vnpay/ipn": {
+      "n": 348,
+      "p95": 44.8,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "ipn"
+    },
+    "GET time-grid": {
+      "n": 12140,
+      "p95": 18.7,
+      "p95Limit": 300,
+      "p95Status": "PASS",
+      "slo": "read"
+    },
+    "POST /api/auth/login": {
+      "n": 840,
+      "p95": 196.8,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "login"
+    },
+    "POST /api/bookings/online": {
+      "n": 746,
+      "p95": 86.4,
+      "p95Limit": 1000,
+      "p95Status": "PASS",
+      "slo": "booking"
+    },
+    "POST /api/bookings/{id}/approve": {
+      "n": 30,
+      "p95": 83.6,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/check-in": {
+      "n": 640,
+      "p95": 20.4,
+      "p95Limit": 500,
+      "p95Status": "PASS",
+      "slo": "write"
+    },
+    "POST /api/bookings/{id}/checkout": {
+      "n": 44,
+      "p95": 60.5,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    },
+    "POST /api/me/bookings/{id}/cancel": {
+      "n": 45,
+      "p95": 48.1,
+      "p95Limit": 500,
+      "p95Status": "INSUFFICIENT",
+      "slo": "write"
+    }
+  },
+  "status": "PASS",
+  "sloWholeRun": "INSUFFICIENT",
+  "fault": {
+    "kind": "latency",
+    "onAt": 1794560322.9315886,
+    "offAt": 1794560622.9893165,
+    "duringErrors": {
+      "n": 15932,
+      "rate": 0.000251,
+      "limit": 0.005,
+      "status": "PASS"
+    },
+    "afterErrors": {
+      "n": 14611,
+      "rate": 0.0,
+      "limit": 0.005,
+      "status": "PASS"
+    },
+    "bookingAfter": {
+      "n": 121,
+      "p95": 103.8,
+      "p95Limit": 1000,
+      "p95Status": "PASS"
+    },
+    "db": {
+      "checkWindow": [
+        1794560324.9315886,
+        1794560620.9893165
+      ],
+      "bookings": 159,
+      "notFallback": 0,
+      "awaitingApproval": 0,
+      "duplicateDecisions": 0,
+      "problems": [],
+      "status": "PASS"
+    },
+    "sc6": "PASS"
+  },
+  "episodes": {
+    "count": 0,
+    "episodes": [],
+    "windowsChecked": 91,
+    "windowsInsufficient": 2,
+    "definition": {
+      "window": "10s",
+      "mergeGap": "30s",
+      "group": "read",
+      "controlMin": 3,
+      "confirmedMax": 1
+    }
+  }
+}

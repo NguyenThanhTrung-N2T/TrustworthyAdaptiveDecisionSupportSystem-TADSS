@@ -58,3 +58,8 @@ def test_verify_reports_changed_and_missing_copies(tmp_path):
     assert evidence.verify(out / "PERF-TEST") == []
     (out / "PERF-TEST" / "r" / "verdict.json").write_text('{"status":"FAIL"}', encoding="utf-8")
     assert evidence.verify(out / "PERF-TEST") == ["r/verdict.json: SHA-256 lệch manifest"]
+
+
+def test_collect_copies_the_fault_window_latency_of_sp09_runs():
+    # Bảng trước / sau của mạch ngắt (P6-57) lấy số từ fault-latency.json: file này phải nằm trong gói, không chỉ có hash
+    assert "fault-latency.json" in evidence.COPIED

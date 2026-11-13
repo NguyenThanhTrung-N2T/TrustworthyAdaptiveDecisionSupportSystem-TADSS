@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "evidence"
 COPIED = {"verdict.json", "metadata.json", "schedule.json", "cpu-clock.json", "resources.json", "faults.json", "sc6.json",
-          "bottleneck.json", "k6-exit"}
+          "bottleneck.json", "k6-exit", "fault-latency.json"}  # fault-latency.json: độ trễ trong khoảng lỗi (faults.py latency, P6-57)
 
 
 def _sha256(path: Path) -> str:

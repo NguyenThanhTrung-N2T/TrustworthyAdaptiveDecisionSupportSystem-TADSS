@@ -1,0 +1,17 @@
+{
+  "window": {
+    "fromUtc": "2026-11-13T08:50:31Z",
+    "toUtc": "2026-11-13T09:09:59Z"
+  },
+  "startedAt": "2026-11-13T09:10:12.154466Z",
+  "finishedAt": "2026-11-13T09:10:15.7608611Z",
+  "checkedBookings": 902,
+  "checkedDecisions": 740,
+  "status": "PASS",
+  "violationsByRule": {},
+  "violations": [],
+  "inconclusiveChecks": [],
+  "orphanDecisions": [],
+  "orphanCheckError": "Không đọc được tadss.decision_executions: relation \"tadss.decision_executions\" does not exist",
+  "abortReason": null
+}
