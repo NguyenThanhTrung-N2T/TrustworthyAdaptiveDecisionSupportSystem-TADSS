@@ -141,7 +141,7 @@ flowchart LR
         direction TB
         b1["Khách đăng nhập, đặt sân online"] --> b2["BE tạo booking PENDING<br/>giữ slot tối đa 15 phút"]
         b2 --> b3{"Gọi TADSS"}
-        b3 -- "APPROVED<br/>(cọc theo hạng)" --> b4["VNPay thu <b>số tiền cọc</b><br/>lỗi thẻ: thử lại trong 5 phút"]
+        b3 -- "APPROVED<br/>(cọc theo hạng, giờ thấp điểm<br/>Bronze/Silver sạch lịch sử: 30 %)" --> b4["VNPay thu <b>số tiền cọc</b><br/>lỗi thẻ: thử lại trong 5 phút"]
         b3 -- "APPROVED, cọc<br/>dưới 5.000 đ" --> b9["CONFIRMED<br/>thu tại quầy"]
         b3 -- "NEED_APPROVAL<br/>(đơn lớn, hay bỏ sân)" --> b5["PENDING_APPROVAL<br/>Manager duyệt mức cọc"]
         b5 -- "duyệt" --> b4
@@ -165,7 +165,7 @@ flowchart LR
 | Phần của SmashCourt | Đồ án 1 | Đồ án 2 (Phase 6) |
 | :--- | :--- | :--- |
 | Ai được đặt online | Khách đăng nhập (FE từ 12/05/2026); BE vẫn nhận đặt ẩn danh qua API | Chỉ khách đăng nhập `CUSTOMER`; khách vãng lai đặt qua nhân viên |
-| Số tiền khách trả online | Luôn 100 % `finalTotal` | `deposit.amount` do TADSS tính (theo hạng: 50 % / 40 % / 30 % / 20 %), hoặc mức Manager duyệt; 100 % khi có sự cố; 0 (thu tại quầy) khi cọc dưới 5.000 đ |
+| Số tiền khách trả online | Luôn 100 % `finalTotal` | `deposit.amount` do TADSS tính (theo hạng: 50 % / 40 % / 30 % / 20 %; từ 2.2.0 giờ thấp điểm, Bronze và Silver chưa từng không đến hay bỏ thanh toán: tối đa 30 %), hoặc mức Manager duyệt; 100 % khi có sự cố; 0 (thu tại quầy) khi cọc dưới 5.000 đ |
 | Thời gian giữ slot chờ thanh toán | 10 phút, nhưng bấm "Thanh toán lại" gia hạn không giới hạn; thanh toán lỗi là hủy đơn | Tối đa 15 phút kể từ lúc đặt hoặc lúc duyệt; thanh toán lỗi còn 5 phút để thử lại hoặc tự hủy |
 | Trạng thái booking | `PENDING` → `PAID_ONLINE` → … | Thêm `PENDING_APPROVAL` (giữ slot tới hạn duyệt) |
 | Vai trò Manager | Không tham gia đặt sân | Duyệt mức cọc / từ chối đơn chờ duyệt, theo chi nhánh của mình |

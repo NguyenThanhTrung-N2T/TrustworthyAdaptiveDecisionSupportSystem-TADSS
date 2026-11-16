@@ -240,6 +240,7 @@ flowchart LR
 4. Chỉ booking `ONLINE` gọi TADSS.
 5. Cùng một booking gọi lại TADSS (thử lại) không sinh quyết định mới (idempotency theo mã booking).
 6. Hạn duyệt = sớm hơn trong hai mốc: 30 phút sau khi đặt, hoặc 2 giờ trước giờ chơi. Không còn thời gian duyệt thì TADSS trả cọc 100 % thay vì đưa vào hàng chờ; hạn duyệt đã qua lúc hệ thống nhận cũng xử lý như vậy (6e).
+7. Strategy mặc định (`DefaultDecisionStrategy` 2.2.0) xét theo thứ tự, gặp điều kiện nào trước thì dừng: khách có từ 5 lần giữ chỗ hết hạn thanh toán và nhiều hơn số lần hoàn tất ⇒ `REJECTED`; đơn từ 2.000.000 đ ⇒ `NEED_APPROVAL`; khách có từ 2 lần không đến ⇒ `NEED_APPROVAL`; giờ thấp điểm (theo lịch cao điểm của chi nhánh), hạng Bronze hoặc Silver, chưa từng không đến và chưa từng để hết hạn thanh toán ⇒ cọc min(theo hạng, 30 %); còn lại cọc theo hạng (Bronze 50 %, Silver 40 %, Gold 30 %, Platinum / Diamond 20 %). Giảm cọc giờ thấp điểm chỉ hạ mức cọc, không đổi trạng thái; mặc định tắt trong mã, bản deploy bật (P6-59). Ngưỡng nằm ở cấu hình của TADSS (`CONFIGURATION_REFERENCE.md`, `Tadss:Strategies:Default`).
 
 #### Yêu cầu phi chức năng
 

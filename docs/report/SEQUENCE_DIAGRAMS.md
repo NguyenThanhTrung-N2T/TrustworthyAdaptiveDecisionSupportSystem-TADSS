@@ -36,7 +36,7 @@ sequenceDiagram
         Note over BE,T: Timeout phía BE 800 ms. Lỗi tạm thời được thử lại<br/>tối đa 1 lần với cùng idempotency key
     end
 
-    alt APPROVED (cọc theo hạng, hoặc 100 % do fallback bên trong TADSS)
+    alt APPROVED (cọc theo hạng hoặc giảm giờ thấp điểm, hoặc 100 % do fallback bên trong TADSS)
         T-->>BE: 200 status APPROVED, deposit.rate, deposit.amount, decisionId
         BE->>DB: Transaction 2: lưu mức cọc, nguồn TADSS, decisionId,<br/>thanh toán VNPay = deposit.amount
         BE->>BE: Ký URL thanh toán VNPay (số tiền cọc)
