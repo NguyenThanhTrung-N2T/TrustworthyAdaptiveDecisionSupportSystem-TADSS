@@ -1,0 +1,569 @@
+{
+  "source": {
+    "url": "https://raw.githubusercontent.com/rfordatascience/tidytuesday/d75aaa0d31596ad6487ae0db20138067d301e031/data/2020/2020-02-11/hotels.csv",
+    "sha256": "7c2ae42a7353905ea136e5c2287f17c92c5435826598bfbb8491c6f0c7b1fc06",
+    "rows": 119390,
+    "license": "CC BY 4.0 (António, de Almeida, Nunes 2019, Data in Brief 22)"
+  },
+  "parameters": {
+    "sgd_seed": 7,
+    "sgd_epochs": 6,
+    "sgd_learning_rate": 0.05,
+    "sgd_l2": 1e-05,
+    "lookup_prior_weight": 5,
+    "credibility_k_grid": [
+      1,
+      2,
+      5,
+      10,
+      20
+    ],
+    "target_deposit": 0.5,
+    "strict_windows_days": [
+      1,
+      3,
+      7
+    ],
+    "rounding_step": 0.2,
+    "bootstrap_seed": 20261115,
+    "bootstrap_rounds": 500,
+    "risk_margin_seed": 1,
+    "risk_margin_rounds": 200,
+    "risk_windows": [
+      [
+        201608,
+        201609,
+        201612,
+        201701,
+        201708
+      ],
+      [
+        201603,
+        201604,
+        201607,
+        201608,
+        201703
+      ],
+      [
+        201512,
+        201601,
+        201606,
+        201607,
+        201612
+      ]
+    ],
+    "hand_rule_by_lead_bin": {
+      "0": 0.2,
+      "1": 0.4,
+      "2": 0.6,
+      "3": 0.8
+    },
+    "primary_split": "train: arrival <= 2016-12; test: arrival 2017-01..2017-08"
+  },
+  "results": {
+    "dataset": {
+      "rows_in_file": 119390,
+      "no_deposit_rows": 102681,
+      "canceled": 28335,
+      "no_show": 1146,
+      "late_or_no_show_7d": 5850,
+      "canceled_share_within_days": {
+        "0": 0.0282,
+        "1": 0.0489,
+        "3": 0.0879,
+        "7": 0.166,
+        "14": 0.2781,
+        "30": 0.4435
+      }
+    },
+    "all_cancellations": {
+      "train_rows": 66603,
+      "test_rows": 36078,
+      "label_rate_test": 0.3201,
+      "repeat_guest_share_test": 0.0342,
+      "auc_model": 0.7065,
+      "auc_history_only": 0.5246,
+      "credibility_k": 1,
+      "calibration_model": [
+        [
+          0.0978,
+          0.1028
+        ],
+        [
+          0.2333,
+          0.1998
+        ],
+        [
+          0.3395,
+          0.3132
+        ],
+        [
+          0.442,
+          0.4749
+        ],
+        [
+          0.5062,
+          0.5097
+        ]
+      ],
+      "uniform_50_exposed": 0.1905,
+      "tier_rule": {
+        "deposit": 0.4975,
+        "exposed": 0.1906,
+        "low_share": 0.0048,
+        "reduction_vs_uniform": 0.0044
+      },
+      "history_only": {
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.1872,
+          "low_share": 0.0343,
+          "reduction_vs_uniform": 0.0174
+        },
+        "same_exposure": {
+          "deposit": 0.4913,
+          "exposed": 0.1905,
+          "low_share": 0.0343
+        }
+      },
+      "model": {
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.1561,
+          "low_share": 0.2334,
+          "reduction_vs_uniform": 0.1806
+        },
+        "same_exposure": {
+          "deposit": 0.4083,
+          "exposed": 0.1905,
+          "low_share": 0.3205
+        }
+      },
+      "three_plus_completed": {
+        "orders": 552,
+        "share": 0.0153,
+        "label_rate": 0.038
+      }
+    },
+    "strict_labels": {
+      "1": {
+        "label_rate_train": 0.0271,
+        "label_rate_test": 0.0201,
+        "auc_model": 0.6704,
+        "calibration_model": [
+          [
+            0.0045,
+            0.0083
+          ],
+          [
+            0.009,
+            0.0133
+          ],
+          [
+            0.0137,
+            0.0122
+          ],
+          [
+            0.0193,
+            0.0244
+          ],
+          [
+            0.0479,
+            0.0423
+          ]
+        ],
+        "uniform_50_exposed": 0.007,
+        "tier_rule": {
+          "deposit": 0.4975,
+          "exposed": 0.007,
+          "low_share": 0.0048,
+          "reduction_vs_uniform": 0.0006
+        },
+        "model": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.005,
+            "low_share": 0.1816,
+            "reduction_vs_uniform": 0.2823
+          },
+          "same_exposure": {
+            "deposit": 0.3367,
+            "exposed": 0.007,
+            "low_share": 0.3262
+          }
+        }
+      },
+      "3": {
+        "label_rate_train": 0.0406,
+        "label_rate_test": 0.0259,
+        "auc_model": 0.6739,
+        "calibration_model": [
+          [
+            0.008,
+            0.0114
+          ],
+          [
+            0.0154,
+            0.0179
+          ],
+          [
+            0.0246,
+            0.0137
+          ],
+          [
+            0.0334,
+            0.033
+          ],
+          [
+            0.0691,
+            0.0535
+          ]
+        ],
+        "uniform_50_exposed": 0.0094,
+        "tier_rule": {
+          "deposit": 0.4975,
+          "exposed": 0.0094,
+          "low_share": 0.0048,
+          "reduction_vs_uniform": 0.0001
+        },
+        "model": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.0067,
+            "low_share": 0.1804,
+            "reduction_vs_uniform": 0.2852
+          },
+          "same_exposure": {
+            "deposit": 0.3329,
+            "exposed": 0.0094,
+            "low_share": 0.3244
+          }
+        }
+      },
+      "7": {
+        "label_rate_train": 0.0659,
+        "label_rate_test": 0.0405,
+        "auc_model": 0.6844,
+        "calibration_model": [
+          [
+            0.0115,
+            0.0157
+          ],
+          [
+            0.0235,
+            0.0198
+          ],
+          [
+            0.0364,
+            0.0319
+          ],
+          [
+            0.052,
+            0.0488
+          ],
+          [
+            0.0998,
+            0.0865
+          ]
+        ],
+        "uniform_50_exposed": 0.0161,
+        "tier_rule": {
+          "deposit": 0.4975,
+          "exposed": 0.0162,
+          "low_share": 0.0048,
+          "reduction_vs_uniform": 0.0012
+        },
+        "model": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.0103,
+            "low_share": 0.1603,
+            "reduction_vs_uniform": 0.3587
+          },
+          "same_exposure": {
+            "deposit": 0.2944,
+            "exposed": 0.0161,
+            "low_share": 0.336
+          }
+        }
+      }
+    },
+    "rules_vs_model": {
+      "all_cancellations": {
+        "hand_rule_by_lead_time": {
+          "deposit": 0.6517,
+          "exposed": 0.1182,
+          "low_share": 0.1524,
+          "reduction_vs_uniform": 0.1095
+        },
+        "lookup_lead_time": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.1778,
+            "low_share": 0.1524,
+            "reduction_vs_uniform": 0.0667
+          },
+          "same_exposure": {
+            "deposit": 0.4682,
+            "exposed": 0.1905,
+            "low_share": 0.1524
+          }
+        },
+        "lookup_lead_time_x_hotel": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.1775,
+            "low_share": 0.1524,
+            "reduction_vs_uniform": 0.0683
+          },
+          "same_exposure": {
+            "deposit": 0.4673,
+            "exposed": 0.1905,
+            "low_share": 0.1524
+          }
+        },
+        "model": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.1561,
+            "low_share": 0.2334,
+            "reduction_vs_uniform": 0.1806
+          },
+          "same_exposure": {
+            "deposit": 0.4083,
+            "exposed": 0.1905,
+            "low_share": 0.3205
+          }
+        }
+      },
+      "strict_7d": {
+        "hand_rule_by_lead_time": {
+          "deposit": 0.6517,
+          "exposed": 0.016,
+          "low_share": 0.1524,
+          "reduction_vs_uniform": -0.4257
+        },
+        "lookup_lead_time": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.0125,
+            "low_share": 0.0,
+            "reduction_vs_uniform": 0.2279
+          },
+          "same_exposure": {
+            "deposit": 0.3524,
+            "exposed": 0.0161,
+            "low_share": 0.4472
+          }
+        },
+        "lookup_lead_time_x_hotel": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.0112,
+            "low_share": 0.1516,
+            "reduction_vs_uniform": 0.3073
+          },
+          "same_exposure": {
+            "deposit": 0.3304,
+            "exposed": 0.0161,
+            "low_share": 0.2179
+          }
+        },
+        "model": {
+          "same_deposit": {
+            "deposit": 0.5,
+            "exposed": 0.0103,
+            "low_share": 0.1603,
+            "reduction_vs_uniform": 0.3587
+          },
+          "same_exposure": {
+            "deposit": 0.2944,
+            "exposed": 0.0161,
+            "low_share": 0.336
+          }
+        }
+      }
+    },
+    "sensitivity_strict_7d": {
+      "splits": {
+        "primary": {
+          "train_rows": 66603,
+          "test_rows": 36078,
+          "label_rate_test": 0.0405,
+          "lookup_lead_time_x_hotel": {
+            "deposit": 0.5,
+            "exposed": 0.0112,
+            "low_share": 0.1516,
+            "reduction_vs_uniform": 0.3073
+          },
+          "model": {
+            "deposit": 0.5,
+            "exposed": 0.0103,
+            "low_share": 0.1603,
+            "reduction_vs_uniform": 0.3587
+          }
+        },
+        "booked_after": {
+          "train_rows": 66603,
+          "test_rows": 24846,
+          "label_rate_test": 0.0467,
+          "lookup_lead_time_x_hotel": {
+            "deposit": 0.5,
+            "exposed": 0.0128,
+            "low_share": 0.0889,
+            "reduction_vs_uniform": 0.3103
+          },
+          "model": {
+            "deposit": 0.5,
+            "exposed": 0.0119,
+            "low_share": 0.1321,
+            "reduction_vs_uniform": 0.3575
+          }
+        },
+        "earlier": {
+          "train_rows": 49469,
+          "test_rows": 53212,
+          "label_rate_test": 0.0457,
+          "lookup_lead_time_x_hotel": {
+            "deposit": 0.5,
+            "exposed": 0.0131,
+            "low_share": 0.1446,
+            "reduction_vs_uniform": 0.3135
+          },
+          "model": {
+            "deposit": 0.5,
+            "exposed": 0.0121,
+            "low_share": 0.184,
+            "reduction_vs_uniform": 0.3696
+          }
+        }
+      },
+      "rounded_to_20pct": {
+        "lookup_lead_time_x_hotel": {
+          "deposit": 0.512,
+          "exposed": 0.0093,
+          "low_share": 0.1516,
+          "reduction_vs_uniform": 0.4088
+        },
+        "model": {
+          "deposit": 0.4999,
+          "exposed": 0.0092,
+          "low_share": 0.2362,
+          "reduction_vs_uniform": 0.4302
+        }
+      },
+      "bootstrap_95pct_reduction_at_same_deposit": {
+        "model": [
+          0.3143,
+          0.4013
+        ],
+        "lookup_lead_time_x_hotel": [
+          0.2667,
+          0.3442
+        ],
+        "model_minus_lookup_lead_time_x_hotel": [
+          0.0286,
+          0.0728
+        ]
+      }
+    },
+    "risk_level_on_later_data": [
+      {
+        "window": {
+          "fit_until": 201608,
+          "calibrate": [
+            201609,
+            201612
+          ],
+          "test": [
+            201701,
+            201708
+          ]
+        },
+        "label_rate": {
+          "fit": 0.0691,
+          "calibrate": 0.0566,
+          "test": 0.0405
+        },
+        "target_exposed": 0.0277,
+        "uniform_50_exposed_on_test": 0.0161,
+        "plug_in": {
+          "deposit": 0.245,
+          "exposed": 0.0181,
+          "low_share": 0.4101,
+          "ratio_to_target": 0.6525
+        },
+        "conservative_p95": {
+          "deposit": 0.2735,
+          "exposed": 0.0171,
+          "low_share": 0.3619,
+          "ratio_to_target": 0.6167
+        }
+      },
+      {
+        "window": {
+          "fit_until": 201603,
+          "calibrate": [
+            201604,
+            201607
+          ],
+          "test": [
+            201608,
+            201703
+          ]
+        },
+        "label_rate": {
+          "fit": 0.0777,
+          "calibrate": 0.0634,
+          "test": 0.0544
+        },
+        "target_exposed": 0.0279,
+        "uniform_50_exposed_on_test": 0.025,
+        "plug_in": {
+          "deposit": 0.3366,
+          "exposed": 0.0237,
+          "low_share": 0.3252,
+          "ratio_to_target": 0.8523
+        },
+        "conservative_p95": {
+          "deposit": 0.3696,
+          "exposed": 0.0221,
+          "low_share": 0.3002,
+          "ratio_to_target": 0.7937
+        }
+      },
+      {
+        "window": {
+          "fit_until": 201512,
+          "calibrate": [
+            201601,
+            201606
+          ],
+          "test": [
+            201607,
+            201612
+          ]
+        },
+        "label_rate": {
+          "fit": 0.0673,
+          "calibrate": 0.0803,
+          "test": 0.0524
+        },
+        "target_exposed": 0.0436,
+        "uniform_50_exposed_on_test": 0.0224,
+        "plug_in": {
+          "deposit": 0.2657,
+          "exposed": 0.0262,
+          "low_share": 0.3795,
+          "ratio_to_target": 0.6012
+        },
+        "conservative_p95": {
+          "deposit": 0.2893,
+          "exposed": 0.025,
+          "low_share": 0.3572,
+          "ratio_to_target": 0.5735
+        }
+      }
+    ]
+  }
+}

@@ -84,7 +84,7 @@ Khách vãng lai không dùng trong E2E đặt online: từ Phase 6 đặt sân 
 
 ### 3.3. Hạng thành viên, mức cọc và điều kiện tạo `NEED_APPROVAL`
 
-Strategy mặc định (`DefaultDecisionStrategy` 2.0.0) với tham số mặc định (`CONFIGURATION_REFERENCE.md`, `Tadss:Strategies:Default`); BE ánh xạ hạng theo thứ tự `MinPoints` tăng dần (INTEGRATION_SPEC §4.2):
+Strategy mặc định (`DefaultDecisionStrategy` 2.2.0) với tham số mặc định (`CONFIGURATION_REFERENCE.md`, `Tadss:Strategies:Default`); BE ánh xạ hạng theo thứ tự `MinPoints` tăng dần (INTEGRATION_SPEC §4.2). Bảng dưới là tỷ lệ **giờ cao điểm**, hoặc mọi giờ khi môi trường chạy E2E tắt giảm cọc giờ thấp điểm (mặc định của mã):
 
 | Khách | Hạng gửi TADSS | Tỷ lệ cọc khi `APPROVED` |
 | :--- | :--- | :--- |
@@ -95,7 +95,9 @@ Strategy mặc định (`DefaultDecisionStrategy` 2.0.0) với tham số mặc �
 
 Số cọc kỳ vọng: `depositAmount = round(F × rate)`, VND không có chữ số thập phân, làm tròn nửa xa số 0 (INTEGRATION_SPEC §3.6, DEPOSIT_APPROVAL_API 2.2).
 
-- **Điều kiện A (kỳ vọng `APPROVED`):** F < `HighValueThreshold` (mặc định 2.000.000 VND) và khách có ít hơn `NoShowReviewThreshold` (mặc định 2) lần không đến.
+**Giảm cọc giờ thấp điểm (P6-59):** môi trường bật `OffPeakDiscountEnabled` như bản deploy (STANDARD, SILVER; tối đa 0.3) thì khách STANDARD hoặc SILVER **chưa từng** không đến và **chưa từng** để hết hạn thanh toán, đặt slot ngoài giờ cao điểm (`Tadss:Calendar`: thứ Hai–Sáu 17:00–21:00, thứ Bảy–Chủ Nhật 08:00–21:00; mốc bắt đầu tính là cao điểm, mốc kết thúc không), được tỷ lệ 0.3 với `reason_code = OFF_PEAK_DEPOSIT` (lý do có dấu vân tay tham số của strategy). Kịch bản nào kỳ vọng tỷ lệ theo hạng thì chọn slot giờ cao điểm, hoặc ghi rõ tỷ lệ thấp điểm.
+
+- **Điều kiện A (kỳ vọng `APPROVED`):** F < `HighValueThreshold` (mặc định 2.000.000 VND) và khách có ít hơn `NoShowReviewThreshold` (mặc định 2) lần không đến. Với r = 0.5 của `CUS-STD` ở E2E-01, 05, 06, 09: slot giờ cao điểm (hoặc môi trường tắt giảm cọc).
 - **Điều kiện N (kỳ vọng `NEED_APPROVAL`), chọn một cách ở T7.2:**
   - N1 — đơn có F ≥ `HighValueThreshold` (nhiều sân cùng khung giờ hoặc nhiều giờ), giữ nguyên cấu hình mặc định;
   - N2 — `CUS-REVIEW` có ít nhất `NoShowReviewThreshold` booking `NO_SHOW` đã kết thúc trên nhánh `tadss-dev`;
@@ -505,7 +507,7 @@ Người thua có thể bị chặn ở bước kiểm DB của BE, ở TADSS (`
 | # | Tác nhân → thao tác | Kỳ vọng |
 | :---: | :--- | :--- |
 | 1 | `CUS-EXPIRY` đặt slot | API: 400 `BOOKING_REJECTED`, `data = null`. UI: thông báo không nhận đơn, gợi ý chọn khung giờ khác hoặc liên hệ chi nhánh; không hiển thị lý do hay lịch sử của khách |
-| 2 | Kiểm TADSS | K-DEC với `status = REJECTED`, `reason_code = REPEATED_PAYMENT_EXPIRY`, `deposit_rate`/`deposit_amount`/`approval_expires_at` rỗng, `strategy_version = 2.1.0`; K-OVR(0) |
+| 2 | Kiểm TADSS | K-DEC với `status = REJECTED`, `reason_code = REPEATED_PAYMENT_EXPIRY`, `deposit_rate`/`deposit_amount`/`approval_expires_at` rỗng, `strategy_version = 2.2.0`; K-OVR(0) |
 | 3 | Kiểm DB | Booking `CANCELLED` (hủy trước khi trả lỗi), không có slot lock, không có Payment |
 | 4 | `MGR-A1` mở hàng chờ | Không có đơn của `CUS-EXPIRY`; không nhận `BookingPendingApproval` |
 | 5 | `CUS-STD` đặt đúng slot đó | 201 như bình thường (slot đã được nhả) |

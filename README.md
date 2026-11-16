@@ -417,7 +417,8 @@ Cột *File* ghi đường dẫn tính từ gốc repo. Bảng này do `tools/do
 | `docs/planning/BACKLOG_SPRINTS.md` | hiện hành | Backlog theo phase và trạng thái task |
 | `docs/planning/PROJECT_WBS_MAPPING.md` | hiện hành | WBS, phụ thuộc và rủi ro |
 | `docs/planning/PROPOSAL_DO_AN_2.md` | hiện hành | Phạm vi chính thức của Đồ án 2 |
-| `docs/planning/PROPOSAL_KHOA_LUAN.md` | hiện hành | Đề cương Khóa luận (bản thảo 13/11/2026, ngoài phạm vi Đồ án 2): bài toán, cơ sở lý thuyết, kiến trúc hướng sự kiện, yêu cầu chất lượng KL1–KL11, kế hoạch 16 tuần |
+| `docs/planning/PROPOSAL_KHOA_LUAN.md` | hiện hành | Đề cương Khóa luận (bản thảo 15/11/2026, ngoài phạm vi Đồ án 2), viết cho người đọc không chuyên: giải pháp quyết định đặt cọc thích ứng theo rủi ro thay bảy con số viết tay của Đồ án 2; trọng tâm là giữ mức rủi ro khi hành vi khách thay đổi và kết cục đến trễ (tự điều chỉnh theo Gibbs và Candès), câu hỏi phụ là khi nào mô hình đáng hơn bảng tra (đường học); bốn phép thử trước chạy lại được ở `tools/research/`; RabbitMQ, Redis và sổ tin cậy ở phần mở rộng có điều kiện; cam kết KL1–KL13, kế hoạch 14 tuần |
+| `tools/research/README.md` | hiện hành | Bốn phép thử trước của đề cương Khóa luận (Mục 1.5): chia cọc theo rủi ro, đường học, lịch sử khách và công bằng, dữ liệu trôi với kết cục đến trễ; nguồn, giấy phép và SHA-256 của hai bộ dữ liệu; cách chạy lại và `--check`; cách đo và giới hạn |
 | `docs/planning/THESIS_DEVELOPMENT_PLAYBOOK.md` | hiện hành | Thuật ngữ chuẩn, ranh giới phạm vi, bản đồ tài liệu |
 | `docs/report/ARCHITECTURE_DIAGRAMS.md` | hiện hành | Sơ đồ cho báo cáo (Mermaid): ngữ cảnh, container, trước/sau khi có TADSS, cấu trúc bên trong TADSS; chỉ tóm tắt, tài liệu sở hữu thắng |
 | `docs/report/USE_CASES.md` | hiện hành | Sơ đồ và đặc tả use case mới/thay đổi khi SmashCourt dùng TADSS (UC-DEPOSIT-01…12) và use case của TADSS (UC-TADSS-01…08) |

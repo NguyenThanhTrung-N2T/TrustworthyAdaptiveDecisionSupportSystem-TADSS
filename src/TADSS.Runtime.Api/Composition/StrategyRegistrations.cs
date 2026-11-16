@@ -46,9 +46,17 @@ public static class StrategyRegistrations
         fingerprint.Add(nameof(options.GoldDepositRate), options.GoldDepositRate);
         fingerprint.Add(nameof(options.PremiumDepositRate), options.PremiumDepositRate);
         fingerprint.Add(nameof(options.CacheTtlMinutes), options.CacheTtlMinutes);
+        fingerprint.Add(nameof(options.OffPeakDiscountEnabled), options.OffPeakDiscountEnabled ? "true" : "false");
+        fingerprint.Add(nameof(options.OffPeakDiscountRate), options.OffPeakDiscountRate);
+        // Thứ tự khai báo hạng không đổi hành vi nên không được đổi fingerprint
+        fingerprint.Add(nameof(options.OffPeakDiscountTiers), string.Join(',', options.OffPeakDiscountTiers.Order()));
+        fingerprint.Add(nameof(options.OffPeakDiscountMaxNoShowCount), options.OffPeakDiscountMaxNoShowCount);
+        fingerprint.Add(nameof(options.OffPeakDiscountMaxPaymentExpiredCount), options.OffPeakDiscountMaxPaymentExpiredCount);
         fingerprint.AddCalendar(calendar);
 
-        return new RegisteredStrategy(new DefaultDecisionStrategy(options), fingerprint.Build());
+        // Cùng một fingerprint cho khóa cache và cho lý do của quyết định được giảm cọc (truy vết cấu hình đã dùng)
+        var optionsFingerprint = fingerprint.Build();
+        return new RegisteredStrategy(new DefaultDecisionStrategy(options, optionsFingerprint), optionsFingerprint);
     }
 
     /// <summary>
@@ -76,14 +84,15 @@ public static class StrategyRegistrations
 
     /// <summary>
     /// Bind một section vào options (thiếu section thì dùng mặc định của POCO) rồi kiểm tra; mọi lỗi được bọc lại kèm
-    /// tên section. Binder của .NET đọc số theo culture bất biến.
+    /// tên section. Binder của .NET đọc số theo culture bất biến. Khóa lạ (gõ sai tên tham số) là lỗi, không bị bỏ qua âm thầm:
+    /// gõ sai tên khóa bật một chính sách mà ứng dụng vẫn chạy với chính sách tắt thì người vận hành không biết cấu hình chưa có hiệu lực.
     /// </summary>
     private static TOptions Bind<TOptions>(IConfiguration configuration, string sectionName, Action<TOptions> validate)
         where TOptions : class, new()
     {
         try
         {
-            var options = configuration.GetSection(sectionName).Get<TOptions>() ?? new TOptions();
+            var options = configuration.GetSection(sectionName).Get<TOptions>(binder => binder.ErrorOnUnknownConfiguration = true) ?? new TOptions();
             validate(options);
             return options;
         }

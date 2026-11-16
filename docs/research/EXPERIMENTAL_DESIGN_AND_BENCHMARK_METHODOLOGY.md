@@ -91,7 +91,7 @@ Cột **Xây dựng** là phase viết test; mọi test case được **chạy l
 | :--- | :--- | :--- | :--- |
 | UT-01 | Bất biến domain v2 (items, khách vãng lai, thời lượng, giá, lịch sử) | Mọi bất biến có test biên đúng/sai | P5 |
 | UT-02 | Serialization contract v2 (round-trip, enum strict, `additionalProperties`) | Round-trip không mất dữ liệu; giá trị lạ bị từ chối | P5 |
-| UT-03 | Strategies v2: bảng quyết định theo hạng, khung giờ, ngưỡng giá trị lớn | Mọi ô trong bảng quyết định có test, gồm biên | P5 |
+| UT-03 | Strategies v2: bảng quyết định theo hạng, khung giờ, ngưỡng giá trị lớn; giảm cọc giờ thấp điểm của Default 2.2.0 | Mọi ô trong bảng quyết định có test, gồm biên; tính chất của chính sách cọc đúng trên mọi tổ hợp đại diện (trạng thái không đổi so với khi tắt giảm cọc, chỉ nhóm đủ điều kiện được giảm, hạng cao và giờ cao điểm không cọc thấp hơn, thêm rủi ro không vào nhánh giảm) | P5 |
 | UT-04 | Quy tắc định tuyến strategy theo request | Đúng strategy cho từng quy tắc; quy tắc mặc định | P5 |
 | UT-05 | Múi giờ chi nhánh & ranh giới cao điểm (16:59/17:00/20:59/21:00, cuối tuần, đổi ngày) | Đúng với `Asia/Ho_Chi_Minh` và một múi giờ khác | P5 |
 | UT-06 | `RequestHasher` tất định, không phụ thuộc múi giờ máy chủ | Cùng hash khi chạy với TZ = UTC và UTC+7; khác hash khi đổi dữ liệu nghiệp vụ | P5 |

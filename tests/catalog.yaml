@@ -27,8 +27,8 @@ codes:
     group: "UT"
     group_label: "Unit TADSS"
     systems: ["TADSS"]
-    title: "Strategies v2: bảng quyết định theo hạng, khung giờ, ngưỡng giá trị lớn"
-    criteria: "Mọi ô trong bảng quyết định có test, gồm biên"
+    title: "Strategies v2: bảng quyết định theo hạng, khung giờ, ngưỡng giá trị lớn; giảm cọc giờ thấp điểm của Default 2.2.0"
+    criteria: "Mọi ô trong bảng quyết định có test, gồm biên; tính chất của chính sách cọc đúng trên mọi tổ hợp đại diện (trạng thái không đổi so với khi tắt giảm cọc, chỉ nhóm đủ điều kiện được…"
     runner: ""
     tool: "xUnit"
     section: "4.1. UT — Unit test (TADSS)"

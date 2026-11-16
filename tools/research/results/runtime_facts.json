@@ -1,0 +1,45 @@
+{
+  "run_id": "EV-20261017-EVAL-full-r1",
+  "created_at_utc": "2026-10-17T11:47:20Z",
+  "files": {
+    "raw/d1/decision_audit.csv": {
+      "sha256": "7f300e5ea56fbcb05a7eefba8c537e7bdafbf397f45e9c10eb9370b95880215f",
+      "rows": 467731
+    },
+    "raw/d1/decision_audit_portability.csv": {
+      "sha256": "821885a45cf428142753ac637069f2cc6a3ec5b417aa0b0b8b486f49e2bb4c2b",
+      "rows": 186211
+    }
+  },
+  "results": {
+    "decision_audit": {
+      "decisions": 467731,
+      "fallback_total": 11328,
+      "fallback_by_reason": {
+        "FALLBACK_CIRCUIT_OPEN": {
+          "count": 10568,
+          "median_ms": 0
+        },
+        "FALLBACK_STRATEGY_TIMEOUT": {
+          "count": 400,
+          "median_ms": 420
+        },
+        "FALLBACK_STRATEGY_EXCEPTION": {
+          "count": 360,
+          "median_ms": 67
+        }
+      },
+      "cache_hits": 0
+    },
+    "decision_audit_portability": {
+      "decisions": 186211,
+      "fallback_total": 0,
+      "fallback_by_reason": {},
+      "cache_hits": 0
+    },
+    "all": {
+      "decisions": 653942,
+      "cache_hits": 0
+    }
+  }
+}

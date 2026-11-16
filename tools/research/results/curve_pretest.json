@@ -1,0 +1,160 @@
+{
+  "source": {
+    "hotel_sha256": "7c2ae42a7353905ea136e5c2287f17c92c5435826598bfbb8491c6f0c7b1fc06",
+    "medical_sha256": "9132d3e7d0246617df9041d3764f20ad6f08e7b0d9f0997fa254fc5e52eda27d"
+  },
+  "parameters": {
+    "sizes": [
+      250,
+      500,
+      1000,
+      2000,
+      5000,
+      10000,
+      20000,
+      40000
+    ],
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "hotel_label_window_days": 7,
+    "hotel_lookup": "lead time bin × hotel",
+    "medical_lookup": "lead time bin × age group",
+    "medical_model_features": "booking + decayed ledger",
+    "target_deposit": 0.5
+  },
+  "results": {
+    "hotel_strict_7d": [
+      {
+        "train_rows": 250,
+        "draws": 3,
+        "lookup": 0.1983,
+        "model": 0.1331,
+        "model_minus_lookup": -0.0652
+      },
+      {
+        "train_rows": 500,
+        "draws": 3,
+        "lookup": 0.1971,
+        "model": 0.1701,
+        "model_minus_lookup": -0.027
+      },
+      {
+        "train_rows": 1000,
+        "draws": 3,
+        "lookup": 0.2339,
+        "model": 0.2309,
+        "model_minus_lookup": -0.003
+      },
+      {
+        "train_rows": 2000,
+        "draws": 3,
+        "lookup": 0.2768,
+        "model": 0.2877,
+        "model_minus_lookup": 0.0109
+      },
+      {
+        "train_rows": 5000,
+        "draws": 3,
+        "lookup": 0.2862,
+        "model": 0.3316,
+        "model_minus_lookup": 0.0455
+      },
+      {
+        "train_rows": 10000,
+        "draws": 3,
+        "lookup": 0.3107,
+        "model": 0.3473,
+        "model_minus_lookup": 0.0366
+      },
+      {
+        "train_rows": 20000,
+        "draws": 3,
+        "lookup": 0.3186,
+        "model": 0.3493,
+        "model_minus_lookup": 0.0307
+      },
+      {
+        "train_rows": 40000,
+        "draws": 3,
+        "lookup": 0.306,
+        "model": 0.3448,
+        "model_minus_lookup": 0.0388
+      },
+      {
+        "train_rows": 66603,
+        "draws": 1,
+        "lookup": 0.3073,
+        "model": 0.3587,
+        "model_minus_lookup": 0.0514
+      }
+    ],
+    "medical_noshow": [
+      {
+        "train_rows": 250,
+        "draws": 3,
+        "lookup": 0.325,
+        "model": 0.2791,
+        "model_minus_lookup": -0.0459
+      },
+      {
+        "train_rows": 500,
+        "draws": 3,
+        "lookup": 0.3426,
+        "model": 0.3472,
+        "model_minus_lookup": 0.0046
+      },
+      {
+        "train_rows": 1000,
+        "draws": 3,
+        "lookup": 0.4236,
+        "model": 0.4218,
+        "model_minus_lookup": -0.0018
+      },
+      {
+        "train_rows": 2000,
+        "draws": 3,
+        "lookup": 0.4222,
+        "model": 0.424,
+        "model_minus_lookup": 0.0018
+      },
+      {
+        "train_rows": 5000,
+        "draws": 3,
+        "lookup": 0.4283,
+        "model": 0.4343,
+        "model_minus_lookup": 0.006
+      },
+      {
+        "train_rows": 10000,
+        "draws": 3,
+        "lookup": 0.421,
+        "model": 0.4381,
+        "model_minus_lookup": 0.0172
+      },
+      {
+        "train_rows": 20000,
+        "draws": 3,
+        "lookup": 0.4241,
+        "model": 0.4449,
+        "model_minus_lookup": 0.0207
+      },
+      {
+        "train_rows": 40000,
+        "draws": 3,
+        "lookup": 0.4282,
+        "model": 0.4421,
+        "model_minus_lookup": 0.0139
+      },
+      {
+        "train_rows": 71369,
+        "draws": 1,
+        "lookup": 0.4275,
+        "model": 0.4449,
+        "model_minus_lookup": 0.0173
+      }
+    ]
+  }
+}

@@ -1,0 +1,265 @@
+{
+  "source": {
+    "original": "https://www.kaggle.com/datasets/joniarroba/noshowappointments",
+    "url": "https://raw.githubusercontent.com/samhadd-ad/Medical-Appointment-noShow/d2a909d14903b8f2bad73582ec5827c4a5f996d6/KaggleV2-May-2016.csv",
+    "sha256": "9132d3e7d0246617df9041d3764f20ad6f08e7b0d9f0997fa254fc5e52eda27d",
+    "rows": 110527,
+    "license": "CC BY-NC-SA 4.0 (Hoppen, Aquarela Analytics 2016, Kaggle); bản sao GitHub không đổi giấy phép"
+  },
+  "parameters": {
+    "split_day": "2016-05-25",
+    "half_life_days": 14.0,
+    "credibility_k": 2.0,
+    "low_deposit": 0.2,
+    "target_deposit": 0.5,
+    "value_per_appointment": 1.0,
+    "sgd_seed": 7,
+    "sgd_epochs": 6,
+    "lookup_prior_weight": 5,
+    "bootstrap_seed": 20261115,
+    "bootstrap_rounds": 500,
+    "fairness_bootstrap_seed": 20261116,
+    "fairness_bootstrap_rounds": 500
+  },
+  "results": {
+    "dataset": {
+      "valid_rows": 110521,
+      "patients_with_repeat_visits": 24378,
+      "train_rows": 71369,
+      "test_rows": 39152,
+      "no_show_rate_train": 0.2104,
+      "no_show_rate_test": 0.1864,
+      "test_share_with_history": 0.4331,
+      "no_show_rate_test_with_history": 0.1674,
+      "no_show_rate_test_without_history": 0.2008,
+      "patients": 62298,
+      "rows_in_file": 110527
+    },
+    "uncovered_index": {
+      "lookup_lead_time_x_age": {
+        "auc": 0.711,
+        "auc_with_history": 0.7114,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.0533,
+          "low_share": 0.3469,
+          "reduction_vs_uniform": 0.4275
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0472,
+          "low_share": 0.294,
+          "reduction_vs_uniform": 0.4364
+        }
+      },
+      "model_booking_only": {
+        "auc": 0.7184,
+        "auc_with_history": 0.7177,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.053,
+          "low_share": 0.3364,
+          "reduction_vs_uniform": 0.4308
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0468,
+          "low_share": 0.3398,
+          "reduction_vs_uniform": 0.4409
+        }
+      },
+      "model_plus_counts": {
+        "auc": 0.7225,
+        "auc_with_history": 0.7282,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.0524,
+          "low_share": 0.3213,
+          "reduction_vs_uniform": 0.4372
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0449,
+          "low_share": 0.3298,
+          "reduction_vs_uniform": 0.4641
+        }
+      },
+      "model_plus_decayed_ledger": {
+        "auc": 0.7254,
+        "auc_with_history": 0.7352,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.0517,
+          "low_share": 0.3307,
+          "reduction_vs_uniform": 0.4449
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0436,
+          "low_share": 0.3418,
+          "reduction_vs_uniform": 0.4786
+        }
+      },
+      "history_only_counts": {
+        "auc": 0.5588,
+        "auc_with_history": 0.5945,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.0861,
+          "low_share": 0.1326,
+          "reduction_vs_uniform": 0.0761
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0717,
+          "low_share": 0.1545,
+          "reduction_vs_uniform": 0.1433
+        }
+      },
+      "history_only_decayed": {
+        "auc": 0.5578,
+        "auc_with_history": 0.581,
+        "same_deposit": {
+          "deposit": 0.5,
+          "exposed": 0.088,
+          "low_share": 0.061,
+          "reduction_vs_uniform": 0.0551
+        },
+        "same_deposit_with_history": {
+          "deposit": 0.5,
+          "exposed": 0.0744,
+          "low_share": 0.0886,
+          "reduction_vs_uniform": 0.1114
+        }
+      }
+    },
+    "bootstrap_95pct_reduction_at_same_deposit": {
+      "counts_vs_booking_only": {
+        "model_plus_counts": [
+          0.428,
+          0.4456
+        ],
+        "model_booking_only": [
+          0.4213,
+          0.4398
+        ],
+        "model_plus_counts_minus_model_booking_only": [
+          0.0037,
+          0.0093
+        ]
+      },
+      "decayed_vs_booking_only": {
+        "model_plus_decayed_ledger": [
+          0.4354,
+          0.4539
+        ],
+        "model_booking_only": [
+          0.4213,
+          0.4398
+        ],
+        "model_plus_decayed_ledger_minus_model_booking_only": [
+          0.011,
+          0.017
+        ]
+      },
+      "decayed_vs_counts": {
+        "model_plus_decayed_ledger": [
+          0.4354,
+          0.4539
+        ],
+        "model_plus_counts": [
+          0.428,
+          0.4456
+        ],
+        "model_plus_decayed_ledger_minus_model_plus_counts": [
+          0.0056,
+          0.0097
+        ]
+      },
+      "booking_only_vs_lookup": {
+        "model_booking_only": [
+          0.4213,
+          0.4398
+        ],
+        "lookup_lead_time_x_age": [
+          0.418,
+          0.4366
+        ],
+        "model_booking_only_minus_lookup_lead_time_x_age": [
+          0.0012,
+          0.0055
+        ]
+      }
+    },
+    "fairness_at_same_deposit": {
+      "model_booking_only": {
+        "low_deposit_share_among_shows": {
+          "female": {
+            "share": 0.3808,
+            "people": 20824
+          },
+          "male": {
+            "share": 0.4271,
+            "people": 11032
+          },
+          "under_30": {
+            "share": 0.4412,
+            "people": 12081
+          },
+          "30_plus": {
+            "share": 0.3698,
+            "people": 19775
+          },
+          "without_history": {
+            "share": 0.3484,
+            "people": 17739
+          },
+          "with_history": {
+            "share": 0.4577,
+            "people": 14117
+          }
+        },
+        "history_gap": 0.1094,
+        "history_gap_95pct": [
+          0.0996,
+          0.1204
+        ],
+        "history_gap_within_lead_time_x_age": 0.0012
+      },
+      "model_plus_decayed_ledger": {
+        "low_deposit_share_among_shows": {
+          "female": {
+            "share": 0.3785,
+            "people": 20824
+          },
+          "male": {
+            "share": 0.4199,
+            "people": 11032
+          },
+          "under_30": {
+            "share": 0.4329,
+            "people": 12081
+          },
+          "30_plus": {
+            "share": 0.3683,
+            "people": 19775
+          },
+          "without_history": {
+            "share": 0.3489,
+            "people": 17739
+          },
+          "with_history": {
+            "share": 0.4479,
+            "people": 14117
+          }
+        },
+        "history_gap": 0.099,
+        "history_gap_95pct": [
+          0.0888,
+          0.1101
+        ],
+        "history_gap_within_lead_time_x_age": -0.0082
+      }
+    }
+  }
+}

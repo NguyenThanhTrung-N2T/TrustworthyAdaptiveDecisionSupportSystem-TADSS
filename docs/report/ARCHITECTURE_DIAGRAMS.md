@@ -176,16 +176,17 @@ flowchart LR
 | Dữ liệu | Không lưu lý do chính sách | Mỗi quyết định có audit bất biến ở TADSS (strategy, lý do, thời gian xử lý, fallback, ghi đè, kết quả thật) |
 | Khi thành phần quyết định hỏng | Không áp dụng | Tự quay về cọc 100 %; khách không thấy lỗi |
 
-Chính sách cụ thể của strategy mặc định (`DefaultDecisionStrategy` 2.1.0, tham số mặc định):
+Chính sách cụ thể của strategy mặc định (`DefaultDecisionStrategy` 2.2.0; dòng giảm cọc giờ thấp điểm chỉ có khi bật bằng cấu hình, bản deploy bật từ P6-59):
 
 | Điều kiện (xét theo thứ tự) | Kết quả | `reasonCode` |
 | :--- | :--- | :--- |
 | ≥ 5 lần hết hạn thanh toán và nhiều hơn số lần hoàn tất | `REJECTED` | `REPEATED_PAYMENT_EXPIRY` |
 | `totalPrice` ≥ 2.000.000 VND | `NEED_APPROVAL` | `HIGH_VALUE_REVIEW` |
 | Khách có ≥ 2 lần không đến | `NEED_APPROVAL` | `NO_SHOW_HISTORY_REVIEW` |
+| Giờ thấp điểm (theo `Tadss:Calendar` và giờ chi nhánh), thành viên hạng được giảm (bản deploy: STANDARD, SILVER), chưa từng không đến và chưa từng bỏ thanh toán | `APPROVED`, cọc min(theo hạng, 30 %) | `OFF_PEAK_DEPOSIT` |
 | Còn lại: theo hạng (vãng lai và STANDARD 50 %, SILVER 40 %, GOLD 30 %, PLATINUM/DIAMOND 20 %) | `APPROVED` | `TIER_DEPOSIT` |
 
-Strategy mặc định 2.1.0 trả `REJECTED` khi khách lặp lại việc giữ chỗ rồi để hết hạn thanh toán (từ 5 lần và nhiều hơn số lần hoàn tất, mã `REPEATED_PAYMENT_EXPIRY`); quy tắc này xét trước hai quy tắc duyệt. Cọc không bù được thiệt hại của việc giữ slot mà không thanh toán, nên đây là trường hợp từ chối có căn cứ; còn khách hay bỏ sân thì xử lý bằng cọc, không từ chối tự động. Cần duyệt nhưng không còn đủ thời gian trước giờ chơi thì runtime đổi thành `APPROVED` cọc 100 % (`APPROVAL_WINDOW_UNAVAILABLE`, [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md) Mục 1.1).
+Strategy mặc định (từ 2.1.0) trả `REJECTED` khi khách lặp lại việc giữ chỗ rồi để hết hạn thanh toán (từ 5 lần và nhiều hơn số lần hoàn tất, mã `REPEATED_PAYMENT_EXPIRY`); quy tắc này xét trước hai quy tắc duyệt. Cọc không bù được thiệt hại của việc giữ slot mà không thanh toán, nên đây là trường hợp từ chối có căn cứ; còn khách hay bỏ sân thì xử lý bằng cọc, không từ chối tự động. Cần duyệt nhưng không còn đủ thời gian trước giờ chơi thì runtime đổi thành `APPROVED` cọc 100 % (`APPROVAL_WINDOW_UNAVAILABLE`, [`INTEGRATION_SPEC.md`](../contracts/INTEGRATION_SPEC.md) Mục 1.1).
 
 ## 4. Cấu trúc bên trong TADSS Runtime
 

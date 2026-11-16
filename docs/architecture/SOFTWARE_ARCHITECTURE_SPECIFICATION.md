@@ -186,7 +186,7 @@ Ghi audit là lời gọi đồng bộ qua `IDecisionEvaluationStore` (không qu
 
 ### 4.3. Strategy v2 (tham số mặc định, chỉnh qua cấu hình)
 
-**`DefaultDecisionStrategy` 2.1.0 — cọc theo hạng thành viên, từ chối khách lặp lại việc giữ chỗ không thanh toán** (`Tadss:Strategies:Default`)
+**`DefaultDecisionStrategy` 2.2.0 — cọc theo hạng thành viên, từ chối khách lặp lại việc giữ chỗ không thanh toán, giảm cọc giờ thấp điểm (mặc định tắt)** (`Tadss:Strategies:Default`)
 
 | Điều kiện (kiểm tra theo thứ tự) | Kết quả | `reasonCode` |
 | :--- | :--- | :--- |
@@ -197,6 +197,8 @@ Ghi audit là lời gọi đồng bộ qua `IDecisionEvaluationStore` (không qu
 | `SILVER` | `APPROVED`, cọc 40% | `TIER_DEPOSIT` |
 | `GOLD` | `APPROVED`, cọc 30% | `TIER_DEPOSIT` |
 | `PLATINUM`, `DIAMOND` | `APPROVED`, cọc 20% | `TIER_DEPOSIT` |
+
+Từ 2.2.0, giữa bước duyệt lịch sử không đến và bước cọc theo hạng có thêm bước **giảm cọc giờ thấp điểm** (`OffPeakDiscountEnabled`, mặc định `false`; tắt thì quyết định giống hệt 2.1.0): thành viên (không phải khách vãng lai) thuộc `OffPeakDiscountTiers`, số lần không đến ≤ `OffPeakDiscountMaxNoShowCount` và hết hạn thanh toán ≤ `OffPeakDiscountMaxPaymentExpiredCount` (mặc định 0, 0), thời điểm bắt đầu sớm nhất quy về giờ chi nhánh nằm ngoài `Tadss:Calendar:PeakWindows` ⇒ `APPROVED` với tỷ lệ min(tỷ lệ theo hạng, `OffPeakDiscountRate`), mã `OFF_PEAK_DEPOSIT` khi tỷ lệ thật sự giảm; lý do ghi giờ chi nhánh, tỷ lệ gốc, tỷ lệ sau giảm và `optionsFingerprint` (cùng giá trị dùng cho khóa cache). Bước này chỉ chạy sau ba bước trên nên không bao giờ đổi `REJECTED`/`NEED_APPROVAL`; validator chặn cấu hình làm hạng cao cọc nhiều hơn hạng thấp ở giờ thấp điểm. Tính chất kiểm trên mọi tổ hợp đại diện: `DefaultDecisionPolicyPropertyTests` (UT-03).
 
 Quy tắc `REJECTED` xét **đầu tiên** để khách hay giữ chỗ không bị đưa vào hàng chờ duyệt (kéo dài thời gian slot bị giữ mà không ai thanh toán). `paymentExpiredCount` là số lần booking của khách bị hệ thống hủy do hết hạn thanh toán (trọn đời, BE đếm); thiếu lịch sử thì coi là 0, tức không đủ bằng chứng thì không từ chối. Ngưỡng 5 là giá trị khởi điểm, **chưa hiệu chỉnh** theo dữ liệu thật; đây là số lần vi phạm đã ghi nhận, không phải xác suất khách vi phạm tiếp. Quyết định `REJECTED` là cuối cùng (override chỉ áp cho `NEED_APPROVAL`), lý do và phiên bản strategy được ghi trong audit. Mã `REPEATED_PAYMENT_EXPIRY` khai báo trong project strategy, không nằm trong `ReasonCodes` của SDK (contract cho phép thêm mã lý do trong `2.x.y`, INTEGRATION_SPEC Mục 6). Không dùng `noShowCount` để từ chối tự động: cọc cao đã xử lý được rủi ro bỏ sân, còn giữ chỗ không thanh toán thì cọc không bù được.
 

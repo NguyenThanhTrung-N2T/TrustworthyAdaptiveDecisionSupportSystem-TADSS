@@ -30,6 +30,11 @@ public sealed class OptionsFingerprintBuilder
     public void Add(string name, int value) => _lines.Add($"{name}={value.ToString(CultureInfo.InvariantCulture)}");
 
     /// <summary>
+    /// Thêm một tham số dạng chuỗi (cờ bật/tắt, danh sách đã chuẩn hóa thứ tự); nơi gọi chịu trách nhiệm ghi giá trị ở dạng chuẩn.
+    /// </summary>
+    public void Add(string name, string value) => _lines.Add($"{name}={value}");
+
+    /// <summary>
     /// Thêm lịch cao điểm: số cửa sổ rồi từng cửa sổ sắp theo (ngày trong tuần, giờ bắt đầu, giờ kết thúc) nên thứ tự
     /// khai báo cửa sổ không ảnh hưởng fingerprint.
     /// </summary>

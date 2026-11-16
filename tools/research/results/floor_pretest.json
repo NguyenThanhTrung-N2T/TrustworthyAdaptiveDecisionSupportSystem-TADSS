@@ -1,0 +1,394 @@
+{
+  "source": {
+    "url": "https://raw.githubusercontent.com/rfordatascience/tidytuesday/d75aaa0d31596ad6487ae0db20138067d301e031/data/2020/2020-02-11/hotels.csv",
+    "sha256": "7c2ae42a7353905ea136e5c2287f17c92c5435826598bfbb8491c6f0c7b1fc06",
+    "rows": 119390
+  },
+  "parameters": {
+    "mappings_days": {
+      "0d_1d": [
+        0,
+        1
+      ],
+      "1d_3d": [
+        1,
+        3
+      ],
+      "1d_7d": [
+        1,
+        7
+      ],
+      "3d_14d": [
+        3,
+        14
+      ]
+    },
+    "resale": {
+      "late_unsold_early_sold": {
+        "mid": 0.0,
+        "early": 1.0
+      },
+      "late_half_early_sold": {
+        "mid": 0.5,
+        "early": 1.0
+      },
+      "late_unsold_early_90": {
+        "mid": 0.0,
+        "early": 0.9
+      }
+    },
+    "keep_fraction": {
+      "no_show": 1.0,
+      "late": 1.0,
+      "mid": 0.5,
+      "early": 0.0
+    },
+    "cancel_policy": "≥24h hoàn 100 %, 2–24h hoàn 50 %, <2h hoàn 0 %, không đến không hoàn",
+    "comparison_label_window_days": 7,
+    "sgd_seed": 7
+  },
+  "results": {
+    "floor": {
+      "0d_1d__late_unsold_early_sold": {
+        "all": {
+          "floor": 0.002,
+          "effective_abandon": 0.0187,
+          "outcome_share": {
+            "early": 0.3149,
+            "late": 0.0054,
+            "mid": 0.0039,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0013,
+          "effective_abandon": 0.0127,
+          "outcome_share": {
+            "early": 0.367,
+            "late": 0.0041,
+            "mid": 0.0026,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "0d_1d__late_half_early_sold": {
+        "all": {
+          "floor": 0.001,
+          "effective_abandon": 0.0177,
+          "outcome_share": {
+            "early": 0.3149,
+            "late": 0.0054,
+            "mid": 0.0039,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0007,
+          "effective_abandon": 0.012,
+          "outcome_share": {
+            "early": 0.367,
+            "late": 0.0041,
+            "mid": 0.0026,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "0d_1d__late_unsold_early_90": {
+        "all": {
+          "floor": 0.0334,
+          "effective_abandon": 0.0187,
+          "outcome_share": {
+            "early": 0.3149,
+            "late": 0.0054,
+            "mid": 0.0039,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.038,
+          "effective_abandon": 0.0127,
+          "outcome_share": {
+            "early": 0.367,
+            "late": 0.0041,
+            "mid": 0.0026,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_3d__late_unsold_early_sold": {
+        "all": {
+          "floor": 0.0045,
+          "effective_abandon": 0.0251,
+          "outcome_share": {
+            "early": 0.3059,
+            "late": 0.0093,
+            "mid": 0.0089,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0024,
+          "effective_abandon": 0.0164,
+          "outcome_share": {
+            "early": 0.3622,
+            "late": 0.0067,
+            "mid": 0.0048,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_3d__late_half_early_sold": {
+        "all": {
+          "floor": 0.0022,
+          "effective_abandon": 0.0229,
+          "outcome_share": {
+            "early": 0.3059,
+            "late": 0.0093,
+            "mid": 0.0089,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0012,
+          "effective_abandon": 0.0152,
+          "outcome_share": {
+            "early": 0.3622,
+            "late": 0.0067,
+            "mid": 0.0048,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_3d__late_unsold_early_90": {
+        "all": {
+          "floor": 0.0351,
+          "effective_abandon": 0.0251,
+          "outcome_share": {
+            "early": 0.3059,
+            "late": 0.0093,
+            "mid": 0.0089,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0386,
+          "effective_abandon": 0.0164,
+          "outcome_share": {
+            "early": 0.3622,
+            "late": 0.0067,
+            "mid": 0.0048,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_7d__late_unsold_early_sold": {
+        "all": {
+          "floor": 0.0139,
+          "effective_abandon": 0.0346,
+          "outcome_share": {
+            "early": 0.287,
+            "late": 0.0093,
+            "mid": 0.0279,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0092,
+          "effective_abandon": 0.0231,
+          "outcome_share": {
+            "early": 0.3487,
+            "late": 0.0067,
+            "mid": 0.0183,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_7d__late_half_early_sold": {
+        "all": {
+          "floor": 0.007,
+          "effective_abandon": 0.0276,
+          "outcome_share": {
+            "early": 0.287,
+            "late": 0.0093,
+            "mid": 0.0279,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0046,
+          "effective_abandon": 0.0185,
+          "outcome_share": {
+            "early": 0.3487,
+            "late": 0.0067,
+            "mid": 0.0183,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "1d_7d__late_unsold_early_90": {
+        "all": {
+          "floor": 0.0426,
+          "effective_abandon": 0.0346,
+          "outcome_share": {
+            "early": 0.287,
+            "late": 0.0093,
+            "mid": 0.0279,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.044,
+          "effective_abandon": 0.0231,
+          "outcome_share": {
+            "early": 0.3487,
+            "late": 0.0067,
+            "mid": 0.0183,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "3d_14d__late_unsold_early_sold": {
+        "all": {
+          "floor": 0.0255,
+          "effective_abandon": 0.0551,
+          "outcome_share": {
+            "early": 0.2549,
+            "late": 0.0183,
+            "mid": 0.0511,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0228,
+          "effective_abandon": 0.0416,
+          "outcome_share": {
+            "early": 0.3167,
+            "late": 0.0116,
+            "mid": 0.0455,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "3d_14d__late_half_early_sold": {
+        "all": {
+          "floor": 0.0128,
+          "effective_abandon": 0.0423,
+          "outcome_share": {
+            "early": 0.2549,
+            "late": 0.0183,
+            "mid": 0.0511,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0114,
+          "effective_abandon": 0.0302,
+          "outcome_share": {
+            "early": 0.3167,
+            "late": 0.0116,
+            "mid": 0.0455,
+            "no_show": 0.0072
+          }
+        }
+      },
+      "3d_14d__late_unsold_early_90": {
+        "all": {
+          "floor": 0.051,
+          "effective_abandon": 0.0551,
+          "outcome_share": {
+            "early": 0.2549,
+            "late": 0.0183,
+            "mid": 0.0511,
+            "no_show": 0.0113
+          }
+        },
+        "test_2017": {
+          "floor": 0.0544,
+          "effective_abandon": 0.0416,
+          "outcome_share": {
+            "early": 0.3167,
+            "late": 0.0116,
+            "mid": 0.0455,
+            "no_show": 0.0072
+          }
+        }
+      }
+    },
+    "floor_monthly": {
+      "0d_1d": {
+        "201507": 0.0003,
+        "201508": 0.003,
+        "201509": 0.0027,
+        "201510": 0.0041,
+        "201511": 0.003,
+        "201512": 0.0017,
+        "201601": 0.0039,
+        "201602": 0.0104,
+        "201603": 0.003,
+        "201604": 0.0025,
+        "201605": 0.0027,
+        "201606": 0.001,
+        "201607": 0.0011,
+        "201608": 0.001,
+        "201609": 0.0034,
+        "201610": 0.0024,
+        "201611": 0.0028,
+        "201612": 0.0016,
+        "201701": 0.0033,
+        "201702": 0.0019,
+        "201703": 0.0028,
+        "201704": 0.0013,
+        "201705": 0.0012,
+        "201706": 0.0018,
+        "201707": 0.0005,
+        "201708": 0.0006
+      },
+      "1d_7d": {
+        "201507": 0.0144,
+        "201508": 0.016,
+        "201509": 0.0152,
+        "201510": 0.013,
+        "201511": 0.015,
+        "201512": 0.0241,
+        "201601": 0.0333,
+        "201602": 0.0288,
+        "201603": 0.0309,
+        "201604": 0.0213,
+        "201605": 0.0202,
+        "201606": 0.0213,
+        "201607": 0.0102,
+        "201608": 0.0096,
+        "201609": 0.0137,
+        "201610": 0.0183,
+        "201611": 0.0227,
+        "201612": 0.0175,
+        "201701": 0.0225,
+        "201702": 0.0182,
+        "201703": 0.0134,
+        "201704": 0.011,
+        "201705": 0.009,
+        "201706": 0.0068,
+        "201707": 0.0065,
+        "201708": 0.0047
+      }
+    },
+    "formulation_comparison_strict_7d": {
+      "target_exposed": 0.0161,
+      "per_order_cap_unrounded": {
+        "deposit": 0.2944,
+        "exposed": 0.0161,
+        "low_share": 0.336
+      },
+      "per_order_cap_rounded_20pct": {
+        "deposit": 0.2751,
+        "exposed": 0.0162,
+        "low_share": 0.4572
+      },
+      "average_threshold": {
+        "deposit": 0.2083,
+        "exposed": 0.016,
+        "low_share": 0.6993
+      }
+    }
+  }
+}

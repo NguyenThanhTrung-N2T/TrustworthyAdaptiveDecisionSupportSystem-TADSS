@@ -9,7 +9,7 @@ using Xunit;
 namespace TADSS.UnitTests.Strategies;
 
 /// <summary>
-/// UT-03: quy tắc từ chối của <c>DefaultDecisionStrategy</c> 2.1.0 — khách giữ chỗ rồi để hết hạn thanh toán nhiều lần mà số lần đó vượt
+/// UT-03: quy tắc từ chối của <c>DefaultDecisionStrategy</c> (từ 2.1.0) — khách giữ chỗ rồi để hết hạn thanh toán nhiều lần mà số lần đó vượt
 /// số lần hoàn tất thì <c>REJECTED</c>; biên ngưỡng, điều kiện phụ, tắt bằng cấu hình, thứ tự so với các quy tắc duyệt, lý do trung tính.
 /// </summary>
 public class DefaultDecisionStrategyRejectionTests
@@ -117,10 +117,10 @@ public class DefaultDecisionStrategyRejectionTests
         decision.ReasonCode.Should().Be(reason);
     }
 
-    /// <summary>Cùng đầu vào cho cùng kết quả (tất định); phiên bản strategy là 2.1.0.</summary>
+    /// <summary>Cùng đầu vào cho cùng kết quả (tất định); phiên bản strategy là 2.2.0.</summary>
     [Fact]
     [Trait("CatalogId", "UT-03")]
-    public async Task EvaluateAsync_SameInput_IsDeterministicAndVersionIs210()
+    public async Task EvaluateAsync_SameInput_IsDeterministicAndVersionIs220()
     {
         var first = await Evaluate(Strategy, paymentExpired: 6);
         var second = await Evaluate(Strategy, paymentExpired: 6);
@@ -128,7 +128,7 @@ public class DefaultDecisionStrategyRejectionTests
         second.Status.Should().Be(first.Status);
         second.ReasonCode.Should().Be(first.ReasonCode);
         second.Reasons.Should().Equal(first.Reasons);
-        Strategy.StrategyVersion.Should().Be("2.1.0");
+        Strategy.StrategyVersion.Should().Be("2.2.0");
     }
 
     /// <summary>Ngưỡng âm bị từ chối khi dựng strategy.</summary>

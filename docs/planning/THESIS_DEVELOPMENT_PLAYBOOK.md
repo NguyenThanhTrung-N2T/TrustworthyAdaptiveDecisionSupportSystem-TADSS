@@ -62,7 +62,7 @@
 - **RQ2 — Governance & khả năng kiểm toán:** Mô hình audit bất biến (execution + override + outcome, được DB bảo vệ) có đảm bảo mọi quyết định truy vết được, không bị sửa sau khi ghi, và chống ghi đè đồng thời của nhiều Manager không?
 - **RQ3 — Chất lượng tích hợp & sử dụng:** Khi tích hợp vào luồng đặt sân thật, TADSS ảnh hưởng thế nào đến độ trễ đặt sân, và trên 215 đơn đặt sân SmashCourt đã ẩn danh (phát sinh khi phát triển và demo Đồ án 1) thì tỷ lệ đơn cần duyệt và mức cọc thay đổi ra sao so với chính sách cọc 100%?
 
-Câu hỏi nghiên cứu của Khóa luận (RQ1–RQ5): xem [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md).
+Câu hỏi nghiên cứu của Khóa luận (RQ1–RQ6): xem [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md).
 
 ---
 

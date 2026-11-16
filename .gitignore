@@ -35,6 +35,9 @@ Thumbs.db
 ## Dữ liệu SmashCourt thô do người dùng xuất để replay (data/private/, không bao giờ commit)
 data/private/
 
+## Bộ dữ liệu công khai tải theo địa chỉ + SHA-256 ghim sẵn (tools/research), không commit tệp gốc
+data/datasets/
+
 ## Python (tools/evaluation)
 __pycache__/
 .pytest_cache/

@@ -50,7 +50,7 @@ public class DecisionRejectionEndpointTests : DecisionApiTestBase
         row.Status.Should().Be(DecisionStatus.REJECTED);
         row.StrategyStatus.Should().Be(DecisionStatus.REJECTED);
         row.ReasonCode.Should().Be("REPEATED_PAYMENT_EXPIRY");
-        row.StrategyVersion.Should().Be("2.1.0");
+        row.StrategyVersion.Should().Be("2.2.0");
         row.IdempotencyKey.Should().Be(key);
     }
 

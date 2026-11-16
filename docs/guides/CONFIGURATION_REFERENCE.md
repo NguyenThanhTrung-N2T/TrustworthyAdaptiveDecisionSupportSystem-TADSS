@@ -179,7 +179,7 @@ Lớp `FaultInjectionOptions`, project `TADSS.Infrastructure`. Tiêm lỗi vào 
 
 ## Section của strategy
 
-Hai strategy không có hằng `SectionName` trên lớp options: runtime bind từ `Tadss:Strategies:{Default|MockAlternative}` (hằng ở `StrategyRegistrations`), kiểm bằng `Validate()` của options và đưa tham số vào `optionsFingerprint`. Thiếu section thì dùng giá trị mặc định của lớp. Tham số sai làm ứng dụng không khởi động; tham số đổi phải khởi động lại. Giá trị trong `appsettings.json` của hai section bằng đúng mặc định của mã.
+Hai strategy không có hằng `SectionName` trên lớp options: runtime bind từ `Tadss:Strategies:{Default|MockAlternative}` (hằng ở `StrategyRegistrations`), kiểm bằng `Validate()` của options và đưa tham số vào `optionsFingerprint`. Thiếu section thì dùng giá trị mặc định của lớp. Tham số sai **hoặc khóa lạ** (ví dụ gõ `OffPeakDiscountEnable` thay vì `OffPeakDiscountEnabled`; binder bind với `ErrorOnUnknownConfiguration`) làm ứng dụng không khởi động; tham số đổi phải khởi động lại. Giá trị trong `appsettings.json` của hai section bằng đúng mặc định của mã.
 
 ### Tadss:Strategies:Default
 
@@ -195,6 +195,13 @@ Lớp `DefaultStrategyOptions`, project `TADSS.Strategies.Default` (tất cả s
 | `Tadss:Strategies:Default:GoldDepositRate` | `decimal` | `0.3` | Tỷ lệ cọc hạng `GOLD`; trong [0, 1], tối đa 4 chữ số thập phân. |
 | `Tadss:Strategies:Default:PremiumDepositRate` | `decimal` | `0.2` | Tỷ lệ cọc hạng `PLATINUM` và `DIAMOND`; trong [0, 1], tối đa 4 chữ số thập phân. |
 | `Tadss:Strategies:Default:CacheTtlMinutes` | `int` | `60` | Thời gian sống của cache (phút); không âm, 0 là không cache. |
+| `Tadss:Strategies:Default:OffPeakDiscountEnabled` | `bool` | `false` | Bật chính sách giảm cọc giờ thấp điểm (từ 2.2.0). Chỉ xét sau từ chối, duyệt đơn lớn, duyệt lịch sử không đến; không bao giờ đổi trạng thái quyết định. Đơn được giảm có mã `OFF_PEAK_DEPOSIT`, lý do ghi giờ chi nhánh, tỷ lệ gốc, tỷ lệ sau giảm và `optionsFingerprint`. Tắt thì quyết định giống hệt 2.1.0. |
+| `Tadss:Strategies:Default:OffPeakDiscountRate` | `decimal` | `0.3` | Tỷ lệ cọc tối đa khi được giảm: tỷ lệ áp dụng = min(tỷ lệ theo hạng, giá trị này); trong [0, 1], tối đa 4 chữ số thập phân. Luôn được kiểm, kể cả khi tắt. |
+| `Tadss:Strategies:Default:OffPeakDiscountTiers` | `List<CustomerTier>` | danh sách rỗng | Hạng thành viên được giảm (`STANDARD`…`DIAMOND`, không trùng); khách vãng lai không bao giờ được giảm. Bật mà rỗng thì không khởi động. Khi bật, tỷ lệ giờ thấp điểm sau giảm phải không tăng theo hạng (hạng cao không cọc nhiều hơn hạng thấp), sai thì không khởi động. Thứ tự khai báo không ảnh hưởng hành vi lẫn `optionsFingerprint`. |
+| `Tadss:Strategies:Default:OffPeakDiscountMaxNoShowCount` | `int` | `0` | Số lần không đến tối đa để được giảm; không âm. 0 = chỉ khách chưa từng không đến (khách chưa có lịch sử tính là 0, nên tài khoản mới đủ điều kiện). |
+| `Tadss:Strategies:Default:OffPeakDiscountMaxPaymentExpiredCount` | `int` | `0` | Số lần hết hạn thanh toán tối đa để được giảm; không âm. 0 = chỉ khách chưa từng giữ chỗ rồi bỏ thanh toán. |
+
+Giờ thấp điểm = thời điểm bắt đầu sớm nhất của đơn, quy đổi một lần sang múi giờ của chi nhánh (`branchTimeZone` của request, mã IANA), **không** nằm trong khung nào của `Tadss:Calendar:PeakWindows`. Mỗi khung là `[Start, End)`: mốc bắt đầu tính là cao điểm, mốc kết thúc không. Cuối tuần chỉ là hai ngày `Saturday`, `Sunday` của lịch đó, cấu hình như mọi ngày khác (mặc định 08:00–21:00), không viết cứng trong mã. Kết quả không phụ thuộc múi giờ máy chạy hay offset client gửi.
 
 ### Tadss:Strategies:MockAlternative
 

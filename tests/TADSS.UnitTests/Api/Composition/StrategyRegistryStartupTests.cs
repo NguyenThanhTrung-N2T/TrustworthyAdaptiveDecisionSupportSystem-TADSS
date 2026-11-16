@@ -167,6 +167,49 @@ public class StrategyRegistryStartupTests
     }
 
     /// <summary>
+    /// Host thật (<c>Program.cs</c> + <c>StartupTasks</c>) với chính sách giảm cọc của strategy mặc định cấu hình sai (bằng đúng khóa của bản deploy): bật mà
+    /// không có hạng, gõ sai tên khóa, tỷ lệ ngoài miền, hạng lạ. Cả bốn: host không khởi động (fail-fast, không chạy với chính sách tắt âm thầm) — đây là
+    /// mắt xích đầu của đường quay về khi triển khai: container không khỏe nên <c>cd.sh</c> không giữ bản mới.
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-04")]
+    [InlineData("Tadss:Strategies:Default:OffPeakDiscountEnabled", "true", "*OffPeakDiscountTiers*")]
+    [InlineData("Tadss:Strategies:Default:OffPeakDiscountEnable", "true", "*Tadss:Strategies:Default*")]
+    [InlineData("Tadss:Strategies:Default:OffPeakDiscountRate", "1.5", "*OffPeakDiscountRate*")]
+    [InlineData("Tadss:Strategies:Default:OffPeakDiscountTiers:0", "VIP", "*Tadss:Strategies:Default*")]
+    public void Host_InvalidOffPeakDiscount_FailsOnStart_Theory(string key, string value, string expectedMessage)
+    {
+        using var baseFactory = new DecisionsApiFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, configuration) =>
+            configuration.AddInMemoryCollection(new Dictionary<string, string?> { [key] = value })));
+
+        var act = () => factory.CreateClient();
+
+        act.Should().Throw<InvalidOperationException>().WithMessage(expectedMessage);
+    }
+
+    /// <summary>Host thật khởi động được với đúng cấu hình giảm cọc của bản deploy.</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-04")]
+    public async Task Host_DeployOffPeakDiscount_Starts()
+    {
+        using var baseFactory = new DecisionsApiFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, configuration) =>
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tadss:Strategies:Default:OffPeakDiscountEnabled"] = "true",
+                ["Tadss:Strategies:Default:OffPeakDiscountRate"] = "0.3",
+                ["Tadss:Strategies:Default:OffPeakDiscountTiers:0"] = "STANDARD",
+                ["Tadss:Strategies:Default:OffPeakDiscountTiers:1"] = "SILVER",
+            })));
+
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync("/health/live");
+
+        response.IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    /// <summary>
     /// A-03: cấu hình cuối cùng còn khóa cũ <c>Tadss:Strategy:ActiveStrategyName</c> → host vẫn khởi động (<c>/health/live</c> trả 200), có đúng một
     /// Warning nêu khóa cũ và khóa thay thế, và giá trị của khóa cũ không xuất hiện trong bất kỳ dòng log nào.
     /// </summary>

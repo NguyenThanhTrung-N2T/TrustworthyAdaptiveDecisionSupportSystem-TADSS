@@ -95,6 +95,39 @@ public class ConfigurationRoutingRulesSourceTests
         failures[1].Should().NotContain(value, "lỗi cấu hình chỉ nêu đường dẫn khóa, không in giá trị");
     }
 
+    /// <summary>
+    /// Khóa không được hỗ trợ ở mọi tầng của section (gõ sai tên điều kiện, điều kiện runtime chưa có, gõ sai tên thuộc tính của rule hay của section):
+    /// binder bỏ qua âm thầm khiến rule rộng hơn ý định, nên <c>Read</c> báo đúng một lỗi nêu đường dẫn khóa (không in giá trị).
+    /// </summary>
+    [Theory]
+    [Trait("CatalogId", "UT-04")]
+    [InlineData("Tadss:Routing:Rules:0:When:PeakHours", "true")]
+    [InlineData("Tadss:Routing:Rules:0:When:NoShowCountBelow", "2")]
+    [InlineData("Tadss:Routing:Rules:0:Strategey", "DefaultDecisionStrategy")]
+    [InlineData("Tadss:Routing:DefaultStrateg", "DefaultDecisionStrategy")]
+    public void Read_UnsupportedKey_ReportsKeyWithoutValue_Theory(string key, string value)
+    {
+        var failures = new List<string>();
+        var source = new ConfigurationRoutingRulesSource(Build(new Dictionary<string, string?>(PeakRule) { [key] = value }));
+
+        source.Read(failures);
+
+        failures.Should().ContainSingle().Which.Should().Contain(key).And.Contain("không phải khóa được hỗ trợ").And.NotContain(value);
+    }
+
+    /// <summary>Khóa không được hỗ trợ làm router từ chối cả bảng ngay khi khởi động (không chạy với bảng thiếu điều kiện).</summary>
+    [Fact]
+    [Trait("CatalogId", "UT-04")]
+    public void StrategyRouter_UnsupportedConditionAtStartup_RejectsWholeRuleset()
+    {
+        var source = new ConfigurationRoutingRulesSource(
+            Build(new Dictionary<string, string?>(PeakRule) { ["Tadss:Routing:Rules:0:When:NoShowCountBelow"] = "2" }));
+
+        var act = () => TADSS.UnitTests.Application.Routing.StrategyRouterTests.CreateRouter(source);
+
+        act.Should().Throw<Microsoft.Extensions.Options.OptionsValidationException>().WithMessage("*NoShowCountBelow*");
+    }
+
     /// <summary><c>Read</c> luôn đọc bản hiện tại của cấu hình (không chụp lúc tạo adapter).</summary>
     [Fact]
     [Trait("CatalogId", "UT-04")]
