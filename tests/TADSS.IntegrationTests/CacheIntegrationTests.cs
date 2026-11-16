@@ -19,7 +19,9 @@ namespace TADSS.IntegrationTests;
 [Trait("Category", "Integration")]
 public class CacheIntegrationTests : DecisionApiTestBase
 {
-    private const string CacheKeyPrefix = "tadss:v2:DefaultDecisionStrategy:2.1.0:";
+    // Phiên bản lấy từ chính strategy: nâng phiên bản strategy (khóa cache đổi theo, đúng thiết kế) không làm test này đỏ
+    private static readonly string CacheKeyPrefix =
+        $"tadss:v2:DefaultDecisionStrategy:{new TADSS.Strategies.Default.DefaultDecisionStrategy(new TADSS.Strategies.Default.DefaultStrategyOptions()).StrategyVersion}:";
     private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromMinutes(60);
 
     public CacheIntegrationTests(TadssInfrastructureFixture infrastructure) : base(infrastructure)
