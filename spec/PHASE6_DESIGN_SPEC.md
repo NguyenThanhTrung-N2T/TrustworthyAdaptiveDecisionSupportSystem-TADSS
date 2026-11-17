@@ -2,7 +2,7 @@
 
 | | |
 | :--- | :--- |
-| **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0), **trừ P6-59** (17/11, plan 6C: `DefaultDecisionStrategy` 2.2.0 thêm giảm cọc giờ thấp điểm, mặc định tắt; định tuyến và tham số strategy từ chối khóa lạ; contract và schema DB không đổi) |
+| **Phạm vi** | Phase 6 (W09–W12, 02/11 – 29/11/2026): Epic 6A `SmashCourt-BE` (SV1, T6.1…T6.10), Epic 6B `smashcourt-fe` (SV2, T6.11…T6.15). `TADSS-Runtime` không đổi mã (contract v2.0.0 đóng băng; strategy mặc định 2.1.0), **trừ P6-59** (16/11, plan 6C: `DefaultDecisionStrategy` 2.2.0 thêm giảm cọc giờ thấp điểm, mặc định tắt; định tuyến và tham số strategy từ chối khóa lạ; contract và schema DB không đổi) |
 | **Nhánh** | `SmashCourt-BE`: `feat/phase-6-deposit` tách từ `develop` tại `8320f8a` (20/10/2026; mã đã lần theo ở Mục 2 là `master` `4f6af8c`). `smashcourt-fe`: `feat/phase-6-deposit` tách từ `master`. Người dùng tạo nhánh và merge |
 | **Ngày lập** | 18/10/2026; rà soát lại toàn tuyến FE → BE → TADSS cùng ngày; rà soát thời gian và múi giờ 19/10 (Mục 3.3) |
 | **Trạng thái** | Người dùng đã duyệt P6-01…P6-31 (P6-22, P6-23 chốt 19/10; P6-24…P6-27 chốt 27/10 khi rà soát plan 6A-5; P6-28…P6-30 chốt 29/10; P6-31 chốt và làm 31/10 khi viết hướng dẫn FE). Plan chi tiết từng gói (kết quả ghi ở cuối mỗi plan): 6A-1 [PHASE6_PLAN_6A-1_FOUNDATION.md](archive/phase6/PHASE6_PLAN_6A-1_FOUNDATION.md) (3 plan con a, b, c) ✅; 6A-2 [PHASE6_PLAN_6A-2_ONLINE_BOOKING.md](archive/phase6/PHASE6_PLAN_6A-2_ONLINE_BOOKING.md) (plan con 2a, 2b, 2c) ✅; 6A-3 [PHASE6_PLAN_6A-3_APPROVAL.md](archive/phase6/PHASE6_PLAN_6A-3_APPROVAL.md) ✅ (24/10, `023e7c8`); 6A-4 [PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md](archive/phase6/PHASE6_PLAN_6A-4_PAYMENT_CANCEL_CHECKOUT.md) ✅ (25/10, `f554fad`, kèm rà soát hồi quy Phase 6); 6A-5 [PHASE6_PLAN_6A-5_JOBS.md](archive/phase6/PHASE6_PLAN_6A-5_JOBS.md) ✅ (27/10, `fd29a51`); 6A-6 [PHASE6_PLAN_6A-6_FINALIZE.md](archive/phase6/PHASE6_PLAN_6A-6_FINALIZE.md) ✅ (30–31/10: hạn link VNPay và URL tự ký GMT+7, `confirm` trả `bookingStatus`, lỗi thời gian T-9…T-11, T-15, T-16, bộ kiểm SC6 tự chạy sau mỗi test HTTP và chạy được trên staging, Mailpit, SMTP chỉ IPv4 trong container, k6 LT-04; thử sandbox với BE thật 30/10). Thử VNPay sandbox 28/10 và 30/10 (10.1 bước 2). Epic 6B (FE) chưa bắt đầu |
@@ -17,7 +17,7 @@
 | 1 | Tóm tắt; bản đồ luồng → sơ đồ, use case, mục thiết kế (1.1) |
 | 2 | Luồng đang chạy FE → BE → TADSS |
 | 3 | Vấn đề tìm thấy (R-x, N-x, T-x thời gian) |
-| 4 | Quyết định (P6-x), thông số, lý do chọn |
+| 4 | Quyết định (P6-x), thông số, lý do chọn; 4.5 quyết định của Epic 6C (P6-32…P6-60) |
 | 5 | Chia gói, thứ tự |
 | 6 | Thiết kế DB (T6.1) |
 | 7 | Thiết kế BE |
@@ -134,7 +134,7 @@ Ràng buộc DB khác liên quan: `chk_bookings_cancelled_at` (trạng thái h�
 | :--- | :--- |
 | Hạn duyệt `approvalExpiresAt = min(tạo + 30', giờ chơi − 120')`; không kịp ⇒ `APPROVED` 100 % (`APPROVAL_WINDOW_UNAVAILABLE`) | Hạn thanh toán 15' sau duyệt không bao giờ vượt giờ chơi |
 | Quy đổi cọc một nơi: `round(totalPrice × rate)`, `MidpointRounding.AwayFromZero`, VND 0 chữ số; override tính trên `totalPrice` đã lưu lúc đánh giá | BE tự tính trước để kiểm mức tối thiểu phải dùng đúng công thức này |
-| Strategy 2.1.0 (2.2.0 từ 17/11, P6-59 ở plan 6C): `REJECTED` khi `paymentExpiredCount ≥ 5` và `> completedCount`; `NEED_APPROVAL` khi đơn ≥ 2.000.000 hoặc `noShowCount ≥ 2`; còn lại cọc theo hạng 50/40/30/20 %; 2.2.0 thêm giảm cọc giờ thấp điểm (bản deploy bật: STANDARD, SILVER chưa từng không đến / bỏ thanh toán ⇒ tối đa 30 %), không đổi ba quy tắc trên | Lịch sử BE gửi phải đúng nghĩa (N-1) |
+| Strategy 2.1.0 (2.2.0 từ 16/11, P6-59 ở plan 6C): `REJECTED` khi `paymentExpiredCount ≥ 5` và `> completedCount`; `NEED_APPROVAL` khi đơn ≥ 2.000.000 hoặc `noShowCount ≥ 2`; còn lại cọc theo hạng 50/40/30/20 %; 2.2.0 thêm giảm cọc giờ thấp điểm (bản deploy bật: STANDARD, SILVER chưa từng không đến / bỏ thanh toán ⇒ tối đa 30 %), không đổi ba quy tắc trên | Lịch sử BE gửi phải đúng nghĩa (N-1) |
 | Outcome chống trùng theo **nội dung** (`outcome`, `occurredAt`); khác ⇒ 409 `OUTCOME_ALREADY_RECORDED` | `occurredAt` phải cố định giữa các lần gửi lại |
 | Rate limit token bucket **theo `ClientId`**: 100 request, nạp 100/giây | Job outcome và đánh giá lúc đặt sân dùng chung client `smashcourt-be` (N-24) |
 | Override: tối đa một mỗi quyết định; cùng key cùng nội dung ⇒ trả bản đã lưu | Nút "Thử lại" sau 503 phải gửi lại đúng nội dung |
@@ -402,6 +402,42 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 - **Danh sách trạng thái (P6-15):** không gom 11 danh sách về một chỗ vì chúng khác nhau có chủ đích (có nơi tính `PENDING_PAYMENT`, có nơi không); thêm `PENDING_APPROVAL` vào đúng chỗ đang có `PENDING` và dùng test phân loại để lần sau không sót.
 - **Khách tự hủy đơn chưa trả (P6-09):** slot nhả sớm, khách trung thực không bị đếm hết hạn. Người cố tình giữ chỗ có thể hủy trước hạn để né quy tắc 2.1.0, nhưng slot được nhả sớm hơn nên hại ít hơn.
 - **Không đổi contract (C6):** `paymentExpiredCount`, `outcome` giữ đúng tên và nghĩa của INTEGRATION_SPEC; BE chỉ tính đúng.
+
+### 4.5. Quyết định của Epic 6C (P6-32…P6-60)
+
+Đóng gói, CI/CD, quan sát, đo hiệu năng và các thay đổi phát sinh từ đó. Bảng dưới là bản tóm tắt để spec này là tài liệu duy nhất của phase; nội dung đầy đủ (lý do, phương án đã loại, test, số đo) ở [plan 6C Mục 1](PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md#1-quyết-định), số đo ở [báo cáo hiệu năng](../docs/report/PERFORMANCE_REPORT.md). Hai nơi lệch nhau thì plan 6C đúng, sửa bảng này theo.
+
+| Mã | Tóm tắt | Trạng thái (17/11) |
+| :--- | :--- | :--- |
+| **P6-32** | Phạm vi Epic 6C: BE, TADSS, AI (đóng gói, CI/CD, quan sát, kiểm thử); FE chỉ workflow Vercel | Đã chốt |
+| **P6-33** | Build một lần: image không chứa bí mật, tag `sha-<7>` bất biến trên GHCR; triển khai và đo theo sha; sha của container kiểm bằng nhãn OCI, không thêm endpoint vào TADSS | Đã chốt, đang chạy |
+| **P6-34** | Bí mật truyền bằng biến môi trường lúc chạy, không vào image; BE kiểm cấu hình bắt buộc lúc khởi động (chỉ nêu tên khóa) | Đã chốt; bí mật bản deploy ở file ngoài mọi repo (01/11) |
+| **P6-35** | CD qua runner GitHub tự host trên máy nhóm: CI đạt ⇒ kéo đúng sha ⇒ health ⇒ smoke ⇒ hỏng thì tự quay về; chặn rủi ro runner trên repo public bằng ba lớp | Sửa 01/11: một bản deploy duy nhất ở `SmashCourt-BE/deploy/`, runner chạy trong Docker; còn diễn tập trên GitHub |
+| **P6-36** | FE: lint ⇒ kiểm kiểu ⇒ build ⇒ Vercel; chỉ `master` lên production | Đã chốt, đang chạy |
+| **P6-37** | Hai bộ quan sát tách biệt: vận hành và kiểm thử | Sửa 01/11: vận hành ở `SmashCourt-BE/deploy/` (Alloy ⇒ Grafana Cloud), kiểm thử ở `TADSS-Runtime/perf/` |
+| **P6-38** | OpenTelemetry là chuẩn chung; mỗi bộ quan sát một cổng OTLP; metric, log, trace tách rõ | Đã chốt |
+| **P6-39** | k6 là nguồn số đo chuẩn phía client; Prometheus / Grafana để quan sát và phân rã | Đã chốt |
+| **P6-40** | Lượt đo chính thức tắt trace, log từ Warning; trace chỉ ở lượt phân tích; chi phí giám sát đo bằng A/A | Đã chốt; đã đo (SP-07) |
+| **P6-41** | Môi trường đo `perf` riêng, chỉ local, cùng image theo sha với bản deploy, giới hạn tài nguyên từng container | Đã chốt, đang dùng |
+| **P6-42** | Dữ liệu ba lớp: tham chiếu (thống kê 215 booking), benchmark (sinh tất định), dữ liệu thật (không nạp vào môi trường đo) | Đã chốt |
+| **P6-43** | Đo riêng tác động của TADSS bằng cặp bật / tắt cùng điều kiện; phân rã theo trung bình cộng được và trace, không cộng percentile | Đã chốt; đã đo (SP-06) |
+| **P6-44** | Mỗi cấu hình ≥ 3 lượt, báo trung vị và khoảng, thứ tự xen kẽ ABBA | Đã chốt |
+| **P6-45** | Ranh giới tin cậy CD: mỗi repo chỉ triển khai service của chính nó, sha lấy từ lượt CI vừa đạt, kiểm commit và nhãn revision; secrets chỉ ở job triển khai | Đã chốt |
+| **P6-46** | Trước mỗi lượt đo: khôi phục DB, xóa Redis, kiểm checksum | Đã chốt |
+| **P6-47** | Lượt `INFRA_LIMITED` / `ABORTED` không dùng để kết luận năng lực ứng dụng | Đã chốt |
+| **P6-48** | Chi phí 0 đồng: bản deploy dùng PostgreSQL và Redis cục bộ; ngrok chỉ cho bản deploy; kiểm thử chỉ chạy local; Neon giữ cho dev, E2E, demo | Sửa 01/11: một bản deploy |
+| **P6-49** | Dashboard 3 tab BE / TADSS / AI; mọi panel có mô tả 6 ý, CI chặn panel thiếu mô tả hoặc dùng metric không có; cảnh báo qua email | Đã chốt; cảnh báo dùng email của Grafana Cloud (01/11) |
+| **P6-50** | Danh mục test một nguồn `tests/catalog.yaml` sinh từ methodology; dashboard "Kiểm thử" tổng hợp theo nhóm; chỉ thêm, không bỏ mã | Đã chốt; còn sửa bộ nạp để hiện đủ mọi nhóm |
+| **P6-51** | Ba tài khoản ngrok riêng (BE, TADSS, AI); BE gọi TADSS và AI bằng URL đặt trong cấu hình; bài đo dùng LLM giả; khóa xác thực BE ⇒ AI để làm sau | Đã chốt; xác thực BE ⇒ AI để sau |
+| **P6-52** | SLO tách theo hệ: BE theo bảng chốt 02/11; TADSS giữ SC1 (p95 < 150 ms), SC2; AI p95 < 300 ms phần xử lý của AI | Đã chốt; đã chấm (báo cáo hiệu năng) |
+| **P6-53** | Bỏ index trùng của bảng `bookings` | Đã áp `tadss-dev` 05/11, bản deploy 06/11; Neon `main` sau Gate M6 |
+| **P6-54** | Auto-prepare của Npgsql cấu hình được, mặc định tắt; chỉ môi trường kiểm thử / đánh giá bật, bản deploy không bật | Đã chốt; phương án bật cho E2E ở plan 6C Mục 10.1 |
+| **P6-55** | Hệ số bcrypt 12 ⇒ 11 cho mọi hash mới; hash cũ vẫn kiểm được | Đã áp; đăng nhập nhanh khoảng 2 lần, CPU BE giảm khoảng 20 % |
+| **P6-56** | Bật / tắt TADSS trên bản deploy khi đang chạy qua file cờ trong volume, không khởi động lại BE | Đã áp; cờ đang bật |
+| **P6-57** | Mạch ngắt lệnh đánh giá cọc ở BE: TADSS hỏng thì đơn cọc 100 % ngay, tự đóng khi TADSS khỏe lại; mặc định tắt, bật ở deploy, perf, E-STAGING | Đã áp; p95 đặt sân trong lúc TADSS treo 1,68 s ⇒ 75 ms |
+| **P6-58** | Tắt cache quyết định của hai strategy quy tắc trên bản deploy và perf, chỉ bằng cấu hình (khóa cache chứa mã đơn nên không bao giờ trúng) | Đã áp |
+| **P6-59** | `DefaultDecisionStrategy` 2.2.0: giảm cọc giờ thấp điểm (mặc định tắt; deploy bật cho Bronze / Silver chưa từng không đến hay bỏ thanh toán, tối đa 30 %); bộ định tuyến và tham số strategy từ chối khóa lạ; CD quay về image, không quay về cấu hình | Đã áp deploy 16/11; còn thực nghiệm quay về khi cấu hình sai |
+| **P6-60** | Theo dõi lỗi nghiệp vụ trên bản deploy: job kiểm tính đúng dữ liệu đặt sân 10 phút một lần (cùng bộ luật với test), counter nghiệp vụ, luật cảnh báo "Dữ liệu đặt sân sai" và "TADSS lỗi 5xx > 5 %" | Mã xong 17/11; chờ lên deploy |
 
 ---
 

@@ -381,6 +381,8 @@ Các mã của [plan 6C](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md)
 | OB-BE-2 | Trace bắt đầu từ request vào BE đi tiếp sang TADSS/AI chung `trace_id`; trace nền (Hangfire) bị bỏ | tự động (BE test) + kiểm trên Tempo | P6 |
 | OB-BE-3 | Dashboard "Vận hành": mọi panel có mô tả 6 ý, mã test và chỉ dùng metric có thật | CI BE (`deploy/grafana/grafana_cloud.py check`) | P6 |
 | OB-BE-4 | Cảnh báo email khi service không sẵn sàng (thử bằng sự cố giả: dừng một service) | thủ công | P6 |
+| OB-BE-5 | Kiểm tính đúng dữ liệu đặt sân định kỳ trên bản deploy: job chỉ đọc 10 phút một lần dùng chung bộ luật SC6 với test (đơn tạo / sửa 24 giờ, bỏ đơn vừa đổi dưới 2 phút); mỗi vi phạm log Error kèm mã đơn, gauge theo điều (có số cả khi sạch), lỗi đọc DB không đưa gauge về 0; cảnh báo email khi > 0 | tự động (BE xUnit) | P6 |
+| OB-BE-6 | Counter nghiệp vụ của BE: quyết định cọc theo nhánh, kết quả thanh toán từ cổng theo cách xử lý, đơn job hủy theo lý do; mỗi sự kiện ghi đúng một lần, đúng nhãn | tự động (BE xUnit) | P6 |
 | OB-AI-1 | AI xuất metric FastAPI và lời gọi Gemini (độ trễ, kết quả ok/quota/error, token vào/ra) | tự động (AI pytest) | P6 |
 | OB-AI-2 | AI nhận `traceparent` từ BE: một trace chung BE ⇒ AI ⇒ Gemini | thủ công (Tempo) | P6 |
 | OB-AI-3 | Tab AI của dashboard "Vận hành" có dữ liệu thật | thủ công | P6 |
