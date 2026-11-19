@@ -407,7 +407,7 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 
 Đóng gói, CI/CD, quan sát, đo hiệu năng và các thay đổi phát sinh từ đó. Bảng dưới là bản tóm tắt để spec này là tài liệu duy nhất của phase; nội dung đầy đủ (lý do, phương án đã loại, test, số đo) ở [plan 6C Mục 1](PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md#1-quyết-định), số đo ở [báo cáo hiệu năng](../docs/report/PERFORMANCE_REPORT.md). Hai nơi lệch nhau thì plan 6C đúng, sửa bảng này theo.
 
-| Mã | Tóm tắt | Trạng thái (17/11) |
+| Mã | Tóm tắt | Trạng thái (19/11) |
 | :--- | :--- | :--- |
 | **P6-32** | Phạm vi Epic 6C: BE, TADSS, AI (đóng gói, CI/CD, quan sát, kiểm thử); FE chỉ workflow Vercel | Đã chốt |
 | **P6-33** | Build một lần: image không chứa bí mật, tag `sha-<7>` bất biến trên GHCR; triển khai và đo theo sha; sha của container kiểm bằng nhãn OCI, không thêm endpoint vào TADSS | Đã chốt, đang chạy |
@@ -427,7 +427,7 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 | **P6-47** | Lượt `INFRA_LIMITED` / `ABORTED` không dùng để kết luận năng lực ứng dụng | Đã chốt |
 | **P6-48** | Chi phí 0 đồng: bản deploy dùng PostgreSQL và Redis cục bộ; ngrok chỉ cho bản deploy; kiểm thử chỉ chạy local; Neon giữ cho dev, E2E, demo | Sửa 01/11: một bản deploy |
 | **P6-49** | Dashboard 3 tab BE / TADSS / AI; mọi panel có mô tả 6 ý, CI chặn panel thiếu mô tả hoặc dùng metric không có; cảnh báo qua email | Đã chốt; cảnh báo dùng email của Grafana Cloud (01/11) |
-| **P6-50** | Danh mục test một nguồn `tests/catalog.yaml` sinh từ methodology; dashboard "Kiểm thử" tổng hợp theo nhóm; chỉ thêm, không bỏ mã | Đã chốt; còn sửa bộ nạp để hiện đủ mọi nhóm |
+| **P6-50** | Danh mục test một nguồn `tests/catalog.yaml` sinh từ methodology; dashboard "Kiểm thử" tổng hợp theo nhóm; chỉ thêm, không bỏ mã | Đã chốt; bộ nạp sửa 19/11 (bản gộp k6, FI từ lượt SP-09, bước CI, ghi nhận thủ công `tests/manual-results.yaml`): bảng hiện đủ mọi nhóm |
 | **P6-51** | Ba tài khoản ngrok riêng (BE, TADSS, AI); BE gọi TADSS và AI bằng URL đặt trong cấu hình; bài đo dùng LLM giả; khóa xác thực BE ⇒ AI để làm sau | Đã chốt; xác thực BE ⇒ AI để sau |
 | **P6-52** | SLO tách theo hệ: BE theo bảng chốt 02/11; TADSS giữ SC1 (p95 < 150 ms), SC2; AI p95 < 300 ms phần xử lý của AI | Đã chốt; đã chấm (báo cáo hiệu năng) |
 | **P6-53** | Bỏ index trùng của bảng `bookings` | Đã áp `tadss-dev` 05/11, bản deploy 06/11; Neon `main` sau Gate M6 |
@@ -436,8 +436,8 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 | **P6-56** | Bật / tắt TADSS trên bản deploy khi đang chạy qua file cờ trong volume, không khởi động lại BE | Đã áp; cờ đang bật |
 | **P6-57** | Mạch ngắt lệnh đánh giá cọc ở BE: TADSS hỏng thì đơn cọc 100 % ngay, tự đóng khi TADSS khỏe lại; mặc định tắt, bật ở deploy, perf, E-STAGING | Đã áp; p95 đặt sân trong lúc TADSS treo 1,68 s ⇒ 75 ms |
 | **P6-58** | Tắt cache quyết định của hai strategy quy tắc trên bản deploy và perf, chỉ bằng cấu hình (khóa cache chứa mã đơn nên không bao giờ trúng) | Đã áp |
-| **P6-59** | `DefaultDecisionStrategy` 2.2.0: giảm cọc giờ thấp điểm (mặc định tắt; deploy bật cho Bronze / Silver chưa từng không đến hay bỏ thanh toán, tối đa 30 %); bộ định tuyến và tham số strategy từ chối khóa lạ; CD quay về image, không quay về cấu hình | Đã áp deploy 16/11; còn thực nghiệm quay về khi cấu hình sai |
-| **P6-60** | Theo dõi lỗi nghiệp vụ trên bản deploy: job kiểm tính đúng dữ liệu đặt sân 10 phút một lần (cùng bộ luật với test), counter nghiệp vụ, luật cảnh báo "Dữ liệu đặt sân sai" và "TADSS lỗi 5xx > 5 %" | Mã xong 17/11; chờ lên deploy |
+| **P6-59** | `DefaultDecisionStrategy` 2.2.0: giảm cọc giờ thấp điểm (mặc định tắt; deploy bật cho Bronze / Silver chưa từng không đến hay bỏ thanh toán, tối đa 30 %); bộ định tuyến và tham số strategy từ chối khóa lạ; CD quay về image, không quay về cấu hình | Đã áp deploy 16/11; quyết định thật trên deploy 19/11 (`OFF_PEAK_DEPOSIT` 30 %, `HIGH_VALUE_REVIEW`, `REPEATED_PAYMENT_EXPIRY`); còn thực nghiệm quay về khi cấu hình sai |
+| **P6-60** | Theo dõi lỗi nghiệp vụ trên bản deploy: job kiểm tính đúng dữ liệu đặt sân 10 phút một lần (cùng bộ luật với test), counter nghiệp vụ, luật cảnh báo "Dữ liệu đặt sân sai" và "TADSS lỗi 5xx > 5 %" | Đã lên deploy 17/11; luật "Dữ liệu đặt sân sai" thử bằng vi phạm cố ý 19/11: email sau khoảng 2 phút |
 
 ---
 

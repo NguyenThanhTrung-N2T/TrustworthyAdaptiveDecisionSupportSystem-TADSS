@@ -50,11 +50,15 @@ def archive(source: SourceResult, raw_files: list[Path], results_dir: Path | Non
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     target = results_dir / f"{stamp}-{source.source}"
     target.mkdir(parents=True, exist_ok=True)
+    # Nhiều lượt cùng tên file (faults.json, summary.json của từng thư mục lượt) ⇒ đặt vào thư mục con theo tên lượt, không ghi đè nhau
+    names = [raw.name for raw in raw_files if raw.is_file()]
     for raw in raw_files:
         if raw.is_dir():
             shutil.copytree(raw, target / raw.name, dirs_exist_ok=True)
         elif raw.is_file():
-            shutil.copy2(raw, target / raw.name)
+            destination = target / raw.parent.name / raw.name if names.count(raw.name) > 1 else target / raw.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(raw, destination)
     (target / "summary.json").write_text(json.dumps(source.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
     return target
 

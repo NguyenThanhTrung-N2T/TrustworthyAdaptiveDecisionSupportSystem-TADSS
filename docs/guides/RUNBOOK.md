@@ -280,8 +280,8 @@ bash tools/evaluation/run.sh quick --steps e,f
 Trong `TADSS-Runtime/`. Chạy trên máy (Grafana local), tách khỏi Grafana Cloud.
 
 ```text
-methodology Mục 4 (bảng mã test) ──python perf/board.py catalog──► tests/catalog.yaml (189 mã)
-CI ba repo · Evidence Pack · k6 · SC6 · Playwright ──python perf/board.py <nguồn>──► perf/results/<thời điểm>-<nguồn>/ (bản gốc)
+methodology Mục 4 (bảng mã test) ──python perf/board.py catalog──► tests/catalog.yaml (193 mã)
+CI ba repo (test + bước kiểm) · Evidence Pack · k6 · FI · ghi nhận tay · SC6 · Playwright ──python perf/board.py <nguồn>──► perf/results/<thời điểm>-<nguồn>/ (bản gốc)
                                                      │ gộp theo mã (một nguồn đỏ ⇒ mã đỏ)
                                                      ▼
                               Pushgateway ⇒ Prometheus (giữ 365 ngày) ⇒ Grafana "SmashCourt - Kiểm thử" (BE / TADSS / AI)
@@ -291,10 +291,12 @@ Bật: `docker compose -f perf/docker-compose.yml up -d` (một lần `pip insta
 
 | Nạp từ | Lệnh |
 | :--- | :--- |
-| CI gần nhất (cần `gh` đăng nhập) | `python perf/board.py ci all` (hoặc `be`, `tadss`, `ai`; `--branch` để đổi nhánh) |
+| CI gần nhất (cần `gh` đăng nhập) | `python perf/board.py ci all` (hoặc `be`, `tadss`, `ai`; `--branch` để đổi nhánh). Cộng kết luận các bước kiểm không phải test của cùng lượt (quét gói, kiểm image, `verify-expose.sh`, `verify-observability.sh` ⇒ OPS-01/02, SEC-BE-7, SEC-7, SEC-AI-3/4, NG-x, OB-2/4); bảng tên step ⇒ mã ở `perf/testboard/ci.py`, đổi tên step trong workflow thì lệnh in `bước CI không thấy`. Bản tải về thư mục tạm, chép vào `perf/results/` rồi tự xóa |
 | Test chạy trên máy | BE / TADSS: `dotnet test … --logger trx --results-directory <dir>` với `SMASHCOURT_CATALOG_INDEX_DIR=<dir>` (BE) / `TADSS_CATALOG_INDEX_DIR=<dir>` (TADSS) ⇒ `python perf/board.py trx be <dir>`; AI: `pytest --junitxml=<file>` ⇒ `python perf/board.py junit <file>` |
 | Evidence Pack | `python perf/board.py evidence evidence/<run_id>` |
-| Một lượt k6 | `python perf/board.py k6 SP-01 <summary.json>` (lượt hạn chế thêm `--limited "lý do"`) |
+| k6 | `python perf/board.py k6 SP-01 <summary.json \| thư mục lượt \| pooled-*.json> …` (kết luận chính thức theo bản gộp ≥ 3 lượt của B.7.2; nhiều file cho cùng mã, vd hai phía A/B của SP-06, giữ trạng thái xấu nhất; lượt hạn chế thêm `--limited "lý do"`) |
+| FI-11…14 dưới tải | `python perf/board.py faults <thư mục lượt SP-09> …` (đạt khi kiểm đơn trong lỗi đạt, SC6 của lượt đạt và lượt hợp lệ) |
+| Kiểm thủ công | `python perf/board.py manual` đọc `tests/manual-results.yaml` (mã, trạng thái, ngày, người kiểm, bằng chứng; `check` kiểm file này trong CI). Chỉ cho mã không có nguồn tự động |
 | SC6 | `python perf/board.py sc6 <file.json>` |
 | Playwright | `python perf/board.py playwright <report.json>` (mã lấy từ tên test, vd `E2E-03 …`) |
 | Đẩy lại bảng sau khi bật lại Grafana | `python perf/board.py push` (nạp mà chưa bật Grafana: thêm `--no-push`) |
@@ -323,7 +325,7 @@ bash perf/perf.sh down        # tắt perf, xóa dữ liệu của nó (kết qu
 | Lệnh | Tùy chọn chính |
 | :--- | :--- |
 | `up` | `--be/--tadss/--ai TAG` (đo bản khác), `--tadss-off` (SP-06 bên B), `--telemetry-off` (SP-07 bên B), `--trace` (trace 100 %, chỉ lượt phân tích), `--faults` (BE ⇒ Toxiproxy ⇒ TADSS, SP-09), `--llm-delay MS --llm-jitter MS` (mặc định 800 / 200; SP-10A `0 0`), `--db-prepare N` (auto-prepare, mặc định 0 như deploy), `--db-pool N`, `--be-cpus N` (mặc định 2), `--cpu-layout physical\|legacy`, `--pg-locks on\|off`. Mỗi lần `up` đặt lại mọi tùy chọn |
-| `run <profile>` | Profile: `smoke`, `load` (SP-01), `stress` (SP-02), `spike` (SP-03), `soak` (SP-04), `breakpoint` (SP-05), `ai` (SP-10), `closed`. `--rate N` (hành trình/s; danh nghĩa 19), `--duration`, `--warmup 2m`, `--code SP-xx` (nạp dashboard), `--tag`, `--cooldown 120`, `--pg-sample activity\|locks`, `--fault stop-tadss\|latency\|reset` (cần `up --faults`), `--limited "lý do"`, `--selftest`, `--allow-battery` (lượt không dùng để kết luận) |
+| `run <profile>` | Profile: `smoke`, `load` (SP-01), `stress` (SP-02), `spike` (SP-03), `soak` (SP-04), `breakpoint` (SP-05), `ai` (SP-10), `closed`. `--rate N` (hành trình/s; danh nghĩa 19), `--duration`, `--warmup 2m`, `--code SP-xx` (nạp dashboard), `--tag`, `--cooldown 120`, `--pg-sample activity\|locks`, `--fault stop-tadss\|latency\|reset` (cần `up --faults`) hoặc `--fault flag-off` (FI-13: tắt cờ TADSS bằng file cờ của BE giữa pha steady rồi bật lại, đo thời gian có hiệu lực < 2 s; không cần `--faults`), `--limited "lý do"`, `--selftest`, `--allow-battery` (lượt không dùng để kết luận) |
 | `reset` / `status` | Khôi phục hai DB từ mẫu + xóa Redis + kiểm checksum (`run` tự gọi) / tag, commit, trạng thái |
 
 | Container | Vai trò | Cổng |

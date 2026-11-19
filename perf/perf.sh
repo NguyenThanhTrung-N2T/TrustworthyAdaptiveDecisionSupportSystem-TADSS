@@ -10,7 +10,8 @@
 #       --cpu-layout: cpuset theo core vật lý (mặc định, 05/11) hoặc legacy 0-4 / 5-7 (so với lượt cũ). --be-cpus N: trần CPU của BE (mặc định 2).
 #       --telemetry-off: tắt OpenTelemetry của BE, TADSS, AI (cặp đối chứng SP-07). --circuit-off: tắt mạch ngắt lệnh đánh giá cọc của BE
 #       (cặp tắt / bật của SP-09 sau P6-57; mặc định bật như bản deploy). --llm-delay / --llm-jitter: độ trễ LLM giả
-#       (mặc định 800 / 200 ms; SP-10A dùng 0 / 0). --faults: BE gọi TADSS qua Toxiproxy (SP-09; run --fault stop-tadss|latency|reset).
+#       (mặc định 800 / 200 ms; SP-10A dùng 0 / 0). --faults: BE gọi TADSS qua Toxiproxy (SP-09; run --fault stop-tadss|latency|reset);
+#       run --fault flag-off (FI-13) tắt cờ TADSS bằng file cờ của BE giữa pha steady rồi bật lại, không cần --faults.
 #       Mỗi lần up đặt lại mọi núm về giá trị đã cho hoặc mặc định.
 #   bash perf/perf.sh seed [--seed 42] [--customers 2000]   dựng dữ liệu benchmark + database mẫu (một lần sau up)
 #   bash perf/perf.sh reset      khôi phục hai database từ mẫu + xóa Redis + kiểm checksum (trước mỗi lượt đo, P6-46)
@@ -224,7 +225,7 @@ case "$cmd" in
         --cooldown) cooldown="${2:?--cooldown cần số giây}"; shift 2 ;;
         --allow-battery) allow_battery="--allow-battery"; shift ;;
         --fault)
-          case "${2:-}" in stop-tadss|latency|reset) fault="$2" ;; *) echo "perf.sh: --fault stop-tadss|latency|reset" >&2; exit 2 ;; esac; shift 2 ;;
+          case "${2:-}" in stop-tadss|latency|reset|flag-off) fault="$2" ;; *) echo "perf.sh: --fault stop-tadss|latency|reset|flag-off" >&2; exit 2 ;; esac; shift 2 ;;
         *) echo "perf.sh: không hiểu '$1'" >&2; exit 2 ;;
       esac
     done
@@ -235,11 +236,17 @@ case "$cmd" in
       case "$profile" in load|soak|closed) ;; *) echo "perf.sh: --selftest chỉ cho load/soak/closed (profile có threshold SLO)" >&2; exit 2 ;; esac
     fi
     [ "$profile" = smoke ] && k6_env+=(-e "THINK_SCALE=${THINK_SCALE:-0.05}")
-    # SP-09: lỗi tiêm qua Toxiproxy cần BE đang gọi TADSS qua proxy (up --faults); stop-tadss cũng chạy sau proxy cho cùng đường đi
+    # SP-09: lỗi tiêm qua Toxiproxy cần BE đang gọi TADSS qua proxy (up --faults); stop-tadss cũng chạy sau proxy cho cùng đường đi.
+    # flag-off (FI-13) chỉ đổi file cờ của BE nên không cần proxy, nhưng cờ phải đang bật (up không có --tadss-off) thì mới có gì để tắt
     if [ -n "$fault" ]; then
       [ "$profile" = load ] || { echo "perf.sh: --fault chỉ cho profile load (SP-09)" >&2; exit 2; }
-      docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be | grep -q '^TadssConfig__BaseUrl=http://toxiproxy' \
-        || { echo "perf.sh: --fault cần perf.sh up --faults trước" >&2; exit 2; }
+      be_env="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' perf-be)"
+      if [ "$fault" != flag-off ]; then
+        grep -q '^TadssConfig__BaseUrl=http://toxiproxy' <<< "$be_env" || { echo "perf.sh: --fault cần perf.sh up --faults trước" >&2; exit 2; }
+      else
+        grep -q '^TadssConfig__EnableTadssDecision=true' <<< "$be_env" \
+          || { echo "perf.sh: --fault flag-off cần cờ TADSS đang bật (perf.sh up không có --tadss-off)" >&2; exit 2; }
+      fi
     fi
     # Máy đo là laptop (05/11): chạy pin, thiếu RAM VM Docker (bản deploy còn chạy) hoặc thiếu đĩa thì dừng trước khi động vào dữ liệu
     host_check="$(python "$root/stack/hostcheck.py" preflight $allow_battery)" || { echo "perf.sh: máy chưa sẵn sàng để đo (xem DỪNG ở trên)" >&2; exit 1; }

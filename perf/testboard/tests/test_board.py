@@ -81,3 +81,17 @@ def test_push_puts_whole_board_to_pushgateway(monkeypatch):
 
     [request] = calls
     assert (request.get_method(), request.full_url) == ("PUT", "http://pg:9091/metrics/job/testboard")
+
+
+def test_archive_keeps_same_named_files_of_several_runs_apart(tmp_path, isolated_results):
+    # plan 6C B4: `board.py faults` nạp nhiều thư mục lượt, mỗi lượt có faults.json riêng
+    raws = []
+    for run in ("run-a", "run-b"):
+        (tmp_path / run).mkdir()
+        raws.append(tmp_path / run / "faults.json")
+        raws[-1].write_text(run, encoding="utf-8")
+
+    target = board.archive(_source("faults"), raws, isolated_results)
+
+    assert (target / "run-a" / "faults.json").read_text(encoding="utf-8") == "run-a"
+    assert (target / "run-b" / "faults.json").read_text(encoding="utf-8") == "run-b"

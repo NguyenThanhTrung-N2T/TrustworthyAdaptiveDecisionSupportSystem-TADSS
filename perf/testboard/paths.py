@@ -9,6 +9,7 @@ METHODOLOGY = REPO_ROOT / "docs" / "research" / "EXPERIMENTAL_DESIGN_AND_BENCHMA
 METHODOLOGY_REPO_PATH = "docs/research/EXPERIMENTAL_DESIGN_AND_BENCHMARK_METHODOLOGY.md"
 METHODOLOGY_URL = "https://github.com/NguyenThanhTrung-N2T/TrustworthyAdaptiveDecisionSupportSystem-TADSS/blob/develop/" + METHODOLOGY_REPO_PATH
 CATALOG_FILE = REPO_ROOT / "tests" / "catalog.yaml"
+MANUAL_FILE = REPO_ROOT / "tests" / "manual-results.yaml"  # ghi nhận kiểm thủ công (plan 6C, B4): mã, ngày, người kiểm, bằng chứng
 PERF_DIR = REPO_ROOT / "perf"
 RESULTS_DIR = PERF_DIR / "results"
 STATE_FILE = RESULTS_DIR / "state.json"

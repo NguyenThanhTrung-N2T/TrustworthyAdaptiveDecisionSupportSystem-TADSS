@@ -27,7 +27,7 @@ class KpiResult:
 
 @dataclass
 class SourceResult:
-    source: str  # ci-be | ci-tadss | ci-ai | evidence | k6 | sc6 | playwright
+    source: str  # ci-be | ci-tadss | ci-ai | evidence | k6-<mã> | faults | manual | sc6 | playwright
     commit: str = ""
     run: str = ""
     report: str = ""  # URL lượt CI hoặc thư mục kết quả gốc
@@ -35,6 +35,7 @@ class SourceResult:
     codes: dict[str, CodeResult] = field(default_factory=dict)
     kpis: dict[str, KpiResult] = field(default_factory=dict)
     ignored: list[str] = field(default_factory=list)  # mã không có trong danh mục (vd mã quyết định P6-xx gắn nhầm trait)
+    notes: list[str] = field(default_factory=list)  # ghi chú lúc nạp (vd bước CI đã ánh xạ mà lượt này không chạy)
 
     def to_dict(self) -> dict:
         return asdict(self)

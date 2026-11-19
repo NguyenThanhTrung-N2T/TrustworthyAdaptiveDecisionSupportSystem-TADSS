@@ -77,3 +77,71 @@ def test_latency_refuses_a_run_whose_fault_was_never_removed(tmp_path):
 def test_perf_sh_computes_the_window_latency_after_every_fault_run():
     script = (Path(__file__).resolve().parents[2] / "perf.sh").read_text(encoding="utf-8")
     assert 'faults.py" latency "$out"' in script
+
+
+# FI-13 dưới tải (plan 6C, việc B3 = D4): tắt cờ EnableTadssDecision bằng file cờ của BE (P6-56) giữa pha steady rồi bật lại
+
+def test_flag_write_replaces_the_flag_file_in_one_step_as_root():
+    command = faults.flag_write_command(False)
+
+    assert command[:5] == ["docker", "exec", "-u", "0", "perf-be"]
+    script = command[-1]
+    assert '"EnableTadssDecision": false' in script
+    assert script.index("> /app/runtime-config/feature-flags.json.tmp") < script.index("mv /app/runtime-config/feature-flags.json.tmp /app/runtime-config/feature-flags.json")
+
+
+_LOG = """2026-11-19T10:00:00.100000000Z warn: Cờ EnableTadssDecision lúc khởi động: BẬT (đơn online mới hỏi TADSS)
+2026-11-19T10:05:00.900000000Z warn: SmashCourt_BE.Integrations.Tadss.TadssFlagChangeLogger[0]
+2026-11-19T10:05:00.900000000Z       Cờ EnableTadssDecision đổi khi đang chạy: BẬT (đơn online mới hỏi TADSS) ⇒ TẮT (đơn online mới cọc 100 %)
+2026-11-19T10:10:01.200000000Z       Cờ EnableTadssDecision đổi khi đang chạy: TẮT (đơn online mới cọc 100 %) ⇒ BẬT (đơn online mới hỏi TADSS)
+"""
+
+
+def test_flag_change_time_is_read_from_the_be_log_line_of_the_wanted_direction():
+    from datetime import datetime, timezone
+    off = faults.flag_change_at(_LOG, enabled=False)
+    on = faults.flag_change_at(_LOG, enabled=True)
+
+    assert off == datetime(2026, 11, 19, 10, 5, 0, 900000, tzinfo=timezone.utc).timestamp()
+    assert on == datetime(2026, 11, 19, 10, 10, 1, 200000, tzinfo=timezone.utc).timestamp()
+    assert faults.flag_change_at("2026-11-19T10:00:00Z Cờ EnableTadssDecision lúc khởi động: TẮT (đơn online mới cọc 100 %)", enabled=False) is None
+
+
+def test_flag_sql_counts_bookings_that_still_went_through_tadss():
+    sql = faults.flag_sql(100.0, 200.0)
+    assert "b.tadss_decision_id IS NOT NULL" in sql and "FULL_PAYMENT_FALLBACK" in sql and "PENDING_APPROVAL" in sql
+    assert "to_timestamp(100.0)" in sql and "to_timestamp(200.0)" in sql
+
+
+@pytest.mark.parametrize(
+    ("args", "status", "problem"),
+    [({}, "PASS", None),
+     ({"effect": 2.4}, "FAIL", "2.4 s"),
+     ({"effect": None}, "FAIL", "BE không ghi log xác nhận"),
+     ({"via_tadss": 3}, "FAIL", "3 đơn vẫn gọi TADSS"),
+     ({"not_fallback": 1}, "FAIL", "1 đơn không cọc 100 %"),
+     ({"awaiting": 1}, "FAIL", "chờ duyệt"),
+     ({"reenabled": 0}, "FAIL", "bật lại"),
+     ({"duplicates": 1}, "FAIL", "PRIMARY"),
+     ({"bookings": 0}, "INSUFFICIENT", None)],
+)
+def test_judge_flag_needs_fast_effect_full_payment_while_off_and_tadss_again_after(args, status, problem):
+    values = {"effect": 0.8, "bookings": 150, "not_fallback": 0, "awaiting": 0, "via_tadss": 0, "duplicates": 0, "reenabled": 25, **args}
+
+    result = faults.judge_flag(values["effect"], values["bookings"], values["not_fallback"], values["awaiting"], values["via_tadss"],
+                               values["duplicates"], values["reenabled"])
+
+    assert result["status"] == status
+    assert result["effectSeconds"] == values["effect"]
+    if problem:
+        assert any(problem in item for item in result["problems"]), result["problems"]
+
+
+def test_flag_check_window_starts_at_the_two_second_limit():
+    assert faults.flag_window(1000.0, 1300.0) == (1002.0, 1298.0)
+
+
+def test_perf_sh_accepts_flag_off_without_toxiproxy():
+    script = (Path(__file__).resolve().parents[2] / "perf.sh").read_text(encoding="utf-8")
+    assert "stop-tadss|latency|reset|flag-off)" in script
+    assert '[ "$fault" != flag-off ]' in script

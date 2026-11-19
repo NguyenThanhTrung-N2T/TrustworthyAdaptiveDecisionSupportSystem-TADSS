@@ -1,0 +1,90 @@
+# Ghi nhận kết quả kiểm thủ công cho dashboard "Kiểm thử" (plan 6C, việc B4 = D1; nạp: python perf/board.py manual).
+# Chỉ cho mã không có nguồn tự động: kiểm tay, kiểm trên bản deploy, hoặc kết quả có sai lệch đã giải thích.
+# Bước CI (OPS-01/02, SEC-BE-7, SEC-AI-3/4, NG-2/3, OB-4) KHÔNG ghi ở đây: `board.py ci` đọc thẳng kết luận step của lượt CI.
+# Mỗi bản ghi: code (có trong tests/catalog.yaml), state (passed | limited | failed), date (YYYY-MM-DD, ngày kiểm), by (người kiểm),
+# evidence (đường dẫn trong repo, link hoặc lệnh đã chạy), detail (đã thấy gì). `board.py check` (CI) kiểm file này.
+# Chỉ ghi passed khi đủ bằng chứng cho mọi ý của tiêu chí trong methodology; thiếu một ý ⇒ limited và ghi rõ ý còn thiếu.
+
+- code: OPS-05
+  state: passed
+  date: 2026-11-19
+  by: Claude
+  evidence: docker inspect smashcourt-be, tadss-runtime, smashcourt-ai (nhãn org.opencontainers.image.revision); dashboard Vận hành đọc nhãn qua cAdvisor (spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, Giai đoạn 1C)
+  detail: nhãn revision của cả 3 container bằng sha của tag đang chạy (BE sha-1fa2d2c, TADSS sha-00effe3, AI sha-298c683)
+
+- code: OPS-06
+  state: passed
+  date: 2026-11-13
+  by: Claude
+  evidence: perf/evidence/PERF-6C-20261113-SP09/*/metadata.json (image GHCR theo sha) và SmashCourt-BE/deploy/docker-compose.yml (cùng image, IMAGE_TAG)
+  detail: cùng image GHCR theo sha chạy ở bản deploy và môi trường perf, khác nhau chỉ ở biến môi trường (perf.sh up --circuit-off chỉ đổi TadssConfig__CircuitEnabled)
+
+- code: OPS-07
+  state: passed
+  date: 2026-10-31
+  by: Claude
+  evidence: smashcourt-fe/.github/workflows/ci.yml; https://github.com/NguyenThanhTrung-N2T/SmashCourt-FE/actions/runs/41220119844
+  detail: lint ⇒ tsc --noEmit ⇒ build; deploy-production chỉ khi push master và needs lint-and-build (tsc lỗi thì job triển khai không chạy); lượt master 426e680 triển khai Vercel thành công
+
+- code: OPS-08
+  state: limited
+  date: 2026-11-01
+  by: Claude
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, Giai đoạn 1D bước 2–3 (deploy/cd.sh của SmashCourt-BE)
+  detail: sha sai dạng ⇒ thoát 3, image sha-<7> không có trên GHCR ⇒ thoát 3 (thử trên máy); ca nhãn revision lệch sha chưa thử riêng, thử trong diễn tập 1.41
+
+- code: OB-BE-4
+  state: passed
+  date: 2026-11-01
+  by: người dùng + Claude
+  evidence: lịch sử cảnh báo Grafana Cloud (luật "Service không sẵn sàng"); spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md Mục 4
+  detail: dừng AI làm sự cố giả, luật "Service không sẵn sàng" của AI chuyển Alerting lúc 13:12 và gửi email
+
+- code: OB-AI-2
+  state: passed
+  date: 2026-11-01
+  by: Claude
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, Giai đoạn 1C (Grafana local grafana/otel-lgtm thay Grafana Cloud)
+  detail: một câu chat qua POST /api/ai/chat cho một trace chung BE ⇒ AI ⇒ Gemini; URL span Gemini không chứa khóa
+
+- code: OB-AI-3
+  state: passed
+  date: 2026-11-01
+  by: Claude
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, Giai đoạn 1C và Mục 4
+  detail: mọi truy vấn của tab AI có dữ liệu từ image AI thật (metric Gemini đủ nhãn model, outcome); bản deploy hầu như không có request AI nên panel Gemini trên Grafana Cloud thường trống
+
+- code: SEC-AI-1
+  state: passed
+  date: 2026-11-19
+  by: Claude
+  evidence: docker inspect smashcourt-ai (HostConfig.PortBindings) và SmashCourt-BE/deploy/docker-compose.yml (ngrok command http be:8080)
+  detail: cổng host của AI chỉ 127.0.0.1:8000; không có ngrok riêng cho AI, ngrok duy nhất trỏ vào BE
+
+- code: SCALE-3
+  state: passed
+  date: 2026-11-19
+  by: Claude
+  evidence: docs/architecture/SOFTWARE_ARCHITECTURE_SPECIFICATION.md (đoạn SCALE-3)
+  detail: SAS liệt kê thành phần theo từng instance (rate limit, breaker, cache L1) và thành phần dùng chung (PostgreSQL, Redis), hệ quả và hướng mở rộng
+
+- code: LT-01
+  state: passed
+  date: 2026-10-17
+  by: Claude
+  evidence: spec/archive/phase5/PHASE5_REPORT_5.7.md Mục 2 (lượt EV-20261017-EVAL-full-r1, bước b)
+  detail: 3 lượt LT-01, p95 client lớn nhất 56,2 ms; SC1 đạt (99,10 % quyết định ≤ 150 ms phía server). Bước (b) trượt vì LT-02/LT-05 nên mã không có trong manifest
+
+- code: LT-02
+  state: limited
+  date: 2026-10-17
+  by: Claude
+  evidence: spec/archive/phase5/PHASE5_REPORT_5.7.md Mục 3
+  detail: sai lệch đã giải thích ở Gate M5, 55 response 504 trên 139.568 (0,04 %) do máy bận (A/B LongRunning và Task.Run cùng máy); không nới tiêu chí, chờ lượt đầy đủ trên máy rảnh
+
+- code: LT-05
+  state: limited
+  date: 2026-10-17
+  by: Claude
+  evidence: spec/archive/phase5/PHASE5_REPORT_5.7.md Mục 3
+  detail: sai lệch đã giải thích ở Gate M5, 195 response 504 trên 179.196 (0,11 %) dồn ở phút 10–40; không trôi độ trễ (p50 10,6–16,3 ms suốt 60 phút)
