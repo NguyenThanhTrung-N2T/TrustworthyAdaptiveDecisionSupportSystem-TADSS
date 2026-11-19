@@ -301,7 +301,7 @@ _MANUAL_FIELDS = ("code", "state", "date", "by", "evidence")
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _manual_records(path: Path) -> object:
+def manual_records(path: Path) -> object:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None) or []
 
 
@@ -309,7 +309,7 @@ def manual_errors(path: Path, known: set[str]) -> list[str]:
     """Lỗi của file ghi nhận thủ công (dùng ở `board.py check` trong CI và trước khi nạp)."""
     if not path.is_file():
         return [f"{path.name}: không có file"]
-    records = _manual_records(path)
+    records = manual_records(path)
     if not isinstance(records, list):
         return [f"{path.name}: phải là danh sách bản ghi (mỗi bản ghi: {', '.join(_MANUAL_FIELDS)}, detail)"]
     errors, seen = [], set()
@@ -335,7 +335,7 @@ def read_manual(path: Path, known: set[str], source: SourceResult) -> SourceResu
     errors = manual_errors(path, known)
     if errors:
         raise ValueError("file ghi nhận thủ công lỗi: " + "; ".join(errors))
-    for record in _manual_records(path):
+    for record in manual_records(path):
         detail = f"{record['date']} · {record['by']}: {str(record.get('detail') or '').strip()} · bằng chứng: {record['evidence']}"
         source.codes[record["code"]] = CodeResult(MANUAL_STATES[record["state"]], detail=detail[:_MERGED_DETAIL_MAX])
     return source

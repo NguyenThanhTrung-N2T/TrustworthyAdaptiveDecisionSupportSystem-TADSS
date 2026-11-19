@@ -55,3 +55,22 @@ def test_ci_download_folder_is_removed_after_its_copy_is_archived(tmp_path, monk
     assert not downloaded.exists()
     archived = board.load_state()["ci-be"].report
     assert archived and (board.paths.REPO_ROOT / archived / "testboard-be-x" / "unit.trx").is_file()
+
+
+def test_update_loads_three_ci_repos_and_manual_then_writes_one_report(tmp_path, monkeypatch, isolated_results):
+    from testboard import ci
+    from testboard.model import SourceResult
+
+    def fake_download(repo, branch, known):
+        folder = tmp_path / f"dl-{repo.key}"
+        folder.mkdir()
+        return SourceResult(f"ci-{repo.key}", commit="abc1234"), folder
+
+    monkeypatch.setattr(ci, "download", fake_download)
+
+    assert cli.main(["--no-push", "update"]) == 0
+
+    assert set(board.load_state()) == {"ci-be", "ci-tadss", "ci-ai", "manual"}
+    assert (isolated_results / "BAO_CAO_MOI_NHAT.html").is_file()
+    assert len(list((isolated_results / "reports").iterdir())) == 1
+    assert (paths_manual := board.paths.MANUAL_FILE).is_file()   # file ghi nhận tay của repo không bị xóa như thư mục tải CI

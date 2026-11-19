@@ -275,34 +275,40 @@ bash tools/evaluation/run.sh quick --steps e,f
 
 ---
 
-## 7. Dashboard "Kiểm thử" (mọi nhóm test đạt / hỏng)
+## 7. Báo cáo tổng kết chất lượng và dashboard "Kiểm thử"
 
-Trong `TADSS-Runtime/`. Chạy trên máy (Grafana local), tách khỏi Grafana Cloud.
+Trong `TADSS-Runtime/` (một lần: `pip install -r perf/requirements.txt`; tải kết quả CI cần `gh` đã đăng nhập).
 
-```text
-methodology Mục 4 (bảng mã test) ──python perf/board.py catalog──► tests/catalog.yaml (193 mã)
-CI ba repo (test + bước kiểm) · Evidence Pack · k6 · FI · ghi nhận tay · SC6 · Playwright ──python perf/board.py <nguồn>──► perf/results/<thời điểm>-<nguồn>/ (bản gốc)
-                                                     │ gộp theo mã (một nguồn đỏ ⇒ mã đỏ)
-                                                     ▼
-                              Pushgateway ⇒ Prometheus (giữ 365 ngày) ⇒ Grafana "SmashCourt - Kiểm thử" (BE / TADSS / AI)
-```
+**Thường ngày chỉ cần ba việc:**
 
-Bật: `docker compose -f perf/docker-compose.yml up -d` (một lần `pip install -r perf/requirements.txt`) ⇒ <http://127.0.0.1:3003> (không đăng nhập) ⇒ Dashboards ⇒ **SmashCourt - Kiểm thử**. Tắt: `docker compose -f perf/docker-compose.yml down` (thêm `-v` để xóa sạch). Prometheus <http://127.0.0.1:9095>, Pushgateway `:9096`, Alloy OTLP `:14317` / `:14318`, Tempo (trace của lượt phân tích).
+| Việc | Lệnh | Kết quả |
+| :--- | :--- | :--- |
+| Lấy kết quả test mới nhất | `python perf/board.py update` | tải kết quả CI của BE, TADSS, AI + nạp ghi nhận kiểm tay ⇒ xuất báo cáo |
+| Đo hiệu năng | `bash perf/perf.sh run load --code SP-01` (các kịch bản ở mục 8) | đo xong tự nạp kết quả ⇒ xuất báo cáo |
+| Xem | mở **`perf/results/BAO_CAO_MOI_NHAT.html`** bằng trình duyệt | |
+
+**Báo cáo tổng kết** (một file HTML, viết cho người đọc không chuyên): kết luận chung (đạt / đạt có lưu ý / chưa đạt), trả lời nhanh 12 câu hỏi (đặt sân có chạy đúng, có nhanh, đông khách thì sao, TADSS hỏng thì sao, dữ liệu có sai…), mục "Cần lưu ý" (mỗi điểm một câu "nghĩa là gì" + chi tiết kỹ thuật), mục "Chưa kiểm", phụ lục kỹ thuật đủ mọi mã. Mỗi lệnh nạp sinh lại báo cáo; bản theo thời điểm ở `perf/results/reports/` (giữ 30 bản gần nhất). Nạp lại một nguồn thì bản gốc cũ của nguồn đó tự xóa; dữ liệu đo thô ở `perf/results/k6/` không bị đụng.
+
+**Dashboard "Kiểm thử"** (cho người kỹ thuật, tùy chọn): `docker compose -f perf/docker-compose.yml up -d` ⇒ <http://127.0.0.1:3003> ⇒ **SmashCourt - Kiểm thử** (BE / TADSS / AI; bấm ô nhóm để xem mã hỏng). Grafana chưa bật thì lệnh nạp vẫn lưu kết quả và báo cáo, chỉ báo "chưa đẩy lên dashboard"; bật xong chạy `python perf/board.py push` (cũng cần sau mỗi lần Docker khởi động lại, vì Pushgateway không lưu được ra đĩa).
+
+**Kiểm tay** (mã không có nguồn tự động, ví dụ thử email cảnh báo, diễn tập triển khai): thêm một bản ghi vào `tests/manual-results.yaml` (mã, trạng thái, ngày, người kiểm, bằng chứng, `plain` = một câu cho người đọc thường) rồi `python perf/board.py update`.
+
+<details><summary>Lệnh nâng cao (nạp từng nguồn riêng, sinh lại danh mục)</summary>
 
 | Nạp từ | Lệnh |
 | :--- | :--- |
-| CI gần nhất (cần `gh` đăng nhập) | `python perf/board.py ci all` (hoặc `be`, `tadss`, `ai`; `--branch` để đổi nhánh). Cộng kết luận các bước kiểm không phải test của cùng lượt (quét gói, kiểm image, `verify-expose.sh`, `verify-observability.sh` ⇒ OPS-01/02, SEC-BE-7, SEC-7, SEC-AI-3/4, NG-x, OB-2/4); bảng tên step ⇒ mã ở `perf/testboard/ci.py`, đổi tên step trong workflow thì lệnh in `bước CI không thấy`. Bản tải về thư mục tạm, chép vào `perf/results/` rồi tự xóa |
+| Một repo CI / nhánh khác | `python perf/board.py ci be\|tadss\|ai\|all [--branch develop]`: cộng kết luận các bước kiểm không phải test (quét gói, kiểm image, `verify-expose.sh`, `verify-observability.sh`); bảng tên step ⇒ mã ở `perf/testboard/ci.py`, đổi tên step thì lệnh in `bước CI không thấy` |
 | Test chạy trên máy | BE / TADSS: `dotnet test … --logger trx --results-directory <dir>` với `SMASHCOURT_CATALOG_INDEX_DIR=<dir>` (BE) / `TADSS_CATALOG_INDEX_DIR=<dir>` (TADSS) ⇒ `python perf/board.py trx be <dir>`; AI: `pytest --junitxml=<file>` ⇒ `python perf/board.py junit <file>` |
 | Evidence Pack | `python perf/board.py evidence evidence/<run_id>` |
-| k6 | `python perf/board.py k6 SP-01 <summary.json \| thư mục lượt \| pooled-*.json> …` (kết luận chính thức theo bản gộp ≥ 3 lượt của B.7.2; nhiều file cho cùng mã, vd hai phía A/B của SP-06, giữ trạng thái xấu nhất; lượt hạn chế thêm `--limited "lý do"`) |
-| FI-11…14 dưới tải | `python perf/board.py faults <thư mục lượt SP-09> …` (đạt khi kiểm đơn trong lỗi đạt, SC6 của lượt đạt và lượt hợp lệ) |
-| Kiểm thủ công | `python perf/board.py manual` đọc `tests/manual-results.yaml` (mã, trạng thái, ngày, người kiểm, bằng chứng; `check` kiểm file này trong CI). Chỉ cho mã không có nguồn tự động |
-| SC6 | `python perf/board.py sc6 <file.json>` |
-| Playwright | `python perf/board.py playwright <report.json>` (mã lấy từ tên test, vd `E2E-03 …`) |
-| Đẩy lại bảng sau khi bật lại Grafana | `python perf/board.py push` (nạp mà chưa bật Grafana: thêm `--no-push`) |
-| Sinh lại danh mục / dashboard; kiểm (= CI) | `python perf/board.py catalog` · `dashboards` · `check` |
+| k6 | `python perf/board.py k6 SP-01 <summary.json \| thư mục lượt \| pooled-*.json> …` (kết luận chính thức theo bản gộp ≥ 3 lượt của B.7.2; nhiều file cho cùng mã giữ trạng thái xấu nhất; lượt hạn chế thêm `--limited "lý do"`) |
+| FI-11…14 dưới tải | `python perf/board.py faults <thư mục lượt SP-09> …` |
+| SC6 / Playwright | `python perf/board.py sc6 <file.json>` · `python perf/board.py playwright <report.json>` (mã lấy từ tên test, vd `E2E-03 …`) |
+| Chỉ xuất lại báo cáo | `python perf/board.py report` |
+| Sinh lại danh mục / dashboard; kiểm (= CI) | `python perf/board.py catalog` · `dashboards` · `check`. Sửa bảng mã trong methodology thì **phải** chạy `catalog` rồi `check` |
 
-Đọc: hàng KPI SC1–SC8; tầng 1 mỗi ô một nhóm `đạt/tổng` (xanh / đỏ / vàng hạn chế / xám chưa chạy), **bấm ô** ⇒ tầng 2 bảng mã (mặc định chỉ mã hỏng) ⇒ cột "Báo cáo" mở file gốc; hàng "Hiệu năng" đặt k6 phía client cạnh số liệu server. Sửa bảng mã trong methodology thì **phải** chạy `python perf/board.py catalog` rồi `check` (CI job Testboard đỏ nếu quên). Gắn mã cho test mới: BE `[Trait("Catalog", "BE-IT-27")]`, TADSS `[Trait("CatalogId", "IT-16")]`, AI `@pytest.mark.catalog("AI-UT-06")`.
+Gắn mã cho test mới: BE `[Trait("Catalog", "BE-IT-27")]`, TADSS `[Trait("CatalogId", "IT-16")]`, AI `@pytest.mark.catalog("AI-UT-06")`.
+
+</details>
 
 ---
 

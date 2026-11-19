@@ -6,15 +6,18 @@ import shutil
 import sys
 from pathlib import Path
 
-from testboard import board, catalog, ci, dashboards, paths
+from testboard import board, catalog, ci, dashboards, paths, report
 from testboard.model import STATE_NAMES, SourceResult
 from testboard.sources import manual_errors, mark_limited, read_evidence, read_faults, read_junit, read_k6, read_manual, read_playwright, read_sc6, read_trx
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python perf/board.py", description="Bảng kết quả kiểm thử (dashboard Kiểm thử)")
+    parser = argparse.ArgumentParser(prog="python perf/board.py", description="Kết quả kiểm thử: báo cáo tổng kết perf/results/BAO_CAO_MOI_NHAT.html + dashboard Kiểm thử")
     parser.add_argument("--no-push", action="store_true", help="chỉ ghi perf/results/, không đẩy lên Pushgateway (Grafana chưa bật)")
     sub = parser.add_subparsers(dest="command", required=True)
+    # Hai lệnh thường dùng; các lệnh nạp bên dưới chỉ cho trường hợp riêng (perf.sh tự gọi k6 / faults sau mỗi lượt đo)
+    sub.add_parser("update", help="việc thường ngày: tải kết quả CI ba repo + nạp ghi nhận kiểm tay + xuất báo cáo tổng kết")
+    sub.add_parser("report", help="chỉ xuất lại báo cáo tổng kết từ kết quả đã nạp")
     sub.add_parser("catalog", help="sinh lại tests/catalog.yaml từ methodology")
     sub.add_parser("dashboards", help="sinh lại perf/grafana/dashboards/*.json")
     sub.add_parser("check", help="kiểm catalog và dashboard khớp nguồn, mô tả panel đủ 6 ý (CI)")
@@ -71,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
 
     known = catalog.load()
     push_url = None if args.no_push else board.PUSHGATEWAY_URL
+    if args.command == "report":
+        print(f"Báo cáo: {report.write(known)}")
+        return 0
     if args.command == "push":
         sources = board.load_state()
         board.push(board.exposition(board.merge(known, sources), sources))
@@ -79,10 +85,13 @@ def main(argv: list[str] | None = None) -> int:
 
     codes = set(known)
     loads: list[tuple[SourceResult, list[Path]]] = []
-    if args.command == "ci":
-        for key in (["be", "tadss", "ai"] if args.repo == "all" else [args.repo]):
-            source, directory = ci.download(ci.REPOS[key], args.branch, codes)
+    if args.command in ("ci", "update"):
+        repos = ["be", "tadss", "ai"] if args.command == "update" or args.repo == "all" else [args.repo]
+        for key in repos:
+            source, directory = ci.download(ci.REPOS[key], getattr(args, "branch", None), codes)
             loads.append((source, [directory]))
+    if args.command == "update":
+        loads.append((read_manual(paths.MANUAL_FILE, codes, SourceResult("manual", run=paths.MANUAL_FILE.name)), [paths.MANUAL_FILE]))
     elif args.command == "trx":
         loads.append((read_trx(args.directory, codes, SourceResult(f"local-{args.system}", run="chạy trên máy")), [args.directory]))
     elif args.command == "junit":
@@ -112,9 +121,10 @@ def main(argv: list[str] | None = None) -> int:
     for source, raw in loads:
         target, merged = board.record(source, raw, known, push_url)
         _report(source, target, merged)
-        if args.command == "ci":   # bản tải CI nằm trong thư mục tạm của hệ thống, đã chép vào perf/results: xóa để không tồn đọng
+        if source.source.startswith("ci-"):   # bản tải CI nằm trong thư mục tạm của hệ thống, đã chép vào perf/results: xóa để không tồn đọng
             for directory in raw:
                 shutil.rmtree(directory, ignore_errors=True)
+    print(f"Báo cáo: {report.write(known)}")
     return 0
 
 

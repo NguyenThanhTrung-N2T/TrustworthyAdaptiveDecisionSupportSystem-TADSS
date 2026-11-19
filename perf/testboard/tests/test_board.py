@@ -95,3 +95,22 @@ def test_archive_keeps_same_named_files_of_several_runs_apart(tmp_path, isolated
 
     assert (target / "run-a" / "faults.json").read_text(encoding="utf-8") == "run-a"
     assert (target / "run-b" / "faults.json").read_text(encoding="utf-8") == "run-b"
+
+
+def test_reloading_a_source_removes_its_older_archives_only(tmp_path, entries, isolated_results):
+    # 19/11 người dùng: perf/results không được phình; bản gốc lần trước của cùng nguồn bị thay thì xóa, nguồn khác và dữ liệu k6 giữ
+    for name in ("20261101-000000-ci-be", "20261102-000000-ci-be", "20261101-000000-ci-be-x", "20261101-000000-k6-SP-01"):
+        (isolated_results / name).mkdir(parents=True)
+    (isolated_results / "k6").mkdir()
+
+    target, _ = board.record(_source("ci-be", **{"UT-01": PASSED}), [], entries, push_url=None)
+
+    assert sorted(path.name for path in isolated_results.iterdir()) == sorted(
+        [target.name, "20261101-000000-ci-be-x", "20261101-000000-k6-SP-01", "k6", "state.json"])
+
+
+def test_dashboard_down_does_not_lose_the_load(entries, isolated_results, capsys):
+    target, _ = board.record(_source("ci-be", **{"UT-01": PASSED}), [], entries, push_url="http://127.0.0.1:9")
+
+    assert board.load_state()["ci-be"].codes["UT-01"].state == PASSED
+    assert "chưa đẩy lên dashboard" in capsys.readouterr().out

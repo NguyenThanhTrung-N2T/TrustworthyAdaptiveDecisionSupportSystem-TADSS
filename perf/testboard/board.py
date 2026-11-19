@@ -3,6 +3,7 @@ Mỗi lần nạp chỉ thay kết quả của đúng nguồn đó (state.json g
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import urllib.request
 from dataclasses import dataclass
@@ -154,9 +155,22 @@ def record(source: SourceResult, raw_files: list[Path], catalog: dict[str, Catal
         source.report = target.relative_to(paths.REPO_ROOT).as_posix() if target.is_relative_to(paths.REPO_ROOT) else str(target)
         (target / "summary.json").write_text(json.dumps(source.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
     sources = load_state()
+    _remove_replaced_archives(source.source, target)
     sources[source.source] = source
     save_state(sources)
     merged = merge(catalog, sources)
     if push_url:
-        push(exposition(merged, sources), push_url)
+        try:
+            push(exposition(merged, sources), push_url)
+        except OSError as error:   # Grafana / Pushgateway chưa bật: kết quả và báo cáo vẫn lưu, đẩy sau bằng `board.py push`
+            print(f"  (chưa đẩy lên dashboard: {error}; bật bộ quan sát rồi chạy `python perf/board.py push`)")
     return target, merged
+
+
+def _remove_replaced_archives(source: str, current: Path) -> None:
+    """Nạp lại một nguồn thì các bản gốc lần trước của nguồn đó (thư mục `<thời điểm>-<nguồn>`) không còn ai trỏ tới: xóa để perf/results
+    không phình. Dữ liệu đo thô của k6 nằm ở perf/results/k6/, không bị đụng."""
+    pattern = re.compile(rf"^\d{{8}}-\d{{6}}-{re.escape(source)}$")
+    for old in current.parent.iterdir():
+        if old.is_dir() and old != current and pattern.match(old.name):
+            shutil.rmtree(old, ignore_errors=True)
