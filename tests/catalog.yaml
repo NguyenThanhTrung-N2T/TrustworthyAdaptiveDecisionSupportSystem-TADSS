@@ -1497,7 +1497,7 @@ codes:
     group: "DOC"
     group_label: "Tài liệu"
     systems: ["TADSS"]
-    title: "Mọi file trong docs/ và các README/CLAUDE.md của repo có đúng một dòng trong bảng kiểm kê ở mục \"Tài liệu\" của README.md (gốc repo), nhóm hiện hành hoặc lịch sử; file lịch sử dạng…"
+    title: "Mọi file trong docs/ và các README/CLAUDE.md của repo có đúng một dòng trong bảng kiểm kê ở docs/README.md (mục lục tài liệu; trước 20/11/2026 nằm ở README.md gốc), nhóm hiện hành…"
     criteria: ""
     runner: "tự động (tools/docs/check_docs.py: CI, bước (a))"
     tool: "check_docs.py, xUnit"
