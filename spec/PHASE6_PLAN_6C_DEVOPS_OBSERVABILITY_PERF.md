@@ -327,9 +327,9 @@ Quy ước: **A** = agent (Claude) làm; **N** = người dùng làm; **A+N** = 
 **Kiểm thử (tay, local):**
 1. Tắt `stable` và `preview` (nếu đo chính thức).
 2. Bật `perf` với tag image cần đo.
-3. Chạy một kịch bản (vd SP-01, cờ bật, seed cố định); script tự khôi phục dữ liệu, warm-up, đo, ghi kết quả, đánh giá hợp lệ, nạp lên dashboard.
-4. Nạp kết quả các nhóm khác (CI, evaluator, E2E) bằng bộ nạp.
-5. Xem dashboard "Kiểm thử": ô đỏ ⇒ bấm xem mã hỏng ⇒ mở báo cáo gốc.
+3. Chạy một kịch bản (vd SP-01, cờ bật, seed cố định); script tự khôi phục dữ liệu, warm-up, đo, ghi kết quả, đánh giá hợp lệ, nạp kết quả.
+4. Lấy kết quả test mới nhất của CI ba repo và ghi nhận kiểm tay: `python perf/board.py update` (sửa 19/11).
+5. Xem báo cáo tổng kết `perf/results/BAO_CAO_MOI_NHAT.html` (lời thường, sinh lại sau mỗi lần nạp; sửa 19/11) hoặc dashboard "Kiểm thử" (ô đỏ ⇒ bấm xem mã hỏng ⇒ mở báo cáo gốc).
 
 Lệnh cụ thể ghi trong runbook ở task 1.42 và 2.29.
 

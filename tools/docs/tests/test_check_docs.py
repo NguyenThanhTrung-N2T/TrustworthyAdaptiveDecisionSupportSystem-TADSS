@@ -23,8 +23,8 @@ def _inventory_file(rows: list[tuple[str, str]]) -> str:
 
 
 def _tree(root: Path, rows: list[tuple[str, str]], files: dict[str, str] | None = None) -> None:
-    """Cây tối thiểu: README.md ở gốc có bảng kiểm kê `rows` (và tự có dòng cho chính nó) cùng các file `files`."""
-    _write(root, "README.md", _inventory_file([("README.md", "hiện hành"), *rows]))
+    """Cây tối thiểu: docs/README.md có bảng kiểm kê `rows` (và tự có dòng cho chính nó) cùng các file `files`."""
+    _write(root, check_docs.INVENTORY_PATH, _inventory_file([(check_docs.INVENTORY_PATH, "hiện hành"), *rows]))
     for relative, text in (files or {}).items():
         _write(root, relative, text)
 
@@ -51,25 +51,26 @@ def test_github_slug_matches_github_rules(heading: str, slug: str) -> None:
 def test_load_inventory_reads_groups_by_relative_path(tmp_path: Path) -> None:
     _tree(tmp_path, [("docs/a.md", "hiện hành"), ("docs/b.docx", "lịch sử")])
 
-    assert check_docs.load_inventory(tmp_path) == {"README.md": "hiện hành", "docs/a.md": "hiện hành", "docs/b.docx": "lịch sử"}
+    assert check_docs.load_inventory(tmp_path) == {"docs/README.md": "hiện hành", "docs/a.md": "hiện hành", "docs/b.docx": "lịch sử"}
 
 
-def test_load_inventory_reads_table_from_root_readme_not_docs_readme(tmp_path: Path) -> None:
+def test_load_inventory_reads_table_from_docs_readme_not_root_readme(tmp_path: Path) -> None:
+    # 20/11/2026: README.md gốc chỉ còn phần giới thiệu; bảng ở đó (nếu có) không được tính
     _tree(tmp_path, [("docs/a.md", "hiện hành")])
-    _write(tmp_path, "docs/README.md", _inventory_file([("docs/stale.md", "lịch sử")]))
+    _write(tmp_path, "README.md", _inventory_file([("docs/stale.md", "lịch sử")]))
 
-    assert check_docs.load_inventory(tmp_path) == {"README.md": "hiện hành", "docs/a.md": "hiện hành"}
+    assert check_docs.load_inventory(tmp_path) == {"docs/README.md": "hiện hành", "docs/a.md": "hiện hành"}
 
 
 def test_load_inventory_finds_table_among_other_readme_content(tmp_path: Path) -> None:
     _write(
         tmp_path,
-        "README.md",
+        check_docs.INVENTORY_PATH,
         "# Repo\n\n| Cần tìm | Tài liệu |\n| :--- | :--- |\n| x | y |\n\n```md\n| File | Nhóm |\n| :--- | :--- |\n| `docs/fake.md` | lịch sử |\n```\n\n"
-        "## Tài liệu\n\n| File | Nhóm | Ghi chú |\n| :--- | :--- | :--- |\n| `README.md` | hiện hành | gốc |\n| `docs/a.md` | lịch sử | cũ |\n\nHết bảng.\n",
+        "## Tài liệu\n\n| File | Nhóm | Ghi chú |\n| :--- | :--- | :--- |\n| `docs/README.md` | hiện hành | gốc |\n| `docs/a.md` | lịch sử | cũ |\n\nHết bảng.\n",
     )
 
-    assert check_docs.load_inventory(tmp_path) == {"README.md": "hiện hành", "docs/a.md": "lịch sử"}
+    assert check_docs.load_inventory(tmp_path) == {"docs/README.md": "hiện hành", "docs/a.md": "lịch sử"}
 
 
 def test_load_inventory_rejects_unknown_group(tmp_path: Path) -> None:
@@ -87,15 +88,15 @@ def test_load_inventory_rejects_duplicate_row(tmp_path: Path) -> None:
 
 
 def test_load_inventory_rejects_missing_inventory_file(tmp_path: Path) -> None:
-    with pytest.raises(check_docs.InventoryError, match="README.md"):
+    with pytest.raises(check_docs.InventoryError, match="docs/README.md"):
         check_docs.load_inventory(tmp_path)
 
 
 def test_load_inventory_rejects_readme_without_inventory_table(tmp_path: Path) -> None:
-    _write(tmp_path, "README.md", "# Repo\n\nKhông có bảng.\n")
-    _write(tmp_path, "docs/README.md", _inventory_file([("docs/a.md", "hiện hành")]))
+    _write(tmp_path, "docs/README.md", "# Tài liệu\n\nKhông có bảng.\n")
+    _write(tmp_path, "README.md", _inventory_file([("docs/a.md", "hiện hành")]))
 
-    with pytest.raises(check_docs.InventoryError, match="README.md"):
+    with pytest.raises(check_docs.InventoryError, match="docs/README.md"):
         check_docs.load_inventory(tmp_path)
 
 
@@ -108,7 +109,7 @@ def test_inventory_flags_file_missing_from_table(tmp_path: Path) -> None:
 
     assert any("docs/guides/x.md" in problem for problem in problems)
     assert any(problem.startswith("CLAUDE.md") for problem in problems), "CLAUDE.md ở gốc cũng phải có dòng kiểm kê"
-    assert all("trong bảng kiểm kê README.md" in problem for problem in problems), "thông báo phải nêu README.md là nơi đặt bảng"
+    assert all("trong bảng kiểm kê docs/README.md" in problem for problem in problems), "thông báo phải nêu docs/README.md là nơi đặt bảng"
 
 
 def test_inventory_flags_row_pointing_to_missing_file(tmp_path: Path) -> None:

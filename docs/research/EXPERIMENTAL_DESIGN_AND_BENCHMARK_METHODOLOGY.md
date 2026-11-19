@@ -349,7 +349,7 @@ Mỗi kịch bản E2E lưu video, trace Playwright và correlation id để tra
 
 | ID | Kiểm chứng | Ai chạy | Xây dựng |
 | :--- | :--- | :--- | :--- |
-| DOC-1 | Mọi file trong `docs/**` và các README/CLAUDE.md của repo có đúng một dòng trong bảng kiểm kê ở mục "Tài liệu" của `README.md` (gốc repo), nhóm `hiện hành` hoặc `lịch sử`; file lịch sử dạng markdown mở đầu bằng banner `> **Tài liệu lịch sử**` | tự động (`tools/docs/check_docs.py`: CI, bước (a)) | P5 |
+| DOC-1 | Mọi file trong `docs/**` và các README/CLAUDE.md của repo có đúng một dòng trong bảng kiểm kê ở `docs/README.md` (mục lục tài liệu; trước 20/11/2026 nằm ở `README.md` gốc), nhóm `hiện hành` hoặc `lịch sử`; file lịch sử dạng markdown mở đầu bằng banner `> **Tài liệu lịch sử**` | tự động (`tools/docs/check_docs.py`: CI, bước (a)) | P5 |
 | DOC-2 | Tài liệu hiện hành không mô tả như hiện tại những thứ đã gỡ (danh sách `REMOVED_TERMS`): mỗi lần xuất hiện phải nằm trong file lịch sử hoặc trên dòng nói về quá khứ/cấm (`gỡ`, `đã bỏ`, `thay cho`, `thay bằng`, `không còn`, `không dùng`, `cấm`, `phase4-baseline`, `lịch sử`). Đoạn văn kể lại một quyết định cũ mà không có dấu hiệu quá khứ (ví dụ "MediatR cung cấp pipeline…" trong một ADR) là vi phạm, trừ khi cả file là tài liệu lịch sử; cách xử lý là phân loại lại file hoặc viết lại câu, không thêm từ khóa cho lọt | tự động (như DOC-1) | P5 |
 | DOC-3 | Mọi link nội bộ tương đối trong markdown của repo trỏ tới file tồn tại; `#anchor` khớp tiêu đề (slug GitHub); link ra ngoài repo và link http không kiểm | tự động (như DOC-1) | P5 |
 | DOC-4 | Bảng `docs/guides/CONFIGURATION_REFERENCE.md` khớp hai chiều với các `Options` có `SectionName` `Tadss:*` trong mã | tự động (unit test) | P5 |

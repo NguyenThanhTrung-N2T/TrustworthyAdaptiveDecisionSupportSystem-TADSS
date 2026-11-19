@@ -2,7 +2,7 @@
 
 | | |
 | :--- | :--- |
-| **Dành cho** | Người chạy, vận hành và kiểm thử hệ thống trên máy Windows (Git Bash + Docker Desktop): dev, bản deploy, CD, quan sát, lượt đánh giá TADSS, dashboard "Kiểm thử", đo hiệu năng, xử lý sự cố |
+| **Dành cho** | Người chạy, vận hành và kiểm thử hệ thống trên máy Windows (Git Bash + Docker Desktop): dev, bản deploy, CD, quan sát, lượt đánh giá TADSS, báo cáo tổng kết chất lượng + dashboard "Kiểm thử", đo hiệu năng, xử lý sự cố |
 | **Cập nhật** | 11/11/2026 (Epic 6C, task 1.42). Thay cho bốn hướng dẫn cũ `DOCKER_COMMANDS.md`, `EVALUATION_RUN_GUIDE.md`, `PERF_ENVIRONMENT.md`, `TEST_DASHBOARD.md` và mục "Lệnh quan trọng" của bản tổng hợp; lệnh đã đối chiếu với script hiện tại |
 | **Không có ở đây** | Ý nghĩa từng khóa cấu hình `Tadss:*`: [CONFIGURATION_REFERENCE.md](CONFIGURATION_REFERENCE.md). Lý do thiết kế: spec / plan ở `spec/`. Kết luận hiệu năng: [PERFORMANCE_REPORT.md](../report/PERFORMANCE_REPORT.md) |
 
@@ -42,7 +42,7 @@ Lệnh chạy nguyên văn trong Git Bash (lệnh `docker compose` chạy đư�
 python -m pytest -q tools/evaluation   # 269 đạt (Docker tắt: 266 đạt + 3 bỏ qua)
 python -m pytest -q tools/evidence     # 355
 python -m pytest -q tools/docs         # 34
-python -m pytest -q perf/stack perf/testboard   # 189 (môi trường đo + dashboard Kiểm thử)
+python -m pytest -q perf/stack perf/testboard   # 269 (môi trường đo + báo cáo tổng kết / dashboard Kiểm thử)
 ```
 
 **Kiểm bằng Docker thật** (đã nằm trong bước (a) của lượt đánh giá, chỉ chạy tay khi sửa phần đó): `bash tools/expose/verify-expose.sh` (NG-1/2/3/5, SEC-6), `bash tools/observability/verify-observability.sh` (OB-2, OB-4), `bash tools/evidence/sql/verify-export.sh` (câu xuất SmashCourt). Mỗi script tự dọn container khi thoát.

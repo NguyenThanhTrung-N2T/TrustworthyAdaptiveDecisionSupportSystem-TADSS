@@ -19,7 +19,7 @@ Khi tài liệu này khác tài liệu sở hữu, tài liệu sở hữu đúng
 | :--- | :--- | :--- | :--- |
 | **6A** BE (6A-1…6A-6) | ✅ 31/10 | Trạng thái `PENDING_APPROVAL`, đặt online hai transaction (TADSS ngoài transaction), duyệt / từ chối (override), thanh toán thất bại không hủy đơn, hoàn tiền mặt tại chi nhánh, job hết hạn thanh toán / hết hạn duyệt / báo outcome, bộ kiểm bất biến SC6 sau mỗi test HTTP; sau đó P6-31 (ai hủy), N-38…N-42 (đọc lại sau khóa), SC6-7 | Plan và kết quả từng gói: `spec/archive/phase6/PHASE6_PLAN_6A-*.md`; API BE ↔ FE: `SmashCourt-BE/docs/api/DEPOSIT_APPROVAL_API.md` |
 | **6B** FE | ⏳ chưa bắt đầu (người làm FE) | Type, API, sự kiện SignalR mới; màn khách, hàng chờ duyệt, nhân viên; Playwright E2E-01…14 | [`PHASE6_FE_HANDOFF.md`](../spec/PHASE6_FE_HANDOFF.md) (danh sách A1–A32, hợp đồng chính xác Mục 4.5, chia việc logic / UI) |
-| **6C** DevOps, quan sát, hiệu năng | Phần lớn ✅; còn diễn tập CD 1.41, runbook 1.42 | Image không bí mật trên GHCR, CI ba repo, CD tự triển khai + quay về (`deploy/cd.sh`, runner trong Docker), một bản deploy trên máy nhóm (PostgreSQL cục bộ, ngrok), Grafana Cloud "Vận hành" + cảnh báo email, dashboard "Kiểm thử" local, môi trường đo `perf`, SP-01…SP-10 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md), [báo cáo hiệu năng](report/PERFORMANCE_REPORT.md), [runbook](guides/RUNBOOK.md) |
+| **6C** DevOps, quan sát, hiệu năng | Phần lớn ✅ (runbook 1.42 xong 17/11; 19/11 báo cáo tổng kết chất lượng cho người đọc không chuyên); còn diễn tập CD 1.41, FI-13 dưới tải | Image không bí mật trên GHCR, CI ba repo, CD tự triển khai + quay về (`deploy/cd.sh`, runner trong Docker), một bản deploy trên máy nhóm (PostgreSQL cục bộ, ngrok), Grafana Cloud "Vận hành" + cảnh báo email, báo cáo tổng kết `perf/results/BAO_CAO_MOI_NHAT.html` + dashboard "Kiểm thử" local, môi trường đo `perf`, SP-01…SP-10 | [plan 6C](../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md), [báo cáo hiệu năng](report/PERFORMANCE_REPORT.md), [runbook](guides/RUNBOOK.md) |
 
 **Kết quả hiệu năng chính** ([báo cáo](report/PERFORMANCE_REPORT.md)): ở tải danh nghĩa (khoảng 51 request/s) hệ thống đạt mọi SLO p95, 0 % lỗi khi máy ở trạng thái bình thường; gãy ở 2,5 lần tải danh nghĩa (nút cổ chai CPU BE); hồi phục sau spike ×5 trong 30 s; TADSS thêm 15–30 ms vào Đặt sân p95, ra quyết định p95 khoảng 15 ms; khi TADSS dừng / chậm / mất kết nối khách vẫn đặt được (cọc 100 %), dữ liệu đúng (SC6). Năng lực tăng khoảng 2,4 lần so với đầu Phase 6 (P6-53 bỏ index trùng, nút cổ chai chuyển từ khóa PostgreSQL sang CPU BE); P6-55 hạ bcrypt 12 ⇒ 11.
 
@@ -230,7 +230,7 @@ Sơ đồ tuần tự đầy đủ (gồm nhánh lỗi, shadow, override): SAS M
 - Rate limit token bucket theo `ClientId`, theo từng instance (mặc định 100 request bùng nổ, nạp 100/giây) → 429 `RATE_LIMITED`; body > 64 KB → 413 `PAYLOAD_TOO_LARGE`.
 - Security headers trên mọi response, HSTS ngoài `Development`/`Testing`, không gửi header `Server`; health tách `/health/live` và `/health/ready`.
 - Container user non-root, lock file + `--locked-mode`, quét lỗ hổng High/Critical trong CI, Dependabot; log không chứa khóa hay mã băm.
-- Chi tiết và cách tạo khóa: [README mục Bảo mật](../README.md#bảo-mật), [INTEGRATION_SPEC §3.8](contracts/INTEGRATION_SPEC.md).
+- Chi tiết và cách tạo khóa: [Developer Guide mục Bảo mật](guides/DEVELOPER_GUIDE.md#bảo-mật), [INTEGRATION_SPEC §3.8](contracts/INTEGRATION_SPEC.md).
 
 ### 3.7. Contract v2 đóng băng 2.0.0
 
@@ -360,7 +360,7 @@ Bản đầy đủ **đo thật ≈ 3 giờ 25 phút** (`full-r1`, 17/10/2026: a
 
 ## 6. Lệnh quan trọng
 
-Mọi lệnh (dev 4 repo, bản deploy, CD, Grafana Cloud, lượt đánh giá TADSS, dashboard "Kiểm thử", đo hiệu năng, sự cố, dọn Docker) nằm ở **một nơi**: [`RUNBOOK.md`](guides/RUNBOOK.md). Lệnh hay dùng nhất của Phase 5: `docker compose up -d --build` (app + một lượt đánh giá bản nhanh, runbook Mục 6), `bash tools/evaluation/run.sh quick --steps e,f` (chạy lại vài bước), `dotnet build TADSS.slnx -c Release --warnaserror` + `dotnet test tests/TADSS.UnitTests -c Release --no-build` (runbook Mục 1), `python tools/docs/check_docs.py` (DOC-1…3).
+Mọi lệnh (dev 4 repo, bản deploy, CD, Grafana Cloud, lượt đánh giá TADSS, báo cáo tổng kết chất lượng và dashboard "Kiểm thử", đo hiệu năng, sự cố, dọn Docker) nằm ở **một nơi**: [`RUNBOOK.md`](guides/RUNBOOK.md). Lệnh hay dùng nhất của Phase 5: `docker compose up -d --build` (app + một lượt đánh giá bản nhanh, runbook Mục 6), `bash tools/evaluation/run.sh quick --steps e,f` (chạy lại vài bước), `dotnet build TADSS.slnx -c Release --warnaserror` + `dotnet test tests/TADSS.UnitTests -c Release --no-build` (runbook Mục 1), `python tools/docs/check_docs.py` (DOC-1…3).
 
 ---
 
@@ -422,7 +422,7 @@ Ghi chú cho Phase 6: SmashCourt-BE gặp 503/timeout phải thử lại với *
 
 ## 9. Bản đồ tài liệu
 
-Danh sách đầy đủ và nhóm của từng tài liệu: [README mục Tài liệu](../README.md#tài-liệu).
+Danh sách đầy đủ và nhóm của từng tài liệu: [mục lục tài liệu docs/README.md](README.md#bảng-kiểm-kê).
 
 | Cần gì                                                | Đọc                                                                                                                                                                                                                                  |
 | :---------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

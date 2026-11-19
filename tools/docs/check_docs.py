@@ -5,7 +5,8 @@ Chỉ dùng thư viện chuẩn để chạy được ở CI, trong bản sao `/
 Thoát 0 khi cả ba mã đạt; thoát 1 và liệt kê từng vấn đề (một dòng, có đường dẫn và số dòng) khi có vi phạm.
 DOC-4 (bảng cấu hình khớp mã) là unit test .NET, không nằm ở đây.
 
-Bảng kiểm kê nằm ở mục "Tài liệu" của `README.md` (gốc repo): bảng markdown có tiêu đề `| File | Nhóm | ... |`, mỗi dòng một file
+Bảng kiểm kê nằm ở `docs/README.md` (mục lục tài liệu; README.md gốc chỉ còn phần giới thiệu, 20/11/2026): bảng markdown có tiêu đề
+`| File | Nhóm | ... |`, mỗi dòng một file
 (đường dẫn tính từ gốc repo, viết thường hoặc trong dấu backtick), nhóm là `hiện hành` hoặc `lịch sử`.
 Không có cơ chế bỏ qua từng dòng: muốn lọt DOC-2 thì phân loại lại file hoặc viết lại câu cho đúng nghĩa.
 """
@@ -30,7 +31,7 @@ PAST_MARKERS: tuple[str, ...] = ("gỡ", "đã bỏ", "thay cho", "thay bằng",
 EXCLUDED_DIRS = frozenset({".git", "spec", ".superpowers", "evidence", "data", "bin", "obj", "node_modules", "TestResults", ".vs",
                            ".pytest_cache", "__pycache__", ".venv"})
 
-INVENTORY_PATH = "README.md"
+INVENTORY_PATH = "docs/README.md"
 GROUP_CURRENT = "hiện hành"
 GROUP_HISTORY = "lịch sử"
 BANNER_PREFIX = "> **Tài liệu lịch sử**"
@@ -98,7 +99,7 @@ def _plain(cell: str) -> str:
 
 
 def _inventory_path(cell: str) -> str:
-    """Đường dẫn từ gốc repo của ô `File`; dạng link `[tên](đích)` được hiểu tương đối với thư mục chứa bảng (gốc repo)."""
+    """Đường dẫn từ gốc repo của ô `File`; dạng link `[tên](đích)` được hiểu tương đối với thư mục chứa bảng (`docs/`)."""
     link = _MARKDOWN_LINK.search(cell)
     if link:
         return posixpath.normpath(posixpath.join(posixpath.dirname(INVENTORY_PATH), unquote(link.group(1).split("#")[0])))

@@ -87,13 +87,13 @@ Câu hỏi nghiên cứu của Khóa luận (RQ1–RQ6): xem [`PROPOSAL_KHOA_LUA
 | Đề cương Khóa luận | [`PROPOSAL_KHOA_LUAN.md`](PROPOSAL_KHOA_LUAN.md) | Bản thảo; định hướng ban đầu ở `RESEARCH_THESIS_DEFENSE.md` là tài liệu lịch sử |
 | Khảo sát ý tưởng ban đầu | [`RESEARCH_PROBLEM_BACKLOG.md`](../research/RESEARCH_PROBLEM_BACKLOG.md) | Lưu trữ lịch sử |
 | Bảng tham chiếu cấu hình `Tadss:*` | [`CONFIGURATION_REFERENCE.md`](../guides/CONFIGURATION_REFERENCE.md) | DOC-4 kiểm đủ section |
-| Lệnh chạy và vận hành (dev 4 repo, bản deploy, CD, lượt đánh giá, dashboard "Kiểm thử", đo hiệu năng) | [`RUNBOOK.md`](../guides/RUNBOOK.md) | Nơi duy nhất chứa lệnh |
+| Lệnh chạy và vận hành (dev 4 repo, bản deploy, CD, lượt đánh giá, báo cáo tổng kết chất lượng + dashboard "Kiểm thử", đo hiệu năng) | [`RUNBOOK.md`](../guides/RUNBOOK.md) | Nơi duy nhất chứa lệnh |
 | Tổng hợp Phase 5–6 để review, trình bày, bàn giao | [`PROJECT_SUMMARY.md`](../PROJECT_SUMMARY.md) | Chỉ tóm tắt và dẫn link |
 | Sơ đồ và use case cho báo cáo | [`docs/report/`](../report/): `ARCHITECTURE_DIAGRAMS.md`, `USE_CASES.md`, `SEQUENCE_DIAGRAMS.md`, `ACTIVITY_AND_STATE_DIAGRAMS.md` | Chỉ tóm tắt, tài liệu sở hữu thắng |
 | Kết quả đo hiệu năng SmashCourt + TADSS (Epic 6C) | [`PERFORMANCE_REPORT.md`](../report/PERFORMANCE_REPORT.md) | |
 | Đặc tả từng bước kịch bản E2E | [`E2E_TEST_SPECIFICATION.md`](../research/E2E_TEST_SPECIFICATION.md) | |
 | Phase 6: quyết định P6-xx, thiết kế tích hợp cọc, việc của FE | [`spec/PHASE6_DESIGN_SPEC.md`](../../spec/PHASE6_DESIGN_SPEC.md), [`spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md`](../../spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md), [`spec/PHASE6_FE_HANDOFF.md`](../../spec/PHASE6_FE_HANDOFF.md) | Spec và plan đã xong ở `spec/archive/` |
-| Kiểm kê tài liệu hiện hành / lịch sử | [`README.md`](../../README.md#tài-liệu) | Mục "Tài liệu"; DOC-1 kiểm đủ file |
+| Kiểm kê tài liệu hiện hành / lịch sử | [`docs/README.md`](../README.md#bảng-kiểm-kê) | Mục "Bảng kiểm kê" (chuyển khỏi README gốc 20/11/2026); DOC-1 kiểm đủ file |
 
 **Quy tắc cập nhật:** khi một thông số thay đổi (thời gian, tham số pipeline, endpoint, KPI…), chỉ sửa ở file sở hữu; các file khác dẫn link thay vì chép lại con số.
 

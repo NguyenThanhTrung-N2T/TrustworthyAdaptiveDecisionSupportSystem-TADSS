@@ -225,6 +225,7 @@ Hai cột là hai tập mẫu khác nhau: client gồm mạng nội bộ Docker,
 
 ## 8. Giám sát bằng Grafana
 
+- **Báo cáo tổng kết** `perf/results/BAO_CAO_MOI_NHAT.html` (19/11, sinh lại sau mỗi lần nạp kết quả, kể cả sau mỗi lượt đo có `--code`): cùng số liệu với dashboard dưới đây, viết bằng lời thường cho người không làm IT (kết luận chung, trả lời theo câu hỏi, điểm cần lưu ý, phần chưa kiểm).
 - **Dashboard "Kiểm thử"** (Grafana local, nguồn `perf/testboard/`, ba tab BE / TADSS / AI): mỗi nhóm test một ô theo màu (đạt, không đạt, không đủ dữ liệu), bấm ô ⇒ bảng mã hỏng ⇒ link báo cáo gốc. Lượt không hợp lệ hoặc thiếu mẫu hiện là hạn chế, không phải đạt. Hàng hiệu năng chia theo bốn nhóm câu hỏi:
 
   | Nhóm | Panel |

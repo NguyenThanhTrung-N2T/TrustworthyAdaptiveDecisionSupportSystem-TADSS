@@ -427,7 +427,7 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 | **P6-47** | Lượt `INFRA_LIMITED` / `ABORTED` không dùng để kết luận năng lực ứng dụng | Đã chốt |
 | **P6-48** | Chi phí 0 đồng: bản deploy dùng PostgreSQL và Redis cục bộ; ngrok chỉ cho bản deploy; kiểm thử chỉ chạy local; Neon giữ cho dev, E2E, demo | Sửa 01/11: một bản deploy |
 | **P6-49** | Dashboard 3 tab BE / TADSS / AI; mọi panel có mô tả 6 ý, CI chặn panel thiếu mô tả hoặc dùng metric không có; cảnh báo qua email | Đã chốt; cảnh báo dùng email của Grafana Cloud (01/11) |
-| **P6-50** | Danh mục test một nguồn `tests/catalog.yaml` sinh từ methodology; dashboard "Kiểm thử" tổng hợp theo nhóm; chỉ thêm, không bỏ mã | Đã chốt; bộ nạp sửa 19/11 (bản gộp k6, FI từ lượt SP-09, bước CI, ghi nhận thủ công `tests/manual-results.yaml`): bảng hiện đủ mọi nhóm |
+| **P6-50** | Danh mục test một nguồn `tests/catalog.yaml` sinh từ methodology; dashboard "Kiểm thử" tổng hợp theo nhóm; chỉ thêm, không bỏ mã | Đã chốt; bộ nạp sửa 19/11 (bản gộp k6, FI từ lượt SP-09, bước CI, ghi nhận thủ công `tests/manual-results.yaml`): bảng hiện đủ mọi nhóm; cùng ngày thêm báo cáo tổng kết HTML cho người đọc không chuyên và lệnh `board.py update` (người dùng chốt) |
 | **P6-51** | Ba tài khoản ngrok riêng (BE, TADSS, AI); BE gọi TADSS và AI bằng URL đặt trong cấu hình; bài đo dùng LLM giả; khóa xác thực BE ⇒ AI để làm sau | Đã chốt; xác thực BE ⇒ AI để sau |
 | **P6-52** | SLO tách theo hệ: BE theo bảng chốt 02/11; TADSS giữ SC1 (p95 < 150 ms), SC2; AI p95 < 300 ms phần xử lý của AI | Đã chốt; đã chấm (báo cáo hiệu năng) |
 | **P6-53** | Bỏ index trùng của bảng `bookings` | Đã áp `tadss-dev` 05/11, bản deploy 06/11; Neon `main` sau Gate M6 |
