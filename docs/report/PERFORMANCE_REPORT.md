@@ -111,7 +111,7 @@ Khôi phục DB + xóa Redis ⇒ kiểm checksum ⇒ nghỉ 120 s cho máy ngu�
 | SP-05 | Điểm gãy | Gãy ở **48 hành trình/s (250 %)**, nút cổ chai CPU BE | Mục 6.5 |
 | SP-06 | A/B TADSS | TADSS thêm **15–30 ms** vào Đặt sân p95 | Mục 6.6 |
 | SP-07 | A/A telemetry | Không đo được chi phí, trừ Đăng nhập p95 +20–110 ms | Mục 6.7 |
-| SP-09 | Lỗi TADSS dưới tải (FI-11, 12, 14) | **Đạt cả ba**, SC6 không vi phạm | Mục 6.8 |
+| SP-09 | Lỗi TADSS dưới tải (FI-11, 12, 14) và tắt cờ TADSS dưới tải (FI-13) | **Đạt cả bốn**, SC6 không vi phạm; tắt cờ có hiệu lực sau 0,39 s | Mục 6.8 |
 | SP-10 | AI qua BE | A **Đạt** (p95 19 ms); B chỉ báo cáo | Mục 6.9 |
 | SC1 | Thời gian ra quyết định của TADSS | **Đạt**: p95 khoảng 15 ms, p99 khoảng 24 ms phía server (ngưỡng 150 ms) | Lượt SP-01 tối 07/11 |
 
@@ -200,6 +200,19 @@ Khách vẫn đặt được sân trong mọi kiểu lỗi, không đơn nào v�
 - **FI-14:** khi kết nối bị cắt thẳng, BE biết lỗi ngay nên trước P6-57 cũng đã nhanh (p95 85 ms); bật mạch không làm chậm hơn và BE ngừng gửi request vô ích tới TADSS.
 - Trong mọi lượt khách vẫn đặt được sân, mọi đơn trong lúc lỗi cọc 100 %, không đơn nào chờ duyệt, không quyết định trùng, SC6 đạt; lỗi request ≤ 0,09 % (ngưỡng 0,5 %).
 - **Phạm vi kết luận:** một lượt mỗi bên cho mỗi kiểu lỗi, nên đây là **độ lớn hiệu ứng** (khoảng 22 lần ở p95 trong lúc lỗi), không phải phép so B.7.8 (cần ≥ 3 lượt mỗi bên). Đánh đổi của mạch ngắt: trong lúc mạch mở mọi đơn cọc 100 % (bỏ qua `NEED_APPROVAL` / `REJECTED`); TADSS chậm dưới 800 ms thì mạch không bắt được.
+
+**Tắt cờ TADSS dưới tải (FI-13, KPI SC5; 20/11, buổi 11, 22:31–22:51).** Cùng tải danh nghĩa 15 phút; ở giây 490 ghi file cờ `runtime-config/feature-flags.json` của BE tắt `EnableTadssDecision` (đúng cách `deploy/tadss-flag.sh` làm trên bản deploy), giữ 300 s rồi bật lại. Image đúng bản deploy: BE `sha-1fa2d2c`, TADSS `sha-9622000`, AI `sha-298c683`.
+
+| Chỉ tiêu | Kết quả | Ngưỡng | Kết luận |
+| :--- | :--- | :--- | :--- |
+| Thời gian cờ có hiệu lực (từ lúc bắt đầu ghi file tới dòng log BE thấy cờ mới, gồm cả `docker exec`) | **0,39 s** (tắt), 0,36 s (bật lại) | < 2 s | Đạt |
+| Đơn online tạo trong lúc tắt (từ +2 s) | 161 đơn, **161 cọc 100 %**, 0 có quyết định TADSS, 0 chờ duyệt, 0 quyết định trùng | mọi đơn cọc 100 % | Đạt |
+| Sau khi bật lại | 24 đơn đi qua TADSS trong 60 s | có đơn qua TADSS | Đạt |
+| Lỗi request trong / sau | 0 % / 0 % (15.691 / 14.454 request; cả lượt 47.112) | < 0,5 % | Đạt |
+| Đặt sân trong lúc tắt | p50 42 ms, p95 59 ms (182 request; ngoài lúc tắt p95 83 ms) | — | Nhanh hơn vì không gọi TADSS |
+| SC6 | Không vi phạm (663 đơn) | 0 vi phạm | Đạt |
+
+Kết luận chung của `verdict.json` là KHÔNG ĐỦ DỮ LIỆU chỉ vì nhóm "Đặt sân từ 60 s sau khi bật lại" có 86 mẫu (p95 cần ≥ 100); mọi p95 nhóm và tỉ lệ lỗi đều đạt. Xung nhịp trung vị 3046 MHz (p10 2730), thấp hơn các buổi đo chính thức vì máy vừa khởi động lại Docker; FI-13 kiểm tính đúng, không dùng để so độ trễ. Một lượt: đủ cho tiêu chí đạt / không đạt của FI-13, không phải phép so B.7.8.
 
 ### 6.9. AI qua BE (SP-10)
 
@@ -350,7 +363,7 @@ Danh sách đầy đủ, SHA-256 và kích thước của mọi file ở [`perf/
 | SP-04 | `20261108-112353-soak-SP-04` |
 | SP-06 | `SP06-A1`, `B2`, `B3`, `A4`, `A5`, `B6` (08/11) + hai bản gộp |
 | SP-07 | `SP07-A1` (loại), `B2`, `B3`, `A4`, `A5`, `B6`, `B8`, `A7` + bản gộp |
-| SP-09 | `SP09-stop-tadss`, `SP09-latency`, `SP09-reset` (có `faults.json`, `sc6.json`); sau P6-57: `SP09-p657-stop-tadss-off`, `-on`, `-latency-on`, `-off`, `-reset-on` (gói [`PERF-6C-20261113-SP09`](../../perf/evidence/PERF-6C-20261113-SP09/manifest.json), có `fault-latency.json`) |
+| SP-09 | `SP09-stop-tadss`, `SP09-latency`, `SP09-reset` (có `faults.json`, `sc6.json`); sau P6-57: `SP09-p657-stop-tadss-off`, `-on`, `-latency-on`, `-off`, `-reset-on` (gói [`PERF-6C-20261113-SP09`](../../perf/evidence/PERF-6C-20261113-SP09/manifest.json), có `fault-latency.json`); FI-13: `20261120-223153-load-SP09-FI13` |
 | SP-10 | `ai-SP-10-A`, `ai-B` |
 | Phân tích 2.27 | `20261111-014033-load-trace-2.27` (có `bottleneck.json`) |
 | Đối chứng auto-prepare 07/11 | `CTRL-r1…r5`, `AP50-r1…r3` |

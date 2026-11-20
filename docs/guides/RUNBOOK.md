@@ -137,14 +137,14 @@ Cờ bật nhưng TADSS treo hoặc mạng tới TADSS mất gói: trước P6-5
 
 ## 3. CD tự động (push ⇒ deploy)
 
-Push `develop` hoặc `master` ⇒ CI (test, build, đẩy image `ghcr.io/nguyenthanhtrung-n2t/<service>:sha-<7>`, bất biến) ⇒ job **"Deploy (máy deploy)"** cuối `ci.yml` chạy trên runner của máy này ⇒ lấy bộ deploy từ `SmashCourt-BE` nhánh `develop` ⇒ `deploy/cd.sh <service> <sha>`: kéo image (thử lại 5 lần khi lỗi mạng), triển khai, kiểm container chạy đúng commit (nhãn `revision`) + health + smoke chỉ đọc (BE `/api/cancel-policies`), hỏng thì **tự quay về bản đang chạy trước đó** và kiểm lại. Pull request không bao giờ deploy.
+Push `develop` hoặc `master` ⇒ CI (test, build, đẩy image `ghcr.io/nguyenthanhtrung-n2t/<service>:sha-<7>`, bất biến) ⇒ job **"Deploy (máy deploy)"** cuối `ci.yml` chạy trên runner của máy này ⇒ lấy bộ deploy từ `SmashCourt-BE` nhánh `develop` ⇒ `deploy/cd.sh <service> <sha>`: kéo image (thử lại 5 lần khi lỗi mạng), kiểm nhãn `revision` của image đúng sha đầy đủ (từ 20/11, trước khi đụng container), triển khai, kiểm container chạy đúng commit (nhãn `revision`) + health + smoke chỉ đọc (BE `/api/cancel-policies`), hỏng thì **tự quay về bản đang chạy trước đó** và kiểm lại. Pull request không bao giờ deploy.
 
 | `cd.sh` thoát | Nghĩa | Làm gì |
 | :---: | :--- | :--- |
 | 0 | Bản mới chạy, kiểm đạt | — |
 | 1 | Bản mới hỏng, đã quay về bản trước (job đỏ để báo) | Đọc log job, sửa, push lại |
 | 2 | **UNSAFE**: quay về cũng hỏng, hoặc không có bản trước | Người xử lý ngay: `docker ps`, `docker logs`, `bash deploy/deploy.sh <service> sha-<bản tốt>` |
-| 3 | Từ chối, chưa đụng gì: sha sai dạng hoặc image không có trên GHCR | Kiểm job "Docker Image" của cùng lượt CI |
+| 3 | Từ chối, chưa đụng gì: sha sai dạng, image không có trên GHCR, hoặc nhãn `revision` của image không phải sha đó | Kiểm job "Docker Image" của cùng lượt CI |
 | 4 | Chưa đụng gì: máy deploy không tới được GHCR sau 5 lần thử (khoảng 2,5 phút) | Image vẫn có (job "Docker Image" xanh) ⇒ mạng ổn thì **Re-run failed jobs** trên tab Actions, hoặc `gh run rerun <id> --failed` |
 
 - **Runner chạy trong Docker** (`SmashCourt-BE/deploy/runner/`): runner chính thức của GitHub + Docker Compose, `restart: unless-stopped` nên **tự chạy khi mở Docker Desktop**; chỉ thấy Docker của máy và `smashcourt-deploy.env` (gắn chỉ đọc); chạy bằng user `runner`. Docker tắt thì job deploy chờ tối đa 24 giờ.
@@ -301,7 +301,7 @@ Trong `TADSS-Runtime/` (một lần: `pip install -r perf/requirements.txt`; t�
 | Test chạy trên máy | BE / TADSS: `dotnet test … --logger trx --results-directory <dir>` với `SMASHCOURT_CATALOG_INDEX_DIR=<dir>` (BE) / `TADSS_CATALOG_INDEX_DIR=<dir>` (TADSS) ⇒ `python perf/board.py trx be <dir>`; AI: `pytest --junitxml=<file>` ⇒ `python perf/board.py junit <file>` |
 | Evidence Pack | `python perf/board.py evidence evidence/<run_id>` |
 | k6 | `python perf/board.py k6 SP-01 <summary.json \| thư mục lượt \| pooled-*.json> …` (kết luận chính thức theo bản gộp ≥ 3 lượt của B.7.2; nhiều file cho cùng mã giữ trạng thái xấu nhất; lượt hạn chế thêm `--limited "lý do"`) |
-| FI-11…14 dưới tải | `python perf/board.py faults <thư mục lượt SP-09> …` |
+| FI-11…14 dưới tải | `python perf/board.py faults <thư mục lượt SP-09> …`: truyền **mọi** lượt SP-09 cùng lúc (`$(ls -d perf/results/k6/*SP09*)`), vì nạp lại thay cả nguồn |
 | SC6 / Playwright | `python perf/board.py sc6 <file.json>` · `python perf/board.py playwright <report.json>` (mã lấy từ tên test, vd `E2E-03 …`) |
 | Chỉ xuất lại báo cáo | `python perf/board.py report` |
 | Sinh lại danh mục / dashboard; kiểm (= CI) | `python perf/board.py catalog` · `dashboards` · `check`. Sửa bảng mã trong methodology thì **phải** chạy `catalog` rồi `check` |

@@ -29,12 +29,28 @@
   plain: Giao diện web chỉ được đưa lên mạng sau khi qua các bước kiểm tự động.
 
 - code: OPS-08
-  state: limited
-  date: 2026-11-01
+  state: passed
+  date: 2026-11-20
   by: Claude
-  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, Giai đoạn 1D bước 2–3 (deploy/cd.sh của SmashCourt-BE)
-  detail: sha sai dạng ⇒ thoát 3, image sha-<7> không có trên GHCR ⇒ thoát 3 (thử trên máy); ca nhãn revision lệch sha chưa thử riêng, thử trong diễn tập 1.41
-  plain: Hệ thống triển khai đã từ chối đúng các bản sai đã thử; còn một trường hợp (nhãn phiên bản lệch) sẽ thử ở buổi diễn tập triển khai.
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, mục "Việc còn lại của Phase 6", B1 (diễn tập 1.41 ngày 20/11)
+  detail: bash deploy/cd.sh tadss 9622000 (sha sai dạng) ⇒ 3; sha 0000000… (image không có) ⇒ 3; sha 9622000fff… (7 ký tự đầu đúng, nhãn revision lệch) ⇒ 3 nhờ bước kiểm nhãn của image trước khi đụng container (thêm 20/11); cả ba ca TADSS không khởi động lại
+  plain: Hệ thống triển khai từ chối đúng mọi bản sai (mã sai, bản không tồn tại, nhãn phiên bản lệch) mà không đụng tới bản đang chạy.
+
+- code: OPS-09
+  state: passed
+  date: 2026-11-20
+  by: Claude
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, mục "Việc còn lại của Phase 6", B1; job Deploy của CI chạy cùng deploy/cd.sh từ 01/11
+  detail: cd.sh tadss 9622000 thoát 0, kiểm nhãn revision + /health/ready; thời điểm khởi động của BE, AI, PostgreSQL, Redis, ngrok không đổi qua mọi lượt diễn tập TADSS, BE (be + ngrok), AI
+  plain: Cập nhật một dịch vụ chỉ khởi động lại đúng dịch vụ đó, các phần khác vẫn chạy.
+
+- code: OPS-10
+  state: passed
+  date: 2026-11-20
+  by: Claude
+  evidence: spec/PHASE6_PLAN_6C_DEVOPS_OBSERVABILITY_PERF.md, mục "Việc còn lại của Phase 6", B1 và B2
+  detail: "cả 3 service. TADSS bằng cấu hình sai thật (khóa OffPeakDiscountRat): từ 2.1.0 ⇒ thoát 1 sau 18 s, từ 2.2.0 ⇒ thoát 2. BE, AI bằng image hỏng giả (override tạm làm container của tag mới thoát ngay): thoát 1 sau 18–19 s, cả hai hỏng ⇒ thoát 2 sau 10–13 s; sau mỗi ca bản tốt chạy lại healthy"
+  plain: Bản mới bị lỗi thì hệ thống tự quay về bản cũ trong khoảng 20 giây; nếu bản cũ cũng lỗi thì báo động để người xử lý.
 
 - code: OB-BE-4
   state: passed
