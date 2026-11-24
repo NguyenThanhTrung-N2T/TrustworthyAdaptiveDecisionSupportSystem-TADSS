@@ -467,21 +467,21 @@ Giá sân thật khoảng 75.000 đ/giờ, cọc tối thiểu của strategy 20
 | 5 | k6 LT-04, P6-21 | LT-04 theo P6-30 (6A-6 viết và chạy thử, Phase 7 chạy chính thức); P6-21 không làm |
 | 6 | Môi trường | Điều tra lỗi SMTP `Network unreachable` trong container (plan Task 13) |
 
-Sau 6A-6, Gate M6 còn cần FE 6B (build, lint, Playwright trên MSW); 6B chưa bắt đầu và là đường găng của Phase 6 (W09–W12, 02/11–29/11).
+Sau 6A-6, Gate M6 còn cần FE 6B (build, lint, Playwright trên MSW), đường găng của Phase 6 (W09–W12, 02/11–29/11). **Tiến độ 23/11:** FE `develop` `345e89e` (commit `148e6f0` 19/11 của người làm FE + bản sửa lỗi giờ T-7, T-8, A20 và unit test `node:test` 21/11) xong phần lớn 6B-1…6B-4; còn 14 việc V1…V14 (cột Trạng thái dưới đây, chi tiết ở [PHASE6_FE_HANDOFF.md](PHASE6_FE_HANDOFF.md) Mục 4), từ 23/11 người làm FE làm cả logic lẫn giao diện.
 
 ### 5.2. Epic 6B — smashcourt-fe
 
-| Gói | Nội dung | Task | Tuần | Test | Hoàn thành khi |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **6B-1** Nền FE | Type, hàm API, sự kiện SignalR + `NotificationDispatcher`, mock MSW theo ví dụ DEPOSIT_APPROVAL_API; hàm giờ VN và sửa T-7, T-8 (8.1); thiết kế UI | T6.11 | W09 | FE-03, FE-12 | Mock khớp hợp đồng; thiết kế được duyệt |
-| **6B-2** Khách | Màn xác nhận, kết quả đặt sân, chờ duyệt, thanh toán cọc, kết quả thanh toán (thử lại/hủy), lịch sử, hủy, ẩn nút hủy từ giờ bắt đầu (8.2) | T6.12 | W10 | FE-04, 08, 09, 11, 12 | Rẽ nhánh theo `status`/`code` |
-| **6B-3** Manager/Owner | Hàng chờ duyệt, hộp thoại duyệt/từ chối, realtime, badge (8.3) | T6.13 | W11 | FE-05…FE-08, FE-10 | Mọi mã lỗi có thông điệp |
-| **6B-4** Staff | Trạng thái mới ở danh sách/lịch/time grid; hủy đơn chờ duyệt; check-out hiện `remainingAmount` (8.4) | T6.14 | W11 | FE-09 | — |
-| **6B-5** Kiểm thử | Playwright trên MSW cho E2E-01…14; `tsc` vào CI | T6.15, T5.25 | W12 | FE-01, FE-02 | Gate M6 |
+| Gói | Nội dung | Task | Tuần | Test | Hoàn thành khi | Trạng thái (23/11) |
+| :--- | :--- | :--- | :---: | :--- | :--- | :--- |
+| **6B-1** Nền FE | Type, hàm API, sự kiện SignalR + `NotificationDispatcher`, mock MSW theo ví dụ DEPOSIT_APPROVAL_API; hàm giờ VN và sửa T-7, T-8 (8.1); thiết kế UI | T6.11 | W09 | FE-03, FE-12 | Mock khớp hợp đồng; thiết kế được duyệt | ⏳ Type, API, hàm giờ xong; FE-12 (phần hàm giờ) đạt: 184 ca `node:test` ở `src/tests/`, bước "Unit test" của CI. Còn: MSW (V10), toast 3 sự kiện mới trong `NotificationDispatcher` (V8), header ngrok (V1) |
+| **6B-2** Khách | Màn xác nhận, kết quả đặt sân, chờ duyệt, thanh toán cọc, kết quả thanh toán (thử lại/hủy), lịch sử, hủy, ẩn nút hủy từ giờ bắt đầu (8.2) | T6.12 | W10 | FE-04, 08, 09, 11, 12 | Rẽ nhánh theo `status`/`code` | ⏳ Màn xong, C1 sửa trên `develop` (chưa lên Vercel, V14). Còn: xem trước hoàn tiền (V4), `retry-payment` theo `code` (V5), giới hạn 12 giờ P6-61 (V6), gộp đồng hồ (V12) |
+| **6B-3** Manager/Owner | Hàng chờ duyệt, hộp thoại duyệt/từ chối, realtime, badge (8.3) | T6.13 | W11 | FE-05…FE-08, FE-10 | Mọi mã lỗi có thông điệp | ⏳ Hàng chờ, hộp thoại, realtime xong. Còn: badge menu (V9) |
+| **6B-4** Staff | Trạng thái mới ở danh sách/lịch/time grid; hủy đơn chờ duyệt; check-out hiện `remainingAmount` (8.4) | T6.14 | W11 | FE-09 | — | ⏳ Còn: nhãn lý do hủy / người hủy / nguồn cọc dùng mã BE không có (V2), "cọc phải trả" / "đã cọc" và tỷ lệ cọc bị làm tròn (V3), check-in khi job vừa đánh `NO_SHOW` (V7) |
+| **6B-5** Kiểm thử | Playwright trên MSW cho E2E-01…14; `tsc` vào CI | T6.15, T5.25 | W12 | FE-01, FE-02 | Gate M6 | ⏳ `tsc` có trong CI từ 31/10 (FE-01). Còn: Playwright (V11, cần V10) |
 
 Phụ thuộc: 6B-1 chỉ cần DEPOSIT_APPROVAL_API (không chờ BE). 6B-2…6B-4 chạy được trên MSW; nối BE thật khi 6A-2/6A-3 xong.
 
-Người làm FE bắt đầu từ [PHASE6_FE_HANDOFF.md](PHASE6_FE_HANDOFF.md) (31/10): thứ tự đọc, cách chạy trên MSW và với BE local, **danh sách việc theo từng file FE lệch BE (A1–A22, rà soát mã `develop`)**, checklist từng gói, 16 bẫy đã gặp (C1, N-36, giờ VN, link VNPay quá hạn…).
+Người làm FE bắt đầu từ [PHASE6_FE_HANDOFF.md](PHASE6_FE_HANDOFF.md) (bản đầu 31/10, dựng lại 23/11): **việc còn lại V1…V14 theo từng file, soát trên mã FE `develop` `345e89e`**, việc đã xong (mã A-xx của bản 31/10), cách chạy trên MSW và với BE local, hợp đồng đọc thẳng từ mã BE, 22 bẫy đã gặp (C1, N-36, giờ VN, link VNPay quá hạn, P6-61…).
 
 ---
 
@@ -921,7 +921,7 @@ Sơ đồ: [Hoạt động 2](../docs/report/ACTIVITY_AND_STATE_DIAGRAMS.md#2-qu
 
 ### 8.5. Kiểm thử (6B-5)
 
-Playwright trên MSW cho E2E-01…E2E-14 (FE-02), `tsc --noEmit` vào CI (FE-01).
+Playwright trên MSW cho E2E-01…E2E-14 (FE-02), `tsc --noEmit` vào CI (FE-01). Unit test FE (21/11): `node:test` không thêm gói (`npm test`, bộ chạy `src/tests/run.mjs` dịch TypeScript bằng gói `typescript` có sẵn), file test ở `src/tests/` phản chiếu cây `src/`, hàm có ngày giờ chạy dưới 4 múi giờ máy (`describeEachTimeZone`, `atInstant` ở `src/tests/clock.ts`).
 
 ---
 
