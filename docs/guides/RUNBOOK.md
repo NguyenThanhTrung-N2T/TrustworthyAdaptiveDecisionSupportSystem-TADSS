@@ -198,8 +198,8 @@ Alloy dừng hoặc máy tắt thì app vẫn chạy, chỉ mất số liệu (v
 | Việc | Lệnh / nơi xem |
 | :--- | :--- |
 | Dashboard | Grafana › Dashboards › **SmashCourt - Vận hành** › BE / TADSS / AI |
-| Đơn đặt sân bị sai dữ liệu | Tab BE › nhóm "Tính đúng dữ liệu đặt sân": ô số vi phạm, "Vi phạm theo điều", và panel **"Đơn đang vi phạm"** nêu mã đơn (BK-…), điều bị vi phạm và lý do. Mỗi lượt kiểm (10 phút) có một dòng tổng liệt kê lại mọi đơn còn sai (tối đa 20 mã), nên dòng mới nhất là danh sách hiện tại; dòng "vi phạm" riêng của mỗi đơn chỉ ghi một lần lúc vi phạm mới xuất hiện. Trên máy: `docker logs smashcourt-be 2>&1 \| grep Invariant` |
-| Log | Panel "Log Warning / Error" cuối mỗi tab; toàn bộ: Explore › Loki › `service_name` = `smashcourt-be` / `tadss-runtime` / `smashcourt-ai`. Cảnh báo khởi động của BE (DataProtection-Keys, https port) là vô hại |
+| Đơn đặt sân bị sai dữ liệu | Tab BE › nhóm "Tính đúng dữ liệu đặt sân": ô số vi phạm, "Vi phạm theo điều", và panel **"Lỗi dữ liệu đang có"** (chỉ loại lỗi đang tồn tại, đọc bằng tên, VD "Hai đơn trùng sân, trùng giờ") và panel **"Đơn đang vi phạm"** nêu mã đơn (BK-…), tên lỗi và lý do. Mỗi lượt kiểm (10 phút) có một dòng tổng liệt kê lại mọi đơn còn sai (tối đa 20 mã), nên dòng mới nhất là danh sách hiện tại; dòng "vi phạm" riêng của mỗi đơn chỉ ghi một lần lúc vi phạm mới xuất hiện. Trên máy: `docker logs smashcourt-be 2>&1 \| grep Invariant` |
+| Log | Panel "Log Warning / Error" cuối mỗi tab; toàn bộ: Explore › Loki › `service_name` = `smashcourt-be` / `tadss-runtime` / `smashcourt-ai`. Hai cảnh báo khởi động của BE (DataProtection-Keys, https port) vô hại và từ 28/11 không còn hiện ở bản deploy (compose hạ mức log của hai nguồn đó xuống Error) |
 | Trace | Explore › Tempo › Search, Service Name = `smashcourt-be` |
 | Sửa dashboard / cảnh báo | Sửa `deploy/grafana/dashboards.py` (hoặc `alert_rules` trong `grafana_cloud.py`) ⇒ `python deploy/grafana/grafana_cloud.py check` ⇒ `push` |
 | Alloy có lỗi không | <http://127.0.0.1:12345> (mọi thành phần "healthy"); `docker logs smashcourt-alloy` |
@@ -411,7 +411,7 @@ Kết quả mỗi lượt `perf/results/k6/<lượt>/` (gitignore; mục lục `
 | (e) PT `skipped` / `failed` "sai SHA-256" / RP `skipped` | Không tải được dataset / nguồn đổi / chưa có CSV | Kiểm mạng; `docker volume rm tadss_eval-datasets` (sai SHA: **không** sửa SHA, báo lại); Mục 6.5 |
 | SC7 `INSUFFICIENT_DATA` dù PT 0 lỗi | `tools/evidence/hotel_adapter.py` chưa commit | Commit rồi `--steps e,f` |
 | `run.sh` báo evaluator của `up` vẫn chạy | Lượt tự chạy chưa xong | Chờ `docker compose logs -f evaluator` xong |
-| Log BE có cảnh báo DataProtection-Keys / "Failed to determine the https port" | Cảnh báo lúc khởi động, vô hại (BE không dùng khóa DataProtection, HTTPS do ngrok xử lý) | Không cần làm gì |
+| Log BE có cảnh báo DataProtection-Keys / "No XML encryptor configured" / "Failed to determine the https port" | Cảnh báo lúc khởi động, vô hại (BE không dùng khóa DataProtection; HTTPS do ngrok xử lý, request qua ngrok mang `X-Forwarded-Proto: https`) | Không cần làm gì. Bản deploy đã hạ mức log `Microsoft.AspNetCore.HttpsPolicy`, `Microsoft.AspNetCore.DataProtection` xuống Error (28/11) nên không còn hiện trên Grafana; chạy local vẫn thấy |
 
 ---
 

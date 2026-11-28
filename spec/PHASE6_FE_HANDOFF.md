@@ -3,7 +3,7 @@
 | | |
 | :--- | :--- |
 | **Dành cho** | Người làm `smashcourt-fe` ở Epic 6B (Phase 6, W09–W12, 02/11 – 29/11/2026) |
-| **Trạng thái (23/11)** | BE xong và đang chạy trên bản deploy (hợp đồng API không đổi từ 31/10, trừ P6-61 và P6-62 (28/11, giá phải là số đồng nguyên) ở Mục 7). FE `develop` `345e89e`: phần lớn Phase 6 đã làm (Mục 5), CI xanh (lint, `tsc`, unit test 184 ca, build). **Còn 14 việc ở Mục 4**, soát thẳng trên mã `develop` ngày 23/11 |
+| **Trạng thái (28/11)** | BE xong và đang chạy trên bản deploy (hợp đồng API không đổi từ 31/10, trừ P6-61 và P6-62 (28/11, giá phải là số đồng nguyên) ở Mục 7). FE `develop` `527da5e` (28/11): xong V1, V3…V8, gần xong V13; V2 có lỗi phải sửa; chưa có unit test cho V2…V5; còn V9…V12, V14. CI xanh (lint 0 lỗi, `tsc`, unit test 184 ca, build). **Trạng thái từng việc ở Mục 4.0** (soát 28/11); bảng 4.1 giữ mô tả gốc soát ngày 23/11 |
 | **Hạn** | **Gate M6: 29/11** (FE build + lint + Playwright trên mock đạt, không còn việc tính năng mở). Phase 7 (30/11 – 06/12) ghép FE ↔ BE ↔ TADSS thật, **feature freeze 06/12**: sau mốc này chỉ sửa lỗi |
 | **Chia việc** | Từ 23/11 toàn bộ việc ở Mục 4 do người làm FE làm, cả logic lẫn giao diện. Người giữ BE trả lời câu hỏi hợp đồng và review |
 | **Vai trò file** | Điểm vào duy nhất cho FE: việc còn lại (Mục 4), đã xong (Mục 5), cách chạy, hợp đồng đọc từ mã BE (Mục 7), bẫy (Mục 8). Chi tiết hành vi từng màn ở spec Phase 6 Mục 8; lệch nhau thì theo mã BE và báo để sửa file này |
@@ -41,6 +41,29 @@ Không cần đọc: các plan `archive/phase6/PHASE6_PLAN_6A-*.md` (việc củ
 ## 4. Việc còn lại (soát mã `develop` `345e89e` ngày 23/11)
 
 Số dòng là tại `345e89e`, có thể xê dịch. **P1** = người dùng thấy sai, làm trước; **P2** = điều kiện Gate M6; **P3** = nên làm nếu kịp trước 06/12.
+
+### 4.0. Soát commit `527da5e` (28/11)
+
+Soát bằng đọc diff và chạy `tsc`, `npm run lint`, `npm test`, `npm run build` (đều đạt: lint 0 lỗi / 140 cảnh báo, unit test 184/184, nhưng **không thêm ca nào**). Chưa bấm thử giao diện. Người giữ repo chốt cách xử lý phần còn lại tối 28/11.
+
+| # | Trạng thái | Đã làm | Còn phải làm |
+| :---: | :---: | :--- | :--- |
+| V1 | ✅ | `ngrok-skip-browser-warning: true` ở `apiClient`, lời gọi refresh (`upload.api.ts`), SignalR (`signalr-client.ts`) | Thử thật trên Vercel: request API trả JSON, SignalR kết nối được |
+| V2 | ⚠️ **Lỗi** | Nhãn theo đúng enum BE (`CancelReason` 7, `CancelSource` 4 có `LINK`, `DepositSource` 3), tham số gõ bằng type; nhân viên thấy tên người hủy (`cancelledByName`) | `getCancelReasonText` ở `shared/utils/bookingStatus.ts` (khoảng dòng 225) viết cho **khách** ("Bạn đã hủy", "Chi nhánh chưa xác nhận kịp, bạn chưa bị trừ tiền") mà `BookingDetailDrawer.tsx` (khoảng 449) và `court/staff/components/BookingDetailModal.tsx` (khoảng 333) của nhân viên cũng gọi ⇒ nhân viên đọc "Lý do hủy: Bạn đã hủy". Tách nhãn theo vai trò (bẫy 9): nhân viên VD "Khách hủy", "Quá hạn duyệt", "Quản lý từ chối", "TADSS từ chối", "Hết hạn thanh toán", "Nhân viên hủy", "Dọn đơn dở dang"; khách giữ câu hiện tại. Thêm unit test: mọi giá trị enum có nhãn ở cả hai vai trò |
+| V3 | ✅ (thiếu test) | Hàm chung `getStaffDepositSummary` theo `paymentStatus` ("Cọc phải trả" / "Đã cọc" + "Còn phải thu khi check-out"), `formatDepositPercent` (0,0715 ⇒ "7.15%"); hai màn nhân viên dùng chung | Unit test các ca `UNPAID` / `PARTIALLY_PAID` / `PAID`, `FULL_PAYMENT_FALLBACK`, tỷ lệ `0.0715` |
+| V4 | ✅ (thiếu test) | `getPaidAmountForRefund` (chỉ `PAID_ONLINE`; `depositAmount = null` ⇒ `finalTotal`), chọn mốc lớn nhất không phụ thuộc thứ tự, bỏ bảng 100/50/25 % viết cứng; `CancelBookingModal` báo khi chưa trả tiền hoặc không tải được chính sách | Unit test ở `src/tests/features/booking/customer/utils/bookingStatus.test.ts`: mảng xáo thứ tự, đơn chưa trả, đơn cũ `depositAmount = null`, đúng mốc giờ |
+| V5 | ✅ (thiếu test) | Hàm thuần `resolveRetryPaymentError` theo `code`, bỏ dò chữ; `BookingHistoryList` có nút "Đặt sân mới"; `PaymentResult` dùng chung hàm | Unit test hàm `resolveRetryPaymentError` (mỗi `code` một ca). Nhỏ: `booking-history/BookingDetailModal.tsx` không tải lại đơn khi `shouldReload` |
+| V6 | ✅ | Kéo tối đa 24 ô (`CourtTrack`), cảnh báo khi chạm giới hạn, form tại quầy kiểm 12 giờ, hiện `errors.Courts` (đặt online và tại quầy), 429, `SLOT_UNAVAILABLE_NOTIFY_REGISTERED` | Thử: gửi tay đơn 12 giờ 30 phút thấy câu của BE |
+| V7 | ✅ (gần đủ) | 400 và 409 lấy `message` của BE, bỏ mã không tồn tại; 400 tải lại danh sách, tóm tắt và chi tiết | 409 mới chỉ tải lại chi tiết, chưa tải lại danh sách |
+| V8 | ✅ | Đăng ký 3 sự kiện trong `NotificationDispatcher` (Manager / Owner, khách, chỉ làm mới); payload khớp DTO SignalR của BE | Thử hai tab (Manager, khách) duyệt một đơn |
+| V9 | ❌ | (Hàng chờ: tải lại khi kết nối lại và mỗi 60 giây) | Badge trên menu `manager.navigation.ts`, `owner.navigation.ts` |
+| V10 | ❌ | | MSW |
+| V11 | ❌ | | Playwright E2E-01…14: **Gate M6** |
+| V12 | ❌ | | Hook đếm ngược dùng chung |
+| V13 | ✅ (gần đủ) | Xóa `formatDate`, `formatDateTime`, `fetchServiceById`; bảng mã lỗi theo `ErrorCodes.cs` | Còn điều kiện `code === 'INSUFFICIENT_PERMISSIONS'` (BE không có mã này) ở `features/customer/shared/utils/error-handling.ts` và `features/branch/owner/utils/error-handling.ts` |
+| V14 | ❌ | | `master` vẫn `426e680` (31/10): PR `develop` → `master` sau khi sửa V2 |
+
+Sửa thêm ngoài danh sách (đúng, giữ): lệnh duyệt / từ chối cọc trước đây gửi body bị `JSON.stringify` hai lần (`authFetch` đã tự stringify); `combineDateAndTime` ghép ngày giờ chơi theo giờ VN, không phụ thuộc múi giờ trình duyệt; `customerPhone`, `approvalReasonCode` có thể null; trang hủy bằng link chỉ hiện nút hủy cho `CONFIRMED` / `PAID_ONLINE`; lịch có chú thích màu "Chờ duyệt cọc". Ô nhập giá (P6-62) chưa chặn số lẻ: `pricing/shared/dialogs/CreateVersionModal.tsx`, `branch/owner/components/tabs/BranchServicesTab.tsx` (BE đã từ chối 400, chỉ là trải nghiệm).
 
 ### 4.1. Bảng việc
 
