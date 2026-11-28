@@ -3,7 +3,7 @@
 | | |
 | :--- | :--- |
 | **Dành cho** | Người chạy, vận hành và kiểm thử hệ thống trên máy Windows (Git Bash + Docker Desktop): dev, bản deploy, CD, quan sát, lượt đánh giá TADSS, báo cáo tổng kết chất lượng + dashboard "Kiểm thử", đo hiệu năng, xử lý sự cố |
-| **Cập nhật** | 11/11/2026 (Epic 6C, task 1.42). Thay cho bốn hướng dẫn cũ `DOCKER_COMMANDS.md`, `EVALUATION_RUN_GUIDE.md`, `PERF_ENVIRONMENT.md`, `TEST_DASHBOARD.md` và mục "Lệnh quan trọng" của bản tổng hợp; lệnh đã đối chiếu với script hiện tại |
+| **Cập nhật** | 28/11/2026: ba nhóm container (mục 0.1), chạy FE local gọi bản deploy (mục 2.6), panel "Đơn đang vi phạm" và các cảnh báo tính đúng dữ liệu (mục 4). 11/11/2026 (Epic 6C, task 1.42). Thay cho bốn hướng dẫn cũ `DOCKER_COMMANDS.md`, `EVALUATION_RUN_GUIDE.md`, `PERF_ENVIRONMENT.md`, `TEST_DASHBOARD.md` và mục "Lệnh quan trọng" của bản tổng hợp; lệnh đã đối chiếu với script hiện tại |
 | **Không có ở đây** | Ý nghĩa từng khóa cấu hình `Tadss:*`: [CONFIGURATION_REFERENCE.md](CONFIGURATION_REFERENCE.md). Lý do thiết kế: spec / plan ở `spec/`. Kết luận hiệu năng: [PERFORMANCE_REPORT.md](../report/PERFORMANCE_REPORT.md) |
 
 Lệnh chạy nguyên văn trong Git Bash (lệnh `docker compose` chạy được cả trong PowerShell). Thư mục chạy ghi ở đầu mỗi mục. Bí mật **không bao giờ** nằm trong image hay repo: dev dùng `.env` + `appsettings.Development.json` của từng repo, bản deploy dùng một file `smashcourt-deploy.env` ở thư mục gốc workspace.
@@ -15,6 +15,7 @@ Lệnh chạy nguyên văn trong Git Bash (lệnh `docker compose` chạy đư�
 | Build + test trước khi commit | BE `dotnet build SmashCourt-BE.slnx -c Release` + `dotnet test …`; TADSS `dotnet build TADSS.slnx -c Release --warnaserror` | 1 |
 | Cập nhật một service của bản deploy | `bash deploy/deploy.sh be` (hoặc `tadss`, `ai`) trong `SmashCourt-BE/` | 2 |
 | Xem dữ liệu của bản deploy | pgAdmin / DBeaver tới `127.0.0.1:15432` | 2.3 |
+| Chạy FE local gọi BE, TADSS, AI của bản deploy | `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` rồi `npm run dev` trong `smashcourt-fe/` | 2.6 |
 | Bật / tắt TADSS trên bản deploy (không khởi động lại) | `bash deploy/tadss-flag.sh on` · `off` · `status` trong `SmashCourt-BE/` | 2.4 |
 | TADSS treo mà đặt sân vẫn nhanh (mạch ngắt) | Panel "Mạch gọi TADSS" tab BE; log `Mạch gọi TADSS` | 2.5 |
 | Xem job deploy của CI, mã thoát `cd.sh` | tab Actions của repo, job "Deploy (máy deploy)" | 3 |
@@ -24,6 +25,18 @@ Lệnh chạy nguyên văn trong Git Bash (lệnh `docker compose` chạy đư�
 | Đo hiệu năng một kịch bản | `bash perf/perf.sh up` ⇒ `bash perf/perf.sh run load --rate 19 --duration 15m --code SP-01` | 8 |
 | Một lỗi đã gặp | bảng sự cố | 9 |
 | Trả dung lượng đĩa | `docker image prune -f`, `bash tools/evaluation/run.sh --clean-only` | 10 |
+
+### 0.1. Ba nhóm container trong Docker Desktop
+
+Docker Desktop gom container theo nhóm (compose project). Trên máy deploy có ba nhóm, **cả ba tự chạy khi mở Docker Desktop** (mọi container đặt `restart: unless-stopped`), nên thường ngày không cần lệnh nào. Lệnh ở cột cuối chỉ dùng khi một nhóm đã bị tắt hẳn (`docker compose down`) hoặc lần đầu dựng.
+
+| Nhóm (tên trong Docker Desktop) | Container | Làm gì | File compose | Bật lại (một lệnh) | Mục |
+| :--- | :--- | :--- | :--- | :--- | :---: |
+| `smashcourt-deploy` | `smashcourt-be`, `tadss-runtime`, `smashcourt-ai`, `smashcourt-postgres`, `smashcourt-redis`, `smashcourt-ngrok`, `smashcourt-alloy` | **Bản chạy thật** của cả hệ thống, dùng chung với cả nhóm: BE, TADSS, AI chạy image tải từ GHCR; PostgreSQL và Redis là dữ liệu riêng của bản deploy; ngrok mở BE ra ngoài cho FE trên Vercel và VNPay; Alloy gửi số liệu lên Grafana Cloud | `SmashCourt-BE/deploy/docker-compose.yml` | `bash deploy/deploy.sh all` trong `SmashCourt-BE/` (kéo image mới nhất rồi bật; Alloy tạo lần đầu bằng `bash deploy/deploy.sh obs`) | 2 |
+| `smashcourt-runner` | `smashcourt-runner-be`, `-tadss`, `-ai` | Ba máy chạy job GitHub Actions (mỗi repo một máy). Push `develop` / `master` thì job "Deploy" chạy ở đây và cập nhật nhóm `smashcourt-deploy` (CD). Không phục vụ người dùng; tắt thì push vẫn build trên GitHub nhưng bản deploy không tự cập nhật | `SmashCourt-BE/deploy/runner/docker-compose.yml` | `docker compose -f deploy/runner/docker-compose.yml up -d --build` trong `SmashCourt-BE/` | 3 |
+| `smashcourt-test-obs` | `smashcourt-test-grafana`, `-prometheus`, `-pushgateway`, `-tempo`, `-alloy` | Dashboard "Kiểm thử" cho người kỹ thuật (<http://127.0.0.1:3003>): kết quả test và đo hiệu năng. Không bắt buộc: báo cáo `BAO_CAO_MOI_NHAT.html` vẫn sinh ra khi nhóm này tắt | `TADSS-Runtime/perf/docker-compose.yml` | `docker compose -f perf/docker-compose.yml up -d` trong `TADSS-Runtime/`, rồi `python perf/board.py push` (Pushgateway không lưu ra đĩa, cần đẩy lại sau mỗi lần Docker khởi động lại) | 7 |
+
+Khi đo hiệu năng (`perf/perf.sh up`) có thêm nhóm `smashcourt-perf` (BE / TADSS / AI riêng cho lượt đo, mục 8); lượt đánh giá TADSS tạo nhóm `tadss` (mục 6). Hai nhóm này chỉ có khi đang chạy việc đó.
 
 ---
 
@@ -133,6 +146,21 @@ Cờ bật nhưng TADSS treo hoặc mạng tới TADSS mất gói: trước P6-5
 - **Đo:** `bash perf/perf.sh up --circuit-off` cho lượt đối chứng mạch tắt; `python perf/stack/faults.py latency <lượt>` tính độ trễ đặt sân trong khoảng lỗi (`fault-latency.json`).
 - **E-STAGING** cũng bật mạch. TADSS dev dùng Neon (ngủ khi vắng): trước đợt E2E / LT-04 gọi `/health/ready` của TADSS tới khi 200 rồi chờ 15 giây.
 
+### 2.6. Chạy FE local gọi bản deploy
+
+Muốn sửa FE trên máy mà không dựng BE, TADSS, AI: dùng luôn bản deploy (đã có TADSS bật cờ, dữ liệu thật của bản deploy). Chỉ áp dụng trên **chính máy deploy** (BE nghe `127.0.0.1:8080`); máy khác phải gọi qua URL ngrok của BE và FE phải gửi header `ngrok-skip-browser-warning` (việc V1 ở `spec/PHASE6_FE_HANDOFF.md`).
+
+1. Bản deploy đang chạy: <http://localhost:8080/health/ready> trả 200 (không thì mở Docker Desktop, hoặc `bash deploy/deploy.sh all` trong `SmashCourt-BE/` để kéo image mới nhất và bật).
+2. `smashcourt-fe/.env.local`: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` (một biến cho cả REST lẫn SignalR).
+3. Trong `smashcourt-fe/`: `npm install` (lần đầu) rồi `npm run dev`, mở <http://localhost:3000>. **Phải là cổng 3000**: CORS của BE chỉ cho `http://localhost:3000` và tên miền Vercel (đã thử 28/11: preflight từ `localhost:3000` được phép, có credentials).
+
+| Lưu ý | Chi tiết |
+| :--- | :--- |
+| Dữ liệu dùng chung | Đặt, hủy, duyệt trên FE local ghi vào DB của bản deploy, cùng chỗ với FE trên Vercel mà cả nhóm dùng. Dùng tài khoản và chi nhánh thử. Email gửi thật qua Gmail |
+| Thanh toán VNPay quay về đâu | Sau khi trả tiền, VNPay gọi BE qua ngrok, BE chuyển trình duyệt về `FrontendBaseUrl` = FE trên **Vercel** (mặc định). Đơn vẫn cập nhật đúng; mở lại trang local để xem. Link trong email cũng trỏ về Vercel |
+| Muốn VNPay quay về FE local | Thêm `FRONTEND_BASE_URL=http://localhost:3000` vào `smashcourt-deploy.env` rồi `bash deploy/deploy.sh be`. **Trong lúc đó mọi người dùng FE trên Vercel** thanh toán xong cũng bị đưa về `localhost:3000` (mỗi lúc chỉ trỏ được một FE) và link email trỏ về localhost: báo trước cho cả nhóm, thử xong thì xóa dòng đó rồi `bash deploy/deploy.sh be` lần nữa. Không đặt biến thì bản deploy giữ nguyên như cũ (compose `FrontendBaseUrl: ${FRONTEND_BASE_URL:-https://smashcourt-ai.vercel.app}`) |
+| CD ghi đè? | Không: CD dùng cùng `smashcourt-deploy.env`, nên giá trị đang đặt vẫn giữ sau mỗi lần push |
+
 ---
 
 ## 3. CD tự động (push ⇒ deploy)
@@ -170,6 +198,7 @@ Alloy dừng hoặc máy tắt thì app vẫn chạy, chỉ mất số liệu (v
 | Việc | Lệnh / nơi xem |
 | :--- | :--- |
 | Dashboard | Grafana › Dashboards › **SmashCourt - Vận hành** › BE / TADSS / AI |
+| Đơn đặt sân bị sai dữ liệu | Tab BE › nhóm "Tính đúng dữ liệu đặt sân": ô số vi phạm, "Vi phạm theo điều", và panel **"Đơn đang vi phạm"** nêu mã đơn (BK-…), điều bị vi phạm và lý do. Mỗi lượt kiểm (10 phút) có một dòng tổng liệt kê lại mọi đơn còn sai (tối đa 20 mã), nên dòng mới nhất là danh sách hiện tại; dòng "vi phạm" riêng của mỗi đơn chỉ ghi một lần lúc vi phạm mới xuất hiện. Trên máy: `docker logs smashcourt-be 2>&1 \| grep Invariant` |
 | Log | Panel "Log Warning / Error" cuối mỗi tab; toàn bộ: Explore › Loki › `service_name` = `smashcourt-be` / `tadss-runtime` / `smashcourt-ai`. Cảnh báo khởi động của BE (DataProtection-Keys, https port) là vô hại |
 | Trace | Explore › Tempo › Search, Service Name = `smashcourt-be` |
 | Sửa dashboard / cảnh báo | Sửa `deploy/grafana/dashboards.py` (hoặc `alert_rules` trong `grafana_cloud.py`) ⇒ `python deploy/grafana/grafana_cloud.py check` ⇒ `push` |
@@ -182,6 +211,9 @@ Alloy dừng hoặc máy tắt thì app vẫn chạy, chỉ mất số liệu (v
 | BE / AI lỗi 5xx > 5 % | 5 phút |
 | TADSS đường lùi > 20 % | 10 phút (chỉ có khi bật `TadssConfig:EnableTadssDecision`) |
 | Gemini 429 liên tục | 10 phút |
+| Mạch gọi TADSS của BE không đóng | 2 phút (mọi đơn online đang cọc 100 %, mục 2.5) |
+| Dữ liệu đặt sân sai | Ngay khi lượt kiểm tính đúng (10 phút một lần) thấy vi phạm; mã đơn xem ở panel "Đơn đang vi phạm" |
+| Kiểm tính đúng dữ liệu không chạy được | BE vẫn chạy mà 30 phút không có lượt kiểm thành công |
 | CD thất bại / `UNSAFE` | GitHub tự gửi email khi job "Deploy (máy deploy)" đỏ |
 
 Giới hạn gói Free: khoảng 10.000 chuỗi metric, 50 GB log, 50 GB trace, giữ **14 ngày** (xem mức dùng ở Administration › Usage insights). Số liệu cho báo cáo xuất ngay (panel › Inspect › Data); số liệu đo hiệu năng dùng Grafana local (Mục 7–8), giữ 365 ngày.

@@ -3,7 +3,7 @@
 | | |
 | :--- | :--- |
 | **Dành cho** | Người làm `smashcourt-fe` ở Epic 6B (Phase 6, W09–W12, 02/11 – 29/11/2026) |
-| **Trạng thái (23/11)** | BE xong và đang chạy trên bản deploy (hợp đồng API không đổi từ 31/10, trừ P6-61 ở Mục 7). FE `develop` `345e89e`: phần lớn Phase 6 đã làm (Mục 5), CI xanh (lint, `tsc`, unit test 184 ca, build). **Còn 14 việc ở Mục 4**, soát thẳng trên mã `develop` ngày 23/11 |
+| **Trạng thái (23/11)** | BE xong và đang chạy trên bản deploy (hợp đồng API không đổi từ 31/10, trừ P6-61 và P6-62 (28/11, giá phải là số đồng nguyên) ở Mục 7). FE `develop` `345e89e`: phần lớn Phase 6 đã làm (Mục 5), CI xanh (lint, `tsc`, unit test 184 ca, build). **Còn 14 việc ở Mục 4**, soát thẳng trên mã `develop` ngày 23/11 |
 | **Hạn** | **Gate M6: 29/11** (FE build + lint + Playwright trên mock đạt, không còn việc tính năng mở). Phase 7 (30/11 – 06/12) ghép FE ↔ BE ↔ TADSS thật, **feature freeze 06/12**: sau mốc này chỉ sửa lỗi |
 | **Chia việc** | Từ 23/11 toàn bộ việc ở Mục 4 do người làm FE làm, cả logic lẫn giao diện. Người giữ BE trả lời câu hỏi hợp đồng và review |
 | **Vai trò file** | Điểm vào duy nhất cho FE: việc còn lại (Mục 4), đã xong (Mục 5), cách chạy, hợp đồng đọc từ mã BE (Mục 7), bẫy (Mục 8). Chi tiết hành vi từng màn ở spec Phase 6 Mục 8; lệch nhau thì theo mã BE và báo để sửa file này |
@@ -200,7 +200,8 @@ Bảng dưới lấy từ mã C# (enum, DTO, controller, service), không chép 
 | Giờ đặt hợp lệ (P6-61, cả online lẫn tại quầy) | `startTime`, `endTime` chia hết cho 30 phút; `endTime − startTime` ≤ 12 giờ (`CourtSlotDto.IsOnSlotStep`, `IsWithinMaxDuration`) | Lưới giờ chỉ cho chọn ô 30 phút (đã đúng); giới hạn 12 giờ mỗi lượt (V6) |
 | Mức tối thiểu khi duyệt | Số tiền > 0 mà < `MinOnlinePaymentAmount` (cấu hình, hiện 5.000 đ) ⇒ 400, `errors.DepositRate` = "Số tiền cọc tối thiểu 5.000 đ, hoặc chọn 0 %" | Báo trước bằng hằng 5.000, vẫn hiện lỗi BE nếu cấu hình khác |
 | % hoàn khi hủy | Mốc có `hoursBefore` **lớn nhất** ≤ số giờ còn tới giờ chơi (giờ VN); đã qua giờ chơi ⇒ 0 (`CancellationPolicy.RefundPercent`). `GET /api/cancel-policies` trả sắp giảm dần | Tự sắp hoặc lọc lấy max, không dựa vào thứ tự mảng |
-| Tiền hoàn | Mỗi Payment `SUCCESS`: `round((amount − refundedAmount) × % / 100)`, cộng lại (`QuoteRefund`) | Xem trước ≈ `Math.round(sốĐãTrả × % / 100)` với số đã trả ở V4; có thể lệch 1 đ do BE làm tròn theo từng Payment; số thật là số BE ghi |
+| Tiền hoàn | Mỗi Payment `SUCCESS`: `round((amount − refundedAmount) × % / 100)`, nửa đồng làm tròn lên (P6-62, `MoneyHelper.RoundVnd`), cộng lại (`QuoteRefund`) | Xem trước ≈ `Math.round(sốĐãTrả × % / 100)` với số đã trả ở V4; có thể lệch 1 đ do BE làm tròn theo từng Payment; số thật là số BE ghi |
+| Làm tròn tiền, giá nhập (P6-62) | Mọi số tiền là số đồng nguyên; mọi chỗ đổi phần trăm / tỷ lệ ra tiền (tiền sân theo tỷ lệ khung giờ, giảm giá hạng, khuyến mãi, cọc, hoàn) làm tròn về đồng, nửa đồng làm tròn lên (`MoneyHelper.RoundVnd`). Giá sân (`slots[i].weekdayPrice`, `weekendPrice`) và giá dịch vụ (`defaultPrice`, `price`) có phần lẻ ⇒ 400 `VALIDATION_ERROR`, câu "… phải là số đồng nguyên" ở khóa của trường (VD `errors["Slots[1].WeekdayPrice"]`) | Tính trước bằng `Math.round` (số dương nên trùng BE); số tiền hiển thị lấy từ BE (`finalTotal`, `depositAmount`, `remainingAmount`, `/api/prices/calculate`). Ô nhập giá chỉ nhận số nguyên (`step="1"`), lỗi BE hiện theo khóa `errors` |
 | Đã tới giờ chơi | `now ≥ bookingDate + startTime sớm nhất` theo giờ VN (`CancellationPolicy.HasStarted`) | Mốc `+07:00` từ `bookingDate` và `startTime` của sân đầu tiên |
 | Còn phải thu khi check-out | `finalTotal hiện tại − tổng Payment SUCCESS` (không âm), bằng `remainingAmount` | Hiện `remainingAmount`, không tự trừ |
 
